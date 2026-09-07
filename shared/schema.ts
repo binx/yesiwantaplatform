@@ -50,6 +50,12 @@ export const variantSchema = z.object({
   label: z.string(),
   priceCents: centsSchema,
   inventory: inventorySchema,
+  /**
+   * Shipping weight in grams. Zero means the store has not recorded one, which
+   * is not an error — a flat-rate store never needs it, and weight-banded rates
+   * simply see a zero-gram parcel.
+   */
+  weightGrams: z.number().int().min(0).default(0),
   /** Set once the variant has been pushed to Stripe. */
   stripePriceId: z.string().nullable().default(null),
 });
@@ -106,6 +112,20 @@ export const storeSchema = z.object({
   aboutText: z.string().nullable().default(null),
   collections: z.array(collectionSchema).default([]),
   products: z.array(productSchema).default([]),
+  /**
+   * Where the shop ships, so the cart can ask for a destination.
+   *
+   * Hosted Stripe Checkout collects the address *after* the session exists, so
+   * a zone-priced store has to know the country before then — see
+   * docs/shipping.md. The cart asks; this is the list it offers.
+   */
+  shipping: z
+    .object({
+      countries: z.array(z.string().length(2)).default([]),
+      /** A catch-all zone exists, so unlisted countries are still priced. */
+      worldwide: z.boolean().default(false),
+    })
+    .default({ countries: [], worldwide: false }),
 });
 
 /**

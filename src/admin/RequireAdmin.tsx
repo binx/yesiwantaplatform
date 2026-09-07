@@ -3,6 +3,7 @@ import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-d
 import { Button, Grid, Menu, Skeleton, Typography } from "antd";
 import {
   AppstoreOutlined,
+  CarOutlined,
   LogoutOutlined,
   ProfileOutlined,
   SettingOutlined,
@@ -29,6 +30,7 @@ const NAV = [
   { key: "products", icon: <ShoppingOutlined />, label: "Products" },
   { key: "collections", icon: <ProfileOutlined />, label: "Collections" },
   { key: "orders", icon: <ShopOutlined />, label: "Orders" },
+  { key: "shipping", icon: <CarOutlined />, label: "Shipping" },
   { key: "settings", icon: <SettingOutlined />, label: "Settings" },
 ];
 

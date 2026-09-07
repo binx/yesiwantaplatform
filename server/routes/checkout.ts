@@ -6,9 +6,11 @@ import { getSettings, listProducts } from "../../db/repository.js";
 import {
   createPendingOrder,
   findOrderByCheckoutSession,
-  listShippingRates,
   type PendingOrderLine,
 } from "../../db/orders-repository.js";
+import { getShippingTable } from "../../db/shipping-repository.js";
+import { countriesCovered } from "../../shared/shipping.js";
+import { quoteShipping } from "./shipping.js";
 import { env } from "../env.js";
 import { httpError, writeRateLimit } from "../middleware.js";
 import { getStripe } from "../stripe.js";
@@ -38,6 +40,12 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
   if (!settings) throw httpError(503, "This store has not been set up yet.");
 
   const currency = settings.currency.toLowerCase();
+
+  // Only used when the cart did not name a destination; a store with no zones
+  // configured keeps the previous behaviour of a small default list.
+  const { zones } = await getShippingTable();
+  const covered = countriesCovered(zones);
+  const allowedCountries = covered.length > 0 ? covered : ["US", "CA", "GB", "AU", "NZ", "IE"];
 
   // Load every referenced product once, by id, from the live catalogue.
   const { products } = await listProducts({ liveOnly: true, limit: 200 });
@@ -88,10 +96,32 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
     subtotalCents += variant.priceCents * line.quantity;
   }
 
-  // Shipping is offered inline rather than as pre-created Stripe objects, so
-  // there is nothing to keep in sync.
-  const rates = await listShippingRates();
-  const shippingOptions: Stripe.Checkout.SessionCreateParams.ShippingOption[] = rates.map(
+  /*
+   * Shipping.
+   *
+   * Resolved here, from the same `quoteShipping` the cart page called, so the
+   * price shown before checkout is the price offered at Stripe. Offered inline
+   * rather than as pre-created Stripe objects, so there is nothing to keep in
+   * sync.
+   *
+   * v1 let the browser pick a shipping SKU, and invented a `{name:"FREE",
+   * price:0}` one when it had none.
+   */
+  const destination = parsed.data.shipToCountry?.toUpperCase() ?? null;
+
+  const quote = destination
+    ? await quoteShipping(parsed.data.lines, destination)
+    : { rates: [] as { id: string; name: string; priceCents: number }[] };
+
+  // The buyer's choice goes first: Stripe preselects the first option, so this
+  // is what makes the cart's selection survive the redirect.
+  const ordered = [...quote.rates].sort((a, b) => {
+    if (a.id === parsed.data.shippingRateId) return -1;
+    if (b.id === parsed.data.shippingRateId) return 1;
+    return 0;
+  });
+
+  const shippingOptions: Stripe.Checkout.SessionCreateParams.ShippingOption[] = ordered.map(
     (rate) => ({
       shipping_rate_data: {
         type: "fixed_amount",
@@ -110,9 +140,17 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
       mode: "payment",
       line_items: lineItems,
       currency,
-      // Stripe collects the address, so the storefront no longer owns a
-      // four-pane address form (and its validation bugs).
-      shipping_address_collection: { allowed_countries: ["US", "CA", "GB", "AU", "NZ", "IE"] },
+      /*
+       * Locked to the country the rates were priced for.
+       *
+       * Letting the buyer change country at Stripe would let them keep a
+       * domestic rate on an international address — the shipping equivalent of
+       * trusting a price from the client. With no destination chosen we fall
+       * back to the store's own list.
+       */
+      shipping_address_collection: {
+        allowed_countries: destination ? [destination] : allowedCountries,
+      },
       ...(shippingOptions.length > 0 ? { shipping_options: shippingOptions } : {}),
       success_url: `${env.PUBLIC_URL}/confirm?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${env.PUBLIC_URL}/cart`,
@@ -167,10 +205,4 @@ checkoutRouter.get("/checkout/:sessionId", async (req, res) => {
       options: i.options,
     })),
   });
-});
-
-/** Shipping choices, shown on the cart page before checkout. */
-checkoutRouter.get("/shipping-rates", async (_req, res) => {
-  const rates = await listShippingRates();
-  res.json(rates.map(({ id, name, priceCents }) => ({ id, name, priceCents })));
 });

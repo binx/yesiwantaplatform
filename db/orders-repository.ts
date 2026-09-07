@@ -410,24 +410,3 @@ export async function forgetWebhookEvent(id: string): Promise<void> {
   const { drizzle: db, schema } = await getDatabase();
   await db.delete(schema.webhookEvents).where(eq(schema.webhookEvents.id, id));
 }
-
-export async function listShippingRates(): Promise<
-  { id: string; name: string; priceCents: number; stripeShippingRateId: string | null }[]
-> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  return (await db
-    .select({
-      id: schema.shippingRates.id,
-      name: schema.shippingRates.name,
-      priceCents: schema.shippingRates.priceCents,
-      stripeShippingRateId: schema.shippingRates.stripeShippingRateId,
-    })
-    .from(schema.shippingRates)
-    .where(eq(schema.shippingRates.isActive, true))) as unknown as {
-    id: string;
-    name: string;
-    priceCents: number;
-    stripeShippingRateId: string | null;
-  }[];
-}

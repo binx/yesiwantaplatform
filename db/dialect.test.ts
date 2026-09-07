@@ -172,7 +172,7 @@ for (const { name, context } of dialects) {
         description: "",
         bulletPoints: [],
         variantName: null,
-        variants: [{ label: "", priceCents: 100, inventory: { type: "infinite" } }],
+        variants: [{ label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0 }],
         optionGroups: [],
         isLive: true,
       });
@@ -192,7 +192,7 @@ for (const { name, context } of dialects) {
           description: "",
           bulletPoints: [],
           variantName: null,
-          variants: [{ label: "", priceCents: 100, inventory: { type: "infinite" } }],
+          variants: [{ label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0 }],
           optionGroups: [],
           isLive: true,
         }),

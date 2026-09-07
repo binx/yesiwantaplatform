@@ -9,6 +9,7 @@ import { sessionRouter } from "./routes/session.js";
 import { setupRouter } from "./routes/setup.js";
 import { adminRouter } from "./routes/admin.js";
 import { checkoutRouter } from "./routes/checkout.js";
+import { shippingRouter } from "./routes/shipping.js";
 import { webhookRouter } from "./routes/webhook.js";
 
 export function createApp(): Express {
@@ -55,6 +56,7 @@ export function createApp(): Express {
   app.use("/api", setupRouter);
   app.use("/api", publicRouter);
   app.use("/api", checkoutRouter);
+  app.use("/api", shippingRouter);
   app.use("/api/admin", adminRouter);
 
   // Uploaded product imagery.

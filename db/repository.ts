@@ -9,7 +9,9 @@ import {
   type Store,
   type Theme,
 } from "../shared/schema.js";
+import { countriesCovered, hasCatchAllZone } from "../shared/shipping.js";
 import { getDatabase } from "./client.js";
+import { getShippingTable } from "./shipping-repository.js";
 
 /**
  * Catalogue access.
@@ -57,6 +59,7 @@ interface VariantRow {
   priceCents: number;
   inventoryType: string;
   inventoryQuantity: number;
+  weightGrams: number;
   stripePriceId: string | null;
 }
 
@@ -103,6 +106,7 @@ function buildProduct(
         v.inventoryType === "finite"
           ? { type: "finite" as const, quantity: v.inventoryQuantity }
           : { type: "infinite" as const },
+      weightGrams: v.weightGrams,
       stripePriceId: v.stripePriceId,
     })),
     optionGroups: groups.map((g) => ({
@@ -380,6 +384,8 @@ export async function getStoreSnapshot(): Promise<Store | null> {
     listCollections(),
   ]);
 
+  const { zones } = await getShippingTable();
+
   return storeSchema.parse({
     name: settings.name,
     // Publishable key only. The secret key never leaves the environment.
@@ -389,6 +395,10 @@ export async function getStoreSnapshot(): Promise<Store | null> {
     aboutText: settings.aboutText,
     collections,
     products,
+    shipping: {
+      countries: countriesCovered(zones),
+      worldwide: hasCatchAllZone(zones),
+    },
   });
 }
 

@@ -4,7 +4,9 @@ import type {
   EnvironmentStatus,
   ProductInput,
   SettingsInput,
+  ShippingTableInput,
 } from "@shared/api";
+import type { ShippingRate, ShippingZone } from "@shared/shipping";
 import type { Collection, Image, Product } from "@shared/schema";
 import type { FulfilmentInput, Order, OrderStatus } from "@shared/orders";
 import { apiGet, csrfDelete, csrfPost, csrfPut, csrfUpload } from "@/lib/api";
@@ -24,6 +26,7 @@ export const adminKeys = {
   collections: ["admin", "collections"] as const,
   settings: ["admin", "settings"] as const,
   environment: ["admin", "environment"] as const,
+  shipping: ["admin", "shipping"] as const,
   orders: (status: OrderStatus | "all", offset: number) =>
     ["admin", "orders", status, offset] as const,
   order: (id: string) => ["admin", "order", id] as const,
@@ -241,6 +244,29 @@ export function useEnvironment() {
     queryKey: adminKeys.environment,
     queryFn: ({ signal }) => apiGet<EnvironmentStatus>("/admin/environment", signal),
     staleTime: 60_000,
+  });
+}
+
+/* ---------------------------------------------------------------- shipping */
+
+export interface ShippingTable {
+  zones: ShippingZone[];
+  rates: ShippingRate[];
+}
+
+export function useShipping() {
+  return useQuery({
+    queryKey: adminKeys.shipping,
+    queryFn: ({ signal }) => apiGet<ShippingTable>("/admin/shipping", signal),
+  });
+}
+
+export function useUpdateShipping() {
+  const invalidate = useInvalidate();
+
+  return useMutation({
+    mutationFn: (input: ShippingTableInput) => csrfPut<void>("/admin/shipping", input),
+    onSuccess: () => invalidate(adminKeys.shipping),
   });
 }
 

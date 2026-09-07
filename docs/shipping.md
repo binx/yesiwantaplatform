@@ -185,8 +185,13 @@ where the provider pays for itself.
 
 ## Sequencing
 
-Tiers 1 and 2 are self-contained, need no third-party account, keep the hosted
-checkout, and will satisfy most stores. They should land first and on their own.
+**Tiers 1 and 2 have shipped.** Zones, weight bands, subtotal bands (including
+free-over-threshold), per-variant weights, an admin table with a coverage
+warning, and a destination picker on the cart. Resolution is one pure function
+in `shared/shipping.ts`, called by both the cart quote and the checkout route so
+the two cannot disagree. The hosted checkout is unchanged.
+
+Tier 3 remains as described below.
 
 Tier 3 is not an increment on them. It requires `ui_mode: 'elements'`, which
 means Beluga owns the checkout page again — the thing Phase 0 deliberately gave

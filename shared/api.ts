@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { countryCodeSchema, shippingRateInputSchema, shippingZoneInputSchema } from "./shipping.js";
 import {
   centsSchema,
   collectionSchema,
@@ -23,6 +24,8 @@ export const variantInputSchema = z.object({
   label: z.string().default(""),
   priceCents: centsSchema,
   inventory: inventorySchema,
+  /** Grams. Only consulted by weight-banded shipping rates. */
+  weightGrams: z.number().int().min(0).max(1_000_000).default(0),
 });
 
 export const productInputSchema = z.object({
@@ -109,6 +112,31 @@ export const environmentStatusSchema = z.object({
   publicUrl: z.string(),
 });
 
+/**
+ * The shipping table, saved as one document.
+ *
+ * Zones and rates travel together because they are edited together: a rate can
+ * reference a zone created in the same save.
+ */
+export const shippingTableInputSchema = z.object({
+  zones: z.array(shippingZoneInputSchema.extend({ id: z.string().optional() })).max(50),
+  rates: z.array(shippingRateInputSchema.extend({ id: z.string().optional() })).max(200),
+});
+
+/** What the cart page asks for: identifiers and a destination, never prices. */
+export const shippingQuoteInputSchema = z.object({
+  lines: z
+    .array(
+      z.object({
+        productId: z.string().min(1),
+        variantId: z.string().min(1),
+        quantity: z.number().int().min(1).max(999),
+      }),
+    )
+    .max(100),
+  countryCode: countryCodeSchema,
+});
+
 export const imageInputSchema = z.object({
   alt: z.string().max(300).default(""),
 });
@@ -174,6 +202,8 @@ export type ProductInput = z.infer<typeof productInputSchema>;
 export type CollectionInput = z.infer<typeof collectionInputSchema>;
 export type SettingsInput = z.infer<typeof settingsInputSchema>;
 export type LoginInput = z.infer<typeof loginInputSchema>;
+export type ShippingTableInput = z.infer<typeof shippingTableInputSchema>;
+export type ShippingQuoteInput = z.infer<typeof shippingQuoteInputSchema>;
 export type SetupInput = z.infer<typeof setupInputSchema>;
 export type SetupStatus = z.infer<typeof setupStatusSchema>;
 export type EnvironmentStatus = z.infer<typeof environmentStatusSchema>;

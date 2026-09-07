@@ -9,6 +9,7 @@ import {
   productInputSchema,
   reorderInputSchema,
   settingsInputSchema,
+  shippingTableInputSchema,
   type EnvironmentStatus,
 } from "../../shared/api.js";
 import {
@@ -33,6 +34,7 @@ import {
 } from "../../db/admin-repository.js";
 import { findProductBySlug, getSettings, listCollections, listProducts } from "../../db/repository.js";
 import { getOrder, listOrders, updateFulfilment } from "../../db/orders-repository.js";
+import { getShippingTable, replaceShippingTable } from "../../db/shipping-repository.js";
 import { fulfilmentInputSchema, orderStatusSchema } from "../../shared/orders.js";
 import { httpError, requireAdmin, verifyCsrf, writeRateLimit } from "../middleware.js";
 import { env, hasStripe, isSqlite } from "../env.js";
@@ -255,6 +257,39 @@ adminRouter.put("/settings", async (req, res) => {
   try {
     const input = settingsInputSchema.parse(req.body);
     await updateSettings(input);
+    res.status(204).end();
+  } catch (error) {
+    toHttp(error);
+  }
+});
+
+/* ---------------------------------------------------------------- shipping */
+
+adminRouter.get("/shipping", async (_req, res) => {
+  res.json(await getShippingTable());
+});
+
+/**
+ * Replace the whole shipping table.
+ *
+ * One save rather than per-row CRUD: a rate can reference a zone created in
+ * the same edit, and a zone can be removed out from under a rate, so the two
+ * only make sense written together.
+ */
+adminRouter.put("/shipping", async (req, res) => {
+  try {
+    const input = shippingTableInputSchema.parse(req.body);
+
+    // A rate may only point at a zone present in the same payload; anything
+    // else would leave a dangling reference the moment it is written.
+    const zoneKeys = new Set(input.zones.map((zone) => zone.id).filter(Boolean));
+    for (const rate of input.rates) {
+      if (rate.zoneId !== null && !zoneKeys.has(rate.zoneId)) {
+        throw httpError(400, `"${rate.name}" refers to a zone that is not in this save.`);
+      }
+    }
+
+    await replaceShippingTable(input);
     res.status(204).end();
   } catch (error) {
     toHttp(error);

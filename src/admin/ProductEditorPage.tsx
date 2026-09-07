@@ -26,6 +26,7 @@ import {
   useProduct,
   usePublishProduct,
   useSettings,
+  useShipping,
   useUpdateProduct,
 } from "./queries";
 import { PageHeader } from "./RequireAdmin";
@@ -60,6 +61,8 @@ interface DraftVariant {
   priceText: string;
   infinite: boolean;
   quantity: number;
+  /** Grams. Only consulted by weight-banded shipping rates. */
+  weightGrams: number;
 }
 
 interface Draft {
@@ -93,7 +96,7 @@ const EMPTY_DRAFT: Draft = {
   description: "",
   bulletPoints: [],
   variantName: "",
-  variants: [{ key: nextKey(), label: "", priceText: "", infinite: true, quantity: 0 }],
+  variants: [{ key: nextKey(), label: "", priceText: "", infinite: true, quantity: 0, weightGrams: 0 }],
   optionGroups: [],
   isLive: false,
 };
@@ -119,6 +122,7 @@ function toInput(draft: Draft): ProductInput {
         inventory: variant.infinite
           ? { type: "infinite" }
           : { type: "finite", quantity: Math.max(0, Math.trunc(variant.quantity)) },
+        weightGrams: Math.max(0, Math.trunc(variant.weightGrams)),
       }),
     ),
     optionGroups: draft.optionGroups
@@ -192,6 +196,7 @@ export function ProductEditorPage() {
   const loaded = useProduct(slug);
   const settings = useSettings();
   const environment = useEnvironment();
+  const shipping = useShipping();
 
   const create = useCreateProduct();
   const update = useUpdateProduct();
@@ -204,6 +209,10 @@ export function ProductEditorPage() {
   const hydrated = useRef(false);
 
   const currency = settings.data?.currency ?? "USD";
+  // Only nag about weights when some rate would actually read them.
+  const weighted =
+    shipping.data?.rates.some((r) => r.minWeightGrams !== null || r.maxWeightGrams !== null) ??
+    false;
 
   /* --- load ------------------------------------------------------------- */
 
@@ -228,6 +237,7 @@ export function ProductEditorPage() {
         priceText: (variant.priceCents / 100).toFixed(2),
         infinite: variant.inventory.type === "infinite",
         quantity: variant.inventory.type === "finite" ? variant.inventory.quantity : 0,
+        weightGrams: variant.weightGrams,
       })),
       optionGroups: product.optionGroups,
       isLive: product.isLive,
@@ -631,6 +641,31 @@ export function ProductEditorPage() {
                       )}
                     </div>
 
+                    <div className={cx(styles.variantField)}>
+                      <Field
+                        label="Weight"
+                        help={
+                          weighted
+                            ? "Used to pick a shipping band."
+                            : "Optional — only weight-based shipping rates read it."
+                        }
+                      >
+                        {(control) => (
+                          <InputNumber
+                            {...control}
+                            className={cx(styles.quantity)}
+                            min={0}
+                            precision={0}
+                            addonAfter="g"
+                            value={variant.weightGrams}
+                            onChange={(value) =>
+                              setVariant(variant.key, { weightGrams: value ?? 0 })
+                            }
+                          />
+                        )}
+                      </Field>
+                    </div>
+
                     {draft.variants.length > 1 ? (
                       <Button
                         className={cx(styles.variantRemove)}
@@ -654,7 +689,7 @@ export function ProductEditorPage() {
               onClick={() =>
                 set("variants", [
                   ...draft.variants,
-                  { key: nextKey(), label: "", priceText: "", infinite: true, quantity: 0 },
+                  { key: nextKey(), label: "", priceText: "", infinite: true, quantity: 0, weightGrams: 0 },
                 ])
               }
             >

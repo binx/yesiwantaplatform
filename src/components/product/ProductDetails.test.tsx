@@ -18,6 +18,7 @@ const baseProduct: Product = {
       label: "Small",
       priceCents: 3400,
       inventory: { type: "finite", quantity: 12 },
+      weightGrams: 0,
       stripePriceId: null,
     },
     {
@@ -25,6 +26,7 @@ const baseProduct: Product = {
       label: "Large",
       priceCents: 4200,
       inventory: { type: "finite", quantity: 2 },
+      weightGrams: 0,
       stripePriceId: null,
     },
   ],
@@ -109,6 +111,7 @@ describe("ProductDetails", () => {
           label: "",
           priceCents: 6500,
           inventory: { type: "finite", quantity: 0 },
+          weightGrams: 0,
           stripePriceId: null,
         },
       ],

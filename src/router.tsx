@@ -66,6 +66,10 @@ export const router = createBrowserRouter([
             }),
           },
           {
+            path: "shipping",
+            lazy: async () => ({ Component: (await import("./admin/ShippingPage")).ShippingPage }),
+          },
+          {
             path: "orders",
             lazy: async () => ({ Component: (await import("./admin/OrdersPage")).OrdersPage }),
           },

@@ -127,6 +127,25 @@ so a drift would be a 404 per image rather than a compile error.
 The effect is worth stating plainly: a product thumbnail rendered 70px wide now
 downloads 2.3 kB instead of the 17 kB original.
 
+### Shipping
+
+Rates a store configures, matched against destination, parcel weight and order
+subtotal — no carrier account, and Stripe's hosted checkout is untouched.
+Zones group countries; a zone naming no countries is the catch-all. Rates can be
+pinned to a zone and bounded by weight and subtotal, which is how "free over
+$50" and "heavy parcels cost more" are expressed. v1 modelled all of this as a
+magic Stripe SKU the browser picked.
+
+One consequence worth knowing: **the cart asks which country you are shipping
+to.** Hosted Checkout collects the address *after* the session exists, so a
+zone-priced store has to know the destination before then. The session is then
+restricted to that country, so a buyer cannot keep a domestic rate on an
+international address — the same rule as line items, applied to postage.
+
+Live carrier rates are deliberately absent. They need `ui_mode: 'elements'`,
+which means owning the checkout page again; [docs/shipping.md](docs/shipping.md)
+has the evidence and the trade.
+
 ### Payments
 
 Checkout uses Stripe **Checkout Sessions** — Stripe's hosted page owns the card fields, 3-D Secure, wallets, and address collection, which keeps this project at PCI SAQ-A.

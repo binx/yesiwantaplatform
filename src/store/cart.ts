@@ -19,10 +19,23 @@ export interface CartLine {
 
 interface CartState {
   lines: CartLine[];
+  /**
+   * Where the buyer is shipping to, as an ISO country code.
+   *
+   * Held here rather than asked for at Stripe because hosted Checkout collects
+   * the address *after* the session is created, and zone-priced shipping has to
+   * be resolved before then. Persisted so it survives a reload — being asked
+   * for your country on every visit is the kind of friction that loses carts.
+   */
+  shipToCountry: string | null;
+  /** The rate the buyer picked, by id. Re-resolved server-side at checkout. */
+  shippingRateId: string | null;
   add: (line: CartLine) => void;
   setQuantity: (index: number, quantity: number) => void;
   remove: (index: number) => void;
   clear: () => void;
+  setShipToCountry: (countryCode: string | null) => void;
+  setShippingRateId: (rateId: string | null) => void;
 }
 
 /** Cart quantities are always whole numbers of at least one. */
@@ -54,6 +67,15 @@ export const useCart = create<CartState>()(
   persist(
     (set) => ({
       lines: [],
+      shipToCountry: null,
+      shippingRateId: null,
+
+      setShipToCountry: (shipToCountry) =>
+        // Changing destination invalidates the chosen rate: it may not even
+        // exist in the new zone.
+        set({ shipToCountry, shippingRateId: null }),
+
+      setShippingRateId: (shippingRateId) => set({ shippingRateId }),
 
       add: (line) =>
         set((state) => {
@@ -87,12 +109,19 @@ export const useCart = create<CartState>()(
           return { lines: state.lines.filter((_, i) => i !== index) };
         }),
 
-      clear: () => set({ lines: [] }),
+      clear: () => set({ lines: [], shippingRateId: null }),
     }),
     {
       name: "beluga.cart",
-      version: 1,
-      partialize: (state) => ({ lines: state.lines }),
+      version: 2,
+      /*
+       * The destination persists; the chosen rate does not.
+       *
+       * A rate id is only meaningful against the current shipping table, and
+       * that can change between visits — a stale one would be silently dropped
+       * at checkout. The country is stable and worth remembering.
+       */
+      partialize: (state) => ({ lines: state.lines, shipToCountry: state.shipToCountry }),
     },
   ),
 );

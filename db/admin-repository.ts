@@ -124,6 +124,7 @@ async function writeVariants(productId: string, input: ProductInput): Promise<vo
       priceCents: variant.priceCents,
       inventoryType: variant.inventory.type,
       inventoryQuantity: variant.inventory.type === "finite" ? variant.inventory.quantity : 0,
+      weightGrams: variant.weightGrams,
       position: index,
     };
 

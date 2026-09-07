@@ -1,0 +1,82 @@
+import { Router } from "express";
+import { shippingQuoteInputSchema } from "../../shared/api.js";
+import { parcelWeight, resolveShippingRates } from "../../shared/shipping.js";
+import { getShippingTable, variantWeights } from "../../db/shipping-repository.js";
+import { listProducts } from "../../db/repository.js";
+import { httpError, writeRateLimit } from "../middleware.js";
+
+/**
+ * Shipping quotes for the cart page.
+ *
+ * Public, and deliberately built from identifiers only: the client sends
+ * products, variants and quantities, and the weight and subtotal are read from
+ * the catalogue here. That is the same rule the checkout route follows, and it
+ * is what makes the price shown on the cart the price actually charged —
+ * `quoteShipping` is the single implementation both call.
+ */
+export const shippingRouter: Router = Router();
+
+export interface QuotedRate {
+  id: string;
+  name: string;
+  priceCents: number;
+}
+
+export interface ShippingQuote {
+  rates: QuotedRate[];
+  weightGrams: number;
+  subtotalCents: number;
+  /** True when the store priced this destination but nothing matched. */
+  gap: boolean;
+}
+
+/**
+ * Resolve the rates a cart qualifies for.
+ *
+ * Shared with checkout rather than reimplemented, so the cart page and the
+ * Stripe session can never disagree about what shipping costs.
+ */
+export async function quoteShipping(
+  lines: readonly { productId: string; variantId: string; quantity: number }[],
+  countryCode: string,
+): Promise<ShippingQuote> {
+  const [{ zones, rates }, { products }] = await Promise.all([
+    getShippingTable(),
+    listProducts({ liveOnly: true, limit: 200 }),
+  ]);
+
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const weights = await variantWeights(lines.map((l) => l.variantId));
+
+  let subtotalCents = 0;
+  const weighed: { weightGrams: number; quantity: number }[] = [];
+
+  for (const line of lines) {
+    const variant = byId.get(line.productId)?.variants.find((v) => v.id === line.variantId);
+    // An unknown line contributes nothing rather than throwing: a stale cart
+    // should still get a quote for the items that are real.
+    if (!variant) continue;
+
+    subtotalCents += variant.priceCents * line.quantity;
+    weighed.push({ weightGrams: weights.get(variant.id) ?? 0, quantity: line.quantity });
+  }
+
+  const weightGrams = parcelWeight(weighed);
+  const matched = resolveShippingRates(rates, zones, countryCode, { weightGrams, subtotalCents });
+
+  return {
+    rates: matched.map(({ id, name, priceCents }) => ({ id, name, priceCents })),
+    weightGrams,
+    subtotalCents,
+    // Only a gap if the store has rates at all; a store with none has simply
+    // not set shipping up, which is a different message.
+    gap: matched.length === 0 && rates.length > 0,
+  };
+}
+
+shippingRouter.post("/shipping/quote", writeRateLimit, async (req, res) => {
+  const parsed = shippingQuoteInputSchema.safeParse(req.body);
+  if (!parsed.success) throw httpError(400, "That cart could not be read.");
+
+  res.json(await quoteShipping(parsed.data.lines, parsed.data.countryCode));
+});

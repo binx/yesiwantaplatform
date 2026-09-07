@@ -84,6 +84,19 @@ export const checkoutRequestSchema = z.object({
     .max(100),
   /** Optional shipping rate chosen on the cart page. */
   shippingRateId: z.string().nullable().default(null),
+  /**
+   * Where it is going, chosen on the cart page.
+   *
+   * Needed *before* the session exists: hosted Checkout collects the address
+   * afterwards, so zone-priced rates would otherwise be picked blind. The
+   * session then restricts address collection to this country, so the buyer
+   * cannot switch zones at Stripe and pay the wrong postage.
+   */
+  shipToCountry: z
+    .string()
+    .regex(/^[A-Za-z]{2}$/)
+    .nullable()
+    .default(null),
 });
 
 export const checkoutResponseSchema = z.object({

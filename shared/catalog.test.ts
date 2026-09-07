@@ -16,7 +16,7 @@ function productSchemaDefaults(over: Partial<Product> & { id: string }): Product
     images: [],
     variantName: null,
     variants: over.variants ?? [
-      { id: `${over.id}-v`, label: "", priceCents: 1000, inventory: { type: "infinite" }, stripePriceId: null },
+      { id: `${over.id}-v`, label: "", priceCents: 1000, inventory: { type: "infinite" }, weightGrams: 0, stripePriceId: null },
     ],
     optionGroups: [],
     isLive: over.isLive ?? true,
@@ -86,14 +86,14 @@ describe("isSoldOut", () => {
   it("is true only when every variant is out of stock", () => {
     const soldOut = product("a", {
       variants: [
-        { id: "v1", label: "S", priceCents: 100, inventory: { type: "finite", quantity: 0 }, stripePriceId: null },
-        { id: "v2", label: "M", priceCents: 100, inventory: { type: "finite", quantity: 0 }, stripePriceId: null },
+        { id: "v1", label: "S", priceCents: 100, inventory: { type: "finite", quantity: 0 }, weightGrams: 0, stripePriceId: null },
+        { id: "v2", label: "M", priceCents: 100, inventory: { type: "finite", quantity: 0 }, weightGrams: 0, stripePriceId: null },
       ],
     });
     const partial = product("b", {
       variants: [
-        { id: "v1", label: "S", priceCents: 100, inventory: { type: "finite", quantity: 0 }, stripePriceId: null },
-        { id: "v2", label: "M", priceCents: 100, inventory: { type: "finite", quantity: 4 }, stripePriceId: null },
+        { id: "v1", label: "S", priceCents: 100, inventory: { type: "finite", quantity: 0 }, weightGrams: 0, stripePriceId: null },
+        { id: "v2", label: "M", priceCents: 100, inventory: { type: "finite", quantity: 4 }, weightGrams: 0, stripePriceId: null },
       ],
     });
 

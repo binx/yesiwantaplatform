@@ -8,6 +8,8 @@ import type { Store } from "./schema.js";
  */
 export const demoStore: Store = {
   name: "Beluga Demo",
+  // No zones in the fixture, so the cart offers no destination list.
+  shipping: { countries: [], worldwide: false },
   stripePublishableKey: null,
   currency: "USD",
   aboutText:
@@ -45,6 +47,7 @@ export const demoStore: Store = {
           label: "Small",
           priceCents: 3400,
           inventory: { type: "finite", quantity: 12 },
+          weightGrams: 250,
           stripePriceId: null,
         },
         {
@@ -53,6 +56,7 @@ export const demoStore: Store = {
           priceCents: 4200,
           // Deliberately low so the "only 2 left" affordance is visible.
           inventory: { type: "finite", quantity: 2 },
+          weightGrams: 250,
           stripePriceId: null,
         },
       ],
@@ -78,6 +82,7 @@ export const demoStore: Store = {
           label: "",
           priceCents: 1800,
           inventory: { type: "infinite" },
+          weightGrams: 400,
           stripePriceId: null,
         },
       ],
@@ -103,6 +108,7 @@ export const demoStore: Store = {
           priceCents: 6500,
           // Sold out, so the disabled add-to-cart path is exercised.
           inventory: { type: "finite", quantity: 0 },
+          weightGrams: 60,
           stripePriceId: null,
         },
       ],
@@ -124,6 +130,7 @@ export const demoStore: Store = {
           label: "Rust",
           priceCents: 8800,
           inventory: { type: "infinite" },
+          weightGrams: 80,
           stripePriceId: null,
         },
         {
@@ -131,6 +138,7 @@ export const demoStore: Store = {
           label: "Slate",
           priceCents: 8800,
           inventory: { type: "finite", quantity: 5 },
+          weightGrams: 80,
           stripePriceId: null,
         },
       ],

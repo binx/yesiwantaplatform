@@ -83,6 +83,8 @@ export const variants = pgTable(
     priceCents: integer("price_cents").notNull(),
     inventoryType: text("inventory_type").notNull().default("infinite"),
     inventoryQuantity: integer("inventory_quantity").notNull().default(0),
+    /** Shipping weight. Zero means the store has not recorded one. */
+    weightGrams: integer("weight_grams").notNull().default(0),
     stripePriceId: text("stripe_price_id"),
     position: integer("position").notNull().default(0),
     ...timestamps,
@@ -155,11 +157,24 @@ export const collectionProducts = pgTable(
   ],
 );
 
+export const shippingZones = pgTable("shipping_zones", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  countryCodes: jsonb("country_codes").notNull().default(sql`'[]'::jsonb`),
+  position: integer("position").notNull().default(0),
+  ...timestamps,
+});
+
 export const shippingRates = pgTable("shipping_rates", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   priceCents: integer("price_cents").notNull().default(0),
   stripeShippingRateId: text("stripe_shipping_rate_id"),
+  zoneId: text("zone_id").references(() => shippingZones.id, { onDelete: "cascade" }),
+  minWeightGrams: integer("min_weight_grams"),
+  maxWeightGrams: integer("max_weight_grams"),
+  minSubtotalCents: integer("min_subtotal_cents"),
+  maxSubtotalCents: integer("max_subtotal_cents"),
   isActive: boolean("is_active").notNull().default(true),
   position: integer("position").notNull().default(0),
   ...timestamps,

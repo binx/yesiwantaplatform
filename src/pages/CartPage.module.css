@@ -87,3 +87,53 @@
   font-size: 0.875rem;
   color: var(--beluga-muted);
 }
+
+.shipTo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.shipToLabel {
+  font-size: 0.8125rem;
+  color: #52525b;
+}
+
+.shipToSelect {
+  min-width: 12rem;
+  flex: 1 1 12rem;
+}
+
+.shipping {
+  border: 0;
+  margin: 0 0 1rem;
+  padding: 0;
+}
+
+.rates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+/* The price sits hard right so a column of options stays scannable. */
+.rate {
+  display: flex;
+  width: 100%;
+}
+
+.rate :global(.ant-radio + span) {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+}
+
+.ratePrice {
+  color: #52525b;
+}

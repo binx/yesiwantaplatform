@@ -85,6 +85,8 @@ export const variants = sqliteTable(
     /** "infinite" | "finite" */
     inventoryType: text("inventory_type").notNull().default("infinite"),
     inventoryQuantity: integer("inventory_quantity").notNull().default(0),
+    /** Shipping weight. Zero means the store has not recorded one. */
+    weightGrams: integer("weight_grams").notNull().default(0),
     stripePriceId: text("stripe_price_id"),
     position: integer("position").notNull().default(0),
     ...timestamps,
@@ -161,11 +163,37 @@ export const collectionProducts = sqliteTable(
 );
 
 /** Phase 3 populates these; the schema lands now so migrations settle early. */
+/**
+ * A group of countries priced together.
+ *
+ * A zone with no countries is the catch-all, so a store can price "everywhere
+ * else" without enumerating the world.
+ */
+export const shippingZones = sqliteTable("shipping_zones", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  /** JSON array of ISO 3166-1 alpha-2 codes. */
+  countryCodes: text("country_codes").notNull().default("[]"),
+  position: integer("position").notNull().default(0),
+  ...timestamps,
+});
+
+/**
+ * A shipping rate, optionally bounded by zone, weight and subtotal.
+ *
+ * Null bounds mean unbounded, and a null `zone_id` applies the rate
+ * everywhere — which is what lets a flat-rate store work with no zones at all.
+ */
 export const shippingRates = sqliteTable("shipping_rates", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   priceCents: integer("price_cents").notNull().default(0),
   stripeShippingRateId: text("stripe_shipping_rate_id"),
+  zoneId: text("zone_id").references(() => shippingZones.id, { onDelete: "cascade" }),
+  minWeightGrams: integer("min_weight_grams"),
+  maxWeightGrams: integer("max_weight_grams"),
+  minSubtotalCents: integer("min_subtotal_cents"),
+  maxSubtotalCents: integer("max_subtotal_cents"),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   position: integer("position").notNull().default(0),
   ...timestamps,

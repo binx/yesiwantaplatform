@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Alert, Button, InputNumber } from "antd";
+import { Alert, Button, InputNumber, Radio, Select, Skeleton } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { SHIPPABLE_COUNTRIES, countryName } from "@shared/shipping";
 import { ApiError, apiPost } from "@/lib/api";
 import { formatMoney } from "@shared/money";
 import { PageWrapper } from "@/components/layout/PageWrapper";
@@ -18,7 +19,53 @@ export function CartPage() {
   const { lines, subtotalCents, orphanedCount } = useCartLines();
   const setQuantity = useCart((s) => s.setQuantity);
   const remove = useCart((s) => s.remove);
+  const shipToCountry = useCart((s) => s.shipToCountry);
+  const setShipToCountry = useCart((s) => s.setShipToCountry);
+  const shippingRateId = useCart((s) => s.shippingRateId);
+  const setShippingRateId = useCart((s) => s.setShippingRateId);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  /*
+   * A catch-all zone prices everywhere, so the picker has to offer everywhere —
+   * otherwise "Rest of world" is a zone no buyer can select. Without one, the
+   * only valid answers are the countries the store's zones actually name.
+   */
+  const destinations = store.shipping.worldwide
+    ? SHIPPABLE_COUNTRIES
+    : store.shipping.countries;
+  const asksForCountry = destinations.length > 0;
+
+  // Preselect when there is only one possible answer; asking then is noise.
+  useEffect(() => {
+    if (!shipToCountry && destinations.length === 1) setShipToCountry(destinations[0] ?? null);
+  }, [shipToCountry, destinations, setShipToCountry]);
+
+  const quoteLines = lines.map(({ line }) => ({
+    productId: line.productId,
+    variantId: line.variantId,
+    quantity: line.quantity,
+  }));
+
+  /**
+   * Shipping options for this cart and destination.
+   *
+   * Priced by the server from the catalogue, using the same resolution the
+   * checkout route runs — so what is shown here is what Stripe will offer.
+   */
+  const quote = useQuery({
+    queryKey: ["shipping-quote", shipToCountry, quoteLines],
+    queryFn: () =>
+      apiPost<{ rates: { id: string; name: string; priceCents: number }[]; gap: boolean }>(
+        "/shipping/quote",
+        { lines: quoteLines, countryCode: shipToCountry },
+      ),
+    enabled: Boolean(shipToCountry) && quoteLines.length > 0,
+    staleTime: 60_000,
+  });
+
+  const rates = quote.data?.rates ?? [];
+  const selectedRate = rates.find((rate) => rate.id === shippingRateId) ?? rates[0] ?? null;
+  const shippingCents = selectedRate?.priceCents ?? null;
 
   const checkout = useMutation({
     mutationFn: () =>
@@ -30,7 +77,8 @@ export function CartPage() {
           quantity: line.quantity,
           options: line.options,
         })),
-        shippingRateId: null,
+        shippingRateId: selectedRate?.id ?? null,
+        shipToCountry,
       }),
     onSuccess: ({ url }) => {
       // Leave the cart intact: it is cleared on the confirmation page, so
@@ -142,7 +190,76 @@ export function CartPage() {
               <span>Subtotal</span>
               <strong>{formatMoney(subtotalCents, store.currency)}</strong>
             </div>
-            <p className={styles.note}>Shipping and taxes are calculated at checkout.</p>
+
+            {/*
+              * Destination is asked for here, not at Stripe.
+              *
+              * Hosted Checkout collects the address after the session exists,
+              * so zone-priced shipping has to know the country first. The
+              * session is then locked to this country, which is why the
+              * question is worth asking up front rather than guessing.
+              */}
+            {asksForCountry ? (
+              <label className={styles.shipTo}>
+                <span className={styles.shipToLabel}>Ship to</span>
+                <Select
+                  className={cx(styles.shipToSelect)}
+                  value={shipToCountry}
+                  placeholder="Choose a country"
+                  showSearch
+                  optionFilterProp="label"
+                  onChange={(code: string) => setShipToCountry(code)}
+                  options={destinations.map((code) => ({
+                    label: countryName(code),
+                    value: code,
+                  }))}
+                />
+              </label>
+            ) : null}
+
+            {asksForCountry && shipToCountry ? (
+              quote.isPending ? (
+                <Skeleton active paragraph={{ rows: 2 }} title={false} />
+              ) : rates.length > 0 ? (
+                <fieldset className={styles.shipping}>
+                  <legend className={styles.shipToLabel}>Shipping</legend>
+                  <Radio.Group
+                    value={selectedRate?.id}
+                    onChange={(event) => setShippingRateId(event.target.value as string)}
+                    className={cx(styles.rates)}
+                  >
+                    {rates.map((rate) => (
+                      <Radio key={rate.id} value={rate.id} className={cx(styles.rate)}>
+                        <span>{rate.name}</span>
+                        <span className={styles.ratePrice}>
+                          {rate.priceCents === 0
+                            ? "Free"
+                            : formatMoney(rate.priceCents, store.currency)}
+                        </span>
+                      </Radio>
+                    ))}
+                  </Radio.Group>
+                </fieldset>
+              ) : (
+                <p className={styles.note}>
+                  No shipping option is configured for {countryName(shipToCountry)}. You can still
+                  order; nothing will be charged for postage.
+                </p>
+              )
+            ) : null}
+
+            {shippingCents !== null ? (
+              <div className={styles.subtotal}>
+                <span>Total</span>
+                <strong>{formatMoney(subtotalCents + shippingCents, store.currency)}</strong>
+              </div>
+            ) : null}
+
+            <p className={styles.note}>
+              {asksForCountry
+                ? "Taxes, if any, are calculated at checkout."
+                : "Shipping and taxes are calculated at checkout."}
+            </p>
             {checkoutError && (
               <Alert
                 type="error"

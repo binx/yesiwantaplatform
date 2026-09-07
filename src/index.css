@@ -1,51 +1,120 @@
+/*
+ * Global baseline only. Component styling lives in CSS Modules or antd tokens.
+ *
+ * v1's stylesheet fought the configured theme: `h2 { color: #000 !important }`
+ * made every heading un-themeable, and a global `label` rule overrode antd's
+ * focus and error states. Neither is reproduced here.
+ */
+
+:root {
+  --beluga-ink: #18181b;
+  --beluga-muted: #71717a;
+  --beluga-line: #e4e4e7;
+  --beluga-surface: #ffffff;
+  --beluga-page: #fafaf9;
+
+  --beluga-gutter: clamp(1rem, 4vw, 2.5rem);
+  --beluga-measure: 68ch;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
-  padding: 0;
-  font-family: sans-serif;
-  background: #eee;
+  background: var(--beluga-page);
+  color: var(--beluga-ink);
+  font-synthesis-weight: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-body, html {
-  font-size: 18px;
-  font-family: 'Raleway', sans-serif;
-}
-
-h1 { font-family: 'Raleway', sans-serif; }
-h2 { color: #000 !important; }
-
-h2 {
-  color: #32325d;
-  font-weight: 400;
-  line-height: 50px;
-  font-size: 30px;
-  margin: 20px 0;
-  padding: 0;
-}
-.Checkout {
-  margin: 0 auto;
-  max-width: 800px;
-  box-sizing: border-box;
-  padding: 0 5px;
-}
-label {
-  color: #6b7c93;
-  font-weight: 300;
-  letter-spacing: 0.025em;
-}
-form {
-  margin-bottom: 40px;
-}
-.StripeElement {
+img,
+picture,
+video,
+canvas {
   display: block;
-  margin: 30px 0 40px;
-  max-width: 500px;
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.54);
+  max-width: 100%;
 }
-.StripeElement.PaymentRequestButton {
+
+/* Fluid headings. v1 pinned h2 to 30px with a 50px line box, which wrapped
+   very loosely on narrow screens. */
+h1,
+h2,
+h3 {
+  margin: 0 0 0.5em;
+  font-weight: 600;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: clamp(1.75rem, 1.2rem + 2.2vw, 2.75rem);
+}
+h2 {
+  font-size: clamp(1.375rem, 1.1rem + 1.4vw, 1.875rem);
+}
+h3 {
+  font-size: clamp(1.125rem, 1rem + 0.6vw, 1.25rem);
+}
+
+p {
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--beluga-ink);
+  outline-offset: 2px;
+}
+
+/* Respect the OS setting rather than animating regardless. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Visible only to screen readers. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
   padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -3rem;
+  z-index: 100;
+  padding: 0.5rem 1rem;
+  background: var(--beluga-ink);
+  color: #fff;
+  text-decoration: none;
+  transition: top 0.15s;
+}
+.skip-link:focus {
+  top: 0.5rem;
 }

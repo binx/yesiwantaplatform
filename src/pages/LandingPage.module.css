@@ -1,0 +1,82 @@
+.hero {
+  display: grid;
+  place-items: center;
+  min-height: min(60vh, 30rem);
+  padding: 4rem var(--beluga-gutter);
+  background: linear-gradient(160deg, #f3f1ee 0%, #e7e3dd 100%);
+  border-bottom: 1px solid var(--beluga-line);
+}
+
+.heroInner {
+  max-width: 42rem;
+  text-align: center;
+}
+
+.heroTitle {
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.02em;
+}
+
+.heroText {
+  margin: 0 auto 1.75rem;
+  max-width: 34rem;
+  color: #52525b;
+}
+
+.section {
+  margin-bottom: 4rem;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--beluga-line);
+}
+
+.sectionHead h2 {
+  margin: 0;
+}
+
+.more {
+  font-size: 0.875rem;
+  color: var(--beluga-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.more:hover {
+  color: var(--beluga-ink);
+}
+
+.collections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.collectionCard {
+  display: grid;
+  place-items: center;
+  min-height: 9rem;
+  padding: 1.5rem;
+  border: 1px solid var(--beluga-line);
+  background: var(--beluga-surface);
+  text-decoration: none;
+  transition: border-color 0.2s;
+}
+
+.collectionCard:hover {
+  border-color: var(--beluga-ink);
+}
+
+.collectionName {
+  font-size: 1.0625rem;
+  letter-spacing: 0.02em;
+}

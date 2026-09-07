@@ -1,0 +1,89 @@
+.alert {
+  margin-bottom: 1.5rem;
+}
+
+.empty {
+  display: grid;
+  justify-items: start;
+  gap: 1rem;
+  color: var(--beluga-muted);
+}
+
+.tableScroll {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  min-width: 32rem;
+  border-collapse: collapse;
+}
+
+.table th {
+  padding-bottom: 0.625rem;
+  border-bottom: 1px solid var(--beluga-line);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--beluga-muted);
+  text-align: left;
+}
+
+.table td {
+  padding: 1rem 0.25rem;
+  border-bottom: 1px solid var(--beluga-line);
+  vertical-align: middle;
+}
+
+.product {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.thumb {
+  flex: 0 0 5rem;
+}
+
+.productName {
+  text-decoration: none;
+}
+
+.productName:hover {
+  text-decoration: underline;
+}
+
+.meta {
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--beluga-muted);
+}
+
+.qty {
+  width: 5rem;
+}
+
+.lineTotal {
+  white-space: nowrap;
+}
+
+.summary {
+  display: grid;
+  justify-items: end;
+  gap: 0.5rem;
+  margin-top: 2rem;
+  text-align: right;
+}
+
+.subtotal {
+  display: flex;
+  gap: 2rem;
+  font-size: 1.125rem;
+}
+
+.note {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+  color: var(--beluga-muted);
+}

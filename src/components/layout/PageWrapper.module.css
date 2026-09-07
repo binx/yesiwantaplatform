@@ -1,0 +1,17 @@
+.wrapper {
+  width: 100%;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 4vw, 3rem) var(--beluga-gutter) 5rem;
+}
+
+.default {
+  max-width: 1100px;
+}
+
+.wide {
+  max-width: 1400px;
+}
+
+.prose {
+  max-width: var(--beluga-measure);
+}

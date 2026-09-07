@@ -1,0 +1,76 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.25rem var(--beluga-gutter);
+  border-bottom: 1px solid var(--beluga-line);
+  background: var(--beluga-surface);
+}
+
+.brand {
+  margin-right: auto;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.desktopNav {
+  display: flex;
+  gap: 1.75rem;
+}
+
+.link {
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--beluga-muted);
+  padding-bottom: 2px;
+  border-bottom: 1px solid transparent;
+}
+
+.link:hover {
+  color: var(--beluga-ink);
+}
+
+.active {
+  color: var(--beluga-ink);
+  border-bottom-color: var(--beluga-ink);
+}
+
+.cart {
+  display: inline-flex;
+  text-decoration: none;
+}
+
+.cartIcon {
+  font-size: 1.25rem;
+}
+
+.menuButton {
+  display: none;
+}
+
+.drawerNav {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.drawerNav a {
+  font-size: 0.9375rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+/* One breakpoint, in CSS — no JS width listener. */
+@media (max-width: 800px) {
+  .desktopNav {
+    display: none;
+  }
+  .menuButton {
+    display: inline-flex;
+  }
+}

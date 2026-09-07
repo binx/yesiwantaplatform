@@ -91,3 +91,38 @@ test("the confirmation page handles being opened without an order", async ({ pag
   await page.goto("/confirm");
   await expect(page.getByRole("heading", { name: "No order to show" })).toBeVisible();
 });
+
+test("the carousel is operable by keyboard and opens a lightbox", async ({ page }) => {
+  await page.goto("/product/canvas-tote");
+
+  const thumbs = page.getByRole("tab");
+  await expect(thumbs).toHaveCount(3);
+  await expect(thumbs.first()).toHaveAttribute("aria-selected", "true");
+
+  // Arrow keys move the carousel without a mouse.
+  await page.getByRole("group", { name: /Canvas Tote images/ }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(thumbs.nth(1)).toHaveAttribute("aria-selected", "true");
+
+  await page.keyboard.press("End");
+  await expect(thumbs.nth(2)).toHaveAttribute("aria-selected", "true");
+
+  // Every slide carries real alt text, so none of it is invisible to
+  // assistive tech — v1 painted these as CSS background images.
+  await expect(page.getByAltText("Canvas tote, front view")).toBeAttached();
+
+  // Clicking a slide opens the zoom view, and Escape closes it.
+  await page.getByAltText("Canvas tote, front view").click({ force: true });
+  await expect(page.locator(".ant-image-preview-img")).toBeVisible();
+  // The lightbox brings its own prev/next, so zooming does not trap the user.
+  await expect(page.locator(".ant-image-preview-switch-next")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".ant-image-preview-img")).toBeHidden();
+});
+
+test("a single-image product renders without carousel chrome", async ({ page }) => {
+  await page.goto("/product/risograph-print");
+  // No thumbnails or arrows for one image.
+  await expect(page.getByRole("tab")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Next image" })).toHaveCount(0);
+});

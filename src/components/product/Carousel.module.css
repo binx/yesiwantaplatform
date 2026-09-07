@@ -97,3 +97,22 @@
   border-color: var(--beluga-ink);
   opacity: 1;
 }
+
+/* antd's Image wrapper must fill the slide, not shrink to its content. */
+.slideImage,
+.single {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+
+.slide :global(.ant-image) {
+  display: block;
+  width: 100%;
+}
+
+/* The zoom affordance only appears on hover, so it never obscures the photo. */
+.slide :global(.ant-image-mask) {
+  font-size: 1.5rem;
+}

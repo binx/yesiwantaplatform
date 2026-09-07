@@ -28,6 +28,12 @@ export default defineConfig({
     env: {
       PORT: String(PORT),
       API_PORT: String(API_PORT),
+      // Deliberately ignore the developer's .env so the suite is deterministic
+      // — otherwise having Stripe keys locally changes what the tests see.
+      ENV_FILE: ".env.e2e-does-not-exist",
+      DATABASE_URL: "file:./data/beluga.sqlite",
+      PUBLIC_URL: `http://localhost:${PORT}`,
+      SESSION_SECRET: "e2e-session-secret-long-enough-to-satisfy-validation",
     },
   },
 });

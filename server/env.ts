@@ -1,5 +1,8 @@
 import { z } from "zod";
-import "dotenv/config";
+import dotenv from "dotenv";
+
+// ENV_FILE lets tests and deployments point somewhere other than .env.
+dotenv.config({ path: process.env.ENV_FILE ?? ".env", quiet: true });
 
 /**
  * Environment, parsed once and validated.

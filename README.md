@@ -85,11 +85,16 @@ Three rules the code holds to:
 
 Products reach Stripe only when explicitly published (`POST /api/admin/products/:id/publish`). v1's wizard wrote to Stripe on every step, so abandoning it left orphaned Products behind. Note that Stripe Prices are immutable: changing an amount creates a new Price and archives the old one, which is why historic orders still resolve.
 
-To take a real test payment, put test keys in `.env` and forward webhooks:
+To take a real test payment, put test keys in `.env`, publish a product, and
+forward webhooks with the [Stripe CLI](https://stripe.com/docs/stripe-cli):
 
 ```bash
 stripe listen --forward-to localhost:4000/api/webhooks/stripe
 ```
+
+Add the `whsec_…` it prints to `.env` as `STRIPE_WEBHOOK_SECRET`, restart the
+API, and pay with test card `4242 4242 4242 4242`. Replaying a delivered event
+(`stripe events resend <id>`) must not move stock a second time.
 
 ### Database
 

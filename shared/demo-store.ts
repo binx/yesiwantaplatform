@@ -1,4 +1,4 @@
-import type { Store } from "@shared/schema";
+import type { Store } from "./schema.js";
 
 /**
  * The store a fresh clone renders before the owner has configured anything.

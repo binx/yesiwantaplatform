@@ -1,19 +1,29 @@
 import { storeSchema, type Store } from "@shared/schema";
-import { demoStore } from "@/fixtures/demo-store";
+import { demoStore } from "@shared/demo-store";
 
 /**
  * The single seam between the storefront and its data.
  *
- * Phase 1 validates and returns the bundled demo fixture. Phase 2 swaps the
- * body of `loadStore` for `GET /api/store` — the schema is the contract, so
- * no component or hook changes when that happens.
+ * The store comes from the API. Set VITE_BELUGA_API=false to render the
+ * bundled demo fixture instead, which is useful for UI work without a
+ * database running. Both paths are validated by the same schema, which is
+ * what let the data source change in Phase 2 without touching a component.
  */
+export class StoreNotSetUpError extends Error {
+  constructor() {
+    super("This store has not been set up yet.");
+    this.name = "StoreNotSetUpError";
+  }
+}
+
 export async function loadStore(signal?: AbortSignal): Promise<Store> {
-  if (import.meta.env.VITE_BELUGA_API === "true") {
+  if (import.meta.env.VITE_BELUGA_API !== "false") {
     const response = await fetch("/api/store", {
       ...(signal ? { signal } : {}),
       headers: { accept: "application/json" },
     });
+    // 503 means "no store yet", which the setup wizard handles in Phase 5.
+    if (response.status === 503) throw new StoreNotSetUpError();
     if (!response.ok) {
       throw new Error(`Could not load the store (HTTP ${response.status}).`);
     }

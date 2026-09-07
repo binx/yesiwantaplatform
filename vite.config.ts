@@ -26,20 +26,38 @@ export default defineConfig({
   },
   server: {
     port: Number(process.env.PORT) || 5173,
-    // The API server arrives in Phase 2. Until then the storefront reads a
-    // schema-validated fixture and never calls the backend.
     proxy: {
       "/api": {
-        target: process.env.BELUGA_API_URL ?? "http://localhost:5000",
+        target: `http://localhost:${process.env.API_PORT ?? 5000}`,
         changeOrigin: true,
       },
     },
   },
   test: {
-    environment: "jsdom",
     globals: true,
-    setupFiles: ["./vitest.setup.ts"],
-    css: true,
-    include: ["src/**/*.test.{ts,tsx}", "shared/**/*.test.ts"],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "client",
+          environment: "jsdom",
+          setupFiles: ["./vitest.setup.ts"],
+          css: true,
+          include: ["src/**/*.test.{ts,tsx}", "shared/**/*.test.ts"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "server",
+          environment: "node",
+          setupFiles: ["./vitest.server-setup.ts"],
+          include: ["server/**/*.test.ts", "db/**/*.test.ts"],
+          // Each file opens its own SQLite handle; keep them out of each
+          // other's way.
+          fileParallelism: false,
+        },
+      },
+    ],
   },
 });

@@ -42,6 +42,10 @@ export default tseslint.config(
       "@typescript-eslint/no-empty-function": "off",
       // Test helpers deliberately export more than components.
       "react-refresh/only-export-components": "off",
+      // supertest types `response.body` as `any`; asserting on it is the point.
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
     },
   },
   {

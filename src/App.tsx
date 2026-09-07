@@ -4,6 +4,7 @@ import { App as AntApp, ConfigProvider, Skeleton } from "antd";
 import { Banner } from "@/components/layout/Banner";
 import { ScrollToTop } from "@/components/layout/ScrollToTop";
 import { PageWrapper } from "@/components/layout/PageWrapper";
+import { StoreErrorBoundary } from "@/components/layout/StoreErrorBoundary";
 import { useStore } from "@/lib/useStore";
 import { toAntdTheme } from "@/lib/theme";
 
@@ -54,8 +55,10 @@ function ShellFallback() {
 
 export function App() {
   return (
-    <Suspense fallback={<ShellFallback />}>
-      <ThemedShell />
-    </Suspense>
+    <StoreErrorBoundary>
+      <Suspense fallback={<ShellFallback />}>
+        <ThemedShell />
+      </Suspense>
+    </StoreErrorBoundary>
   );
 }

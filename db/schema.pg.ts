@@ -185,6 +185,8 @@ export const orders = pgTable(
     shippingCountry: text("shipping_country"),
     carrier: text("carrier"),
     trackingNumber: text("tracking_number"),
+    /** Payment succeeded but stock had gone; flagged for the owner. */
+    oversold: boolean("oversold").notNull().default(false),
     ...timestamps,
   },
   (t) => [

@@ -76,3 +76,18 @@ test("unknown routes render the 404 page", async ({ page }) => {
   await page.goto("/product/does-not-exist");
   await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible();
 });
+
+test("checkout explains itself when Stripe is not configured", async ({ page }) => {
+  // A store owner hits this before adding keys; it must not be a dead button.
+  await page.goto("/product/enamel-mug");
+  await page.getByRole("button", { name: "Add to cart" }).click();
+  await expect(page).toHaveURL(/\/cart$/);
+
+  await page.getByRole("button", { name: "Checkout" }).click();
+  await expect(page.getByText(/Stripe is not configured/i)).toBeVisible();
+});
+
+test("the confirmation page handles being opened without an order", async ({ page }) => {
+  await page.goto("/confirm");
+  await expect(page.getByRole("heading", { name: "No order to show" })).toBeVisible();
+});

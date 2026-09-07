@@ -1,0 +1,1 @@
+ALTER TABLE `orders` ADD `oversold` integer DEFAULT false NOT NULL;

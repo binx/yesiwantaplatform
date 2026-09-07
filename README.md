@@ -16,12 +16,12 @@ Rather than patch it, v2 rebuilds the stack. Work lands in reviewable phases:
 | --- | --- | --- |
 | 1 | Vite + React 19 + TypeScript, antd, new storefront | ✅ Done |
 | 2 | Database (SQLite/Postgres), API server, security | ✅ Done |
-| 3 | Stripe Checkout Sessions, webhooks, orders, email | ⬜ Next |
-| 4 | Storefront polish, carousel, accessibility | ⬜ |
+| 3 | Stripe Checkout Sessions, webhooks, orders, email | ✅ Done |
+| 4 | Storefront polish, carousel, accessibility | ⬜ Next |
 | 5 | Setup wizard, admin, product editor | ⬜ |
 
-**What works today:** browsing, variants, cart, and theming, served from a real database through an authenticated API.
-**What doesn't:** checkout, the admin UI, and anything touching Stripe. v1's code is parked in [`legacy/`](legacy/) as reference until Phases 3–5 replace it.
+**What works today:** browsing, variants, cart, checkout through Stripe, order recording, inventory, and order emails — all served from a real database through an authenticated API.
+**What doesn't:** there is no admin UI yet, so products are published and orders managed over the API. v1's code is parked in [`legacy/`](legacy/) until Phase 5 replaces it.
 
 ## Requirements
 
@@ -33,7 +33,7 @@ Node 22 or newer (`.nvmrc` is provided — run `nvm use`). v1's Node 18 is past 
 nvm use
 npm install
 npm run db:seed     # creates data/beluga.sqlite and loads the demo catalogue
-npm run dev:all     # storefront on :5173, API on :5000
+npm run dev:all     # storefront on :5173, API on :4000
 ```
 
 No Stripe account, database server, or configuration file is required. SQLite is a file, and the server starts even when nothing is configured — it reports that state over the API and the storefront shows what to run next. (v1 threw an uncaught `ENOENT` on a missing `config.env` and never bound a port.)
@@ -73,6 +73,24 @@ legacy/    v1 code, kept for reference — not built
 
 `shared/schema.ts` is the contract between the storefront and its data, validated on both sides of the wire. Swapping Phase 1's fixture for the Phase 2 database changed exactly one client file, `src/lib/store-source.ts` — set `VITE_BELUGA_API=false` to render the fixture again without a database.
 
+### Payments
+
+Checkout uses Stripe **Checkout Sessions** — Stripe's hosted page owns the card fields, 3-D Secure, wallets, and address collection, which keeps this project at PCI SAQ-A.
+
+Three rules the code holds to:
+
+- **Line items are built server-side from stored price ids.** The client sends product and variant identifiers with quantities and never a price, so a tampered cart cannot change what anything costs.
+- **The webhook is the only thing that marks an order paid.** The success redirect proves nothing — a buyer can close the tab, and the URL can be visited directly.
+- **Webhook delivery is at-least-once**, so events are deduplicated by id. If a handler fails, the dedup record is released so Stripe's retry is actually processed rather than dismissed as a duplicate.
+
+Products reach Stripe only when explicitly published (`POST /api/admin/products/:id/publish`). v1's wizard wrote to Stripe on every step, so abandoning it left orphaned Products behind. Note that Stripe Prices are immutable: changing an amount creates a new Price and archives the old one, which is why historic orders still resolve.
+
+To take a real test payment, put test keys in `.env` and forward webhooks:
+
+```bash
+stripe listen --forward-to localhost:4000/api/webhooks/stripe
+```
+
 ### Database
 
 SQLite by default, because a store should run without provisioning anything. Point `DATABASE_URL` at Postgres when a catalogue outgrows a single file:
@@ -87,6 +105,7 @@ Three conventions worth knowing before contributing:
 
 - **Money is always integer cents.** v1 stored floats and multiplied by 100, which sent amounts like `1998.9999999999998` to Stripe. See `shared/money.ts`.
 - **The cart stores identifiers only** — never prices or image URLs. Everything displayable is derived from the current catalogue, so a price change can't leave stale amounts in someone's open cart.
+- **Money is never taken from the request.** Prices, and therefore totals, come from the database on every path.
 - **Every mutating route is behind `requireAdmin` and a CSRF check**, applied to the whole admin router rather than per-endpoint, so a new route cannot be added unprotected by accident. `server/security.test.ts` asserts this for each one.
 
 ## Secrets

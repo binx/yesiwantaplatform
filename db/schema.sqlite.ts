@@ -192,6 +192,8 @@ export const orders = sqliteTable(
     shippingCountry: text("shipping_country"),
     carrier: text("carrier"),
     trackingNumber: text("tracking_number"),
+    /** Payment succeeded but stock had gone; flagged for the owner. */
+    oversold: integer("oversold", { mode: "boolean" }).notNull().default(false),
     ...timestamps,
   },
   (t) => [

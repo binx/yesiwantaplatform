@@ -1,0 +1,42 @@
+.lede {
+  font-size: 1.0625rem;
+  color: #3f3f46;
+}
+
+.pending {
+  margin-bottom: 1.5rem;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 2rem 0;
+  font-size: 0.9375rem;
+}
+
+.table td {
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--beluga-line);
+}
+
+.table tfoot td {
+  border-bottom: none;
+  padding: 0.25rem 0;
+  color: var(--beluga-muted);
+}
+
+.total td {
+  padding-top: 0.75rem !important;
+  border-top: 1px solid var(--beluga-line) !important;
+  color: var(--beluga-ink) !important;
+  font-weight: 600;
+}
+
+.amount {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.meta {
+  color: var(--beluga-muted);
+}

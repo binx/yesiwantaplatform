@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{subject}}</title>
+  </head>
+  <body style="margin:0;padding:24px 0;background:#fafaf9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#18181b;">
+    <div style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e4e4e7;">
+      <div style="height:6px;background:{{store.colorAccent}};"></div>
+      <div style="padding:32px;">
+        {{{body}}}
+
+        <table style="width:100%;margin-top:32px;border-top:1px solid #e4e4e7;padding-top:16px;font-size:12px;color:#71717a;">
+          <tr>
+            <td>Order {{order.reference}}</td>
+            <td style="text-align:right;">{{order.date}}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+    <p style="max-width:600px;margin:16px auto 0;font-size:12px;color:#a1a1aa;text-align:center;">
+      Sent by {{store.name}}
+    </p>
+  </body>
+</html>

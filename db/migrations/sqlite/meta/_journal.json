@@ -8,6 +8,13 @@
       "when": 1788805723565,
       "tag": "0000_silent_mockingbird",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788807667737,
+      "tag": "0001_fast_exiles",
+      "breakpoints": true
     }
   ]
 }

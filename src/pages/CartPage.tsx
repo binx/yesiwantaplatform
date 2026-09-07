@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Alert, Button, InputNumber } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
+import { useMutation } from "@tanstack/react-query";
+import { ApiError, apiPost } from "@/lib/api";
 import { formatMoney } from "@shared/money";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { ProductImage } from "@/components/ui/ProductImage";
@@ -15,6 +18,31 @@ export function CartPage() {
   const { lines, subtotalCents, orphanedCount } = useCartLines();
   const setQuantity = useCart((s) => s.setQuantity);
   const remove = useCart((s) => s.remove);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  const checkout = useMutation({
+    mutationFn: () =>
+      apiPost<{ url: string; orderId: string }>("/checkout", {
+        // Identifiers and quantities only — the server prices the order.
+        lines: lines.map(({ line }) => ({
+          productId: line.productId,
+          variantId: line.variantId,
+          quantity: line.quantity,
+          options: line.options,
+        })),
+        shippingRateId: null,
+      }),
+    onSuccess: ({ url }) => {
+      // Leave the cart intact: it is cleared on the confirmation page, so
+      // abandoning the Stripe page does not lose the basket.
+      window.location.assign(url);
+    },
+    onError: (error: unknown) => {
+      setCheckoutError(
+        error instanceof ApiError ? error.message : "Checkout is unavailable right now.",
+      );
+    },
+  });
 
   return (
     <PageWrapper>
@@ -115,8 +143,24 @@ export function CartPage() {
               <strong>{formatMoney(subtotalCents, store.currency)}</strong>
             </div>
             <p className={styles.note}>Shipping and taxes are calculated at checkout.</p>
-            <Button type="primary" size="large" disabled>
-              Checkout — available in Phase 3
+            {checkoutError && (
+              <Alert
+                type="error"
+                showIcon
+                className={cx(styles.alert)}
+                message={checkoutError}
+              />
+            )}
+            <Button
+              type="primary"
+              size="large"
+              loading={checkout.isPending}
+              onClick={() => {
+                setCheckoutError(null);
+                checkout.mutate();
+              }}
+            >
+              Checkout
             </Button>
           </div>
         </>

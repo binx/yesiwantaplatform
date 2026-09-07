@@ -5,6 +5,7 @@ import { ShopPage } from "./pages/ShopPage";
 import { CollectionPage } from "./pages/CollectionPage";
 import { ProductPage } from "./pages/ProductPage";
 import { CartPage } from "./pages/CartPage";
+import { ConfirmPage } from "./pages/ConfirmPage";
 import { AboutPage } from "./pages/AboutPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 
@@ -25,6 +26,7 @@ export const router = createBrowserRouter([
       { path: "collection/:slug", element: <CollectionPage /> },
       { path: "product/:slug", element: <ProductPage /> },
       { path: "cart", element: <CartPage /> },
+      { path: "confirm", element: <ConfirmPage /> },
       { path: "about", element: <AboutPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],

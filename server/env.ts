@@ -12,8 +12,12 @@ import "dotenv/config";
 
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  /** Distinct from Vite's PORT so `npm run dev:all` cannot collide. */
-  API_PORT: z.coerce.number().int().positive().default(5000),
+  /**
+   * Distinct from Vite's PORT so `npm run dev:all` cannot collide.
+   * Not 5000: macOS ControlCenter (AirPlay Receiver) binds that port, which
+   * makes the API silently unreachable on a Mac.
+   */
+  API_PORT: z.coerce.number().int().positive().default(4000),
 
   /** file:./data/beluga.sqlite for SQLite, postgres://… for Postgres. */
   DATABASE_URL: z.string().default("file:./data/beluga.sqlite"),
@@ -27,6 +31,13 @@ const schema = z.object({
 
   /** Origin used for Stripe redirect URLs and CORS. */
   PUBLIC_URL: z.string().url().default("http://localhost:5173"),
+
+  /**
+   * Any SMTP provider, e.g. smtps://user:pass@smtp.example.com:465
+   * v1 hard-coded a Gmail OAuth2 transport and six EMAIL_* variables.
+   */
+  SMTP_URL: z.string().optional(),
+  EMAIL_FROM: z.string().optional(),
 
   /** Max upload size in bytes. */
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(8 * 1024 * 1024),

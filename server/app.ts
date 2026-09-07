@@ -7,6 +7,8 @@ import { errorHandler, notFound, securityHeaders } from "./middleware.js";
 import { publicRouter } from "./routes/public.js";
 import { sessionRouter } from "./routes/session.js";
 import { adminRouter } from "./routes/admin.js";
+import { checkoutRouter } from "./routes/checkout.js";
+import { webhookRouter } from "./routes/webhook.js";
 
 export function createApp(): Express {
   const app = express();
@@ -17,6 +19,10 @@ export function createApp(): Express {
 
   app.disable("x-powered-by");
   app.use(securityHeaders);
+
+  // Stripe signs the raw request body, so the webhook must be mounted before
+  // any body parser rewrites it — and before sessions, which it does not use.
+  app.use("/api", webhookRouter);
 
   app.use(
     session({
@@ -46,6 +52,7 @@ export function createApp(): Express {
 
   app.use("/api", sessionRouter);
   app.use("/api", publicRouter);
+  app.use("/api", checkoutRouter);
   app.use("/api/admin", adminRouter);
 
   // Uploaded product imagery.

@@ -5,25 +5,70 @@ Stripe SKU the browser picked, which meant one flat price, no address
 awareness, no international support, and no labels. This is the plan for
 replacing it.
 
-## The constraint that isn't
+## The constraint, checked against the pinned SDK
 
-The obvious worry with hosted Stripe Checkout is that you must know the
-shipping options *before* the session exists — i.e. before you know the
-buyer's address. That turns out to be wrong.
+The worry with hosted Stripe Checkout is that shipping options must exist
+*before* the session does — i.e. before the buyer's address is known. An
+earlier draft of this note recorded that as solved: create the session with
+`permissions.update_shipping_details: "server_only"` and keep the hosted page.
 
-Stripe supports [dynamically customizing shipping options](https://docs.stripe.com/payments/advanced/shipping):
-create the session with `permissions.update_shipping_details: "server_only"`,
-and Stripe calls your endpoint when the buyer enters an address. You return
-recalculated `shipping_options`, and Stripe re-renders them.
+**That is wrong, and it matters.** From `stripe@22.6.1`, the version this repo
+pins (`node_modules/stripe/esm/resources/Checkout/Sessions.d.ts:490`):
 
-So live carrier rates are compatible with the hosted checkout we already have.
-Two caveats worth recording:
+```ts
+interface Permissions {
+  /**
+   * Determines which entity is allowed to update the shipping details.
+   * Default is `client_only`. … If set to `server_only`, only your server
+   * is allowed to update the shipping details.
+   *
+   * This parameter is only supported when `ui_mode=elements`.
+   */
+  update_shipping_details?: Permissions.UpdateShippingDetails;
+}
+```
 
-- **Payment mode only.** Not available for subscriptions — irrelevant here.
-- **Not compatible with the Express Checkout Element** (Apple Pay / Google Pay
-  express buttons). Enabling dynamic shipping costs us the one-tap wallet
-  flow. That is a genuine trade, and the reason the recommendation below keeps
-  flat rates as the default.
+`ui_mode` in this version is `'elements' | 'embedded_page' | 'form' |
+'hosted_page'`, and **defaults to `hosted_page`** — which is what
+`server/routes/checkout.ts` uses today, by omission.
+
+Two corrections follow:
+
+1. **Dynamic shipping is not available on the hosted redirect.** Getting live
+   carrier rates means `ui_mode: 'elements'`: Beluga hosts the checkout page,
+   mounts Stripe Elements, and collects the address itself. The hosted page
+   goes away. That reverses the Phase 0 payments decision, which chose hosted
+   Checkout specifically to delete the custom checkout and its bug cluster.
+
+2. **Stripe does not call us.** The mechanism is not a callback. Our own page
+   collects the address, sends it to our server, and the server calls
+   `checkout.sessions.update` with recalculated `shipping_options` —
+   `SessionUpdateParams` accepts both `shipping_options` and
+   `collected_information.shipping_details` (`Sessions.d.ts:4790`, `:4797`).
+   `server_only` exists to stop the *client* changing the address behind us,
+   which is a price-integrity control. It is the same rule as the rest of this
+   codebase: money is never taken from the request.
+
+So the architectural tension is real after all. Live rates cost us the hosted
+page, not merely the express wallet buttons.
+
+### What the trade actually is
+
+| | Hosted (today) | `ui_mode: 'elements'` |
+| --- | --- | --- |
+| Who renders checkout | Stripe | Beluga |
+| Live carrier rates | ✗ | ✓ |
+| Address collection | Stripe | Beluga (we own validation anyway) |
+| Wallets | Automatic on Stripe's page | Payment Element shows Apple/Google Pay as methods; the one-tap **Express Checkout Element** is incompatible with dynamic shipping |
+| Checkout UI to maintain | None | Ours, forever |
+| PCI scope | SAQ-A | Card fields stay in Stripe iframes, so still commonly SAQ-A — **confirm with your acquirer before relying on it** |
+
+The wallet point is narrower than it first looks: moving to Elements does not
+remove Apple Pay and Google Pay, it removes the *express buttons at the top of
+the page*. Worth confirming against current Stripe docs before deciding.
+
+This is why the tiering below is not a nicety. Tiers 1 and 2 keep the hosted
+page; tier 3 is a checkout rewrite wearing a shipping hat.
 
 ## Recommended shape
 
@@ -92,24 +137,33 @@ is free.
 Treat a validation failure as a warning, never a hard block — buyers do
 legitimately live at addresses the databases disagree about.
 
-### 3. Live rates via the Stripe hook
+### 3. Live rates — only alongside a move to `ui_mode: 'elements'`
+
+There is no hook to implement. The sequence is ours end to end:
 
 ```
-POST /api/checkout/shipping   (called by Stripe, server_only)
-  → read the session's line items and the submitted address
-  → sum parcel weight and dimensions from our variants
-  → ask the provider for rates
-  → cache by (address hash, parcel signature) for a few minutes
-  → return 3-4 named options, marked up per the store's settings
+our checkout page (Elements)
+  → buyer enters address
+  → POST /api/checkout/:id/shipping   (our route, our session)
+      → sum parcel weight and dimensions from our variants
+      → ask the provider for rates
+      → cache by (address hash, parcel signature) for a few minutes
+      → checkout.sessions.update({ shipping_options, collected_information })
+  → Elements re-renders the options
 ```
 
 Rules worth holding to:
 
 - **Never let the provider's failure block a sale.** On timeout or error, fall
-  back to the store's flat rates. A checkout that dies because a carrier API
-  is slow is worse than a slightly wrong shipping price.
+  back to the store's flat rates. A checkout that dies because a carrier API is
+  slow is worse than a slightly wrong shipping price.
+- **Recompute server-side on submit.** The rate the buyer picked is an id, not
+  a price; resolve it again before payment, exactly as line items already are.
 - **Cap the option count.** Buyers presented with eleven services choose none.
 - **Cache aggressively.** Rate calls cost money and are slow.
+
+Because this tier drags the whole checkout with it, it should be scoped and
+approved as its own phase, not folded into a shipping ticket.
 
 ### 4. Labels and tracking
 
@@ -131,11 +185,24 @@ where the provider pays for itself.
 
 ## Sequencing
 
-Tiers 1 and 2 are self-contained and need no third-party account, so they
-should land first and will satisfy most stores. Tier 3 is a separate,
-opt-in integration behind a provider interface (`ShippingProvider`) so Shippo
-and EasyPost are interchangeable and neither is required to run Beluga.
+Tiers 1 and 2 are self-contained, need no third-party account, keep the hosted
+checkout, and will satisfy most stores. They should land first and on their own.
 
-Sources: [Stripe dynamic shipping](https://docs.stripe.com/payments/advanced/shipping),
+Tier 3 is not an increment on them. It requires `ui_mode: 'elements'`, which
+means Beluga owns the checkout page again — the thing Phase 0 deliberately gave
+away. Treat it as a payments phase with a shipping payload, behind a
+`ShippingProvider` interface so Shippo and EasyPost stay interchangeable and
+neither is ever required to run Beluga.
+
+A reasonable middle, if live rates are wanted before that appetite exists:
+quote rates on **our cart page** (where we already intend to validate the
+address), then pass the chosen quote to the hosted session as a one-off
+`shipping_options` entry. The buyer cannot change address at Stripe without
+invalidating the quote, so pair it with
+`shipping_address_collection` omitted and the address treated as final. It is
+less forgiving than the Elements flow, but it needs no checkout rewrite.
+
+Sources: verified against `stripe@22.6.1` type definitions in this repo;
+[Stripe dynamic shipping](https://docs.stripe.com/payments/advanced/shipping),
 [Stripe shipping rates API](https://docs.stripe.com/api/shipping_rates),
 [EasyPost vs Shippo vs ShipStation](https://www.easypost.com/easypost-vs-shippo-vs-shipstation/).

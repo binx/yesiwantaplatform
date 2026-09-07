@@ -28,13 +28,14 @@ export const demoStore: Store = {
         "Heavyweight cotton canvas with a boxed base and webbing straps. Roomy enough for a laptop, a lunch, and a paperback.",
       bulletPoints: ["16 oz cotton canvas", "38 × 40 × 12 cm", "Machine washable, cold"],
       images: [
-        { path: "demo/tote-front.svg", width: 900, height: 1200, alt: "Canvas tote, front view" },
-        { path: "demo/tote-side.svg", width: 900, height: 1200, alt: "Canvas tote, side view" },
+        { path: "demo/tote-front.svg", width: 900, height: 1200, alt: "Canvas tote, front view", widths: [] },
+        { path: "demo/tote-side.svg", width: 900, height: 1200, alt: "Canvas tote, side view", widths: [] },
         {
           path: "demo/tote-detail.svg",
           width: 1200,
           height: 900,
           alt: "Close-up of the tote's webbing strap",
+          widths: [],
         },
       ],
       variantName: "size",
@@ -67,8 +68,8 @@ export const demoStore: Store = {
         "Speckled enamel over steel, with a rolled rim. Takes a campfire or a dishwasher without complaint.",
       bulletPoints: ["350 ml", "Enamel over steel", "Not microwave safe"],
       images: [
-        { path: "demo/mug.svg", width: 1000, height: 1000, alt: "Speckled enamel mug" },
-        { path: "demo/mug-alt.svg", width: 1000, height: 1000, alt: "Enamel mug filled with coffee" },
+        { path: "demo/mug.svg", width: 1000, height: 1000, alt: "Speckled enamel mug", widths: [] },
+        { path: "demo/mug-alt.svg", width: 1000, height: 1000, alt: "Enamel mug filled with coffee", widths: [] },
       ],
       variantName: null,
       variants: [
@@ -92,7 +93,7 @@ export const demoStore: Store = {
         "Two-colour risograph on 120 gsm recycled stock. Every pull sits a little differently, which is the point.",
       bulletPoints: ["A3, unframed", "Edition of 50", "Signed on the reverse"],
       images: [
-        { path: "demo/print.svg", width: 900, height: 1200, alt: "Two-colour risograph print" },
+        { path: "demo/print.svg", width: 900, height: 1200, alt: "Two-colour risograph print", widths: [] },
       ],
       variantName: null,
       variants: [
@@ -115,7 +116,7 @@ export const demoStore: Store = {
       name: "Silk Scarf",
       description: "Hand-rolled edges on lightweight silk twill. Folds down to nothing in a pocket.",
       bulletPoints: ["90 × 90 cm", "100% silk twill", "Dry clean only"],
-      images: [{ path: "demo/scarf.svg", width: 1200, height: 900, alt: "Folded silk scarf" }],
+      images: [{ path: "demo/scarf.svg", width: 1200, height: 900, alt: "Folded silk scarf", widths: [] }],
       variantName: "colour",
       variants: [
         {
@@ -150,14 +151,14 @@ export const demoStore: Store = {
       id: "demo-home",
       slug: "home-goods",
       name: "Home Goods",
-      cover: { path: "demo/cover-home.svg", width: 1600, height: 900, alt: "Home goods" },
+      cover: { path: "demo/cover-home.svg", width: 1600, height: 900, alt: "Home goods", widths: [] },
       productIds: ["demo-mug", "demo-tote"],
     },
     {
       id: "demo-paper",
       slug: "paper-goods",
       name: "Paper Goods",
-      cover: { path: "demo/cover-paper.svg", width: 1600, height: 900, alt: "Paper goods" },
+      cover: { path: "demo/cover-paper.svg", width: 1600, height: 900, alt: "Paper goods", widths: [] },
       productIds: ["demo-print", "demo-scarf"],
     },
   ],

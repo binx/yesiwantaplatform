@@ -100,6 +100,8 @@ export const productImages = pgTable(
     path: text("path").notNull(),
     width: integer("width").notNull(),
     height: integer("height").notNull(),
+    /** JSON array of the derivative widths generated for this image. */
+    widths: jsonb("widths").notNull().default(sql`'[]'::jsonb`),
     alt: text("alt").notNull().default(""),
     position: integer("position").notNull().default(0),
   },

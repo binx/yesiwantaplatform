@@ -67,6 +67,7 @@ export async function seedStore(store: Store = demoStore): Promise<void> {
         width: image.width,
         height: image.height,
         alt: image.alt,
+        widths: json(image.widths),
         position: iIndex,
       });
     }

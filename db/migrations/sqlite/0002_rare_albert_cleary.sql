@@ -1,0 +1,1 @@
+ALTER TABLE `product_images` ADD `widths` text DEFAULT '[]' NOT NULL;

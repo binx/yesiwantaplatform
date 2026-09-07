@@ -15,6 +15,13 @@
       "when": 1788807668039,
       "tag": "0001_yummy_micromacro",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788821055950,
+      "tag": "0002_flashy_cammi",
+      "breakpoints": true
     }
   ]
 }

@@ -17,12 +17,21 @@ export const slugSchema = z
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "must be a lowercase, hyphen-separated slug");
 
 export const imageSchema = z.object({
-  /** Path relative to the store's asset root. */
+  /** Path relative to the store's asset root. Always the full-size file. */
   path: z.string().min(1),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   /** Required so product imagery is never invisible to screen readers. */
   alt: z.string(),
+  /**
+   * Widths of the resized copies that exist alongside `path`, for `srcset`.
+   *
+   * Recorded rather than assumed: an image uploaded before derivatives existed
+   * has none, and advertising a file that is not there costs a 404 per card.
+   * Empty means "serve the single full-size file", which is what every image
+   * did before this field.
+   */
+  widths: z.array(z.number().int().positive()).default([]),
 });
 
 /**

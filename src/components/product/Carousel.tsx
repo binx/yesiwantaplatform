@@ -4,6 +4,7 @@ import { LeftOutlined, RightOutlined, ZoomInOutlined } from "@ant-design/icons";
 import type { Image as ProductImageData } from "@shared/schema";
 import { assetUrl } from "@/lib/store-source";
 import { ProductImage } from "@/components/ui/ProductImage";
+import { buildSrcSet } from "@shared/images";
 import styles from "./Carousel.module.css";
 
 interface CarouselProps {
@@ -23,6 +24,20 @@ interface CarouselProps {
  * already handles the focus trap, escape-to-close, arrow navigation and
  * pinch/scroll zoom, which is a lot of accessibility surface to get wrong.
  */
+/*
+ * How wide these images actually render.
+ *
+ * The product page is a two-column grid above 900px — `minmax(0, 1.15fr)` for
+ * the media against `minmax(0, 1fr)` — so the stage is a little over half the
+ * container, and full width below that breakpoint. The thumbnails are a fixed
+ * rail.
+ *
+ * These are `sizes` hints, not guarantees; being roughly right is what lets the
+ * browser skip the 2400px file for a 343px slot.
+ */
+const SLIDE_SIZES = "(max-width: 900px) 100vw, 55vw";
+const THUMB_SIZES = "80px";
+
 export function Carousel({ images, productName }: CarouselProps) {
   const [active, setActive] = useState(0);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -90,6 +105,9 @@ export function Carousel({ images, productName }: CarouselProps) {
       <Image.PreviewGroup>
         <Image
           src={assetUrl(only?.path ?? "")}
+          {...(only && buildSrcSet(only, assetUrl)
+            ? { srcSet: buildSrcSet(only, assetUrl) ?? undefined, sizes: SLIDE_SIZES }
+            : {})}
           alt={only?.alt ?? ""}
           width="100%"
           className={styles.single}
@@ -130,8 +148,16 @@ export function Carousel({ images, productName }: CarouselProps) {
                 aria-roledescription="slide"
                 aria-label={`${index + 1} of ${count}`}
               >
+                {/*
+                  * `src` stays the full-size file, so the zoom preview always
+                  * opens the largest one; `srcSet` only governs what the inline
+                  * slide downloads.
+                  */}
                 <Image
                   src={assetUrl(image.path)}
+                  {...(buildSrcSet(image, assetUrl)
+                    ? { srcSet: buildSrcSet(image, assetUrl) ?? undefined, sizes: SLIDE_SIZES }
+                    : {})}
                   alt={image.alt}
                   width="100%"
                   loading={index === 0 ? "eager" : "lazy"}
@@ -180,7 +206,15 @@ export function Carousel({ images, productName }: CarouselProps) {
               onClick={() => goTo(index)}
               onKeyDown={onKeyDown}
             >
-              <img src={assetUrl(image.path)} alt="" loading="lazy" decoding="async" />
+              <img
+                src={assetUrl(image.path)}
+                {...(buildSrcSet(image, assetUrl)
+                  ? { srcSet: buildSrcSet(image, assetUrl) ?? undefined, sizes: THUMB_SIZES }
+                  : {})}
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
             </button>
           ))}
         </div>

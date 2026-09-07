@@ -1,6 +1,6 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { hash, verify } from "@node-rs/argon2";
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { getDatabase } from "../db/client.js";
 
 /**
@@ -71,10 +71,22 @@ export async function createAdmin(email: string, password: string): Promise<stri
   return id;
 }
 
+/**
+ * How many administrators exist.
+ *
+ * Actually counts. It used to `select().limit(1)` and return the row count,
+ * so it answered 1 for any populated table — fine for its `> 0` callers, but
+ * `setup.test.ts` asserts that a race creates *exactly one* administrator, and
+ * against the capped version that assertion could not have failed.
+ */
 export async function countAdmins(): Promise<number> {
   const { drizzle: db, schema } = await getDatabase();
-  const rows = (await db.select().from(schema.adminUsers).limit(1)) as unknown as AdminRow[];
-  return rows.length;
+
+  const rows = (await db
+    .select({ value: count() })
+    .from(schema.adminUsers)) as unknown as { value: number }[];
+
+  return rows[0]?.value ?? 0;
 }
 
 /** Constant-time string comparison for CSRF tokens and similar secrets. */

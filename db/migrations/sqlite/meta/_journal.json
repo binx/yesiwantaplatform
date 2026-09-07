@@ -15,6 +15,13 @@
       "when": 1788807667737,
       "tag": "0001_fast_exiles",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788821055641,
+      "tag": "0002_rare_albert_cleary",
+      "breakpoints": true
     }
   ]
 }

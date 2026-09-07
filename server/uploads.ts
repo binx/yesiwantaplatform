@@ -5,6 +5,7 @@ import multer from "multer";
 import sharp from "sharp";
 import { env } from "./env.js";
 import { httpError } from "./middleware.js";
+import { DERIVATIVE_WIDTHS, derivativePath, derivativeWidthsFor } from "../shared/images.js";
 
 /**
  * Image uploads.
@@ -51,7 +52,11 @@ export interface StoredImage {
   path: string;
   width: number;
   height: number;
+  /** Widths of the derivatives written next to `path`, for `srcset`. */
+  widths: number[];
 }
+
+
 
 export async function storeImage(ownerId: string, buffer: Buffer): Promise<StoredImage> {
   assertSafeOwnerId(ownerId);
@@ -102,10 +107,37 @@ export async function storeImage(ownerId: string, buffer: Buffer): Promise<Store
   await mkdir(directory, { recursive: true });
   await writeFile(destination, output.data);
 
+  const relativePath = `${ownerId}/${filename}`;
+
+  /*
+   * Resized copies for `srcset`.
+   *
+   * Without these the storefront serves one file to everyone, so a phone
+   * rendering a card 180px wide still downloads the 2400px original — the
+   * largest single waste of bytes on a shop page.
+   *
+   * Animated GIFs are skipped: resizing them frame by frame is slow and the
+   * result is usually worse than leaving the original alone.
+   */
+  const widths: number[] = [];
+
+  if (!isAnimated) {
+    for (const width of derivativeWidthsFor(output.info.width)) {
+      const resized = await sharp(output.data)
+        .resize({ width, withoutEnlargement: true })
+        .webp({ quality: 82 })
+        .toBuffer();
+
+      await writeFile(path.join(directory, derivativePath(filename, width)), resized);
+      widths.push(width);
+    }
+  }
+
   return {
-    path: `${ownerId}/${filename}`,
+    path: relativePath,
     width: output.info.width,
     height: output.info.height,
+    widths,
   };
 }
 
@@ -122,8 +154,19 @@ export async function deleteImageFile(relativePath: string): Promise<void> {
     throw httpError(400, "Invalid image path.");
   }
 
-  await unlink(resolved).catch((error: NodeJS.ErrnoException) => {
-    // Already gone is a success for our purposes.
-    if (error.code !== "ENOENT") throw error;
-  });
+  const remove = async (target: string) => {
+    await unlink(target).catch((error: NodeJS.ErrnoException) => {
+      // Already gone is a success for our purposes.
+      if (error.code !== "ENOENT") throw error;
+    });
+  };
+
+  await remove(resolved);
+
+  // The derivatives are not in the database individually, so they are removed
+  // by the same naming rule that created them. Every candidate is resolved
+  // from the validated full-size path, so none can point outside the tree.
+  await Promise.all(
+    DERIVATIVE_WIDTHS.map((width) => remove(derivativePath(resolved, width))),
+  );
 }

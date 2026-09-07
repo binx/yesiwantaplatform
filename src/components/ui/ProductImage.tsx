@@ -1,4 +1,5 @@
 import type { Image } from "@shared/schema";
+import { buildSrcSet } from "@shared/images";
 import { assetUrl } from "@/lib/store-source";
 import styles from "./ProductImage.module.css";
 
@@ -40,15 +41,30 @@ export function ProductImage({
     );
   }
 
+  /*
+   * `srcset` lists what actually exists, `sizes` says how wide it will render,
+   * and the browser downloads the smallest file that is still sharp at the
+   * viewer's pixel density.
+   *
+   * Both are needed: until derivatives existed this component passed `sizes`
+   * alone, which does nothing without a `srcset` to choose from — so every
+   * visitor got the full-size file, and a phone showing a card 180px wide
+   * still downloaded 2400px of image.
+   *
+   * An image uploaded before derivatives has an empty `widths` and falls back
+   * to the single full-size file rather than advertising URLs that would 404.
+   */
+  const srcSet = buildSrcSet(image, assetUrl);
+
   return (
     <img
       className={`${styles.image} ${className ?? ""}`}
       style={style}
       src={assetUrl(image.path)}
+      {...(srcSet ? { srcSet, sizes } : {})}
       width={image.width}
       height={image.height}
       alt={image.alt}
-      sizes={sizes}
       loading={priority ? "eager" : "lazy"}
       decoding={priority ? "sync" : "async"}
       draggable={false}

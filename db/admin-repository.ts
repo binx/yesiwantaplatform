@@ -195,19 +195,22 @@ export async function getStripeProductId(id: string): Promise<string | null> {
 
 export async function addProductImage(
   productId: string,
-  image: { path: string; width: number; height: number; alt: string },
+  image: { path: string; width: number; height: number; alt: string; widths?: number[] },
 ): Promise<void> {
-  const { drizzle: db, schema } = await getDatabase();
+  const { drizzle: db, schema, dialect } = await getDatabase();
 
   const existing = (await db
     .select({ position: schema.productImages.position })
     .from(schema.productImages)
     .where(eq(schema.productImages.productId, productId))) as unknown as { position: number }[];
 
+  const { widths = [], ...rest } = image;
+
   await db.insert(schema.productImages).values({
     id: randomUUID(),
     productId,
-    ...image,
+    ...rest,
+    widths: jsonFor(dialect === "pg", widths),
     position: existing.length,
   });
 }

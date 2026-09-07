@@ -66,6 +66,7 @@ interface ImageRow {
   width: number;
   height: number;
   alt: string;
+  widths: unknown;
 }
 
 interface OptionGroupRow {
@@ -91,6 +92,7 @@ function buildProduct(
       width: i.width,
       height: i.height,
       alt: i.alt,
+      widths: parseJson<number[]>(i.widths, []),
     })),
     variantName: row.variantName,
     variants: variants.map((v) => ({

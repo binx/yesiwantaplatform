@@ -2,12 +2,14 @@ import { Router } from "express";
 import { ZodError } from "zod";
 import {
   collectionInputSchema,
+  imageAltInputSchema,
   imageInputSchema,
   imagePathInputSchema,
   imageReorderInputSchema,
   productInputSchema,
   reorderInputSchema,
   settingsInputSchema,
+  type EnvironmentStatus,
 } from "../../shared/api.js";
 import {
   SlugTakenError,
@@ -17,6 +19,7 @@ import {
   createProduct,
   deleteCollection,
   deleteProduct,
+  getStripeProductId,
   listAllProductsForAdmin,
   productExists,
   removeProductImage,
@@ -25,14 +28,16 @@ import {
   reorderProducts,
   updateCollection,
   updateProduct,
+  updateProductImageAlt,
   updateSettings,
 } from "../../db/admin-repository.js";
 import { findProductBySlug, getSettings, listCollections, listProducts } from "../../db/repository.js";
 import { getOrder, listOrders, updateFulfilment } from "../../db/orders-repository.js";
 import { fulfilmentInputSchema, orderStatusSchema } from "../../shared/orders.js";
 import { httpError, requireAdmin, verifyCsrf, writeRateLimit } from "../middleware.js";
+import { env, hasStripe, isSqlite } from "../env.js";
 import { deleteImageFile, storeImage, uploadMiddleware } from "../uploads.js";
-import { syncProductToStripe } from "../catalog-sync.js";
+import { archiveProductInStripe, syncProductToStripe } from "../catalog-sync.js";
 import { StripeNotConfiguredError } from "../stripe.js";
 import { sendOrderEmail, templateForStatus } from "../email.js";
 
@@ -56,6 +61,30 @@ function toHttp(error: unknown): never {
   }
   throw error;
 }
+
+/* ------------------------------------------------------------- environment */
+
+/**
+ * What is wired up on the server, as booleans.
+ *
+ * The admin dashboard needs to say "Stripe is not connected" without the
+ * secret key ever being readable over HTTP — so this reports presence and
+ * mode, never a value. v1 served its whole `config.env` to the client.
+ */
+adminRouter.get("/environment", (_req, res) => {
+  res.json({
+    hasStripeSecret: hasStripe,
+    stripeMode: env.STRIPE_SECRET_KEY
+      ? env.STRIPE_SECRET_KEY.startsWith("sk_live_")
+        ? "live"
+        : "test"
+      : null,
+    hasWebhookSecret: Boolean(env.STRIPE_WEBHOOK_SECRET),
+    hasEmail: Boolean(env.SMTP_URL),
+    database: isSqlite ? "sqlite" : "postgres",
+    publicUrl: env.PUBLIC_URL,
+  } satisfies EnvironmentStatus);
+});
 
 /* ---------------------------------------------------------------- products */
 
@@ -100,9 +129,17 @@ adminRouter.put("/products/:id", async (req, res) => {
 adminRouter.delete("/products/:id", async (req, res) => {
   if (!(await productExists(req.params.id))) throw httpError(404, "Product not found.");
 
+  const stripeProductId = await getStripeProductId(req.params.id);
+
   const paths = await deleteProduct(req.params.id);
   // Best-effort file cleanup; the database is already consistent.
   await Promise.all(paths.map((p) => deleteImageFile(p).catch(() => undefined)));
+
+  // Archived, never deleted: a past order still references its Prices, and
+  // Stripe will not delete a Product that has any.
+  if (stripeProductId && hasStripe) {
+    await archiveProductInStripe(stripeProductId).catch(() => undefined);
+  }
 
   res.status(204).end();
 });
@@ -143,6 +180,16 @@ adminRouter.delete("/products/:id/images", async (req, res) => {
   if (!removed) throw httpError(404, "Image not found on that product.");
 
   await deleteImageFile(removed);
+  res.status(204).end();
+});
+
+adminRouter.put("/products/:id/images", async (req, res) => {
+  const parsed = imageAltInputSchema.safeParse(req.body);
+  if (!parsed.success) throw httpError(400, "An image path and alt text are required.");
+
+  const updated = await updateProductImageAlt(req.params.id, parsed.data.path, parsed.data.alt);
+  if (!updated) throw httpError(404, "Image not found on that product.");
+
   res.status(204).end();
 });
 

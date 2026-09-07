@@ -53,7 +53,7 @@ export function CartPage() {
           type="warning"
           showIcon
           className={cx(styles.alert)}
-          message={
+          title={
             orphanedCount === 1
               ? "An item in your cart is no longer available and has been hidden."
               : `${orphanedCount} items in your cart are no longer available and have been hidden.`
@@ -148,7 +148,7 @@ export function CartPage() {
                 type="error"
                 showIcon
                 className={cx(styles.alert)}
-                message={checkoutError}
+                title={checkoutError}
               />
             )}
             <Button

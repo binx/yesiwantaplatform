@@ -38,11 +38,19 @@ export class StoreErrorBoundary extends Component<Props, State> {
       return (
         <PageWrapper width="prose">
           <h1>Welcome to Beluga</h1>
-          <p>This store has no catalogue yet. To load the demo store, run:</p>
-          <Typography.Paragraph>
-            <pre>npm run db:seed</pre>
+          <p>
+            This store has not been set up yet. The wizard takes three steps and ends with you
+            signed in to the admin.
+          </p>
+          <p>
+            <Button type="primary" href="/setup">
+              Set up this store
+            </Button>
+          </p>
+          <Typography.Paragraph type="secondary">
+            Prefer a terminal? <code>npm run setup</code> does the same thing, and can also validate
+            a Stripe secret key before writing it to <code>.env</code>.
           </Typography.Paragraph>
-          <p>Then reload this page.</p>
         </PageWrapper>
       );
     }
@@ -52,7 +60,7 @@ export class StoreErrorBoundary extends Component<Props, State> {
         <Alert
           type="error"
           showIcon
-          message="Couldn't load this store"
+          title="Couldn't load this store"
           description={
             <>
               <p style={{ marginTop: 0 }}>

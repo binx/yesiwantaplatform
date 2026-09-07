@@ -1,0 +1,28 @@
+.wiring {
+  margin-bottom: 1.5rem;
+}
+
+.notice {
+  margin-bottom: 0.75rem;
+}
+
+.notice:last-child {
+  margin-bottom: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.statNote {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  color: #71717a;
+}
+
+.recent {
+  margin-bottom: 1.5rem;
+}

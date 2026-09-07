@@ -1,0 +1,75 @@
+.alert {
+  margin-bottom: 1.25rem;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.main,
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.card {
+  margin: 0;
+}
+
+.variant {
+  font-size: 0.8125rem;
+  color: #71717a;
+}
+
+.snapshotNote {
+  margin: 1rem 0 0;
+  font-size: 0.75rem;
+  color: #a1a1aa;
+  max-width: 60ch;
+}
+
+.field {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #3f3f46;
+}
+
+.control {
+  width: 100%;
+}
+
+.notify {
+  margin-top: 0.5rem;
+}
+
+.help {
+  margin: 0.35rem 0 1.25rem;
+  font-size: 0.75rem;
+  color: #71717a;
+}
+
+.address {
+  font-style: normal;
+}
+
+.muted {
+  color: #a1a1aa;
+}
+
+@media (max-width: 1000px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+}

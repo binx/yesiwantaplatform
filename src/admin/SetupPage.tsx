@@ -1,0 +1,405 @@
+import { useEffect, useState } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Form,
+  Input,
+  Result,
+  Select,
+  Skeleton,
+  Steps,
+  Tag,
+  Typography,
+} from "antd";
+import { CheckCircleTwoTone, InfoCircleOutlined } from "@ant-design/icons";
+import { defaultTheme, type Theme } from "@shared/schema";
+import type { SessionResponse, SetupInput } from "@shared/api";
+import { csrfPost, setCsrfToken } from "@/lib/api";
+import { sessionQueryKey, setupStatusQueryKey, useSetupStatus } from "@/lib/session";
+import { ThemeEditor } from "./ThemeEditor";
+import { cx } from "@/lib/cx";
+import styles from "./SetupPage.module.css";
+
+/**
+ * First run.
+ *
+ * v1's onboarding was: clone, `npm run server`, uncaught ENOENT because
+ * `config.env` did not exist, hand-author that file from reading the source,
+ * restart, meet a two-field modal, then find a five-tab configuration page.
+ * This is three steps and ends signed in.
+ *
+ * One thing it deliberately cannot do is take a Stripe *secret* key. A browser
+ * form that accepted one would have to post it to the server to be written to
+ * disk, and the server would have to write its own configuration file to store
+ * it — which is exactly what v1 did, and why its secrets and its config were
+ * the same mutable file. The secret key stays an environment variable, and
+ * this page reports whether the server already has one.
+ */
+
+const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "JPY", "SEK", "NZD", "CHF", "DKK"];
+
+interface IdentityValues {
+  storeName: string;
+  currency: string;
+  email: string;
+  password: string;
+  confirm: string;
+}
+
+export function SetupPage() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const status = useSetupStatus();
+
+  const [step, setStep] = useState(0);
+  const [identity, setIdentity] = useState<IdentityValues | null>(null);
+  const [publishableKey, setPublishableKey] = useState("");
+  const [theme, setTheme] = useState<Theme>(defaultTheme);
+  const [seedDemo, setSeedDemo] = useState(true);
+
+  useEffect(() => {
+    document.title = "Set up your store · Beluga";
+  }, []);
+
+  const submit = useMutation({
+    mutationFn: (input: SetupInput) => csrfPost<SessionResponse>("/setup", input),
+    onSuccess: async (session) => {
+      setCsrfToken(session.csrfToken);
+      queryClient.setQueryData(sessionQueryKey, session);
+      await queryClient.invalidateQueries({ queryKey: setupStatusQueryKey });
+      // The storefront's cached "no store here" answer is now wrong.
+      await queryClient.invalidateQueries({ queryKey: ["store"] });
+    },
+  });
+
+  if (status.isPending) {
+    return (
+      <div className={cx(styles.page)}>
+        <Card className={cx(styles.card)}>
+          <Skeleton active paragraph={{ rows: 5 }} />
+        </Card>
+      </div>
+    );
+  }
+
+  // Someone else finished setup, or this tab was left open across it.
+  if (status.data && !status.data.needsSetup && !submit.isSuccess) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  if (submit.isSuccess) {
+    return (
+      <div className={cx(styles.page)}>
+        <Card className={cx(styles.card)}>
+          <Result
+            status="success"
+            title={`${identity?.storeName ?? "Your store"} is ready`}
+            subTitle={
+              submit.data.isAdmin
+                ? "You are signed in as its administrator."
+                : "An administrator already existed, so sign in with that account."
+            }
+            extra={[
+              <Button
+                key="admin"
+                type="primary"
+                onClick={() => void navigate(submit.data.isAdmin ? "/admin" : "/admin/login")}
+              >
+                {submit.data.isAdmin ? "Open the admin" : "Sign in"}
+              </Button>,
+              <Button key="store" onClick={() => void navigate("/")}>
+                View the storefront
+              </Button>,
+            ]}
+          />
+        </Card>
+      </div>
+    );
+  }
+
+  const finish = () => {
+    if (!identity) return;
+
+    submit.mutate({
+      storeName: identity.storeName,
+      currency: identity.currency,
+      email: identity.email,
+      password: identity.password,
+      stripePublishableKey: publishableKey.trim() || null,
+      theme,
+      seedDemo,
+    });
+  };
+
+  return (
+    <div className={cx(styles.page)}>
+      <Card className={cx(styles.card)}>
+        <Typography.Title level={1} className={cx(styles.title)}>
+          <span aria-hidden="true">🎷🐋</span> Set up your store
+        </Typography.Title>
+        <p className={cx(styles.subtitle)}>Three steps. Nothing is saved until the last one.</p>
+
+        <Steps
+          className={cx(styles.steps)}
+          current={step}
+          size="small"
+          items={[{ title: "Store" }, { title: "Payments" }, { title: "Look" }]}
+        />
+
+        {submit.isError ? (
+          <Alert
+            className={cx(styles.alert)}
+            type="error"
+            showIcon
+            title={submit.error instanceof Error ? submit.error.message : "Setup failed."}
+          />
+        ) : null}
+
+        {step === 0 ? (
+          <IdentityStep
+            initial={identity}
+            onDone={(values) => {
+              setIdentity(values);
+              setStep(1);
+            }}
+          />
+        ) : null}
+
+        {step === 1 ? (
+          <PaymentsStep
+            hasSecret={status.data?.hasStripeSecret ?? false}
+            mode={status.data?.stripeMode ?? null}
+            value={publishableKey}
+            onChange={setPublishableKey}
+            onBack={() => setStep(0)}
+            onNext={() => setStep(2)}
+          />
+        ) : null}
+
+        {step === 2 ? (
+          <>
+            <ThemeEditor
+              value={theme}
+              onChange={setTheme}
+              storeName={identity?.storeName ?? "Your store"}
+            />
+
+            <Checkbox
+              className={cx(styles.seed)}
+              checked={seedDemo}
+              onChange={(event) => setSeedDemo(event.target.checked)}
+            >
+              Load the demo catalogue, so the storefront has something to render
+            </Checkbox>
+
+            <div className={cx(styles.actions)}>
+              <Button onClick={() => setStep(1)} disabled={submit.isPending}>
+                Back
+              </Button>
+              <Button type="primary" onClick={finish} loading={submit.isPending}>
+                Create my store
+              </Button>
+            </div>
+          </>
+        ) : null}
+      </Card>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ step 1 */
+
+function IdentityStep({
+  initial,
+  onDone,
+}: {
+  initial: IdentityValues | null;
+  onDone: (values: IdentityValues) => void;
+}) {
+  return (
+    <Form
+      layout="vertical"
+      requiredMark={false}
+      initialValues={initial ?? { currency: "USD" }}
+      onFinish={onDone}
+    >
+      <Form.Item
+        name="storeName"
+        label="Store name"
+        rules={[{ required: true, message: "Your store needs a name." }]}
+      >
+        <Input autoFocus placeholder="Blue Whale Goods" size="large" />
+      </Form.Item>
+
+      <Form.Item
+        name="currency"
+        label="Currency"
+        help="Prices are stored in this currency's smallest unit and cannot be converted later."
+        rules={[{ required: true }]}
+      >
+        <Select
+          showSearch
+          options={CURRENCIES.map((code) => ({ label: code, value: code }))}
+          className={cx(styles.currency)}
+        />
+      </Form.Item>
+
+      <div className={cx(styles.divider)}>
+        <span>Your administrator account</span>
+      </div>
+
+      <Form.Item
+        name="email"
+        label="Email"
+        rules={[
+          { required: true, message: "Enter an email address." },
+          { type: "email", message: "That does not look like an email address." },
+        ]}
+      >
+        <Input type="email" autoComplete="username" size="large" />
+      </Form.Item>
+
+      <Form.Item
+        name="password"
+        label="Password"
+        help="At least 12 characters. Stored as an argon2id hash — it cannot be read back."
+        rules={[
+          { required: true, message: "Choose a password." },
+          { min: 12, message: "Use at least 12 characters." },
+        ]}
+      >
+        <Input.Password autoComplete="new-password" size="large" />
+      </Form.Item>
+
+      <Form.Item
+        name="confirm"
+        label="Confirm password"
+        dependencies={["password"]}
+        rules={[
+          { required: true, message: "Type the password again." },
+          ({ getFieldValue }) => ({
+            validator: (_rule, value: string) =>
+              !value || getFieldValue("password") === value
+                ? Promise.resolve()
+                : Promise.reject(new Error("The passwords do not match.")),
+          }),
+        ]}
+      >
+        <Input.Password autoComplete="new-password" size="large" />
+      </Form.Item>
+
+      <div className={cx(styles.actions)}>
+        <Button type="primary" htmlType="submit">
+          Continue
+        </Button>
+      </div>
+    </Form>
+  );
+}
+
+/* ------------------------------------------------------------------ step 2 */
+
+function PaymentsStep({
+  hasSecret,
+  mode,
+  value,
+  onChange,
+  onBack,
+  onNext,
+}: {
+  hasSecret: boolean;
+  mode: "test" | "live" | null;
+  value: string;
+  onChange: (next: string) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const looksSecret = value.trim().startsWith("sk_");
+
+  return (
+    <div>
+      <p className={cx(styles.stepIntro)}>
+        Beluga uses Stripe&apos;s hosted checkout, so card details never touch this server. You can
+        skip this and add it later — the catalogue works without it, it just cannot take money.
+      </p>
+
+      {hasSecret ? (
+        <Alert
+          className={cx(styles.alert)}
+          type="success"
+          showIcon
+          icon={<CheckCircleTwoTone twoToneColor="#52c41a" />}
+          message={
+            <>
+              A Stripe secret key is configured on the server{" "}
+              {mode ? <Tag color={mode === "live" ? "red" : "blue"}>{mode} mode</Tag> : null}
+            </>
+          }
+          description={
+            mode === "live"
+              ? "This is a live key. Publishing a product creates real objects in your Stripe account, and checkouts will charge real cards."
+              : "Test mode — no real money can move."
+          }
+        />
+      ) : (
+        <Alert
+          className={cx(styles.alert)}
+          type="info"
+          showIcon
+          icon={<InfoCircleOutlined />}
+          message="No Stripe secret key on the server yet"
+          description={
+            <>
+              <p className={cx(styles.alertText)}>
+                The secret key is never accepted through a browser form, because storing it would
+                mean this server writing to its own configuration. Put it in <code>.env</code>{" "}
+                instead and restart the API:
+              </p>
+              <pre className={cx(styles.code)}>STRIPE_SECRET_KEY=sk_test_…</pre>
+              <p className={cx(styles.alertText)}>
+                Or re-run <code>npm run setup</code>, which validates the key against Stripe before
+                writing it.
+              </p>
+            </>
+          }
+        />
+      )}
+
+      <Form layout="vertical" requiredMark={false}>
+        {/*
+          * One `help` that swaps text rather than a `help` plus an `extra`:
+          * antd colours `help` by validateStatus, so leaving the neutral
+          * guidance there turned *it* red while the real error rendered grey
+          * underneath — the opposite of what the two lines mean.
+          */}
+        <Form.Item
+          label="Publishable key"
+          help={
+            looksSecret
+              ? "That is a secret key. It must not go here, or into any browser."
+              : "Public by design — it is sent to every shopper's browser. Optional."
+          }
+          {...(looksSecret ? { validateStatus: "error" as const } : {})}
+        >
+          <Input
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder="pk_test_…"
+            size="large"
+          />
+        </Form.Item>
+      </Form>
+
+      <div className={cx(styles.actions)}>
+        <Button onClick={onBack}>Back</Button>
+        <Button type="primary" onClick={onNext} disabled={looksSecret}>
+          Continue
+        </Button>
+      </div>
+    </div>
+  );
+}

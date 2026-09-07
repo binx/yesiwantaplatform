@@ -1,0 +1,69 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 2.5rem;
+  align-items: start;
+}
+
+.controls :global(.ant-form-item:last-child) {
+  margin-bottom: 0;
+}
+
+.preview {
+  position: sticky;
+  top: 1.5rem;
+}
+
+.previewLabel {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #71717a;
+}
+
+.previewSurface {
+  padding: 1rem;
+  border: 1px solid #e4e4e7;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.previewStore {
+  margin: 0 0 0.75rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.previewImage {
+  aspect-ratio: 4 / 3;
+  opacity: 0.85;
+}
+
+.previewProduct {
+  margin: 0 0 0.25rem;
+  font-weight: 500;
+}
+
+.previewPrice {
+  margin: 0 0 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #52525b;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .preview {
+    position: static;
+    max-width: 260px;
+  }
+}

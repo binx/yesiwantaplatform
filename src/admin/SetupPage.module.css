@@ -1,0 +1,93 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 3rem 1rem 4rem;
+  background: #fafaf9;
+}
+
+.card {
+  width: 100%;
+  max-width: 44rem;
+}
+
+.title {
+  margin: 0 0 0.25rem !important;
+  font-size: 1.5rem !important;
+  letter-spacing: -0.02em;
+  /* The emoji is its own glyph run; without this it butts against the text. */
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.subtitle {
+  margin: 0 0 1.75rem;
+  color: #71717a;
+}
+
+.steps {
+  margin-bottom: 2rem;
+}
+
+.alert {
+  margin-bottom: 1.5rem;
+}
+
+.alertText {
+  margin: 0 0 0.5rem;
+}
+
+.alertText:last-child {
+  margin-bottom: 0;
+}
+
+.stepIntro {
+  margin: 0 0 1.25rem;
+  color: #52525b;
+  max-width: 62ch;
+}
+
+.code {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.625rem;
+  background: rgb(0 0 0 / 5%);
+  border-radius: 2px;
+  font-size: 0.8125rem;
+  /* Scrolls inside its own box rather than widening the alert. */
+  overflow-x: auto;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.75rem 0 1.5rem;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #71717a;
+}
+
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #e4e4e7;
+}
+
+.currency {
+  max-width: 10rem;
+}
+
+.seed {
+  margin-top: 1.75rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 2rem;
+}

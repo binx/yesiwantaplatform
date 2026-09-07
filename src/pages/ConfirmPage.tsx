@@ -79,7 +79,7 @@ export function ConfirmPage() {
         <Alert
           type="error"
           showIcon
-          message="We couldn't load your order"
+          title="We couldn't load your order"
           description="Your payment may still have gone through. Check your email for a confirmation before trying again."
         />
       </PageWrapper>
@@ -107,7 +107,7 @@ export function ConfirmPage() {
           type="info"
           showIcon
           className={cx(styles.pending)}
-          message="Confirming your payment"
+          title="Confirming your payment"
           description="This usually takes a few seconds. You can safely close this page — your confirmation email will still arrive."
         />
       )}

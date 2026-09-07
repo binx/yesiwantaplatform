@@ -60,6 +60,55 @@ export const loginInputSchema = z.object({
   password: z.string().min(1).max(400),
 });
 
+/**
+ * First-run setup.
+ *
+ * A password minimum lands here rather than on `loginInputSchema`: existing
+ * accounts must still be able to sign in with whatever they already have, but
+ * nothing new should be created below this bar. v1's initial-config modal was
+ * two fields with no minimum at all.
+ */
+export const setupInputSchema = z.object({
+  storeName: z.string().min(1).max(120),
+  currency: z.string().length(3).default("USD"),
+  email: z.string().email().max(320),
+  password: z.string().min(12, "Use at least 12 characters.").max(400),
+  stripePublishableKey: z
+    .string()
+    .startsWith("pk_", "That looks like a secret key. Only the publishable key belongs here.")
+    .nullable()
+    .default(null),
+  theme: themeSchema,
+  /** Load the demo catalogue so the storefront has something to render. */
+  seedDemo: z.boolean().default(false),
+});
+
+/**
+ * What the setup wizard is allowed to know before anyone has authenticated.
+ *
+ * Detail is only returned while the store is unconfigured — which is
+ * unavoidably public, since that is the state the wizard exists to resolve.
+ * Once setup completes this collapses to `needsSetup: false` and nothing else.
+ */
+export const setupStatusSchema = z.object({
+  needsSetup: z.boolean(),
+  hasAdmin: z.boolean().optional(),
+  hasSettings: z.boolean().optional(),
+  /** Whether the *server* has a secret key. The key itself never leaves it. */
+  hasStripeSecret: z.boolean().optional(),
+  stripeMode: z.enum(["test", "live"]).nullable().optional(),
+});
+
+/** Server-side wiring, shown on the admin dashboard. Booleans, never values. */
+export const environmentStatusSchema = z.object({
+  hasStripeSecret: z.boolean(),
+  stripeMode: z.enum(["test", "live"]).nullable(),
+  hasWebhookSecret: z.boolean(),
+  hasEmail: z.boolean(),
+  database: z.enum(["sqlite", "postgres"]),
+  publicUrl: z.string(),
+});
+
 export const imageInputSchema = z.object({
   alt: z.string().max(300).default(""),
 });
@@ -70,6 +119,13 @@ export const reorderInputSchema = z.object({
 
 export const imagePathInputSchema = z.object({
   path: z.string().min(1).max(512),
+});
+
+/** Alt text is editable after upload: a11y should not depend on getting it
+ * right in the moment a file is dropped. */
+export const imageAltInputSchema = z.object({
+  path: z.string().min(1).max(512),
+  alt: z.string().max(300),
 });
 
 export const imageReorderInputSchema = z.object({
@@ -118,6 +174,9 @@ export type ProductInput = z.infer<typeof productInputSchema>;
 export type CollectionInput = z.infer<typeof collectionInputSchema>;
 export type SettingsInput = z.infer<typeof settingsInputSchema>;
 export type LoginInput = z.infer<typeof loginInputSchema>;
+export type SetupInput = z.infer<typeof setupInputSchema>;
+export type SetupStatus = z.infer<typeof setupStatusSchema>;
+export type EnvironmentStatus = z.infer<typeof environmentStatusSchema>;
 export type ProductQuery = z.infer<typeof productQuerySchema>;
 export type SessionResponse = z.infer<typeof sessionResponseSchema>;
 export type ProductPageResponse = z.infer<typeof productPageResponseSchema>;

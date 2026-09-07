@@ -99,6 +99,24 @@ export const storeSchema = z.object({
   products: z.array(productSchema).default([]),
 });
 
+/**
+ * Beluga's default look.
+ *
+ * v1 shipped Material's rounded mid-grey defaults. v2 aims at an independent
+ * shop: near-black ink, a warm accent, and a 2px radius so cards and buttons
+ * read as crisp rather than pill-shaped. Every value is overridable per store.
+ *
+ * It lives here rather than in the client because the setup CLI and the setup
+ * API both need it before any browser is involved.
+ */
+export const defaultTheme: Theme = {
+  colorPrimary: "#18181b",
+  colorAccent: "#e07a5f",
+  fontFamily:
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif',
+  borderRadius: 2,
+};
+
 /** Featured products are a normal collection at this reserved slug. */
 export const FEATURED_SLUG = "featured-products";
 

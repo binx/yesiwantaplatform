@@ -182,6 +182,17 @@ export async function productExists(id: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+/** The product's Stripe id, read before a delete so it can be archived. */
+export async function getStripeProductId(id: string): Promise<string | null> {
+  const { drizzle: db, schema } = await getDatabase();
+  const rows = (await db
+    .select({ stripeProductId: schema.products.stripeProductId })
+    .from(schema.products)
+    .where(eq(schema.products.id, id))
+    .limit(1)) as unknown as { stripeProductId: string | null }[];
+  return rows[0]?.stripeProductId ?? null;
+}
+
 export async function addProductImage(
   productId: string,
   image: { path: string; width: number; height: number; alt: string },
@@ -224,6 +235,28 @@ export async function removeProductImage(
 
   await db.delete(schema.productImages).where(eq(schema.productImages.id, row.id));
   return row.path;
+}
+
+export async function updateProductImageAlt(
+  productId: string,
+  imagePath: string,
+  alt: string,
+): Promise<boolean> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const rows = (await db
+    .select({ id: schema.productImages.id })
+    .from(schema.productImages)
+    .where(
+      and(eq(schema.productImages.productId, productId), eq(schema.productImages.path, imagePath)),
+    )
+    .limit(1)) as unknown as { id: string }[];
+
+  const row = rows[0];
+  if (!row) return false;
+
+  await db.update(schema.productImages).set({ alt }).where(eq(schema.productImages.id, row.id));
+  return true;
 }
 
 export async function reorderProductImages(productId: string, paths: string[]): Promise<void> {

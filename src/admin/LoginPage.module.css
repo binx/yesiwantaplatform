@@ -1,0 +1,49 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  background: #fafaf9;
+}
+
+.card {
+  width: 100%;
+  max-width: 26rem;
+}
+
+.title {
+  margin: 0 0 0.25rem !important;
+  font-size: 1.5rem !important;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.subtitle {
+  margin: 0 0 1.5rem;
+  color: #71717a;
+}
+
+.alert {
+  margin-bottom: 1.25rem;
+}
+
+.footer {
+  margin: 1.5rem 0 0;
+  font-size: 0.8125rem;
+  color: #71717a;
+}
+
+.code {
+  display: block;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  background: #f4f4f5;
+  border-radius: 2px;
+  font-size: 0.75rem;
+  /* A long command scrolls inside its own box rather than widening the card. */
+  overflow-x: auto;
+  white-space: nowrap;
+}

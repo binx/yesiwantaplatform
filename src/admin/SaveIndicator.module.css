@@ -1,0 +1,18 @@
+.indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+}
+
+.muted {
+  color: #71717a;
+}
+
+.good {
+  color: #15803d;
+}
+
+.bad {
+  color: #b91c1c;
+}

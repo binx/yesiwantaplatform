@@ -1,0 +1,179 @@
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  background: #fafaf9;
+}
+
+.sidebar {
+  border-right: 1px solid #e4e4e7;
+  background: #fff;
+  padding: 1.25rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.brandStore {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #71717a;
+  /* A long store name must not push the sidebar wider. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+
+.nav {
+  border-inline-end: none !important;
+}
+
+/* Narrow-screen navigation: a scrolling strip, never a collapsing menu. */
+.navStrip {
+  display: flex;
+  gap: 0.25rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  flex: 1;
+  min-width: 0;
+  scrollbar-width: none;
+}
+
+.navStrip::-webkit-scrollbar {
+  display: none;
+}
+
+.navLink {
+  display: block;
+  padding: 0.35rem 0.6rem;
+  border-radius: 2px;
+  white-space: nowrap;
+  color: #52525b;
+  font-size: 0.875rem;
+}
+
+.navLinkCurrent {
+  background: #18181b;
+  color: #fff;
+}
+
+.navLinkCurrent:hover {
+  color: #fff;
+}
+
+.sidebarFooter {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0 0.5rem;
+}
+
+.content {
+  padding: 2rem 2.5rem 4rem;
+  min-width: 0;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.75rem;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+}
+
+.pageDescription {
+  margin: 0.35rem 0 0;
+  color: #71717a;
+  max-width: 62ch;
+}
+
+.pageActions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/*
+ * Below the sidebar breakpoint the nav becomes a horizontal strip above the
+ * content rather than disappearing behind a drawer, so every destination stays
+ * one tap away. v1's config screens were a desktop-width tab bar that simply
+ * overflowed on a phone.
+ */
+@media (max-width: 800px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  /*
+   * Two rows: identity and account controls, then navigation across the full
+   * width. On one row the sign-out button squeezed the nav strip to nothing.
+   */
+  .sidebar {
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid #e4e4e7;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    overflow-x: hidden;
+    padding: 0.75rem;
+  }
+
+  .navStrip {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .brand {
+    flex-shrink: 0;
+  }
+
+  .brandStore {
+    display: none;
+  }
+
+  .nav {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .sidebarFooter {
+    margin-top: 0;
+    margin-left: auto;
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .content {
+    padding: 1.25rem 1rem 3rem;
+  }
+}

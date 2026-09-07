@@ -21,8 +21,9 @@ async function main(): Promise<void> {
 
   if (!(await isConfigured())) {
     console.log(
-      "\n  This store is not set up yet.\n" +
-        "  Seed the demo catalogue with:  npm run db:seed\n",
+      "\n  This store is not set up yet. Either:\n" +
+        "    npm run setup                 — three prompts in this terminal, or\n" +
+        `    open ${env.PUBLIC_URL}/setup  — the same three steps in a browser\n`,
     );
   }
 

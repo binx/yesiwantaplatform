@@ -1,0 +1,31 @@
+.field {
+  display: block;
+  margin-bottom: 1.25rem;
+}
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #3f3f46;
+}
+
+.help,
+.error {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  max-width: 70ch;
+}
+
+.help {
+  color: #71717a;
+}
+
+.error {
+  color: #b91c1c;
+}

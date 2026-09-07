@@ -6,6 +6,7 @@ import { DrizzleSessionStore } from "./session-store.js";
 import { errorHandler, notFound, securityHeaders } from "./middleware.js";
 import { publicRouter } from "./routes/public.js";
 import { sessionRouter } from "./routes/session.js";
+import { setupRouter } from "./routes/setup.js";
 import { adminRouter } from "./routes/admin.js";
 import { checkoutRouter } from "./routes/checkout.js";
 import { webhookRouter } from "./routes/webhook.js";
@@ -51,6 +52,7 @@ export function createApp(): Express {
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
   app.use("/api", sessionRouter);
+  app.use("/api", setupRouter);
   app.use("/api", publicRouter);
   app.use("/api", checkoutRouter);
   app.use("/api/admin", adminRouter);

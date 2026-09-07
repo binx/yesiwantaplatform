@@ -13,13 +13,22 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // antd changes far less often than store code, so give it its own
-        // chunk rather than busting the whole bundle on every edit.
+        /*
+         * React gets a manual chunk; antd deliberately does not.
+         *
+         * Phase 1 gave antd one too, for cache stability. Once the admin
+         * arrived that became expensive: a name-matched group collects every
+         * antd module the build can see, whether or not the storefront can
+         * reach it, so the admin's tables, uploader and colour picker were
+         * bundled into the chunk shoppers download. Measured on the storefront
+         * entry, gzipped: 298 kB with no admin at all, 313 kB letting the
+         * bundler split antd by reachability, 459 kB with the manual group.
+         *
+         * Reachability-based splitting costs a few more requests and wins back
+         * ~145 kB, so it is left to the bundler.
+         */
         advancedChunks: {
-          groups: [
-            { name: "antd", test: /node_modules[\\/](antd|@ant-design|@rc-component)/ },
-            { name: "react", test: /node_modules[\\/](react|react-dom|react-router)/ },
-          ],
+          groups: [{ name: "react", test: /node_modules[\\/](react|react-dom|react-router)/ }],
         },
       },
     },

@@ -477,9 +477,9 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
   <section class="progress">
     <div class="progress-head">
       <h2 class="progress-title">Progress</h2>
-      <p class="progress-count">Nothing shipped yet — 16 tasks queued.</p>
+      <p class="progress-count">1 of 16 shipped.</p>
     </div>
-    <div class="track" role="img" aria-label="Nothing shipped yet — 16 tasks queued."><span class="group" aria-label="Tier 0"><span class="cell cell--todo" title="00 Fetch order items by order id — To do"></span><span class="cell cell--todo" title="01 Refund an order from the admin — To do"></span><span class="cell cell--todo" title="02 Restore stock when an order is refunded — To do"></span><span class="cell cell--todo" title="03 Discount codes via Stripe — To do"></span><span class="cell cell--todo" title="04 Export orders as CSV — To do"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--todo" title="05 Per-product SEO metadata — To do"></span><span class="cell cell--todo" title="06 Storefront search and sort — To do"></span><span class="cell cell--todo" title="07 Staff accounts — To do"></span><span class="cell cell--todo" title="08 Store pages — To do"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--todo" title="09 Sales tax and VAT — To do"></span><span class="cell cell--todo" title="10 Multi-axis variants — To do"></span><span class="cell cell--todo" title="11 Customer accounts — To do"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--todo" title="12 Abandoned cart recovery — To do"></span><span class="cell cell--todo" title="13 Digital and downloadable products — To do"></span><span class="cell cell--todo" title="14 Outbound webhooks — To do"></span><span class="cell cell--todo" title="15 Catalogue CSV import and export — To do"></span></span></div>
+    <div class="track" role="img" aria-label="1 of 16 shipped."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--todo" title="01 Refund an order from the admin — To do"></span><span class="cell cell--todo" title="02 Restore stock when an order is refunded — To do"></span><span class="cell cell--todo" title="03 Discount codes via Stripe — To do"></span><span class="cell cell--todo" title="04 Export orders as CSV — To do"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--todo" title="05 Per-product SEO metadata — To do"></span><span class="cell cell--todo" title="06 Storefront search and sort — To do"></span><span class="cell cell--todo" title="07 Staff accounts — To do"></span><span class="cell cell--todo" title="08 Store pages — To do"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--todo" title="09 Sales tax and VAT — To do"></span><span class="cell cell--todo" title="10 Multi-axis variants — To do"></span><span class="cell cell--todo" title="11 Customer accounts — To do"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--todo" title="12 Abandoned cart recovery — To do"></span><span class="cell cell--todo" title="13 Digital and downloadable products — To do"></span><span class="cell cell--todo" title="14 Outbound webhooks — To do"></span><span class="cell cell--todo" title="15 Catalogue CSV import and export — To do"></span></span></div>
     <div class="track-key">
       <span><i class="cell cell--done"></i> Shipped</span>
       <span><i class="cell cell--in-progress"></i> In progress</span>
@@ -488,13 +488,16 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
     </div>
   </section>
 
-  <section class="log log--empty">
+  <section class="log">
     <h2>Shipped</h2>
-    <p>
-      Nothing yet. The first entry appears here when a brief's <code>status</code> becomes
-      <code>done</code> — this page is generated from <code>docs/tasks/</code>, so the
-      changelog writes itself as the work lands.
-    </p>
+    <ol class="log-list">
+      <li>
+        <span class="log-date">2026-09-07</span>
+        <span class="log-task">00</span>
+        <span class="log-title">Fetch order items by order id</span>
+        <span class="log-ref"></span>
+      </li>
+    </ol>
   </section>
 
   <section class="plot">
@@ -544,16 +547,16 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
 
   <section class="tier tier--now">
     <div class="tier-head">
-      <div class="tier-tag">Tier 0 · No migration · Days </div>
+      <div class="tier-tag">Tier 0 · No migration · Days <span class="tier-done">1 of 5 shipped</span></div>
       <h2>Money is currently leaking</h2>
       <p class="tier-verdict">Gaps a merchant hits in their first week of real orders. None needs a schema reshape, and three of them are closer to correctness bugs than features.</p>
     </div>
     <div class="items">
-      <article class="item item--todo">
+      <article class="item item--done">
         <div class="item-head">
           <span class="seq">00</span>
           <h3>Fetch order items by order id</h3>
-          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--status chip--done">Shipped</span>
           <span class="chip chip--s">Small</span>
         </div>
         <p><code>loadItems</code> selects the entire <code>order_items</code> table and filters it in JavaScript, with an <code>includes()</code> inside the loop. Every caller pays it — including the payment webhook, which reaches it through <code>getOrder</code>. It's invisible on a demo catalogue and quietly quadratic on a real one. <strong>Fix this before the CSV export</strong>, which would otherwise page through the whole table once per batch.</p>

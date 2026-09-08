@@ -1,14 +1,14 @@
 ---
 task: "00"
 title: Fetch order items by order id
-status: todo
+status: done
 tier: 0
 size: S
 migration: none
 blocked_by: []
 blocks: ["04"]
 touches: db/orders-repository.ts:168
-completed: 
+completed: 2026-09-07
 shipped_in: 
 summary: >-
   `loadItems` selects the entire `order_items` table and filters it in JavaScript, with an

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, count, desc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import {
   orderReference,
   orderSchema,
@@ -165,19 +165,40 @@ function buildOrder(row: OrderRow, items: OrderItemRow[]): Order {
   });
 }
 
-async function loadItems(orderIds: string[]): Promise<Map<string, OrderItemRow[]>> {
+/**
+ * SQLite's default limit is 999 bound parameters, so a single `inArray` over a
+ * long id list fails with SQLITE_ERROR. `listOrders` clamps to 100 today, but
+ * chunking here means a future caller with a bigger list doesn't have to know.
+ */
+const ITEM_ID_CHUNK = 500;
+
+/** Exported so the dialect tests can exercise the chunking guard directly. */
+export async function loadItems(orderIds: string[]): Promise<Map<string, OrderItemRow[]>> {
   const { drizzle: db, schema } = await getDatabase();
   if (orderIds.length === 0) return new Map();
 
-  const rows = (await db.select().from(schema.orderItems)) as unknown as OrderItemRow[];
-
   const map = new Map<string, OrderItemRow[]>();
-  for (const row of rows) {
-    if (!orderIds.includes(row.orderId)) continue;
-    const existing = map.get(row.orderId);
-    if (existing) existing.push(row);
-    else map.set(row.orderId, [row]);
+
+  for (let start = 0; start < orderIds.length; start += ITEM_ID_CHUNK) {
+    const chunk = orderIds.slice(start, start + ITEM_ID_CHUNK);
+
+    // v1 selected the whole table and filtered in JS, with an includes() in the
+    // loop — quadratic, and on the payment webhook's path via getOrder.
+    // order_items has no position column, so sort by id: without it the engine
+    // is free to return the same order's lines in a different order each call.
+    const rows = (await db
+      .select()
+      .from(schema.orderItems)
+      .where(inArray(schema.orderItems.orderId, chunk))
+      .orderBy(asc(schema.orderItems.id))) as unknown as OrderItemRow[];
+
+    for (const row of rows) {
+      const existing = map.get(row.orderId);
+      if (existing) existing.push(row);
+      else map.set(row.orderId, [row]);
+    }
   }
+
   return map;
 }
 

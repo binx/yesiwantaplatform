@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -78,12 +79,13 @@ async function loadWith(databaseUrl: string) {
   const { seedIfEmpty } = await import("./seed.js");
   const repository = await import("./repository.js");
   const admin = await import("./admin-repository.js");
+  const orders = await import("./orders-repository.js");
   const { resetDatabase } = await import("./client.js");
 
   await runMigrations();
   await seedIfEmpty();
 
-  return { ...repository, admin, resetDatabase };
+  return { ...repository, admin, orders, resetDatabase };
 }
 
 /**
@@ -181,6 +183,85 @@ for (const { name, context } of dialects) {
 
       await db.admin.deleteProduct(id);
       expect(await db.findProductBySlug("cascade-test")).toBeNull();
+    });
+
+    it("returns only the requested order's items", async () => {
+      const product = (await db.findProductBySlug("canvas-tote"))!;
+      const variant = product.variants[0]!;
+      const line = (quantity: number) => ({
+        productId: product.id,
+        variantId: variant.id,
+        productName: "Canvas Tote",
+        variantLabel: variant.label,
+        unitPriceCents: variant.priceCents,
+        quantity,
+        options: {},
+      });
+
+      const a = randomUUID();
+      const b = randomUUID();
+      await db.orders.createPendingOrder({
+        id: a,
+        checkoutSessionId: `cs_${a}`,
+        email: "a@example.com",
+        currency: "usd",
+        subtotalCents: variant.priceCents,
+        lines: [line(1)],
+      });
+      await db.orders.createPendingOrder({
+        id: b,
+        checkoutSessionId: `cs_${b}`,
+        email: "b@example.com",
+        currency: "usd",
+        subtotalCents: variant.priceCents * 5,
+        lines: [line(2), line(3)],
+      });
+
+      // The bug this guards: loadItems used to select the whole table, so
+      // every order's detail page saw every other order's lines.
+      const orderA = await db.orders.getOrder(a);
+      expect(orderA?.items).toHaveLength(1);
+      expect(orderA?.items.every((i) => i.quantity === 1)).toBe(true);
+
+      expect((await db.orders.getOrder(b))?.items).toHaveLength(2);
+    });
+
+    it("returns an order's items in a stable order", async () => {
+      const product = (await db.findProductBySlug("canvas-tote"))!;
+      const variant = product.variants[0]!;
+
+      const id = randomUUID();
+      await db.orders.createPendingOrder({
+        id,
+        checkoutSessionId: `cs_${id}`,
+        email: "stable@example.com",
+        currency: "usd",
+        subtotalCents: variant.priceCents * 6,
+        lines: [1, 2, 3].map((quantity) => ({
+          productId: product.id,
+          variantId: variant.id,
+          productName: "Canvas Tote",
+          variantLabel: variant.label,
+          unitPriceCents: variant.priceCents,
+          quantity,
+          options: {},
+        })),
+      });
+
+      const first = await db.orders.getOrder(id);
+      const second = await db.orders.getOrder(id);
+
+      expect(first?.items).toHaveLength(3);
+      expect(second?.items.map((i) => i.id)).toEqual(first?.items.map((i) => i.id));
+    });
+
+    it("loads items for more ids than the SQLite parameter limit", async () => {
+      // 600 exceeds no limit on its own, but the chunking guard is what keeps
+      // it under SQLite's 999 bound parameters as callers grow.
+      const ids = Array.from({ length: 600 }, () => randomUUID());
+      const items = await db.orders.loadItems(ids);
+
+      expect(items.size).toBe(0);
     });
 
     it("rejects a duplicate slug", async () => {

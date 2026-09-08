@@ -477,9 +477,9 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
   <section class="progress">
     <div class="progress-head">
       <h2 class="progress-title">Progress</h2>
-      <p class="progress-count">10 of 16 shipped.</p>
+      <p class="progress-count">11 of 16 shipped.</p>
     </div>
-    <div class="track" role="img" aria-label="10 of 16 shipped."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--done" title="01 Refund an order from the admin — Shipped"></span><span class="cell cell--done" title="02 Restore stock when an order is refunded — Shipped"></span><span class="cell cell--done" title="03 Discount codes via Stripe — Shipped"></span><span class="cell cell--done" title="04 Export orders as CSV — Shipped"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--done" title="05 Per-product SEO metadata — Shipped"></span><span class="cell cell--done" title="06 Storefront search and sort — Shipped"></span><span class="cell cell--done" title="07 Staff accounts — Shipped"></span><span class="cell cell--done" title="08 Store pages — Shipped"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--done" title="09 Sales tax and VAT — Shipped"></span><span class="cell cell--todo" title="10 Multi-axis variants — To do"></span><span class="cell cell--todo" title="11 Customer accounts — To do"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--todo" title="12 Abandoned cart recovery — To do"></span><span class="cell cell--todo" title="13 Digital and downloadable products — To do"></span><span class="cell cell--todo" title="14 Outbound webhooks — To do"></span><span class="cell cell--todo" title="15 Catalogue CSV import and export — To do"></span></span></div>
+    <div class="track" role="img" aria-label="11 of 16 shipped."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--done" title="01 Refund an order from the admin — Shipped"></span><span class="cell cell--done" title="02 Restore stock when an order is refunded — Shipped"></span><span class="cell cell--done" title="03 Discount codes via Stripe — Shipped"></span><span class="cell cell--done" title="04 Export orders as CSV — Shipped"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--done" title="05 Per-product SEO metadata — Shipped"></span><span class="cell cell--done" title="06 Storefront search and sort — Shipped"></span><span class="cell cell--done" title="07 Staff accounts — Shipped"></span><span class="cell cell--done" title="08 Store pages — Shipped"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--done" title="09 Sales tax and VAT — Shipped"></span><span class="cell cell--done" title="10 Multi-axis variants — Shipped"></span><span class="cell cell--todo" title="11 Customer accounts — To do"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--todo" title="12 Abandoned cart recovery — To do"></span><span class="cell cell--todo" title="13 Digital and downloadable products — To do"></span><span class="cell cell--todo" title="14 Outbound webhooks — To do"></span><span class="cell cell--todo" title="15 Catalogue CSV import and export — To do"></span></span></div>
     <div class="track-key">
       <span><i class="cell cell--done"></i> Shipped</span>
       <span><i class="cell cell--in-progress"></i> In progress</span>
@@ -495,6 +495,12 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <span class="log-date">2026-09-08</span>
         <span class="log-task">09</span>
         <span class="log-title">Sales tax and VAT</span>
+        <span class="log-ref"></span>
+      </li>
+      <li>
+        <span class="log-date">2026-09-08</span>
+        <span class="log-task">10</span>
+        <span class="log-title">Multi-axis variants</span>
         <span class="log-ref"></span>
       </li>
       <li>
@@ -571,8 +577,8 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <text class="ax-text" x="655" y="352" text-anchor="end">High effort</text>
         <text class="ax-text" x="70" y="378">Effort →</text>
         <text class="ax-text" transform="translate(24,330) rotate(-90)" x="0" y="0">Merchant expects it →</text>
-        <circle cx="554.5" cy="141" r="5.5" class="dot dot--later"></circle>
-        <text class="pt-label" x="544.5" y="145" text-anchor="end">Multi-axis variants</text>
+        <circle cx="554.5" cy="141" r="6" class="dot dot--done"></circle><path d="M551.5 141 l2.2 2.4 l4-4.8" class="tick"></path>
+        <text class="pt-label shipped" x="544.5" y="145" text-anchor="end">Multi-axis variants</text>
         <circle cx="583" cy="168" r="5.5" class="dot dot--later"></circle>
         <text class="pt-label" x="573" y="172" text-anchor="end">Customer accounts</text>
         <circle cx="611.5" cy="235.5" r="5.5" class="dot dot--later"></circle>
@@ -748,7 +754,7 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
 
   <section class="tier">
     <div class="tier-head">
-      <div class="tier-tag">Tier 2 · Schema reshape · Plan them <span class="tier-done">1 of 3 shipped</span></div>
+      <div class="tier-tag">Tier 2 · Schema reshape · Plan them <span class="tier-done">2 of 3 shipped</span></div>
       <h2>Don't squeeze these in</h2>
       <p class="tier-verdict">Each one changes the shape of the data or the shape of the merchant's obligations. They're worth doing and they're worth scheduling.</p>
     </div>
@@ -766,11 +772,11 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
           <span><b>Brief</b> docs/tasks/09-tax.md</span></div>
       </article>
 
-      <article class="item item--todo">
+      <article class="item item--done">
         <div class="item-head">
           <span class="seq">10</span>
           <h3>Multi-axis variants</h3>
-          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--status chip--done">Shipped</span>
           <span class="chip chip--l">Large</span>
         </div>
         <p><code>products.variantName</code> is a single label for one axis, so a shirt in three sizes and two colours means hand-enumerating six flat variants with no way to render two selectors. This needs an options/values pair of tables, a variant-to-option join, and rework of the product editor, the cart's selection UI and the seed. The Stripe mapping is untouched — a variant is still exactly one Price. <strong>Land this before any catalogue CSV import</strong>, or you'll build an importer for a shape you're about to change.</p>

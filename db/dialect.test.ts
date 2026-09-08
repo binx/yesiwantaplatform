@@ -258,7 +258,7 @@ for (const { name, context } of dialects) {
       const second = await db.listProducts({ liveOnly: true, limit: 2, offset: 2 });
 
       expect(first.products).toHaveLength(2);
-      expect(first.total).toBe(4);
+      expect(first.total).toBe(5);
       expect(second.products[0]?.slug).not.toBe(first.products[0]?.slug);
     });
 
@@ -271,9 +271,11 @@ for (const { name, context } of dialects) {
         bulletPoints: [],
         seoTitle: null,
         seoDescription: null,
-        variantName: null,
         taxCode: null,
-        variants: [{ label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0 }],
+        variants: [
+          { label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0, optionValues: [] },
+        ],
+        options: [],
         optionGroups: [],
         isLive: true,
       });
@@ -510,13 +512,85 @@ for (const { name, context } of dialects) {
           bulletPoints: [],
           seoTitle: null,
           seoDescription: null,
-          variantName: null,
-        taxCode: null,
-          variants: [{ label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0 }],
+          taxCode: null,
+          variants: [
+            { label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0, optionValues: [] },
+          ],
+          options: [],
           optionGroups: [],
           isLive: true,
         }),
       ).rejects.toThrow(/already in use/i);
+    });
+
+    /*
+     * The backfill turns v1-shaped data — a `variantName` and labelled
+     * variants, no `product_options` row — into the options/values shape. It
+     * runs on every boot, so it has to be a no-op the second time.
+     */
+    it("backfills a pre-migration product's variants into one option, exactly once", async () => {
+      const { drizzle: drizzleDb, schema } = await db.getDatabase();
+
+      const productId = randomUUID();
+      await drizzleDb.insert(schema.products).values({
+        id: productId,
+        slug: "legacy-hat",
+        name: "Legacy Hat",
+        variantName: "size",
+      });
+
+      const smallId = randomUUID();
+      const largeId = randomUUID();
+      await drizzleDb.insert(schema.variants).values({
+        id: smallId,
+        productId,
+        label: "Small",
+        priceCents: 1000,
+        position: 0,
+      });
+      await drizzleDb.insert(schema.variants).values({
+        id: largeId,
+        productId,
+        label: "Large",
+        priceCents: 1200,
+        position: 1,
+      });
+
+      expect(await db.admin.backfillProductOptions()).toBeGreaterThan(0);
+      expect(await db.admin.backfillProductOptions()).toBe(0);
+
+      const product = await db.findProductBySlug("legacy-hat", false);
+      expect(product?.options).toHaveLength(1);
+      expect(product?.options[0]).toMatchObject({ name: "size", values: ["Small", "Large"] });
+
+      const small = product?.variants.find((v) => v.id === smallId);
+      const large = product?.variants.find((v) => v.id === largeId);
+      expect(small?.optionValues).toEqual(["Small"]);
+      expect(large?.optionValues).toEqual(["Large"]);
+    });
+
+    it("leaves a single unlabelled variant with no options", async () => {
+      const { drizzle: drizzleDb, schema } = await db.getDatabase();
+
+      const productId = randomUUID();
+      await drizzleDb.insert(schema.products).values({
+        id: productId,
+        slug: "legacy-simple",
+        name: "Legacy Simple",
+      });
+
+      await drizzleDb.insert(schema.variants).values({
+        id: randomUUID(),
+        productId,
+        label: "",
+        priceCents: 500,
+        position: 0,
+      });
+
+      await db.admin.backfillProductOptions();
+
+      const product = await db.findProductBySlug("legacy-simple", false);
+      expect(product?.options).toEqual([]);
     });
   });
 }

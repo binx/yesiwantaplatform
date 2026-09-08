@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1200" width="1000" height="1200" role="img" aria-label="Zip hoodie, folded flat">
+  <rect width="1000" height="1200" fill="#e8e2dc"/>
+  <rect x="250" y="220" width="500" height="760" rx="24" fill="none" stroke="#57534e" stroke-width="3" opacity=".45"/>
+  <line x1="500" y1="220" x2="500" y2="980" stroke="#57534e" stroke-width="3" opacity=".3"/>
+  <text x="500" y="1152" fill="#57534e" opacity=".7" font-family="system-ui, sans-serif" font-size="45" text-anchor="middle">Zip hoodie</text>
+</svg>

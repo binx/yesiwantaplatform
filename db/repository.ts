@@ -77,6 +77,23 @@ interface VariantRow {
   stripePriceId: string | null;
 }
 
+interface ProductOptionRow {
+  id: string;
+  productId: string;
+  name: string;
+}
+
+interface ProductOptionValueRow {
+  id: string;
+  optionId: string;
+  value: string;
+}
+
+interface VariantOptionValueRow {
+  variantId: string;
+  optionValueId: string;
+}
+
 interface ImageRow {
   productId: string;
   path: string;
@@ -92,11 +109,21 @@ interface OptionGroupRow {
   choices: unknown;
 }
 
+/** One priced axis, hydrated with its ordered values. */
+interface HydratedOption {
+  id: string;
+  name: string;
+  values: string[];
+}
+
 function buildProduct(
   row: ProductRow,
   variants: VariantRow[],
   images: ImageRow[],
   groups: OptionGroupRow[],
+  options: HydratedOption[],
+  /** variantId -> selected value per axis, in the same order as `options`. */
+  optionValuesByVariant: Map<string, string[]>,
 ): Product {
   return productSchema.parse({
     id: row.id,
@@ -124,7 +151,9 @@ function buildProduct(
           : { type: "infinite" as const },
       weightGrams: v.weightGrams,
       stripePriceId: v.stripePriceId,
+      optionValues: optionValuesByVariant.get(v.id) ?? [],
     })),
+    options: options.map((o) => ({ id: o.id, name: o.name, values: o.values })),
     optionGroups: groups.map((g) => ({
       name: g.name,
       choices: parseJson<string[]>(g.choices, []),
@@ -136,15 +165,14 @@ function buildProduct(
   });
 }
 
-/** Attach variants, images and option groups to a page of product rows. */
+/** Attach variants, images, option groups and priced axes to product rows. */
 async function hydrate(rows: ProductRow[]): Promise<Product[]> {
   if (rows.length === 0) return [];
 
   const { drizzle: db, schema } = await getDatabase();
   const ids = rows.map((r) => r.id);
 
-  // Three batched queries rather than one per product.
-  const [variantRows, imageRows, groupRows] = await Promise.all([
+  const [variantRows, imageRows, groupRows, optionRows] = await Promise.all([
     db
       .select()
       .from(schema.variants)
@@ -160,7 +188,40 @@ async function hydrate(rows: ProductRow[]): Promise<Product[]> {
       .from(schema.optionGroups)
       .where(inArray(schema.optionGroups.productId, ids))
       .orderBy(asc(schema.optionGroups.position)) as unknown as Promise<OptionGroupRow[]>,
+    db
+      .select({
+        id: schema.productOptions.id,
+        productId: schema.productOptions.productId,
+        name: schema.productOptions.name,
+      })
+      .from(schema.productOptions)
+      .where(inArray(schema.productOptions.productId, ids))
+      .orderBy(asc(schema.productOptions.position)) as unknown as Promise<ProductOptionRow[]>,
   ]);
+
+  const optionIds = optionRows.map((o) => o.id);
+  const variantIds = variantRows.map((v) => v.id);
+
+  let valueRows: ProductOptionValueRow[] = [];
+  let variantValueRows: VariantOptionValueRow[] = [];
+
+  if (optionIds.length > 0 && variantIds.length > 0) {
+    [valueRows, variantValueRows] = (await Promise.all([
+      db
+        .select({
+          id: schema.productOptionValues.id,
+          optionId: schema.productOptionValues.optionId,
+          value: schema.productOptionValues.value,
+        })
+        .from(schema.productOptionValues)
+        .where(inArray(schema.productOptionValues.optionId, optionIds))
+        .orderBy(asc(schema.productOptionValues.position)),
+      db
+        .select()
+        .from(schema.variantOptionValues)
+        .where(inArray(schema.variantOptionValues.variantId, variantIds)),
+    ])) as unknown as [ProductOptionValueRow[], VariantOptionValueRow[]];
+  }
 
   const groupBy = <T extends { productId: string }>(list: T[]) => {
     const map = new Map<string, T[]>();
@@ -175,16 +236,58 @@ async function hydrate(rows: ProductRow[]): Promise<Product[]> {
   const variantsBy = groupBy(variantRows);
   const imagesBy = groupBy(imageRows);
   const groupsBy = groupBy(groupRows);
+  const optionsBy = groupBy(optionRows);
+
+  const valuesByOption = new Map<string, ProductOptionValueRow[]>();
+  for (const value of valueRows) {
+    const list = valuesByOption.get(value.optionId);
+    if (list) list.push(value);
+    else valuesByOption.set(value.optionId, [value]);
+  }
+
+  // value id -> { optionId, text }, so a variant's linked values can be
+  // matched back to the axis they belong to.
+  const valueById = new Map(valueRows.map((v) => [v.id, v]));
+
+  const linkedValueIdsByVariant = new Map<string, string[]>();
+  for (const link of variantValueRows) {
+    const list = linkedValueIdsByVariant.get(link.variantId);
+    if (list) list.push(link.optionValueId);
+    else linkedValueIdsByVariant.set(link.variantId, [link.optionValueId]);
+  }
 
   return rows
-    .map((row) =>
-      buildProduct(
+    .map((row) => {
+      const options: HydratedOption[] = (optionsBy.get(row.id) ?? []).map((o) => ({
+        id: o.id,
+        name: o.name,
+        values: (valuesByOption.get(o.id) ?? []).map((v) => v.value),
+      }));
+
+      const optionValuesByVariant = new Map<string, string[]>();
+      if (options.length > 0) {
+        for (const variant of variantsBy.get(row.id) ?? []) {
+          const linkedIds = linkedValueIdsByVariant.get(variant.id) ?? [];
+          const linked = linkedIds
+            .map((id) => valueById.get(id))
+            .filter((v): v is ProductOptionValueRow => v !== undefined);
+
+          optionValuesByVariant.set(
+            variant.id,
+            options.map((option) => linked.find((v) => v.optionId === option.id)?.value ?? ""),
+          );
+        }
+      }
+
+      return buildProduct(
         row,
         variantsBy.get(row.id) ?? [],
         imagesBy.get(row.id) ?? [],
         groupsBy.get(row.id) ?? [],
-      ),
-    )
+        options,
+        optionValuesByVariant,
+      );
+    })
     // A product with no variant has no price, so it cannot be sold or rendered.
     .filter((p) => p.variants.length > 0);
 }

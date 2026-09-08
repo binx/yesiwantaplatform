@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, max, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, max, ne } from "drizzle-orm";
 import type { CollectionInput, ProductInput, SettingsInput } from "../shared/api.js";
+import { regenerateLabel } from "../shared/product-options.js";
 import { taxSignature } from "../shared/tax.js";
 import { getDatabase } from "./client.js";
 import { getSettings } from "./repository.js";
@@ -66,13 +67,16 @@ export async function createProduct(input: ProductInput): Promise<string> {
     bulletPoints: json(input.bulletPoints),
     seoTitle: input.seoTitle,
     seoDescription: input.seoDescription,
-    variantName: input.variantName,
+    // Derived, not taken from the request: see the deprecation note on the
+    // column itself.
+    variantName: input.options[0]?.name ?? null,
     taxCode: input.taxCode,
     isLive: input.isLive,
     position: await nextPosition(schema.products, schema.products.position),
   });
 
-  await writeVariants(id, input);
+  const valuesByAxis = await writeProductOptions(id, input);
+  await writeVariants(id, input, valuesByAxis);
   await writeOptionGroups(id, input);
 
   return id;
@@ -93,23 +97,80 @@ export async function updateProduct(id: string, input: ProductInput): Promise<vo
       bulletPoints: json(input.bulletPoints),
       seoTitle: input.seoTitle,
       seoDescription: input.seoDescription,
-      variantName: input.variantName,
+      variantName: input.options[0]?.name ?? null,
       taxCode: input.taxCode,
       isLive: input.isLive,
     })
     .where(eq(schema.products.id, id));
 
-  await writeVariants(id, input);
+  const valuesByAxis = await writeProductOptions(id, input);
+  await writeVariants(id, input, valuesByAxis);
   await writeOptionGroups(id, input);
+}
+
+/**
+ * Replace a product's priced axes.
+ *
+ * Always delete-and-recreate, like `writeOptionGroups` — an axis's values are
+ * never edited in place, they are declared fresh on every save. Deleting the
+ * old `product_options` rows cascades away the old `product_option_values`
+ * *and* the `variant_option_values` links that pointed at them, so those links
+ * never need to be cleaned up by hand.
+ *
+ * Returns, per axis (in order), a map from value text to the freshly-minted
+ * value id — what `writeVariants` needs to link each variant to the values it
+ * names.
+ */
+async function writeProductOptions(
+  productId: string,
+  input: ProductInput,
+): Promise<Map<string, string>[]> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  await db.delete(schema.productOptions).where(eq(schema.productOptions.productId, productId));
+
+  const valuesByAxis: Map<string, string>[] = [];
+
+  for (const [optionIndex, option] of input.options.entries()) {
+    const optionId = randomUUID();
+    await db.insert(schema.productOptions).values({
+      id: optionId,
+      productId,
+      name: option.name,
+      position: optionIndex,
+    });
+
+    const byValue = new Map<string, string>();
+    for (const [valueIndex, value] of option.values.entries()) {
+      const valueId = randomUUID();
+      await db.insert(schema.productOptionValues).values({
+        id: valueId,
+        optionId,
+        value,
+        position: valueIndex,
+      });
+      byValue.set(value, valueId);
+    }
+
+    valuesByAxis.push(byValue);
+  }
+
+  return valuesByAxis;
 }
 
 /**
  * Replace a product's variants.
  *
  * Existing ids are preserved so that a Stripe price already linked to a
- * variant survives an edit; only genuinely new rows get fresh ids.
+ * variant survives an edit; only genuinely new rows get fresh ids. Labels are
+ * regenerated from the selected axis values rather than trusted from the
+ * request, so "Small / Blue" always matches what was actually chosen.
  */
-async function writeVariants(productId: string, input: ProductInput): Promise<void> {
+async function writeVariants(
+  productId: string,
+  input: ProductInput,
+  valuesByAxis: Map<string, string>[],
+): Promise<void> {
   const { drizzle: db, schema } = await getDatabase();
 
   const existing = (await db
@@ -128,7 +189,7 @@ async function writeVariants(productId: string, input: ProductInput): Promise<vo
   for (const [index, variant] of input.variants.entries()) {
     const values = {
       productId,
-      label: variant.label,
+      label: input.options.length > 0 ? regenerateLabel(variant.optionValues) : variant.label,
       priceCents: variant.priceCents,
       inventoryType: variant.inventory.type,
       inventoryQuantity: variant.inventory.type === "finite" ? variant.inventory.quantity : 0,
@@ -136,10 +197,22 @@ async function writeVariants(productId: string, input: ProductInput): Promise<vo
       position: index,
     };
 
+    const variantId = variant.id && keep.has(variant.id) ? variant.id : randomUUID();
+
     if (variant.id && keep.has(variant.id)) {
       await db.update(schema.variants).set(values).where(eq(schema.variants.id, variant.id));
     } else {
-      await db.insert(schema.variants).values({ id: randomUUID(), ...values });
+      await db.insert(schema.variants).values({ id: variantId, ...values });
+    }
+
+    for (const [axisIndex, selected] of variant.optionValues.entries()) {
+      const valueId = valuesByAxis[axisIndex]?.get(selected);
+      if (!valueId) continue; // Validated in the route; defensive here only.
+
+      await db.insert(schema.variantOptionValues).values({
+        variantId,
+        optionValueId: valueId,
+      });
     }
   }
 }
@@ -448,4 +521,99 @@ export async function listAllProductsForAdmin(): Promise<AdminProductSummary[]> 
       row.stripeTaxSignature !==
         taxSignature(row.taxCode ?? settings.defaultTaxCode, settings.taxBehavior),
   }));
+}
+
+/**
+ * Turn every pre-existing single-axis product into the options/values shape,
+ * once. A data step run from `db/migrate.ts` on every boot, not a one-off
+ * script — see the note there on why.
+ *
+ * Idempotent by construction: a product that already has a `product_options`
+ * row is left alone. A product whose one variant has an empty label is left
+ * with no options at all — that is the "nothing to choose" case, and it must
+ * stay that way, or every simple product grows a meaningless selector.
+ *
+ * Returns how many products were backfilled, so the dual-dialect test can
+ * assert a second run does nothing further.
+ */
+export async function backfillProductOptions(): Promise<number> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const products = (await db
+    .select({ id: schema.products.id, variantName: schema.products.variantName })
+    .from(schema.products)) as unknown as { id: string; variantName: string | null }[];
+
+  if (products.length === 0) return 0;
+  const productIds = products.map((p) => p.id);
+
+  const [optionRows, variantRows] = await Promise.all([
+    db
+      .select({ productId: schema.productOptions.productId })
+      .from(schema.productOptions)
+      .where(inArray(schema.productOptions.productId, productIds)) as unknown as Promise<
+      { productId: string }[]
+    >,
+    db
+      .select({
+        id: schema.variants.id,
+        productId: schema.variants.productId,
+        label: schema.variants.label,
+      })
+      .from(schema.variants)
+      .where(inArray(schema.variants.productId, productIds))
+      .orderBy(asc(schema.variants.position)) as unknown as Promise<
+      { id: string; productId: string; label: string }[]
+    >,
+  ]);
+
+  const alreadyHasOptions = new Set(optionRows.map((r) => r.productId));
+
+  const variantsByProduct = new Map<string, { id: string; label: string }[]>();
+  for (const variant of variantRows) {
+    const list = variantsByProduct.get(variant.productId);
+    if (list) list.push(variant);
+    else variantsByProduct.set(variant.productId, [variant]);
+  }
+
+  let backfilled = 0;
+
+  for (const product of products) {
+    if (alreadyHasOptions.has(product.id)) continue;
+
+    const variants = variantsByProduct.get(product.id) ?? [];
+    if (variants.length === 0) continue;
+    if (variants.length === 1 && variants[0]!.label === "") continue;
+
+    const optionId = randomUUID();
+    await db.insert(schema.productOptions).values({
+      id: optionId,
+      productId: product.id,
+      name: product.variantName?.trim() || "Option",
+      position: 0,
+    });
+
+    const valueIdByLabel = new Map<string, string>();
+
+    for (const variant of variants) {
+      let valueId = valueIdByLabel.get(variant.label);
+      if (!valueId) {
+        valueId = randomUUID();
+        await db.insert(schema.productOptionValues).values({
+          id: valueId,
+          optionId,
+          value: variant.label,
+          position: valueIdByLabel.size,
+        });
+        valueIdByLabel.set(variant.label, valueId);
+      }
+
+      await db
+        .insert(schema.variantOptionValues)
+        .values({ variantId: variant.id, optionValueId: valueId });
+    }
+
+    backfilled += 1;
+  }
+
+  return backfilled;
 }

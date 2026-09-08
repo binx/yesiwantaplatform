@@ -46,7 +46,11 @@ export const inventorySchema = z.discriminatedUnion("type", [
 /** A priced, separately-stocked version of a product. Becomes a Stripe Price. */
 export const variantSchema = z.object({
   id: z.string().min(1),
-  /** Shown in the variant picker, e.g. "Medium". Empty for single-variant products. */
+  /**
+   * Shown in the variant picker, e.g. "Medium". Empty for single-variant
+   * products. For a multi-axis product this is generated from `optionValues`
+   * — "Large / Blue" — and regenerated on every save.
+   */
   label: z.string(),
   priceCents: centsSchema,
   inventory: inventorySchema,
@@ -58,6 +62,24 @@ export const variantSchema = z.object({
   weightGrams: z.number().int().min(0).default(0),
   /** Set once the variant has been pushed to Stripe. */
   stripePriceId: z.string().nullable().default(null),
+  /**
+   * The value this variant holds on each of the product's axes, in the same
+   * order as `product.options`. Empty for a product with no options.
+   */
+  optionValues: z.array(z.string()).default([]),
+});
+
+/**
+ * A priced variant axis: "Size", with values like "Small" and "Large".
+ *
+ * Distinct from `optionGroupSchema` — that is a non-priced choice like gift
+ * wrap, deliberately kept separate. This is the priced kind: every variant
+ * names exactly one value on every axis here, in order.
+ */
+export const productOptionSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  values: z.array(z.string().min(1)).min(1),
 });
 
 /**
@@ -101,9 +123,14 @@ export const productSchema = z.object({
   seoTitle: z.string().max(70).nullable().default(null),
   seoDescription: z.string().max(160).nullable().default(null),
   images: z.array(imageSchema).default([]),
-  /** Label for the variant axis, e.g. "size". Null when there is one variant. */
+  /**
+   * @deprecated Superseded by `options`. Kept for one release so a rollback
+   * still has a label — see db/schema.sqlite.ts.
+   */
   variantName: z.string().nullable().default(null),
   variants: z.array(variantSchema).min(1),
+  /** Priced axes — up to three, e.g. Size × Colour. Empty for a simple product. */
+  options: z.array(productOptionSchema).max(3).default([]),
   optionGroups: z.array(optionGroupSchema).default([]),
   /** Stripe tax code. Null uses the store default. */
   taxCode: taxCodeSchema.nullable().default(null),
@@ -246,6 +273,7 @@ export type Image = z.infer<typeof imageSchema>;
 export type Inventory = z.infer<typeof inventorySchema>;
 export type Variant = z.infer<typeof variantSchema>;
 export type OptionGroup = z.infer<typeof optionGroupSchema>;
+export type ProductOption = z.infer<typeof productOptionSchema>;
 export type Product = z.infer<typeof productSchema>;
 export type Collection = z.infer<typeof collectionSchema>;
 export type PageSummary = z.infer<typeof pageSummarySchema>;

@@ -18,6 +18,7 @@ import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import type { ProductInput, VariantInput } from "@shared/api";
 import type { Image, OptionGroup } from "@shared/schema";
 import { formatMoney, parseCents } from "@shared/money";
+import { findDuplicateCombination, optionSelectionsAreWellFormed } from "@shared/product-options";
 import { ApiError } from "@/lib/api";
 import { cx } from "@/lib/cx";
 import {
@@ -52,17 +53,34 @@ import styles from "./ProductEditorPage.module.css";
  * Publish button that is the only thing which ever touches Stripe.
  */
 
-interface DraftVariant {
-  /** Stable across re-renders and reorders; not persisted. */
+/** A value on an axis: "Large". Identity is the key, not the text, so a rename never loses a variant's price and stock. */
+interface DraftValue {
+  key: string;
+  text: string;
+}
+
+/** A priced axis: "Size". Up to three per product. */
+interface DraftOption {
   key: string;
   id?: string;
-  label: string;
+  name: string;
+  values: DraftValue[];
+}
+
+interface DraftVariant {
+  /** Stable across re-renders and matrix regeneration; not persisted. */
+  key: string;
+  id?: string;
+  /** optionKey -> valueKey, one entry per axis in `Draft.options`. */
+  selections: Record<string, string>;
   /** Kept as text so a half-typed "19." is not destroyed mid-edit. */
   priceText: string;
   infinite: boolean;
   quantity: number;
   /** Grams. Only consulted by weight-banded shipping rates. */
   weightGrams: number;
+  /** Whether this row has already been pushed to Stripe — informs the removal warning. */
+  stripePriceId: string | null;
 }
 
 interface Draft {
@@ -73,16 +91,16 @@ interface Draft {
   /** Empty means "generate it", which is what the fields preview. */
   seoTitle: string;
   seoDescription: string;
-  variantName: string;
   /** Stripe tax code. Empty uses the store default. */
   taxCode: string;
+  options: DraftOption[];
   variants: DraftVariant[];
   optionGroups: OptionGroup[];
   isLive: boolean;
 }
 
 let keyCounter = 0;
-const nextKey = () => `v${++keyCounter}`;
+const nextKey = () => `k${++keyCounter}`;
 
 /** A URL-safe slug from a product name. */
 function slugify(value: string): string {
@@ -95,6 +113,18 @@ function slugify(value: string): string {
     .slice(0, 80);
 }
 
+function blankVariant(): DraftVariant {
+  return {
+    key: nextKey(),
+    selections: {},
+    priceText: "",
+    infinite: true,
+    quantity: 0,
+    weightGrams: 0,
+    stripePriceId: null,
+  };
+}
+
 const EMPTY_DRAFT: Draft = {
   slug: "",
   name: "",
@@ -102,12 +132,63 @@ const EMPTY_DRAFT: Draft = {
   bulletPoints: [],
   seoTitle: "",
   seoDescription: "",
-  variantName: "",
   taxCode: "",
-  variants: [{ key: nextKey(), label: "", priceText: "", infinite: true, quantity: 0, weightGrams: 0 }],
+  options: [],
+  variants: [blankVariant()],
   optionGroups: [],
   isLive: false,
 };
+
+/**
+ * Recompute the matrix from the current options: one row per combination of
+ * axis values, in axis order.
+ *
+ * A combination that already has a row keeps it — same key, same id, same
+ * price, stock and weight — matched by *value identity* (the key), not text,
+ * so renaming a value never loses its price. A variant that predates an axis
+ * (it has no selection on that axis at all) is carried into that axis's first
+ * value rather than dropped outright, so adding a second axis to a simple
+ * product does not blank out every price that already existed.
+ */
+function regenerateVariants(options: DraftOption[], existing: DraftVariant[]): DraftVariant[] {
+  if (options.length === 0) {
+    return [existing[0] ?? blankVariant()];
+  }
+
+  let combos: string[][] = [[]];
+  for (const option of options) {
+    const next: string[][] = [];
+    for (const combo of combos) {
+      for (const value of option.values) next.push([...combo, value.key]);
+    }
+    combos = next;
+  }
+
+  const findMatch = (comboKeys: string[]): DraftVariant | undefined =>
+    existing.find((variant) =>
+      options.every((option, index) => {
+        const selected = variant.selections[option.key];
+        // Predates this axis: only adopt it at the axis's first value.
+        if (selected === undefined) return option.values[0]?.key === comboKeys[index];
+        return selected === comboKeys[index];
+      }),
+    );
+
+  return combos.map((comboKeys) => {
+    const match = findMatch(comboKeys);
+    const selections: Record<string, string> = {};
+    options.forEach((option, index) => {
+      selections[option.key] = comboKeys[index]!;
+    });
+
+    return match ? { ...match, selections } : { ...blankVariant(), selections };
+  });
+}
+
+/** A saved variant with stock or a Stripe price — losing it is destructive. */
+function hasStockOrSales(variant: DraftVariant): boolean {
+  return Boolean(variant.id) && (variant.infinite || variant.quantity > 0 || variant.stripePriceId !== null);
+}
 
 /** Cents for a variant, or null when the text is not a valid amount. */
 function variantCents(variant: DraftVariant): number | null {
@@ -115,7 +196,19 @@ function variantCents(variant: DraftVariant): number | null {
   return cents === null || cents < 0 ? null : cents;
 }
 
+function comboLabel(options: DraftOption[], variant: DraftVariant): string {
+  return options
+    .map((option) => option.values.find((v) => v.key === variant.selections[option.key])?.text.trim() || "—")
+    .join(" / ");
+}
+
 function toInput(draft: Draft): ProductInput {
+  const options = draft.options.map((option) => ({
+    ...(option.id ? { id: option.id } : {}),
+    name: option.name.trim(),
+    values: option.values.map((value) => value.text.trim()),
+  }));
+
   return {
     slug: draft.slug,
     name: draft.name.trim(),
@@ -124,20 +217,27 @@ function toInput(draft: Draft): ProductInput {
     // Empty is stored as null so the server can tell "no override" from "".
     seoTitle: draft.seoTitle.trim() || null,
     seoDescription: draft.seoDescription.trim() || null,
-    variantName: draft.variantName.trim() || null,
     // Empty is stored as null, so "no override" is distinguishable from "".
     taxCode: draft.taxCode.trim() || null,
-    variants: draft.variants.map(
-      (variant): VariantInput => ({
+    options,
+    variants: draft.variants.map((variant): VariantInput => {
+      const optionValues = draft.options.map(
+        (option) => option.values.find((v) => v.key === variant.selections[option.key])?.text.trim() ?? "",
+      );
+
+      return {
         ...(variant.id ? { id: variant.id } : {}),
-        label: variant.label.trim(),
+        // The server regenerates this from optionValues whenever there are
+        // any options; it only matters here for a product with none.
+        label: "",
         priceCents: variantCents(variant) ?? 0,
         inventory: variant.infinite
           ? { type: "infinite" }
           : { type: "finite", quantity: Math.max(0, Math.trunc(variant.quantity)) },
         weightGrams: Math.max(0, Math.trunc(variant.weightGrams)),
-      }),
-    ),
+        optionValues,
+      };
+    }),
     optionGroups: draft.optionGroups
       .filter((group) => group.name.trim() !== "" && group.choices.length > 0)
       .map((group) => ({
@@ -173,25 +273,40 @@ function problems(draft: Draft): Problem[] {
     found.push({ field: "variants", message: "A product needs at least one price." });
   }
 
+  if (draft.variants.length > 50) {
+    found.push({
+      field: "variants",
+      message: "A product can have at most 50 prices — remove an option or a value.",
+    });
+  }
+
   draft.variants.forEach((variant, index) => {
     if (variantCents(variant) === null) {
       found.push({ field: `variant-${index}`, message: `Price ${index + 1} is not an amount.` });
     }
   });
 
-  /*
-   * The storefront labels its variant picker with `variantName`. v1 hid the
-   * picker entirely when a product had exactly one variant *group*, so a
-   * customer choosing between S, M and L silently got S (finding 8). An
-   * unlabelled axis is the same failure one step earlier, so it is an error
-   * rather than a suggestion.
-   */
-  if (draft.variants.length > 1 && draft.variantName.trim() === "") {
-    found.push({
-      field: "variantName",
-      message: "Several prices need a label for the choice, like “Size” — shoppers pick by it.",
+  draft.options.forEach((option, index) => {
+    const name = option.name.trim() || `Option ${index + 1}`;
+
+    if (option.name.trim() === "") {
+      found.push({ field: `option-${index}`, message: `Option ${index + 1} needs a name, like "Size."` });
+    }
+    if (option.values.length === 0) {
+      found.push({ field: `option-${index}`, message: `"${name}" needs at least one value.` });
+    }
+
+    option.values.forEach((value, vIndex) => {
+      if (value.text.trim() === "") {
+        found.push({ field: `option-${index}-${vIndex}`, message: `A value on "${name}" is empty.` });
+      }
     });
-  }
+
+    const texts = option.values.map((v) => v.text.trim()).filter(Boolean);
+    if (new Set(texts).size !== texts.length) {
+      found.push({ field: `option-${index}`, message: `Two values on "${name}" are the same.` });
+    }
+  });
 
   if (draft.taxCode.trim() !== "" && !TAX_CODE_PATTERN.test(draft.taxCode.trim())) {
     found.push({
@@ -200,9 +315,25 @@ function problems(draft: Draft): Problem[] {
     });
   }
 
-  const labels = draft.variants.map((variant) => variant.label.trim());
-  if (draft.variants.length > 1 && new Set(labels).size !== labels.length) {
-    found.push({ field: "variants", message: "Two options share a label, so they cannot be told apart." });
+  // Only worth checking once the pieces above are individually sane — a
+  // half-typed axis would otherwise also report a bogus duplicate.
+  if (found.length === 0) {
+    const input = toInput(draft);
+
+    if (!optionSelectionsAreWellFormed(input.options, input.variants)) {
+      found.push({ field: "variants", message: "Every price needs exactly one value chosen for each option." });
+    }
+
+    const duplicate = findDuplicateCombination(input.variants);
+    if (duplicate) {
+      found.push({
+        field: "variants",
+        message:
+          duplicate.length > 0
+            ? `Two prices are both "${duplicate.join(" / ")}." Combinations must be unique.`
+            : "A product with no options can only have one price.",
+      });
+    }
   }
 
   return found;
@@ -227,6 +358,7 @@ export function ProductEditorPage() {
   const [productId, setProductId] = useState<string | null>(null);
   const [images, setImages] = useState<Image[]>([]);
   const [slugTouched, setSlugTouched] = useState(!isNew);
+  const [bulkPriceText, setBulkPriceText] = useState("");
   const hydrated = useRef(false);
 
   const currency = settings.data?.currency ?? "USD";
@@ -243,6 +375,13 @@ export function ProductEditorPage() {
     const product = loaded.data;
     hydrated.current = true;
 
+    const options: DraftOption[] = product.options.map((option) => ({
+      key: nextKey(),
+      id: option.id,
+      name: option.name,
+      values: option.values.map((text) => ({ key: nextKey(), text })),
+    }));
+
     setProductId(product.id);
     setImages(product.images);
     setDraft({
@@ -252,17 +391,27 @@ export function ProductEditorPage() {
       bulletPoints: product.bulletPoints,
       seoTitle: product.seoTitle ?? "",
       seoDescription: product.seoDescription ?? "",
-      variantName: product.variantName ?? "",
       taxCode: product.taxCode ?? "",
-      variants: product.variants.map((variant) => ({
-        key: nextKey(),
-        id: variant.id,
-        label: variant.label,
-        priceText: (variant.priceCents / 100).toFixed(2),
-        infinite: variant.inventory.type === "infinite",
-        quantity: variant.inventory.type === "finite" ? variant.inventory.quantity : 0,
-        weightGrams: variant.weightGrams,
-      })),
+      options,
+      variants: product.variants.map((variant) => {
+        const selections: Record<string, string> = {};
+        options.forEach((option, index) => {
+          const text = variant.optionValues[index];
+          const match = option.values.find((v) => v.text === text);
+          if (match) selections[option.key] = match.key;
+        });
+
+        return {
+          key: nextKey(),
+          id: variant.id,
+          selections,
+          priceText: (variant.priceCents / 100).toFixed(2),
+          infinite: variant.inventory.type === "infinite",
+          quantity: variant.inventory.type === "finite" ? variant.inventory.quantity : 0,
+          weightGrams: variant.weightGrams,
+          stripePriceId: variant.stripePriceId,
+        };
+      }),
       optionGroups: product.optionGroups,
       isLive: product.isLive,
     });
@@ -344,6 +493,82 @@ export function ProductEditorPage() {
       ),
     }));
 
+  /** Apply a change to the options list, regenerating the matrix from it. */
+  const applyOptions = (nextOptions: DraftOption[]) =>
+    setDraft((current) => ({
+      ...current,
+      options: nextOptions,
+      variants: regenerateVariants(nextOptions, current.variants),
+    }));
+
+  /**
+   * Same, but for a change that can delete existing rows (removing an axis or
+   * a value): warn first when any of the rows about to disappear have stock
+   * or a Stripe price attached.
+   */
+  const applyOptionsWithWarning = (nextOptions: DraftOption[]) => {
+    const nextVariants = regenerateVariants(nextOptions, draft.variants);
+    const survivingKeys = new Set(nextVariants.map((v) => v.key));
+    const dropped = draft.variants.filter((v) => !survivingKeys.has(v.key) && hasStockOrSales(v));
+
+    if (dropped.length === 0) {
+      applyOptions(nextOptions);
+      return;
+    }
+
+    modal.confirm({
+      title: `Remove ${dropped.length} price${dropped.length === 1 ? "" : "s"}?`,
+      okText: "Remove",
+      okButtonProps: { danger: true },
+      content:
+        "These have stock or a Stripe price already attached. Removing them here cannot be undone once saved.",
+      onOk: () => applyOptions(nextOptions),
+    });
+  };
+
+  const addOption = () => {
+    if (draft.options.length >= 3) return;
+    applyOptions([...draft.options, { key: nextKey(), name: "", values: [{ key: nextKey(), text: "" }] }]);
+  };
+
+  const removeOption = (optionKey: string) =>
+    applyOptionsWithWarning(draft.options.filter((o) => o.key !== optionKey));
+
+  const renameOption = (optionKey: string, name: string) =>
+    applyOptions(draft.options.map((o) => (o.key === optionKey ? { ...o, name } : o)));
+
+  const addValue = (optionKey: string) =>
+    applyOptions(
+      draft.options.map((o) =>
+        o.key === optionKey ? { ...o, values: [...o.values, { key: nextKey(), text: "" }] } : o,
+      ),
+    );
+
+  const removeValue = (optionKey: string, valueKey: string) =>
+    applyOptionsWithWarning(
+      draft.options.map((o) =>
+        o.key === optionKey ? { ...o, values: o.values.filter((v) => v.key !== valueKey) } : o,
+      ),
+    );
+
+  const renameValue = (optionKey: string, valueKey: string, text: string) =>
+    applyOptions(
+      draft.options.map((o) =>
+        o.key === optionKey
+          ? { ...o, values: o.values.map((v) => (v.key === valueKey ? { ...v, text } : v)) }
+          : o,
+      ),
+    );
+
+  const applyBulkPrice = () => {
+    const cents = parseCents(bulkPriceText);
+    if (cents === null || cents < 0) return;
+    setDraft((current) => ({
+      ...current,
+      variants: current.variants.map((variant) => ({ ...variant, priceText: bulkPriceText })),
+    }));
+  };
+
   const onPublish = () => {
     if (!productId) return;
 
@@ -392,6 +617,7 @@ export function ProductEditorPage() {
   }
 
   const canPublish = Boolean(productId) && (environment.data?.hasStripeSecret ?? false);
+  const showBulkPrice = draft.options.length > 0 && draft.variants.length > 1;
 
   return (
     <>
@@ -550,26 +776,80 @@ export function ProductEditorPage() {
             </fieldset>
           </Card>
 
-          <Card title="Prices and stock" className={cx(styles.card)}>
+          <Card title="Options" className={cx(styles.card)}>
             <p className={cx(styles.cardIntro)}>
-              One row per thing a shopper can buy separately. Two sizes at different prices are two
-              rows; a colour that costs the same is an option below.
+              Axes a shopper picks between, like Size or Colour — up to three. Adding a value fills
+              the price matrix below with new rows; removing one removes the rows it was in.
             </p>
 
-            {draft.variants.length > 1 ? (
-              <Field
-                label="What are they choosing between?"
-                help="Labels the picker on the product page. Without it, shoppers cannot tell what the choice means."
-              >
-                {(control) => (
+            {draft.options.map((option, index) => (
+              <div key={option.key} className={cx(styles.optionGroup)}>
+                <div className={cx(styles.row)}>
                   <Input
-                    {...control}
-                    value={draft.variantName}
+                    value={option.name}
                     placeholder="Size"
-                    onChange={(event) => set("variantName", event.target.value)}
+                    aria-label={`Option ${index + 1} name`}
+                    onChange={(event) => renameOption(option.key, event.target.value)}
                   />
-                )}
-              </Field>
+                  <Button
+                    icon={<DeleteOutlined />}
+                    aria-label={`Remove option ${option.name.trim() || index + 1}`}
+                    onClick={() => removeOption(option.key)}
+                  />
+                </div>
+
+                <ul className={cx(styles.optionValues)}>
+                  {option.values.map((value, vIndex) => (
+                    <li key={value.key} className={cx(styles.row)}>
+                      <Input
+                        value={value.text}
+                        placeholder="Large"
+                        aria-label={`${option.name.trim() || "Option"} value ${vIndex + 1}`}
+                        onChange={(event) => renameValue(option.key, value.key, event.target.value)}
+                      />
+                      <Button
+                        icon={<DeleteOutlined />}
+                        aria-label={`Remove ${value.text.trim() || `value ${vIndex + 1}`} from ${option.name.trim() || "this option"}`}
+                        onClick={() => removeValue(option.key, value.key)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+
+                <Button icon={<PlusOutlined />} onClick={() => addValue(option.key)}>
+                  Add a value
+                </Button>
+              </div>
+            ))}
+
+            {draft.options.length < 3 ? (
+              <Button icon={<PlusOutlined />} onClick={addOption}>
+                Add an option
+              </Button>
+            ) : null}
+          </Card>
+
+          <Card title="Prices and stock" className={cx(styles.card)}>
+            <p className={cx(styles.cardIntro)}>
+              {draft.options.length === 0
+                ? "This product has one price."
+                : "One row per combination your options generate."}
+            </p>
+
+            {showBulkPrice ? (
+              <div className={cx(styles.row, styles.bulkPrice)}>
+                <Input
+                  value={bulkPriceText}
+                  inputMode="decimal"
+                  prefix={currency}
+                  placeholder="19.99"
+                  aria-label="Price to apply to every row"
+                  onChange={(event) => setBulkPriceText(event.target.value)}
+                />
+                <Button onClick={applyBulkPrice} disabled={parseCents(bulkPriceText) === null}>
+                  Apply to all
+                </Button>
+              </div>
             ) : null}
 
             <ul className={cx(styles.variants)}>
@@ -578,21 +858,8 @@ export function ProductEditorPage() {
 
                 return (
                   <li key={variant.key} className={cx(styles.variant)}>
-                    {draft.variants.length > 1 ? (
-                      <div className={cx(styles.variantField)}>
-                        <Field label={draft.variantName.trim() || "Option"}>
-                          {(control) => (
-                            <Input
-                              {...control}
-                              value={variant.label}
-                              placeholder="Medium"
-                              onChange={(event) =>
-                                setVariant(variant.key, { label: event.target.value })
-                              }
-                            />
-                          )}
-                        </Field>
-                      </div>
+                    {draft.options.length > 0 ? (
+                      <span className={cx(styles.comboLabel)}>{comboLabel(draft.options, variant)}</span>
                     ) : null}
 
                     <div className={cx(styles.variantField)}>
@@ -659,7 +926,7 @@ export function ProductEditorPage() {
                           min={0}
                           precision={0}
                           value={variant.quantity}
-                          aria-label={`Quantity in stock for option ${index + 1}`}
+                          aria-label={`Quantity in stock for row ${index + 1}`}
                           onChange={(value) => setVariant(variant.key, { quantity: value ?? 0 })}
                         />
                       )}
@@ -689,36 +956,10 @@ export function ProductEditorPage() {
                         )}
                       </Field>
                     </div>
-
-                    {draft.variants.length > 1 ? (
-                      <Button
-                        className={cx(styles.variantRemove)}
-                        icon={<DeleteOutlined />}
-                        aria-label={`Remove option ${index + 1}`}
-                        onClick={() =>
-                          set(
-                            "variants",
-                            draft.variants.filter((item) => item.key !== variant.key),
-                          )
-                        }
-                      />
-                    ) : null}
                   </li>
                 );
               })}
             </ul>
-
-            <Button
-              icon={<PlusOutlined />}
-              onClick={() =>
-                set("variants", [
-                  ...draft.variants,
-                  { key: nextKey(), label: "", priceText: "", infinite: true, quantity: 0, weightGrams: 0 },
-                ])
-              }
-            >
-              Add another option
-            </Button>
           </Card>
 
           <Card title="Choices that don't change the price" className={cx(styles.card)}>

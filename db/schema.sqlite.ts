@@ -105,7 +105,10 @@ export const products = sqliteTable(
     /** Overrides the generated tag. Null falls back to the product name. */
     seoTitle: text("seo_title"),
     seoDescription: text("seo_description"),
-    /** Label for the variant axis, e.g. "size". Null for single-variant products. */
+    /**
+     * @deprecated Superseded by `product_options`. Kept in sync with the first
+     * option's name (or null) for one release, so a rollback still has a label.
+     */
     variantName: text("variant_name"),
     /** Stripe tax code. Null uses the store default. */
     taxCode: text("tax_code"),
@@ -147,6 +150,48 @@ export const variants = sqliteTable(
     ...timestamps,
   },
   (t) => [index("variants_product_idx").on(t.productId)],
+);
+
+/** A named axis: "Size". Up to 3 per product. */
+export const productOptions = sqliteTable(
+  "product_options",
+  {
+    id: text("id").primaryKey(),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    position: integer("position").notNull().default(0),
+  },
+  (t) => [index("product_options_product_idx").on(t.productId)],
+);
+
+/** A value on that axis: "Large". */
+export const productOptionValues = sqliteTable(
+  "product_option_values",
+  {
+    id: text("id").primaryKey(),
+    optionId: text("option_id")
+      .notNull()
+      .references(() => productOptions.id, { onDelete: "cascade" }),
+    value: text("value").notNull(),
+    position: integer("position").notNull().default(0),
+  },
+  (t) => [index("product_option_values_option_idx").on(t.optionId)],
+);
+
+/** Which value on each axis this variant is. */
+export const variantOptionValues = sqliteTable(
+  "variant_option_values",
+  {
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => variants.id, { onDelete: "cascade" }),
+    optionValueId: text("option_value_id")
+      .notNull()
+      .references(() => productOptionValues.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.variantId, t.optionValueId] })],
 );
 
 export const productImages = sqliteTable(

@@ -56,6 +56,10 @@ import {
 } from "../../db/orders-repository.js";
 import { getShippingTable, replaceShippingTable } from "../../db/shipping-repository.js";
 import { fulfilmentInputSchema, orderStatusSchema, refundInputSchema } from "../../shared/orders.js";
+import {
+  findDuplicateCombination,
+  optionSelectionsAreWellFormed,
+} from "../../shared/product-options.js";
 import { httpError, requireAdmin, verifyCsrf, writeRateLimit } from "../middleware.js";
 import { env, hasStripe, isSqlite } from "../env.js";
 import { deleteImageFile, storeImage, uploadMiddleware } from "../uploads.js";
@@ -125,6 +129,30 @@ adminRouter.get("/environment", (_req, res) => {
   } satisfies EnvironmentStatus);
 });
 
+/**
+ * Checks the schema cannot express on its own: every variant must name a real
+ * combination of the product's own option values, and no two variants may
+ * name the same one.
+ */
+function assertValidOptions(input: { options: { name: string; values: string[] }[]; variants: { optionValues: string[] }[] }): void {
+  if (!optionSelectionsAreWellFormed(input.options, input.variants)) {
+    throw httpError(
+      400,
+      "Every price must choose exactly one value for each option, from that option's own list.",
+    );
+  }
+
+  const duplicate = findDuplicateCombination(input.variants);
+  if (duplicate) {
+    throw httpError(
+      409,
+      duplicate.length > 0
+        ? `Two prices are both “${duplicate.join(" / ")}.” Combinations must be unique.`
+        : "A product with no options can only have one price.",
+    );
+  }
+}
+
 /* ---------------------------------------------------------------- products */
 
 adminRouter.get("/products", async (_req, res) => {
@@ -147,6 +175,7 @@ adminRouter.get("/products/:slug", async (req, res) => {
 adminRouter.post("/products", async (req, res) => {
   try {
     const input = productInputSchema.parse(req.body);
+    assertValidOptions(input);
     res.status(201).json({ id: await createProduct(input) });
   } catch (error) {
     toHttp(error);
@@ -158,6 +187,7 @@ adminRouter.put("/products/:id", async (req, res) => {
 
   try {
     const input = productInputSchema.parse(req.body);
+    assertValidOptions(input);
     await updateProduct(req.params.id, input);
     res.status(204).end();
   } catch (error) {

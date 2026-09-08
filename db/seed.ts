@@ -46,6 +46,29 @@ export async function seedStore(store: Store = demoStore): Promise<void> {
       position: index,
     });
 
+    // valueId, keyed by "optionId:value text", so variants below can link to it.
+    const valueIdByOptionAndText = new Map<string, string>();
+
+    for (const [oIndex, option] of product.options.entries()) {
+      await db.insert(schema.productOptions).values({
+        id: option.id,
+        productId: product.id,
+        name: option.name,
+        position: oIndex,
+      });
+
+      for (const [vIndex, value] of option.values.entries()) {
+        const valueId = randomUUID();
+        await db.insert(schema.productOptionValues).values({
+          id: valueId,
+          optionId: option.id,
+          value,
+          position: vIndex,
+        });
+        valueIdByOptionAndText.set(`${option.id}:${value}`, valueId);
+      }
+    }
+
     for (const [vIndex, variant] of product.variants.entries()) {
       await db.insert(schema.variants).values({
         id: variant.id,
@@ -58,6 +81,19 @@ export async function seedStore(store: Store = demoStore): Promise<void> {
         stripePriceId: variant.stripePriceId,
         position: vIndex,
       });
+
+      for (const [axisIndex, text] of variant.optionValues.entries()) {
+        const option = product.options[axisIndex];
+        if (!option) continue;
+
+        const valueId = valueIdByOptionAndText.get(`${option.id}:${text}`);
+        if (!valueId) continue;
+
+        await db.insert(schema.variantOptionValues).values({
+          variantId: variant.id,
+          optionValueId: valueId,
+        });
+      }
     }
 
     for (const [iIndex, image] of product.images.entries()) {

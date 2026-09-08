@@ -34,6 +34,29 @@ test("adds a variant to the cart and shows the right subtotal", async ({ page })
   await expect(page.getByText("Subtotal")).toBeVisible();
 });
 
+test("buys a two-axis product by choosing across both selectors", async ({ page }) => {
+  await page.goto("/product/zip-hoodie");
+
+  const size = page.getByRole("combobox").nth(0);
+  const colour = page.getByRole("combobox").nth(1);
+  await expect(size).toBeVisible();
+  await expect(colour).toBeVisible();
+
+  await expect(page.getByText("$58.00")).toBeVisible();
+
+  await size.click();
+  await page.getByTitle("Large").click();
+  await expect(page.getByText("$62.00")).toBeVisible();
+
+  await colour.click();
+  await page.getByTitle("Navy").click();
+  await expect(page.getByText("$62.00")).toBeVisible();
+
+  await page.getByRole("button", { name: "Add to cart" }).click();
+  await expect(page).toHaveURL(/\/cart$/);
+  await expect(page.getByRole("cell", { name: "$62.00" })).toBeVisible();
+});
+
 test("clamps the cart quantity to available stock", async ({ page }) => {
   await page.goto("/product/canvas-tote");
 

@@ -1,14 +1,14 @@
 ---
 task: "10"
 title: Multi-axis variants
-status: todo
+status: done
 tier: 2
 size: L
 migration: two tables + backfill
 blocked_by: []
 blocks: ["15"]
 touches: db/schema.*.ts:67 · src/admin/ProductEditorPage.tsx · src/pages/ProductPage.tsx
-completed: 
+completed: 2026-09-08
 shipped_in: 
 summary: >-
   `products.variantName` is a single label for one axis, so a shirt in three sizes and two

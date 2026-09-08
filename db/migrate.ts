@@ -1,3 +1,4 @@
+import { backfillProductOptions } from "./admin-repository.js";
 import { getDatabase } from "./client.js";
 import { adoptAboutTextAsPage } from "./pages-repository.js";
 
@@ -7,7 +8,8 @@ import { adoptAboutTextAsPage } from "./pages-repository.js";
  *
  * Data steps run afterwards, here rather than in a SQL file: they have to
  * behave identically on SQLite and Postgres, and each one is written to be a
- * no-op on a database that has already had it. See `adoptAboutTextAsPage`.
+ * no-op on a database that has already had it. See `adoptAboutTextAsPage` and
+ * `backfillProductOptions`.
  */
 export async function runMigrations(): Promise<void> {
   const { raw, dialect } = await getDatabase();
@@ -25,6 +27,7 @@ export async function runMigrations(): Promise<void> {
   }
 
   await adoptAboutTextAsPage();
+  await backfillProductOptions();
 }
 
 // Allow `tsx db/migrate.ts` as well as importing it from the server.

@@ -185,9 +185,11 @@ describe("crawler files", () => {
       bulletPoints: [],
       seoTitle: null,
       seoDescription: null,
-      variantName: null,
       taxCode: null,
-      variants: [{ label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0 }],
+      variants: [
+        { label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0, optionValues: [] },
+      ],
+      options: [],
       optionGroups: [],
       isLive: false,
     });

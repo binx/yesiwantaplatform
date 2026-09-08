@@ -22,6 +22,7 @@ const baseProduct: Product = {
       inventory: { type: "finite", quantity: 12 },
       weightGrams: 0,
       stripePriceId: null,
+      optionValues: ["Small"],
     },
     {
       id: "v-large",
@@ -30,8 +31,10 @@ const baseProduct: Product = {
       inventory: { type: "finite", quantity: 2 },
       weightGrams: 0,
       stripePriceId: null,
+      optionValues: ["Large"],
     },
   ],
+  options: [{ id: "opt-size", name: "size", values: ["Small", "Large"] }],
   optionGroups: [],
   taxCode: null,
   stripeTaxSignature: null,
@@ -57,7 +60,8 @@ describe("ProductDetails", () => {
     const single: Product = {
       ...baseProduct,
       variantName: null,
-      variants: [baseProduct.variants[0]!],
+      options: [],
+      variants: [{ ...baseProduct.variants[0]!, optionValues: [] }],
     };
     renderWithProviders(<ProductDetails product={single} currency="USD" />);
 
@@ -109,6 +113,7 @@ describe("ProductDetails", () => {
     const soldOut: Product = {
       ...baseProduct,
       variantName: null,
+      options: [],
       variants: [
         {
           id: "v-only",
@@ -117,11 +122,96 @@ describe("ProductDetails", () => {
           inventory: { type: "finite", quantity: 0 },
           weightGrams: 0,
           stripePriceId: null,
+          optionValues: [],
         },
       ],
     };
     renderWithProviders(<ProductDetails product={soldOut} currency="USD" />);
 
     expect(screen.getByRole("button", { name: /sold out/i })).toBeDisabled();
+  });
+
+  const twoAxisProduct: Product = {
+    ...baseProduct,
+    id: "p2",
+    slug: "hoodie",
+    name: "Zip Hoodie",
+    variantName: "size",
+    options: [
+      { id: "opt-size", name: "size", values: ["Small", "Large"] },
+      { id: "opt-colour", name: "colour", values: ["Black", "Blue"] },
+    ],
+    variants: [
+      {
+        id: "v-s-black",
+        label: "Small / Black",
+        priceCents: 5000,
+        inventory: { type: "finite", quantity: 5 },
+        weightGrams: 0,
+        stripePriceId: null,
+        optionValues: ["Small", "Black"],
+      },
+      {
+        id: "v-s-blue",
+        label: "Small / Blue",
+        priceCents: 5000,
+        // Sold out — offered but disabled, not silently missing.
+        inventory: { type: "finite", quantity: 0 },
+        weightGrams: 0,
+        stripePriceId: null,
+        optionValues: ["Small", "Blue"],
+      },
+      {
+        id: "v-l-black",
+        label: "Large / Black",
+        priceCents: 5500,
+        inventory: { type: "finite", quantity: 3 },
+        weightGrams: 0,
+        stripePriceId: null,
+        optionValues: ["Large", "Black"],
+      },
+      {
+        id: "v-l-blue",
+        label: "Large / Blue",
+        priceCents: 5500,
+        inventory: { type: "infinite" },
+        weightGrams: 0,
+        stripePriceId: null,
+        optionValues: ["Large", "Blue"],
+      },
+    ],
+  };
+
+  it("renders one selector per axis and resolves the right variant", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ProductDetails product={twoAxisProduct} currency="USD" />);
+
+    expect(screen.getByText("size")).toBeInTheDocument();
+    expect(screen.getByText("colour")).toBeInTheDocument();
+    expect(screen.getByText("$50.00")).toBeInTheDocument();
+
+    const [sizeSelect, colourSelect] = screen.getAllByRole("combobox");
+
+    await user.click(sizeSelect!);
+    await user.click(await screen.findByTitle("Large"));
+    await waitFor(() => expect(screen.getByText("$55.00")).toBeInTheDocument());
+
+    await user.click(colourSelect!);
+    await user.click(await screen.findByTitle("Blue"));
+
+    await user.click(screen.getByRole("button", { name: /add to cart/i }));
+    const [line] = useCart.getState().lines;
+    expect(line).toMatchObject({ productId: "p2", variantId: "v-l-blue", quantity: 1 });
+  });
+
+  it("marks a sold-out combination rather than allowing a dead selection", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ProductDetails product={twoAxisProduct} currency="USD" />);
+
+    const [, colourSelect] = screen.getAllByRole("combobox");
+    await user.click(colourSelect!);
+
+    // Small + Blue exists in the catalogue but has no stock left.
+    expect(await screen.findByTitle("Blue — sold out")).toBeInTheDocument();
   });
 });

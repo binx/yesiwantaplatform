@@ -12,20 +12,45 @@ interface ProductDetailsProps {
   currency: string;
 }
 
+/** The variant holding `value` on axis `axisIndex`, given the other axes already chosen. */
+function variantForValue(
+  product: Product,
+  selections: Record<string, string>,
+  axisIndex: number,
+  value: string,
+) {
+  return product.variants.find(
+    (variant) =>
+      variant.optionValues[axisIndex] === value &&
+      product.options.every(
+        (option, i) => i === axisIndex || variant.optionValues[i] === selections[option.id],
+      ),
+  );
+}
+
+/** The variant naming exactly this combination, if any. */
+function resolveVariant(product: Product, selections: Record<string, string>) {
+  return product.variants.find((variant) =>
+    product.options.every((option, i) => variant.optionValues[i] === selections[option.id]),
+  );
+}
+
 export function ProductDetails({ product, currency }: ProductDetailsProps) {
   const navigate = useNavigate();
   const { message } = AntApp.useApp();
   const add = useCart((s) => s.add);
 
-  const [variantId, setVariantId] = useState(product.variants[0]?.id ?? "");
+  const [selections, setSelections] = useState<Record<string, string>>(() =>
+    Object.fromEntries(product.options.map((o) => [o.id, o.values[0] ?? ""])),
+  );
   const [quantity, setQuantity] = useState(1);
   const [options, setOptions] = useState<Record<string, string>>(() =>
     Object.fromEntries(product.optionGroups.map((g) => [g.name, g.choices[0] ?? ""])),
   );
 
   const variant = useMemo(
-    () => product.variants.find((v) => v.id === variantId) ?? product.variants[0],
-    [product.variants, variantId],
+    () => resolveVariant(product, selections) ?? product.variants[0],
+    [product, selections],
   );
 
   if (!variant) return null;
@@ -49,35 +74,37 @@ export function ProductDetails({ product, currency }: ProductDetailsProps) {
       {product.description && <p className={styles.description}>{product.description}</p>}
 
       {/*
-        v1 rendered this picker only when a product had more than one variant
-        *group*, so a product whose sole axis was size showed no selector at all
-        and silently shipped the first option.
+        One selector per axis. v1 rendered a single picker only when a product
+        had more than one variant *group*, so a product whose sole axis was
+        size showed no selector at all and silently shipped the first option.
       */}
-      {product.variants.length > 1 && (
-        <label className={styles.field}>
-          <span className={styles.label}>{product.variantName ?? "Option"}</span>
+      {product.options.map((option, axisIndex) => (
+        <label key={option.id} className={styles.field}>
+          <span className={styles.label}>{option.name}</span>
           <Select<string>
-            value={variant.id}
+            value={selections[option.id] ?? option.values[0] ?? ""}
             onChange={(value) => {
-              setVariantId(value);
+              setSelections((prev) => ({ ...prev, [option.id]: value }));
               // Re-clamp: the new variant may hold less stock than the old one.
-              const next = product.variants.find((v) => v.id === value);
-              const nextStock =
-                next && next.inventory.type === "finite" ? next.inventory.quantity : null;
+              const next = resolveVariant(product, { ...selections, [option.id]: value });
+              const nextStock = next?.inventory.type === "finite" ? next.inventory.quantity : null;
               setQuantity((q) => normalizeQuantity(q, nextStock));
             }}
-            options={product.variants.map((v) => ({
-              value: v.id,
-              label:
-                v.inventory.type === "finite" && v.inventory.quantity === 0
-                  ? `${v.label} — sold out`
-                  : v.label,
-              disabled: v.inventory.type === "finite" && v.inventory.quantity === 0,
-            }))}
+            options={option.values.map((value) => {
+              const covering = variantForValue(product, selections, axisIndex, value);
+              const soldOutHere =
+                covering?.inventory.type === "finite" && covering.inventory.quantity === 0;
+
+              return {
+                value,
+                label: !covering ? `${value} — unavailable` : soldOutHere ? `${value} — sold out` : value,
+                disabled: !covering || soldOutHere,
+              };
+            })}
             className={cx(styles.control)}
           />
         </label>
-      )}
+      ))}
 
       {product.optionGroups.map((group) => (
         <label key={group.name} className={styles.field}>

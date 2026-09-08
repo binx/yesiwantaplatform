@@ -24,11 +24,24 @@ import {
 
 export const variantInputSchema = z.object({
   id: z.string().min(1).optional(),
+  /**
+   * Regenerated server-side from `optionValues` whenever the product has any
+   * options — see `regenerateLabel` in shared/product-options.ts. What is sent
+   * here only matters for a product with no options at all.
+   */
   label: z.string().default(""),
   priceCents: centsSchema,
   inventory: inventorySchema,
   /** Grams. Only consulted by weight-banded shipping rates. */
   weightGrams: z.number().int().min(0).max(1_000_000).default(0),
+  /** The selected value per axis, in the same order as `options` below. */
+  optionValues: z.array(z.string()).max(3).default([]),
+});
+
+export const productOptionInputSchema = z.object({
+  id: z.string().min(1).optional(),
+  name: z.string().min(1).max(50),
+  values: z.array(z.string().min(1).max(80)).min(1).max(50),
 });
 
 export const productInputSchema = z.object({
@@ -38,10 +51,11 @@ export const productInputSchema = z.object({
   bulletPoints: z.array(z.string().max(300)).max(20).default([]),
   seoTitle: z.string().max(70).nullable().default(null),
   seoDescription: z.string().max(160).nullable().default(null),
-  variantName: z.string().max(50).nullable().default(null),
   /** Null uses the store's default tax code. */
   taxCode: taxCodeSchema.nullable().default(null),
   variants: z.array(variantInputSchema).min(1).max(50),
+  /** Up to three priced axes — Size × Colour. `variantName` derives from this. */
+  options: z.array(productOptionInputSchema).max(3).default([]),
   optionGroups: z.array(optionGroupSchema).max(10).default([]),
   isLive: z.boolean().default(false),
 });
@@ -243,6 +257,7 @@ export const sessionResponseSchema = z.object({
 export const collectionsResponseSchema = z.array(collectionSchema);
 
 export type VariantInput = z.infer<typeof variantInputSchema>;
+export type ProductOptionInput = z.infer<typeof productOptionInputSchema>;
 export type ProductInput = z.infer<typeof productInputSchema>;
 export type CollectionInput = z.infer<typeof collectionInputSchema>;
 export type PageInput = z.infer<typeof pageInputSchema>;

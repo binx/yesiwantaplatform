@@ -9,7 +9,7 @@ blocked_by: []
 blocks: []
 touches: server/webhooks.ts · db/webhooks-repository.ts · server/routes/webhook.ts
 completed: 2026-09-08
-shipped_in: 
+shipped_in: 2
 summary: >-
   The substitute for an app ecosystem. Emitting `order.paid` and `order.shipped` to a
   merchant's own endpoint buys most of the integration surface for a fraction of the cost

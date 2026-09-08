@@ -519,7 +519,7 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <span class="log-date">2026-09-08</span>
         <span class="log-task">14</span>
         <span class="log-title">Outbound webhooks</span>
-        <span class="log-ref"></span>
+        <span class="log-ref">2</span>
       </li>
       <li>
         <span class="log-date">2026-09-07</span>
@@ -864,6 +864,7 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <p>The substitute for an app ecosystem. Emitting <code>order.paid</code> and <code>order.shipped</code> to a merchant's own endpoint buys most of the integration surface for a fraction of the cost — and Beluga already has a correct at-least-once consumer in <code>server/routes/webhook.ts</code> to model the producer on. Refuse private address ranges at endpoint creation, or this becomes an SSRF primitive against the host.</p>
         <div class="meta"><span><b>Migration</b> two tables</span>
           <span><b>Touches</b> server/webhooks.ts · db/webhooks-repository.ts · server/routes/webhook.ts</span>
+          <span><b>Shipped in</b> 2</span>
           <span><b>Brief</b> docs/tasks/14-outbound-webhooks.md</span></div>
       </article>
 

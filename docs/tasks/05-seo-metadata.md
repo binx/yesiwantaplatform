@@ -9,7 +9,7 @@ blocked_by: []
 blocks: []
 touches: server/app.ts:74 · server/routes/public.ts
 completed: 2026-09-07
-shipped_in: 
+shipped_in: 3bf1fb5
 summary: >-
   **The highest-leverage item on this page, and cheaper than it looks.** Every product
   currently shares one meta description — *A Beluga storefront.* — so nothing in the

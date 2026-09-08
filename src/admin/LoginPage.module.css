@@ -43,7 +43,12 @@
   background: #f4f4f5;
   border-radius: 2px;
   font-size: 0.75rem;
-  /* A long command scrolls inside its own box rather than widening the card. */
-  overflow-x: auto;
-  white-space: nowrap;
+  /*
+   * Wraps rather than scrolls. Scrolling kept the card narrow but hid the tail
+   * of the one command on this card that exists to be copied — `npm run
+   * db:seed` sat past the right edge, behind a scrollbar, on a page reached by
+   * someone who has already lost their password.
+   */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

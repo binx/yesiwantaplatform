@@ -53,6 +53,15 @@
   text-decoration: none;
 }
 
+/*
+ * antd paints badge text white whatever colour the badge is, and the default
+ * accent is light enough that white lands at 2.95:1. Hand the count the same
+ * ink-or-white choice `readableOn` already makes for the "Sold out" badge.
+ */
+.cart :global(.ant-badge-count) {
+  color: var(--beluga-on-accent);
+}
+
 .cartIcon {
   font-size: 1.25rem;
 }

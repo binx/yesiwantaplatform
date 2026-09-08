@@ -9,7 +9,15 @@
   align-items: start;
 }
 
-@media (max-width: 900px) {
+/*
+ * Collapses at 1200px, not 900px.
+ *
+ * The accounts table needs about 560px. Between 900px and 1200px the 2fr
+ * column was narrower than that, so the table silently scrolled inside its
+ * card: "Role" was cut mid-word and both "Last signed in" and the row actions
+ * were off the edge entirely, with only a hairline scrollbar to say so.
+ */
+@media (max-width: 1200px) {
   .columns {
     grid-template-columns: 1fr;
   }

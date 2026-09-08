@@ -82,6 +82,14 @@ export function ProductDetails({ product, currency }: ProductDetailsProps) {
         <label key={option.id} className={styles.field}>
           <span className={styles.label}>{option.name}</span>
           <Select<string>
+            /*
+             * Named explicitly. Wrapping a label around antd's Select does not
+             * name it — the control is a div with a readonly combobox inside,
+             * and the implicit association never reaches it, so both of these
+             * pickers reached the accessibility tree as a bare "combobox".
+             * The quantity input beside them was already doing this.
+             */
+            aria-label={option.name}
             value={selections[option.id] ?? option.values[0] ?? ""}
             onChange={(value) => {
               setSelections((prev) => ({ ...prev, [option.id]: value }));
@@ -110,6 +118,7 @@ export function ProductDetails({ product, currency }: ProductDetailsProps) {
         <label key={group.name} className={styles.field}>
           <span className={styles.label}>{group.name}</span>
           <Select<string>
+            aria-label={group.name}
             value={options[group.name] ?? group.choices[0] ?? ""}
             onChange={(value) => setOptions((prev) => ({ ...prev, [group.name]: value }))}
             options={group.choices.map((choice) => ({ value: choice, label: choice }))}

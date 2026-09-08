@@ -35,19 +35,45 @@ const schemePalette: Record<ColorScheme, Palette> = {
   },
 };
 
+/** The r, g, b channels of a `#rrggbb` colour, or null if it is not one. */
+function channels(color: string): [number, number, number] | null {
+  const hex = /^#?([0-9a-f]{6})$/i.exec(color.trim())?.[1];
+  if (!hex) return null;
+
+  const int = Number.parseInt(hex, 16);
+  return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
+}
+
 /** Relative luminance per WCAG 2.x. Non-hex input reads as dark, so text on it
  *  defaults to white rather than throwing. */
 function relativeLuminance(color: string): number {
-  const hex = /^#?([0-9a-f]{6})$/i.exec(color.trim())?.[1];
-  if (!hex) return 0;
+  const rgb = channels(color);
+  if (!rgb) return 0;
 
-  const int = Number.parseInt(hex, 16);
-  const [r, g, b] = [(int >> 16) & 255, (int >> 8) & 255, int & 255].map((channel) => {
+  const [r, g, b] = rgb.map((channel) => {
     const v = channel / 255;
     return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
   }) as [number, number, number];
 
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * Blend two colours in sRGB; `amount` is how much of `a` survives.
+ *
+ * Used to tint a surface with the store's own primary. Non-hex input falls
+ * back to `b` untouched, matching `relativeLuminance`'s refusal to throw on a
+ * colour it cannot read.
+ */
+function mix(a: string, b: string, amount: number): string {
+  const from = channels(a);
+  const to = channels(b);
+  if (!from || !to) return b;
+
+  return `#${from
+    .map((channel, i) => Math.round(channel * amount + (to[i] as number) * (1 - amount)))
+    .map((channel) => channel.toString(16).padStart(2, "0"))
+    .join("")}`;
 }
 
 /**
@@ -57,7 +83,16 @@ function relativeLuminance(color: string): number {
  * a "Sold out" badge that turns white-on-pale-yellow is worse than no badge.
  */
 function readableOn(background: string): string {
-  return relativeLuminance(background) > 0.45 ? "#18181b" : "#ffffff";
+  /*
+   * Ask which of the two actually wins, rather than guessing from a luminance
+   * cutoff. The old 0.45 threshold picked white for the default accent
+   * (#e07a5f, luminance 0.31) and got 2.95:1 on the "Sold out" badge; ink on
+   * that same accent is 6.01:1. The crossover sits near 0.18, not 0.45, so a
+   * hand-picked threshold was always going to be wrong somewhere on the range.
+   */
+  return contrastRatio("#18181b", background) >= contrastRatio("#ffffff", background)
+    ? "#18181b"
+    : "#ffffff";
 }
 
 /** WCAG contrast ratio between two colours, 1 (identical) to 21 (black/white). */
@@ -119,6 +154,15 @@ export function toAntdTheme(theme: Theme): ThemeConfig {
       colorBorder: palette.line,
       fontSize: 15,
       wireframe: false,
+      /*
+       * antd derives the "chosen item" background from `colorPrimary`. Beluga's
+       * default primary is near-black, so that derivation landed on a dark grey
+       * while the label on top stayed dark ink — 2.03:1, and in a multi-select
+       * every option already chosen rendered that way. Tint the surface with
+       * the primary instead of letting antd shade the primary itself.
+       */
+      controlItemBgActive: mix(theme.colorPrimary, palette.surface, 0.1),
+      controlItemBgActiveHover: mix(theme.colorPrimary, palette.surface, 0.16),
     },
     components: {
       Button: {
@@ -129,6 +173,12 @@ export function toAntdTheme(theme: Theme): ThemeConfig {
       },
       Card: {
         paddingLG: 28,
+      },
+      Select: {
+        // Both halves of the pair are pinned; leaving the text to be derived
+        // is what let the background drift away from it in the first place.
+        optionSelectedBg: mix(theme.colorPrimary, palette.surface, 0.1),
+        optionSelectedColor: palette.ink,
       },
       Table: {
         headerBg: "transparent",

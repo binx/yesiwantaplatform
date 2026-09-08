@@ -1,0 +1,34 @@
+.page {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  padding: 4rem 0 6rem;
+  text-align: center;
+}
+
+/*
+ * A watermark, not a picture.
+ *
+ * antd's `Result status="404"` ships a bright blue cartoon that owes nothing to
+ * the store's theme — on a monochrome shop with one terracotta accent it read
+ * as somebody else's artwork pasted in. This is drawn from the same tokens as
+ * the rest of the storefront, so it follows a shop that changes its palette.
+ */
+.mark {
+  font-size: clamp(5rem, 18vw, 9rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--beluga-line);
+  user-select: none;
+}
+
+.title {
+  margin: 0;
+}
+
+.text {
+  margin: 0 0 1.75rem;
+  max-width: 28rem;
+  color: var(--beluga-muted);
+}

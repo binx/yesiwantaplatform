@@ -634,6 +634,63 @@ export async function restockInventoryForOrder(orderId: string): Promise<boolean
   return true;
 }
 
+export interface LowStockVariant {
+  productId: string | null;
+  productName: string;
+  variantId: string;
+  variantLabel: string;
+  remaining: number;
+}
+
+/**
+ * Finite variants an order has left at or below `threshold`.
+ *
+ * Read after the decrement rather than derived from it: the decrement is
+ * guarded and can decline to move a count at all, so the only trustworthy
+ * figure is the one now in the row. Feeds the `inventory.low` webhook — see
+ * docs/tasks/14-outbound-webhooks.md.
+ */
+export async function findLowStockAfterOrder(
+  orderId: string,
+  threshold: number,
+): Promise<LowStockVariant[]> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const order = await getOrder(orderId);
+  if (!order) return [];
+
+  const low: LowStockVariant[] = [];
+  // One variant can appear on two lines of the same order; report it once.
+  const seen = new Set<string>();
+
+  for (const item of order.items) {
+    if (!item.variantId || seen.has(item.variantId)) continue;
+    seen.add(item.variantId);
+
+    const rows = (await db
+      .select({
+        quantity: schema.variants.inventoryQuantity,
+        type: schema.variants.inventoryType,
+      })
+      .from(schema.variants)
+      .where(eq(schema.variants.id, item.variantId))
+      .limit(1)) as unknown as { quantity: number; type: string }[];
+
+    const variant = rows[0];
+    if (!variant || variant.type !== "finite" || variant.quantity > threshold) continue;
+
+    low.push({
+      productId: item.productId,
+      productName: item.productName,
+      variantId: item.variantId,
+      variantLabel: item.variantLabel,
+      remaining: variant.quantity,
+    });
+  }
+
+  return low;
+}
+
 /**
  * Record a Stripe event id, returning false if it has been seen before.
  *

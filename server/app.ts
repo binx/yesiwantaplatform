@@ -18,6 +18,7 @@ import { siteRouter } from "./routes/site.js";
 import { injectMeta } from "./html.js";
 import { metaForPath } from "./seo.js";
 import { startCartRecoveryScheduler } from "./cart-recovery.js";
+import { startWebhookDispatcher } from "./webhooks.js";
 
 export function createApp(): Express {
   const app = express();
@@ -33,6 +34,11 @@ export function createApp(): Express {
   // in this process, unref'd so it never holds the process open. See
   // server/cart-recovery.ts for why running it per-instance is safe.
   startCartRecoveryScheduler();
+
+  // Outbound webhook delivery, on the interval task 12 established rather than
+  // a second scheduling mechanism — see server/webhooks.ts. This is what keeps
+  // sending out of the Stripe webhook's request path.
+  startWebhookDispatcher();
 
   // Stripe signs the raw request body, so the webhook must be mounted before
   // any body parser rewrites it — and before sessions, which it does not use.

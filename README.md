@@ -329,6 +329,47 @@ This runs only in the production branch, so it is **not visible under `npm run d
 
 Every money column is named `*_cents` and holds an integer, because a column of dollars in a spreadsheet is how floating-point money gets back in. Fields whose first character is `=`, `+`, `-` or `@` are prefixed with an apostrophe: a product named `=HYPERLINK(...)` is a live formula the moment the file opens in Excel, and product names are merchant- and buyer-supplied. The file starts with a UTF-8 BOM so Excel reads accented names correctly.
 
+### Outbound webhooks
+
+Beluga can POST to your own endpoints when something happens in the store, which is what a merchant would otherwise need an app ecosystem for: wire up a fulfilment provider, an accounting ledger or a Zapier-style connector without either side shipping code into the other's process. Add endpoints under **Admin → Webhooks**.
+
+Six events, matching states the system already knows about:
+
+| Event | When |
+| --- | --- |
+| `order.paid` | The Stripe webhook confirmed payment |
+| `order.updated` | Fulfilment status, carrier or tracking number changed |
+| `order.refunded` | A refund settled — compare `refundedCents` to `totalCents` for partial |
+| `order.cancelled` | An order was cancelled from the admin |
+| `product.published` | A product was published to Stripe |
+| `inventory.low` | A sale left a finite variant at five units or fewer |
+
+The body is an envelope — `{ id, type, created, data }` — and the `id` is repeated in a `beluga-event-id` header so you can deduplicate on it. **Delivery is at-least-once**: retried on failure with exponential backoff (1m, 5m, 25m, 2h, 10h, then given up), so build your receiver to tolerate seeing the same event id twice. An endpoint whose deliveries have given up five times running is switched off, and the admin says so; re-enabling it clears the count.
+
+Every request is signed. The `beluga-signature` header is `t=<unix seconds>,v1=<hex>`, where the HMAC-SHA256 is taken over `` `${t}.${rawBody}` `` under that endpoint's secret — the same shape Stripe uses, so if you already verify Stripe's webhooks this is that code with a different header name:
+
+```js
+const [t, v1] = req.get("beluga-signature").split(",");
+const expected = crypto
+  .createHmac("sha256", process.env.BELUGA_WEBHOOK_SECRET)
+  .update(`${t.slice(2)}.${rawBody}`)
+  .digest("hex");
+
+if (!crypto.timingSafeEqual(Buffer.from(v1.slice(3)), Buffer.from(expected))) {
+  return res.status(400).end();
+}
+```
+
+Verify against the **raw** body, before any JSON parsing, and reject a timestamp older than your own tolerance — the timestamp is inside the signed material precisely so a replay is detectable. Answer any 2xx to accept; anything else gets the retry schedule.
+
+Two things about the secret. It is shown **once**, when the endpoint is created — nothing reads it back, so copy it into your receiver there and then, and roll a new one if you lose it. And rolling invalidates the old one immediately, so expect failed deliveries until the new secret is in place.
+
+Endpoints must be `https://` on a **publicly reachable** host: the URL's hostname is resolved and refused if it lands on a private or reserved address, both at creation and again before every send, redirects included. Without that, an endpoint pointed at `169.254.169.254` would turn admin access into a way to read the host's cloud metadata. `WEBHOOK_ALLOW_INSECURE_TARGETS=true` lifts both restrictions for a self-hoster whose receiver genuinely listens on localhost; leave it off anywhere public.
+
+Nothing is ever sent from a request handler. Events are queued and delivered by a background pass every ten seconds, which is what keeps a slow subscriber from delaying Beluga's response to Stripe — a delay there would trip Stripe's own retry and re-enter the payment handler.
+
+**[`docs/webhooks.md`](docs/webhooks.md) is the guide to building a receiver** — payload examples for every event, verification in Node and Python, the raw-body gotcha, how to test against a local endpoint, and a troubleshooting table.
+
 ### Database
 
 SQLite by default, because a store should run without provisioning anything. Point `DATABASE_URL` at Postgres when a catalogue outgrows a single file:

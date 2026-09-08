@@ -526,3 +526,79 @@ export const carts = sqliteTable(
     index("carts_updated_idx").on(t.updatedAt),
   ],
 );
+
+/**
+ * Outbound webhook endpoints — see docs/tasks/14-outbound-webhooks.md.
+ *
+ * `secret` is stored in the clear, and that is deliberate rather than an
+ * oversight. The brief sketched storing a hash, which works for the invite and
+ * password-reset tokens elsewhere in this codebase because those are *verified*
+ * — we compare a hash to a hash. An HMAC signing key has to be *used*: signing
+ * with a hash of the secret would mean the merchant's Stripe-shaped
+ * verification code, which HMACs the secret they were shown, never matches.
+ * So it is a symmetric key held the same way `STRIPE_WEBHOOK_SECRET` is, and
+ * what "shown once" buys is that no API response ever returns it again.
+ */
+export const webhookEndpoints = sqliteTable(
+  "webhook_endpoints",
+  {
+    id: text("id").primaryKey(),
+    url: text("url").notNull(),
+    description: text("description").notNull().default(""),
+    /** Signing key. Never leaves the server after the response that mints it. */
+    secret: text("secret").notNull(),
+    /** JSON: WebhookEventType[]. */
+    eventTypes: text("event_types").notNull().default("[]"),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    /** Counts *exhausted deliveries*, not attempts. Any success resets it to zero. */
+    consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+    /** Set when the run of failures crossed the cap and we stopped retrying. */
+    disabledAt: integer("disabled_at"),
+    lastSuccessAt: integer("last_success_at"),
+    lastErrorAt: integer("last_error_at"),
+    lastError: text("last_error"),
+    ...timestamps,
+  },
+  (t) => [index("webhook_endpoints_enabled_idx").on(t.enabled)],
+);
+
+/**
+ * One row per (event, endpoint) pair — the queue that makes delivery
+ * out-of-band.
+ *
+ * Nothing is ever sent from a request handler: `emitWebhookEvent` inserts here
+ * and returns, and the dispatcher in server/webhooks.ts picks it up. That is
+ * what stops a slow merchant endpoint from delaying our response to Stripe,
+ * which would trigger Stripe's own retry and re-enter the handler.
+ *
+ * State is read off the two timestamps: both null means still owed,
+ * `deliveredAt` means done, `failedAt` means retries exhausted.
+ */
+export const webhookDeliveries = sqliteTable(
+  "webhook_deliveries",
+  {
+    id: text("id").primaryKey(),
+    endpointId: text("endpoint_id")
+      .notNull()
+      .references(() => webhookEndpoints.id, { onDelete: "cascade" }),
+    /** Sent in a header so a consumer can dedup exactly as we dedup Stripe's. */
+    eventId: text("event_id").notNull(),
+    eventType: text("event_type").notNull(),
+    /** JSON: the exact bytes that get signed. Snapshotted, never re-derived. */
+    payload: text("payload").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    /** Doubles as the lease: claiming pushes it out so a second instance skips. */
+    nextAttemptAt: integer("next_attempt_at")
+      .notNull()
+      .default(sql`(unixepoch())`),
+    responseStatus: integer("response_status"),
+    error: text("error"),
+    deliveredAt: integer("delivered_at"),
+    failedAt: integer("failed_at"),
+    ...timestamps,
+  },
+  (t) => [
+    index("webhook_deliveries_endpoint_idx").on(t.endpointId),
+    index("webhook_deliveries_due_idx").on(t.nextAttemptAt),
+  ],
+);

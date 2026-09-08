@@ -440,3 +440,48 @@ export const carts = pgTable(
     index("carts_updated_idx").on(t.updatedAt),
   ],
 );
+
+/** Postgres mirror of `webhook_endpoints` in db/schema.sqlite.ts — see the comment there. */
+export const webhookEndpoints = pgTable(
+  "webhook_endpoints",
+  {
+    id: text("id").primaryKey(),
+    url: text("url").notNull(),
+    description: text("description").notNull().default(""),
+    secret: text("secret").notNull(),
+    eventTypes: jsonb("event_types").notNull().default(sql`'[]'::jsonb`),
+    enabled: boolean("enabled").notNull().default(true),
+    consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+    disabledAt: timestamp("disabled_at", { withTimezone: true }),
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+    lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    ...timestamps,
+  },
+  (t) => [index("webhook_endpoints_enabled_idx").on(t.enabled)],
+);
+
+/** Postgres mirror of `webhook_deliveries` in db/schema.sqlite.ts — see the comment there. */
+export const webhookDeliveries = pgTable(
+  "webhook_deliveries",
+  {
+    id: text("id").primaryKey(),
+    endpointId: text("endpoint_id")
+      .notNull()
+      .references(() => webhookEndpoints.id, { onDelete: "cascade" }),
+    eventId: text("event_id").notNull(),
+    eventType: text("event_type").notNull(),
+    payload: jsonb("payload").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+    responseStatus: integer("response_status"),
+    error: text("error"),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    failedAt: timestamp("failed_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index("webhook_deliveries_endpoint_idx").on(t.endpointId),
+    index("webhook_deliveries_due_idx").on(t.nextAttemptAt),
+  ],
+);

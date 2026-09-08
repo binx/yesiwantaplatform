@@ -16,6 +16,7 @@ import {
   shippingTableInputSchema,
   type EnvironmentStatus,
 } from "../../shared/api.js";
+import { webhookEndpointInputSchema } from "../../shared/webhooks.js";
 import {
   SlugTakenError,
   addProductImage,
@@ -55,6 +56,19 @@ import {
   updateFulfilment,
 } from "../../db/orders-repository.js";
 import { getShippingTable, replaceShippingTable } from "../../db/shipping-repository.js";
+import {
+  createEndpoint,
+  deleteEndpoint,
+  findDelivery,
+  findEndpoint,
+  listDeliveries,
+  listEndpoints,
+  resetDelivery,
+  rotateEndpointSecret,
+  toDeliverySummary,
+  toEndpointSummary,
+  updateEndpoint,
+} from "../../db/webhooks-repository.js";
 import { fulfilmentInputSchema, orderStatusSchema, refundInputSchema } from "../../shared/orders.js";
 import {
   findDuplicateCombination,
@@ -66,6 +80,13 @@ import { deleteImageFile, storeImage, uploadMiddleware } from "../uploads.js";
 import { archiveProductInStripe, syncProductToStripe } from "../catalog-sync.js";
 import { StripeNotConfiguredError, requireStripe } from "../stripe.js";
 import { renderMarkdown } from "../markdown.js";
+import {
+  EndpointNotAllowedError,
+  assertDeliverableUrl,
+  emitOrderEvent,
+  emitProductPublished,
+  generateSigningSecret,
+} from "../webhooks.js";
 import { sendEmail, sendOrderEmail, templateForStatus } from "../email.js";
 import {
   EmailTakenError,
@@ -98,6 +119,7 @@ function toHttp(error: unknown): never {
   if (error instanceof SlugTakenError) throw httpError(409, error.message);
   if (error instanceof EmailTakenError) throw httpError(409, error.message);
   if (error instanceof StripeNotConfiguredError) throw httpError(503, error.message);
+  if (error instanceof EndpointNotAllowedError) throw httpError(422, error.message);
   if (error instanceof ZodError) {
     const first = error.issues[0];
     throw httpError(400, first ? `${first.path.join(".")}: ${first.message}` : "Invalid input.");
@@ -471,7 +493,9 @@ adminRouter.post("/products/:id/publish", async (req, res) => {
   if (!product) throw httpError(404, "Product not found.");
 
   try {
-    res.json(await syncProductToStripe(product));
+    const result = await syncProductToStripe(product);
+    await emitProductPublished(product, result.stripeProductId);
+    res.json(result);
   } catch (error) {
     toHttp(error);
   }
@@ -684,6 +708,11 @@ adminRouter.put("/orders/:id", async (req, res) => {
     if (template) emailed = await sendOrderEmail(template, updated);
   }
 
+  // Subscribers are told unconditionally — `notify` is about the *buyer's*
+  // inbox, and a fulfilment system that only heard about the shipments a
+  // merchant remembered to tick would be worse than useless.
+  await emitOrderEvent(input.status === "cancelled" ? "order.cancelled" : "order.updated", updated);
+
   res.json({ order: updated, emailed });
 });
 
@@ -865,4 +894,136 @@ adminRouter.put("/users/me/password", loginRateLimit, async (req, res) => {
 
   await updateAdminPassword(id, input.next);
   res.status(204).end();
+});
+
+/* ------------------------------------------------------- outbound webhooks */
+
+/**
+ * Endpoints a merchant has asked us to notify — see
+ * docs/tasks/14-outbound-webhooks.md.
+ *
+ * The signing secret is never in a response from here. It is returned by the
+ * create and roll routes exactly once, like the invite link above, and is
+ * unrecoverable afterwards: `toEndpointSummary` strips it on the way out so
+ * one forgotten field in one response shape cannot leak it.
+ */
+adminRouter.get("/webhooks", async (_req, res) => {
+  const endpoints = await listEndpoints();
+  res.json({ endpoints: endpoints.map(toEndpointSummary) });
+});
+
+adminRouter.post("/webhooks", async (req, res) => {
+  let input;
+  try {
+    input = webhookEndpointInputSchema.parse(req.body);
+  } catch (error) {
+    toHttp(error);
+  }
+
+  // Resolves the hostname and refuses a private or reserved address. Done here
+  // rather than only at delivery time so a merchant finds out while they are
+  // still looking at the form — but delivery re-checks anyway, because DNS
+  // moves.
+  let url: URL;
+  try {
+    url = await assertDeliverableUrl(input.url);
+  } catch (error) {
+    toHttp(error);
+  }
+
+  const secret = generateSigningSecret();
+  const endpoint = await createEndpoint({
+    url: url.toString(),
+    description: input.description,
+    eventTypes: input.eventTypes,
+    enabled: input.enabled,
+    secret,
+  });
+
+  // The one and only time this value is ever sent anywhere.
+  res.status(201).json({ endpoint: toEndpointSummary(endpoint), secret });
+});
+
+adminRouter.put("/webhooks/:id", async (req, res) => {
+  const existing = await findEndpoint(req.params.id);
+  if (!existing) throw httpError(404, "That webhook endpoint does not exist.");
+
+  let input;
+  try {
+    input = webhookEndpointInputSchema.parse(req.body);
+  } catch (error) {
+    toHttp(error);
+  }
+
+  let url: URL;
+  try {
+    url = await assertDeliverableUrl(input.url);
+  } catch (error) {
+    toHttp(error);
+  }
+
+  await updateEndpoint(existing.id, {
+    url: url.toString(),
+    description: input.description,
+    eventTypes: input.eventTypes,
+    enabled: input.enabled,
+  });
+
+  const updated = await findEndpoint(existing.id);
+  if (!updated) throw httpError(404, "That webhook endpoint does not exist.");
+
+  res.json({ endpoint: toEndpointSummary(updated) });
+});
+
+/**
+ * Mint a new signing key.
+ *
+ * The only way back from a lost secret, and the reason losing one is not a
+ * dead end. The old key stops verifying the moment this returns, so a merchant
+ * should expect failed deliveries until they have pasted the new one in.
+ */
+adminRouter.post("/webhooks/:id/secret", async (req, res) => {
+  const existing = await findEndpoint(req.params.id);
+  if (!existing) throw httpError(404, "That webhook endpoint does not exist.");
+
+  const secret = generateSigningSecret();
+  await rotateEndpointSecret(existing.id, secret);
+
+  res.json({ secret });
+});
+
+adminRouter.delete("/webhooks/:id", async (req, res) => {
+  const existing = await findEndpoint(req.params.id);
+  if (!existing) throw httpError(404, "That webhook endpoint does not exist.");
+
+  await deleteEndpoint(existing.id);
+  res.status(204).end();
+});
+
+/**
+ * The delivery log.
+ *
+ * Summaries only: the stored payload is a snapshot of an order, and there is
+ * no reason to re-serve customer addresses through a second route when the
+ * orders pages already own that.
+ */
+adminRouter.get("/webhooks/:id/deliveries", async (req, res) => {
+  const existing = await findEndpoint(req.params.id);
+  if (!existing) throw httpError(404, "That webhook endpoint does not exist.");
+
+  const deliveries = await listDeliveries(existing.id, 50);
+  res.json({ deliveries: deliveries.map(toDeliverySummary) });
+});
+
+/** "Redeliver this one" — the whole of the retry UI the brief allows for. */
+adminRouter.post("/webhooks/deliveries/:id/redeliver", async (req, res) => {
+  const delivery = await findDelivery(req.params.id);
+  if (!delivery) throw httpError(404, "That delivery does not exist.");
+
+  await resetDelivery(delivery.id);
+
+  const queued = await findDelivery(delivery.id);
+  if (!queued) throw httpError(404, "That delivery does not exist.");
+
+  res.json({ delivery: toDeliverySummary(queued) });
 });

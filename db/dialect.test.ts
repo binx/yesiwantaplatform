@@ -82,12 +82,13 @@ async function loadWith(databaseUrl: string) {
   const admin = await import("./admin-repository.js");
   const orders = await import("./orders-repository.js");
   const pages = await import("./pages-repository.js");
+  const webhooks = await import("./webhooks-repository.js");
   const { getDatabase, resetDatabase } = await import("./client.js");
 
   await runMigrations();
   await seedIfEmpty();
 
-  return { ...repository, admin, orders, pages, getDatabase, resetDatabase };
+  return { ...repository, admin, orders, pages, webhooks, getDatabase, resetDatabase };
 }
 
 /**
@@ -571,6 +572,82 @@ for (const { name, context } of dialects) {
       const large = product?.variants.find((v) => v.id === largeId);
       expect(small?.optionValues).toEqual(["Small"]);
       expect(large?.optionValues).toEqual(["Large"]);
+    });
+
+    it("round-trips a webhook endpoint and its queued delivery", async () => {
+      // The columns most likely to diverge: a JSON array and a JSON object,
+      // which are TEXT on SQLite and jsonb on Postgres.
+      const endpoint = await db.webhooks.createEndpoint({
+        url: "https://example.com/hooks/dialect",
+        description: "Dialect probe",
+        eventTypes: ["order.paid", "inventory.low"],
+        enabled: true,
+        secret: "bwhsec_dialect",
+      });
+
+      expect(endpoint.eventTypes).toEqual(["order.paid", "inventory.low"]);
+      expect(endpoint.enabled).toBe(true);
+
+      const deliveryId = await db.webhooks.enqueueDelivery({
+        endpointId: endpoint.id,
+        eventId: "evt_dialect",
+        eventType: "order.paid",
+        payload: { id: "evt_dialect", type: "order.paid", data: { totalCents: 3400 } },
+      });
+
+      const [queued] = await db.webhooks.listDeliveries(endpoint.id, 10);
+      expect(queued?.id).toBe(deliveryId);
+      expect(queued?.payload).toEqual({
+        id: "evt_dialect",
+        type: "order.paid",
+        data: { totalCents: 3400 },
+      });
+
+      // `next_attempt_at` defaults to now, and "due" is a timestamp comparison
+      // against a unix integer on one engine and a timestamptz on the other.
+      const due = await db.webhooks.findDueDeliveries(10);
+      expect(due.map((row) => row.id)).toContain(deliveryId);
+
+      // Only the first of two racing claims may win.
+      expect(await db.webhooks.claimDelivery(deliveryId, 0, 60_000)).toBe(true);
+      expect(await db.webhooks.claimDelivery(deliveryId, 0, 60_000)).toBe(false);
+
+      // And the lease took it out of the due set.
+      const stillDue = await db.webhooks.findDueDeliveries(10);
+      expect(stillDue.map((row) => row.id)).not.toContain(deliveryId);
+
+      await db.webhooks.markDelivered(deliveryId, 200);
+      const [settled] = await db.webhooks.listDeliveries(endpoint.id, 10);
+      expect(settled?.deliveredAt).not.toBeNull();
+      expect(settled?.responseStatus).toBe(200);
+    });
+
+    it("disables a webhook endpoint only once the failure run reaches the cap", async () => {
+      const endpoint = await db.webhooks.createEndpoint({
+        url: "https://example.com/hooks/failing",
+        description: "",
+        eventTypes: ["order.paid"],
+        enabled: true,
+        secret: "bwhsec_failing",
+      });
+
+      // The increment is done in SQL rather than read-modify-write, so this is
+      // the assertion that the expression compiles on both engines.
+      expect(await db.webhooks.recordEndpointFailure(endpoint.id, "503", 3)).toBe(false);
+      expect(await db.webhooks.recordEndpointFailure(endpoint.id, "503", 3)).toBe(false);
+      expect(await db.webhooks.recordEndpointFailure(endpoint.id, "503", 3)).toBe(true);
+
+      const disabled = await db.webhooks.findEndpoint(endpoint.id);
+      expect(disabled?.enabled).toBe(false);
+      expect(disabled?.consecutiveFailures).toBe(3);
+
+      // Only the crossing reports true; a later failure is not a second event.
+      expect(await db.webhooks.recordEndpointFailure(endpoint.id, "503", 3)).toBe(false);
+
+      await db.webhooks.recordEndpointSuccess(endpoint.id);
+      const healthy = await db.webhooks.findEndpoint(endpoint.id);
+      expect(healthy?.consecutiveFailures).toBe(0);
+      expect(healthy?.lastSuccessAt).not.toBeNull();
     });
 
     it("leaves a single unlabelled variant with no options", async () => {

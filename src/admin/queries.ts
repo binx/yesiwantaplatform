@@ -12,6 +12,11 @@ import type {
   PasswordChangeInput,
 } from "@shared/api";
 import type { ShippingRate, ShippingZone } from "@shared/shipping";
+import type {
+  WebhookDeliverySummary,
+  WebhookEndpointInput,
+  WebhookEndpointSummary,
+} from "@shared/webhooks";
 import type { Collection, Image, PageDraft, Product } from "@shared/schema";
 import type { FulfilmentInput, Order, OrderStatus, RefundInput } from "@shared/orders";
 import { apiGet, csrfDelete, csrfPost, csrfPut, csrfUpload } from "@/lib/api";
@@ -34,6 +39,8 @@ export const adminKeys = {
   environment: ["admin", "environment"] as const,
   shipping: ["admin", "shipping"] as const,
   users: ["admin", "users"] as const,
+  webhooks: ["admin", "webhooks"] as const,
+  webhookDeliveries: (id: string) => ["admin", "webhooks", id, "deliveries"] as const,
   orders: (status: OrderStatus | "all", offset: number) =>
     ["admin", "orders", status, offset] as const,
   order: (id: string) => ["admin", "order", id] as const,
@@ -459,6 +466,95 @@ export function useUpdateFulfilment() {
     onSuccess: async ({ order }) => {
       queryClient.setQueryData(adminKeys.order(order.id), order);
       await queryClient.invalidateQueries({ queryKey: ["admin", "orders"] });
+    },
+  });
+}
+
+/* ------------------------------------------------------- outbound webhooks */
+
+/**
+ * Webhook endpoints — see docs/tasks/14-outbound-webhooks.md.
+ *
+ * These deliberately do *not* invalidate the public store keys the way product
+ * and page mutations do: nothing here changes what a shopper sees, and the
+ * blanket invalidation in `useInvalidate` would refetch the whole storefront
+ * every time a merchant ticked an event type.
+ */
+export function useWebhookEndpoints() {
+  return useQuery({
+    queryKey: adminKeys.webhooks,
+    queryFn: ({ signal }) =>
+      apiGet<{ endpoints: WebhookEndpointSummary[] }>("/admin/webhooks", signal),
+  });
+}
+
+export function useWebhookDeliveries(endpointId: string | null) {
+  return useQuery({
+    queryKey: adminKeys.webhookDeliveries(endpointId ?? ""),
+    queryFn: ({ signal }) =>
+      apiGet<{ deliveries: WebhookDeliverySummary[] }>(
+        `/admin/webhooks/${endpointId!}/deliveries`,
+        signal,
+      ),
+    enabled: Boolean(endpointId),
+  });
+}
+
+/** The secret comes back here and nowhere else, ever. */
+export function useCreateWebhookEndpoint() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: WebhookEndpointInput) =>
+      csrfPost<{ endpoint: WebhookEndpointSummary; secret: string }>("/admin/webhooks", input),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminKeys.webhooks });
+    },
+  });
+}
+
+export function useUpdateWebhookEndpoint() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: WebhookEndpointInput }) =>
+      csrfPut<{ endpoint: WebhookEndpointSummary }>(`/admin/webhooks/${id}`, input),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminKeys.webhooks });
+    },
+  });
+}
+
+export function useRollWebhookSecret() {
+  return useMutation({
+    mutationFn: (id: string) => csrfPost<{ secret: string }>(`/admin/webhooks/${id}/secret`, {}),
+  });
+}
+
+export function useDeleteWebhookEndpoint() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => csrfDelete<void>(`/admin/webhooks/${id}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminKeys.webhooks });
+    },
+  });
+}
+
+export function useRedeliverWebhook() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ deliveryId }: { endpointId: string; deliveryId: string }) =>
+      csrfPost<{ delivery: WebhookDeliverySummary }>(
+        `/admin/webhooks/deliveries/${deliveryId}/redeliver`,
+        {},
+      ),
+    onSuccess: async (_result, { endpointId }) => {
+      await queryClient.invalidateQueries({
+        queryKey: adminKeys.webhookDeliveries(endpointId),
+      });
     },
   });
 }

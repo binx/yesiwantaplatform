@@ -18,6 +18,7 @@ import { env } from "../env.js";
 import { getStripe } from "../stripe.js";
 import { sendOrderEmail } from "../email.js";
 import { markCheckoutRecovered, notifyCheckoutExpired } from "../cart-recovery.js";
+import { emitLowInventoryAfterOrder, emitOrderEvent } from "../webhooks.js";
 
 /**
  * Stripe webhooks — the authority on whether an order was paid.
@@ -106,6 +107,18 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
   const paid = await getOrder(order.id);
   if (paid) await sendOrderEmail("Ordered", paid);
 
+  /*
+   * Tell the merchant's own systems. Enqueue only — `emitOrderEvent` inserts a
+   * delivery row per subscriber and returns, so a fulfilment provider having a
+   * bad afternoon cannot slow this handler down. A slow response here would
+   * trip Stripe's own retry and re-enter this function, which is the failure
+   * the out-of-band rule in docs/tasks/14-outbound-webhooks.md exists to stop.
+   */
+  if (paid) {
+    await emitOrderEvent("order.paid", paid);
+    await emitLowInventoryAfterOrder(paid.id);
+  }
+
   // A buyer who completed checkout did not abandon it — clear any reminder
   // still pending for them so a "you forgot something" never follows a
   // purchase. No-op for a guest or a customer with nothing persisted.
@@ -146,23 +159,38 @@ async function handleRefund(charge: Stripe.Charge): Promise<void> {
    * replayed event finds the difference is zero and changes nothing — which is
    * what keeps a Stripe retry from doubling the figure.
    */
-  await recordRefund(order.id, charge.amount_refunded - order.refundedCents);
+  const delta = charge.amount_refunded - order.refundedCents;
+  await recordRefund(order.id, delta);
 
   // A partial refund leaves fulfilment alone: a buyer refunded for one damaged
   // item of three still has two shipping. It also tells us nothing about which
   // line came back, so there is nothing to restock.
-  if (charge.amount_refunded < charge.amount) return;
+  if (charge.amount_refunded >= charge.amount) {
+    // Before this, every refund permanently burned the stock the order
+    // consumed. Silently, too: the decrement is guarded against going negative,
+    // so the count simply drifted until the store showed sold out on things it
+    // had.
+    await restockInventoryForOrder(order.id);
 
-  // Before this, every refund permanently burned the stock the order consumed.
-  // Silently, too: the decrement is guarded against going negative, so the
-  // count simply drifted until the store showed sold out on things it had.
-  await restockInventoryForOrder(order.id);
+    await updateFulfilment(order.id, {
+      status: "refunded",
+      carrier: order.carrier,
+      trackingNumber: order.trackingNumber,
+    });
+  }
 
-  await updateFulfilment(order.id, {
-    status: "refunded",
-    carrier: order.carrier,
-    trackingNumber: order.trackingNumber,
-  });
+  /*
+   * Emitted last, and only when money actually moved.
+   *
+   * Last, so the payload carries the status the refund left behind rather than
+   * the one it started with. Only on a positive delta, because a replayed
+   * `charge.refunded` recorded nothing — and a subscriber that has already been
+   * told about this refund should not be told again just because Stripe retried.
+   */
+  if (delta > 0) {
+    const refunded = await getOrder(order.id);
+    if (refunded) await emitOrderEvent("order.refunded", refunded);
+  }
 }
 
 webhookRouter.post(

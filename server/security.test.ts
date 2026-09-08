@@ -83,6 +83,11 @@ const MUTATIONS = [
   { method: "delete", path: "/api/admin/users/someone" },
   { method: "delete", path: "/api/admin/users/invites/some-invite" },
   { method: "put", path: "/api/admin/users/me/password" },
+  { method: "post", path: "/api/admin/webhooks" },
+  { method: "put", path: "/api/admin/webhooks/some-endpoint" },
+  { method: "delete", path: "/api/admin/webhooks/some-endpoint" },
+  { method: "post", path: "/api/admin/webhooks/some-endpoint/secret" },
+  { method: "post", path: "/api/admin/webhooks/deliveries/some-delivery/redeliver" },
 ] as const;
 
 const READS = [
@@ -94,6 +99,8 @@ const READS = [
   "/api/admin/orders",
   "/api/admin/orders.csv",
   "/api/admin/users",
+  "/api/admin/webhooks",
+  "/api/admin/webhooks/some-endpoint/deliveries",
 ] as const;
 
 /**

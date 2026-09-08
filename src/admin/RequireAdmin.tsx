@@ -7,6 +7,7 @@ import {
   FileTextOutlined,
   LogoutOutlined,
   ProfileOutlined,
+  ApiOutlined,
   SettingOutlined,
   TeamOutlined,
   ShopOutlined,
@@ -35,6 +36,7 @@ const NAV = [
   { key: "orders", icon: <ShopOutlined />, label: "Orders" },
   { key: "shipping", icon: <CarOutlined />, label: "Shipping" },
   { key: "users", icon: <TeamOutlined />, label: "Staff" },
+  { key: "webhooks", icon: <ApiOutlined />, label: "Webhooks" },
   { key: "settings", icon: <SettingOutlined />, label: "Settings" },
 ];
 

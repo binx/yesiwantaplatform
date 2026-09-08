@@ -55,6 +55,14 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
   const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
   const orderLines: PendingOrderLine[] = [];
   let subtotalCents = 0;
+  /*
+   * Whether anything in this cart actually has to be posted.
+   *
+   * Tracked over the same loop that reads prices, from the catalogue rather
+   * than the request, for the same reason: the buyer must not be able to
+   * declare their order digital and skip address collection.
+   */
+  let hasPhysicalLine = false;
 
   for (const line of parsed.data.lines) {
     const product = byId.get(line.productId);
@@ -80,6 +88,8 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
         `"${product.name}" is not published to Stripe yet, so it cannot be sold.`,
       );
     }
+
+    if (product.kind === "physical") hasPhysicalLine = true;
 
     lineItems.push({ price: variant.stripePriceId, quantity: line.quantity });
 
@@ -110,9 +120,10 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
    */
   const destination = parsed.data.shipToCountry?.toUpperCase() ?? null;
 
-  const quote = destination
-    ? await quoteShipping(parsed.data.lines, destination)
-    : { rates: [] as QuotedRate[] };
+  const quote =
+    hasPhysicalLine && destination
+      ? await quoteShipping(parsed.data.lines, destination)
+      : { rates: [] as QuotedRate[] };
 
   // The buyer's choice goes first: Stripe preselects the first option, so this
   // is what makes the cart's selection survive the redirect.
@@ -183,10 +194,24 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
        * trusting a price from the client. With no destination chosen we fall
        * back to the store's own list.
        */
-      shipping_address_collection: {
-        allowed_countries: destination ? [destination] : allowedCountries,
-      },
-      ...(shippingOptions.length > 0 ? { shipping_options: shippingOptions } : {}),
+      /*
+       * A cart of downloads only gets no address collection and no shipping
+       * options at all — not an empty list, the keys absent entirely. Asking a
+       * buyer for a postal address to receive a PDF is the visible half of the
+       * bug; the invisible half is that Stripe would then attach a shipping
+       * address to an order that has nothing to ship.
+       *
+       * A mixed cart is unchanged: one physical line is enough to need an
+       * address, and the rates it is offered were priced on that line alone.
+       */
+      ...(hasPhysicalLine
+        ? {
+            shipping_address_collection: {
+              allowed_countries: destination ? [destination] : allowedCountries,
+            },
+            ...(shippingOptions.length > 0 ? { shipping_options: shippingOptions } : {}),
+          }
+        : {}),
       success_url: `${env.PUBLIC_URL}/confirm?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${env.PUBLIC_URL}/cart`,
       metadata: { beluga_order_id: orderId },

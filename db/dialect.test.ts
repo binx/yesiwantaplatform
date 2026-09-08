@@ -271,6 +271,7 @@ for (const { name, context } of dialects) {
       const id = await db.admin.createProduct({
         slug: "cascade-test",
         name: "Cascade Test",
+        kind: "physical",
         description: "",
         bulletPoints: [],
         seoTitle: null,
@@ -288,6 +289,33 @@ for (const { name, context } of dialects) {
 
       await db.admin.deleteProduct(id);
       expect(await db.findProductBySlug("cascade-test")).toBeNull();
+    });
+
+    it("round-trips a product's kind, and defaults it to physical", async () => {
+      const id = await db.admin.createProduct({
+        slug: "downloadable-thing",
+        name: "Downloadable Thing",
+        kind: "digital",
+        description: "",
+        bulletPoints: [],
+        seoTitle: null,
+        seoDescription: null,
+        taxCode: null,
+        variants: [
+          { label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0, optionValues: [] },
+        ],
+        options: [],
+        optionGroups: [],
+        isLive: true,
+      });
+
+      expect((await db.findProductBySlug("downloadable-thing"))?.kind).toBe("digital");
+
+      // Both dialects default the column, so a row written before it existed
+      // reads back physical rather than undefined.
+      expect((await db.findProductBySlug("canvas-tote"))?.kind).toBe("physical");
+
+      await db.admin.deleteProduct(id);
     });
 
     it("returns only the requested order's items", async () => {
@@ -512,6 +540,7 @@ for (const { name, context } of dialects) {
         db.admin.createProduct({
           slug: "canvas-tote",
           name: "Clash",
+          kind: "physical",
           description: "",
           bulletPoints: [],
           seoTitle: null,

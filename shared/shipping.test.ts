@@ -4,9 +4,13 @@ import {
   countriesCovered,
   findCoverageGaps,
   hasCatchAllZone,
+  parcelFor,
   parcelWeight,
+  physicalLines,
+  requiresShipping,
   resolveShippingRates,
   zoneForCountry,
+  type ShippingLine,
   type ShippingRate,
   type ShippingZone,
 } from "./shipping.js";
@@ -190,6 +194,94 @@ describe("parcelWeight", () => {
 
   it("treats a negative weight as zero rather than subtracting", () => {
     expect(parcelWeight([{ weightGrams: -500, quantity: 1 }])).toBe(0);
+  });
+});
+
+/**
+ * Digital lines.
+ *
+ * The bug these guard against is silent in both directions: a cart of
+ * downloads that gets charged postage, and a mixed cart whose download value
+ * buys it free postage on the box. Neither throws; both just quietly bill the
+ * wrong amount.
+ */
+describe("digital lines", () => {
+  const line = (over: Partial<ShippingLine> = {}): ShippingLine => ({
+    weightGrams: 500,
+    quantity: 1,
+    priceCents: 1000,
+    isDigital: false,
+    ...over,
+  });
+
+  const BANDS: ShippingRate[] = [
+    rate({ id: "light", priceCents: 300, minWeightGrams: 0, maxWeightGrams: 600 }),
+    rate({ id: "heavy", priceCents: 900, minWeightGrams: 601, maxWeightGrams: null }),
+  ];
+
+  it("leaves a download out of the parcel instead of weighing it as zero", () => {
+    const parcel = parcelFor([
+      line({ weightGrams: 800, priceCents: 2000 }),
+      line({ isDigital: true, weightGrams: 0, priceCents: 4000 }),
+    ]);
+
+    expect(parcel).toEqual({ weightGrams: 800, subtotalCents: 2000 });
+  });
+
+  it("reports a cart of downloads as needing no shipping at all", () => {
+    const lines = [line({ isDigital: true }), line({ isDigital: true })];
+
+    expect(requiresShipping(lines)).toBe(false);
+    expect(parcelFor(lines)).toEqual({ weightGrams: 0, subtotalCents: 0 });
+  });
+
+  it("still needs shipping when one physical line is present", () => {
+    expect(requiresShipping([line({ isDigital: true }), line()])).toBe(true);
+  });
+
+  it("keeps a mixed cart in the band its physical line alone earns", () => {
+    const parcel = parcelFor([
+      line({ weightGrams: 800 }),
+      line({ isDigital: true, weightGrams: 0 }),
+    ]);
+
+    expect(resolveShippingRates(BANDS, ZONES, "US", parcel).map((r) => r.id)).toEqual(["heavy"]);
+  });
+
+  it("does not let a download value buy free postage on the box", () => {
+    const freeOver50 = [
+      rate({ id: "standard", priceCents: 500, maxSubtotalCents: 4999 }),
+      rate({ id: "free", priceCents: 0, minSubtotalCents: 5000 }),
+    ];
+
+    const parcel = parcelFor([
+      line({ priceCents: 1000 }),
+      line({ isDigital: true, priceCents: 4500, weightGrams: 0 }),
+    ]);
+
+    expect(parcel.subtotalCents).toBe(1000);
+    expect(resolveShippingRates(freeOver50, ZONES, "US", parcel).map((r) => r.id)).toEqual([
+      "standard",
+    ]);
+  });
+
+  it("does not let a download push a cart past every band into a silent gap", () => {
+    const banded = [rate({ id: "standard", priceCents: 500, maxSubtotalCents: 50000 })];
+
+    const parcel = parcelFor([
+      line({ priceCents: 1000 }),
+      line({ isDigital: true, priceCents: 60000, weightGrams: 0 }),
+    ]);
+
+    expect(resolveShippingRates(banded, ZONES, "US", parcel)).toHaveLength(1);
+  });
+
+  it("physicalLines keeps order and drops only the downloads", () => {
+    const a = line({ weightGrams: 1 });
+    const b = line({ isDigital: true });
+    const c = line({ weightGrams: 3 });
+
+    expect(physicalLines([a, b, c])).toEqual([a, c]);
   });
 });
 

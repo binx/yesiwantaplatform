@@ -181,6 +181,7 @@ describe("crawler files", () => {
     await createProduct({
       slug: "unlisted-draft",
       name: "Unlisted Draft",
+      kind: "physical",
       description: "",
       bulletPoints: [],
       seoTitle: null,

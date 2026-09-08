@@ -16,7 +16,7 @@ import {
 } from "antd";
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import type { ProductInput, VariantInput } from "@shared/api";
-import type { Image, OptionGroup } from "@shared/schema";
+import type { Image, OptionGroup, ProductKind } from "@shared/schema";
 import { formatMoney, parseCents } from "@shared/money";
 import { findDuplicateCombination, optionSelectionsAreWellFormed } from "@shared/product-options";
 import { ApiError } from "@/lib/api";
@@ -86,6 +86,7 @@ interface DraftVariant {
 interface Draft {
   slug: string;
   name: string;
+  kind: ProductKind;
   description: string;
   bulletPoints: string[];
   /** Empty means "generate it", which is what the fields preview. */
@@ -128,6 +129,7 @@ function blankVariant(): DraftVariant {
 const EMPTY_DRAFT: Draft = {
   slug: "",
   name: "",
+  kind: "physical",
   description: "",
   bulletPoints: [],
   seoTitle: "",
@@ -212,6 +214,7 @@ function toInput(draft: Draft): ProductInput {
   return {
     slug: draft.slug,
     name: draft.name.trim(),
+    kind: draft.kind,
     description: draft.description,
     bulletPoints: draft.bulletPoints.filter((point) => point.trim() !== ""),
     // Empty is stored as null so the server can tell "no override" from "".
@@ -387,6 +390,7 @@ export function ProductEditorPage() {
     setDraft({
       slug: product.slug,
       name: product.name,
+      kind: product.kind,
       description: product.description,
       bulletPoints: product.bulletPoints,
       seoTitle: product.seoTitle ?? "",
@@ -709,6 +713,45 @@ export function ProductEditorPage() {
             </Field>
 
             <Field
+              label="Type"
+              help={
+                draft.kind === "digital"
+                  ? "Downloads are not posted, so this product is left out of shipping entirely and its stock is unlimited."
+                  : "Physical products are weighed, priced for postage, and need a delivery address."
+              }
+            >
+              {() => (
+                <Radio.Group
+                  value={draft.kind}
+                  onChange={(event) => {
+                    const kind = event.target.value as ProductKind;
+                    setDraft((current) => ({
+                      ...current,
+                      kind,
+                      /*
+                       * Switching to digital forces every row to unlimited
+                       * rather than leaving a combination the server will
+                       * reject — see the refinement on `productInputSchema`.
+                       * Doing it here means the merchant sees the consequence
+                       * as they make the choice, instead of meeting a
+                       * validation error on save with no obvious cause.
+                       */
+                      variants:
+                        kind === "digital"
+                          ? current.variants.map((variant) => ({ ...variant, infinite: true }))
+                          : current.variants,
+                    }));
+                  }}
+                  options={[
+                    { label: "Physical", value: "physical" },
+                    { label: "Digital", value: "digital" },
+                  ]}
+                  optionType="button"
+                />
+              )}
+            </Field>
+
+            <Field
               label="Web address"
               help="Changing this on a live product breaks any link anyone has saved."
             >
@@ -911,6 +954,11 @@ export function ProductEditorPage() {
                       </span>
                       <Radio.Group
                         value={variant.infinite ? "infinite" : "finite"}
+                        // A download cannot run out, and letting the merchant
+                        // say otherwise would flag paid orders as `oversold`
+                        // for a file — so the choice is removed, not just
+                        // refused on save.
+                        disabled={draft.kind === "digital"}
                         onChange={(event) =>
                           setVariant(variant.key, { infinite: event.target.value === "infinite" })
                         }

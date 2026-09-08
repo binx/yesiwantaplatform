@@ -1,6 +1,7 @@
 import { and, asc, count, eq, inArray, like, or, sql } from "drizzle-orm";
 import {
   collectionSchema,
+  productKindSchema,
   productSchema,
   storeSchema,
   colorSchemeSchema,
@@ -60,6 +61,7 @@ interface ProductRow {
   bulletPoints: unknown;
   seoTitle: string | null;
   seoDescription: string | null;
+  kind: string;
   variantName: string | null;
   taxCode: string | null;
   isLive: unknown;
@@ -134,6 +136,9 @@ function buildProduct(
     bulletPoints: parseJson<string[]>(row.bulletPoints, []),
     seoTitle: row.seoTitle,
     seoDescription: row.seoDescription,
+    // Parsed rather than cast: a row written before this column existed, or by
+    // hand, must not put an unknown kind into shipping's physical/digital fork.
+    kind: productKindSchema.catch("physical").parse(row.kind),
     images: images.map((i) => ({
       path: i.path,
       width: i.width,

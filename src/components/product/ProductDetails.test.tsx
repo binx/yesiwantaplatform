@@ -8,6 +8,7 @@ const baseProduct: Product = {
   id: "p1",
   slug: "tote",
   name: "Canvas Tote",
+  kind: "physical",
   description: "A bag.",
   bulletPoints: [],
   seoTitle: null,

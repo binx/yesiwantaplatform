@@ -9,7 +9,7 @@ blocked_by: ["10"]
 blocks: []
 touches: server/routes/admin.ts · src/admin/ProductsPage.tsx
 completed: 2026-09-08
-shipped_in: 
+shipped_in: 3
 summary: >-
   Migrating a hundred products from Shopify is currently a hundred trips through the
   product editor, which is a real reason an evaluation stops. Straightforward once the

@@ -114,6 +114,34 @@ npm run db:migrate     # apply
 (via `embedded-postgres`, no system install needed). If you touch the query
 layer, it must stay green for both.
 
+### A fresh checkout has no store in it
+
+`npm test` seeds its own database per suite, so unit tests pass anywhere. **`npm
+run test:e2e` does not** — Playwright drives the real app against
+`data/beluga.sqlite`, and in a fresh clone or a new git worktree that file is
+either absent or an empty stub. The whole suite then fails on the landing page
+with `getByRole('heading', { name: '<store name>' })` not found, which reads
+like a broken storefront and is in fact an empty database:
+
+```bash
+npm run db:migrate && npm run db:seed
+```
+
+Do that once per checkout, before blaming a change for the failures. It is also
+a free check that your new migration actually applies.
+
+Two more things that look like bugs and are not:
+
+- **`.env` is irrelevant to e2e.** `playwright.config.ts` deliberately points
+  `ENV_FILE` at a file that does not exist, so the suite sees the same
+  configuration on every machine. Copying a `.env` in will not fix a failing
+  run, and having Stripe keys locally will not change one.
+- **Postgres skips silently.** `postgresHarness()` in `db/dialect.test.ts`
+  returns `null` if `embedded-postgres` cannot start, and `describe.skipIf`
+  then drops that whole half of the suite — a green run is *not* proof both
+  dialects passed. Confirm with `--reporter=verbose` and look for
+  `repository on postgres`.
+
 ## Definition of done
 
 - `npm run typecheck && npm run lint && npm test` all pass.

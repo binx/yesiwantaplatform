@@ -137,3 +137,34 @@
 .ratePrice {
   color: var(--beluga-muted);
 }
+
+/*
+ * On a phone the row stops insisting on 32rem.
+ *
+ * `min-width` plus `overflow-x` meant a 375px screen showed only Product and
+ * Quantity: the line total and — worse — the only control for removing a line
+ * sat ~170px past the right edge, behind a horizontal scroll almost nobody
+ * goes looking for. Shrinking the fixed parts lets all four columns fit, so
+ * the table keeps its markup and its header semantics.
+ */
+@media (max-width: 40rem) {
+  .table {
+    min-width: 0;
+  }
+
+  .table td {
+    padding: 0.75rem 0.125rem;
+  }
+
+  .product {
+    gap: 0.625rem;
+  }
+
+  .thumb {
+    flex: 0 0 3rem;
+  }
+
+  .qty {
+    width: 3.5rem;
+  }
+}

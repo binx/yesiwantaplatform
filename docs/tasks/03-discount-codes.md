@@ -9,7 +9,7 @@ blocked_by: []
 blocks: []
 touches: server/routes/checkout.ts:138 · emails/ · src/pages/ConfirmPage.tsx
 completed: 2026-09-07
-shipped_in: 
+shipped_in: 6409732
 summary: >-
   Setting `allow_promotion_codes: true` on the Checkout Session gets you the whole entry
   field, validation and redemption limits for free — the merchant creates codes in the

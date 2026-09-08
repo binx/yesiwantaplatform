@@ -513,7 +513,7 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <span class="log-date">2026-09-07</span>
         <span class="log-task">03</span>
         <span class="log-title">Discount codes via Stripe</span>
-        <span class="log-ref"></span>
+        <span class="log-ref">6409732</span>
       </li>
     </ol>
   </section>
@@ -625,6 +625,7 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <p>Setting <code>allow_promotion_codes: true</code> on the Checkout Session gets you the whole entry field, validation and redemption limits for free — the merchant creates codes in the Stripe dashboard. The work is on the recording side: a <code>discountCents</code> column so the order shows what came off, plus a line in the confirmation page and the order emails. <strong>Be honest in the README that code management lives in Stripe</strong>, not Beluga.</p>
         <div class="meta"><span><b>Migration</b> one column</span>
           <span><b>Touches</b> server/routes/checkout.ts:138 · emails/ · src/pages/ConfirmPage.tsx</span>
+          <span><b>Shipped in</b> 6409732</span>
           <span><b>Brief</b> docs/tasks/03-discount-codes.md</span></div>
       </article>
 

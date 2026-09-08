@@ -64,7 +64,8 @@ npm run db:seed
 | `npm run dev:all` | Storefront and API together |
 | `npm run dev` | Storefront only (Vite) |
 | `npm run dev:server` | API only |
-| `npm run build` | Typecheck, then production build |
+| `npm run build` | Typecheck, then compile the server to `dist-server/` and build the client to `dist/` |
+| `npm start` | Run the compiled server (`node`, no TypeScript at runtime) |
 | `npm run typecheck` | Types only |
 | `npm run lint` | ESLint |
 | `npm test` | Unit and component tests (Vitest) |

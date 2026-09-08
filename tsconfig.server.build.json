@@ -1,0 +1,23 @@
+{
+  // Production build of the server.
+  //
+  // `tsconfig.server.json` typechecks everything including the test files and
+  // emits nothing. This config is the same compilation with the tests dropped
+  // and emit turned on, so `dist-server/` holds only what production runs.
+  //
+  // Kept out of the root project references deliberately: two projects that
+  // include the same files confuse `tsc -b`, and this one is invoked directly
+  // by `npm run build` instead.
+  "extends": "./tsconfig.server.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.server.build.tsbuildinfo",
+    "noEmit": false,
+    "rootDir": ".",
+    "outDir": "./dist-server",
+    "sourceMap": true,
+    // Nothing imports the server as a library, so declarations are dead weight.
+    "declaration": false
+  },
+  "include": ["server", "db", "shared", "scripts"],
+  "exclude": ["**/*.test.ts", "vitest.server-setup.ts"]
+}

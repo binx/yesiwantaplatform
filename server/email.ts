@@ -151,3 +151,31 @@ export function templateForStatus(status: string): EmailTemplate | null {
 export function resetMailer(): void {
   transporter = null;
 }
+
+/**
+ * A plain transactional email, not shaped like an order.
+ *
+ * `sendOrderEmail` takes an `Order` and renders the order templates, which is
+ * everything the store needed until invitations. This is the general path:
+ * subject and HTML already rendered, one recipient.
+ *
+ * Returns false when SMTP is not configured, and logs what it would have sent
+ * in the same shape as the order path — the invite route uses that to hand the
+ * link back to the admin instead, so a store without email is not stuck.
+ */
+export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+  const mailer = getTransporter();
+
+  if (!mailer) {
+    console.log(`[email] SMTP is not configured; would have sent "${subject}" to ${to}.`);
+    return false;
+  }
+
+  try {
+    await mailer.sendMail({ from: env.EMAIL_FROM, to, subject, html });
+    return true;
+  } catch (error) {
+    console.error(`Could not send "${subject}" to ${to}:`, error);
+    return false;
+  }
+}

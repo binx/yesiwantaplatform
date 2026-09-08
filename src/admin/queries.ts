@@ -5,6 +5,10 @@ import type {
   ProductInput,
   SettingsInput,
   ShippingTableInput,
+  AdminRole,
+  AdminSummary,
+  InviteInput,
+  PasswordChangeInput,
 } from "@shared/api";
 import type { ShippingRate, ShippingZone } from "@shared/shipping";
 import type { Collection, Image, Product } from "@shared/schema";
@@ -27,6 +31,7 @@ export const adminKeys = {
   settings: ["admin", "settings"] as const,
   environment: ["admin", "environment"] as const,
   shipping: ["admin", "shipping"] as const,
+  users: ["admin", "users"] as const,
   orders: (status: OrderStatus | "all", offset: number) =>
     ["admin", "orders", status, offset] as const,
   order: (id: string) => ["admin", "order", id] as const,
@@ -304,6 +309,66 @@ export function useOrder(id: string | undefined) {
  * Invalidate rather than write it into the cache and let the refetch pick up
  * the new figures once Stripe has called us back.
  */
+export interface StaffList {
+  users: AdminSummary[];
+  invites: { id: string; email: string; role: AdminRole }[];
+}
+
+export function useStaff() {
+  return useQuery({
+    queryKey: adminKeys.users,
+    queryFn: ({ signal }) => apiGet<StaffList>("/admin/users", signal),
+  });
+}
+
+/**
+ * Invite a colleague.
+ *
+ * `inviteUrl` comes back only when SMTP is not configured — it is a credential,
+ * so it is returned exactly once, and only when there was no other way to get
+ * it to the person it is for.
+ */
+export function useInviteStaff() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: InviteInput) =>
+      csrfPost<{ id: string; email: string; inviteUrl?: string }>("/admin/users", input),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminKeys.users });
+    },
+  });
+}
+
+export function useRemoveStaff() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => csrfDelete<void>(`/admin/users/${id}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminKeys.users });
+    },
+  });
+}
+
+export function useRevokeInvite() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => csrfDelete<void>(`/admin/users/invites/${id}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminKeys.users });
+    },
+  });
+}
+
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: (input: PasswordChangeInput) =>
+      csrfPut<void>("/admin/users/me/password", input),
+  });
+}
+
 export function useRefundOrder() {
   const queryClient = useQueryClient();
 

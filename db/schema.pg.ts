@@ -41,7 +41,29 @@ export const adminUsers = pgTable("admin_users", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  /**
+   * "owner" | "staff". A label today: every admin can do everything, and the
+   * UI says so. The column exists now so gating it later is not a migration.
+   */
+  role: text("role").notNull().default("owner"),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  ...timestamps,
+});
+
+/**
+ * Single-use invitations to become an administrator.
+ *
+ * Only a hash of the token is stored, exactly as a password would be: a leaked
+ * database must not hand someone an admin account. The raw token exists only
+ * in the emailed link.
+ */
+export const adminInvites = pgTable("admin_invites", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  role: text("role").notNull().default("staff"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
   ...timestamps,
 });
 

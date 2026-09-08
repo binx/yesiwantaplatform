@@ -34,6 +34,14 @@ export const router = createBrowserRouter([
         lazy: async () => ({ Component: (await import("./admin/LoginPage")).LoginPage }),
       },
       {
+        // Public: the invitee has no session yet, so this sits outside the
+        // pathless RequireAdmin branch below.
+        path: "accept-invite",
+        lazy: async () => ({
+          Component: (await import("./admin/AcceptInvitePage")).AcceptInvitePage,
+        }),
+      },
+      {
         // Pathless: everything below it is behind the session check.
         lazy: async () => ({ Component: (await import("./admin/RequireAdmin")).RequireAdmin }),
         children: [
@@ -82,6 +90,10 @@ export const router = createBrowserRouter([
           {
             path: "settings",
             lazy: async () => ({ Component: (await import("./admin/SettingsPage")).SettingsPage }),
+          },
+          {
+            path: "users",
+            lazy: async () => ({ Component: (await import("./admin/UsersPage")).UsersPage }),
           },
         ],
       },

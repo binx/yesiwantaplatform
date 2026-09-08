@@ -212,3 +212,44 @@ export type EnvironmentStatus = z.infer<typeof environmentStatusSchema>;
 export type ProductQuery = z.infer<typeof productQuerySchema>;
 export type SessionResponse = z.infer<typeof sessionResponseSchema>;
 export type ProductPageResponse = z.infer<typeof productPageResponseSchema>;
+
+/**
+ * Administrators, as the client is allowed to see them.
+ *
+ * There is no `passwordHash` here and there must never be one. v1 kept its hash
+ * in a `config.env` that the server handed to the browser.
+ */
+export const adminRoleSchema = z.enum(["owner", "staff"]);
+
+export interface AdminSummary {
+  id: string;
+  email: string;
+  role: z.infer<typeof adminRoleSchema>;
+  lastLoginAt: number | null;
+  createdAt: number;
+  /** True for the account making the request, which cannot remove itself. */
+  isSelf: boolean;
+}
+
+export const inviteInputSchema = z.object({
+  email: z.string().email("That does not look like an email address.").max(320),
+  role: adminRoleSchema.default("staff"),
+});
+
+export const acceptInviteInputSchema = z.object({
+  token: z.string().min(1),
+  password: z
+    .string()
+    .min(12, "Use at least 12 characters.")
+    .max(200),
+});
+
+export const passwordChangeInputSchema = z.object({
+  current: z.string().min(1),
+  next: z.string().min(12, "Use at least 12 characters.").max(200),
+});
+
+export type AdminRole = z.infer<typeof adminRoleSchema>;
+export type InviteInput = z.infer<typeof inviteInputSchema>;
+export type AcceptInviteInput = z.infer<typeof acceptInviteInputSchema>;
+export type PasswordChangeInput = z.infer<typeof passwordChangeInputSchema>;

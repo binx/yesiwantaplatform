@@ -57,6 +57,13 @@
       "when": 1788834626570,
       "tag": "0007_slippery_hitman",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788835168069,
+      "tag": "0008_clear_wind_dancer",
+      "breakpoints": true
     }
   ]
 }

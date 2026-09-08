@@ -8,6 +8,8 @@ import {
   imageReorderInputSchema,
   productInputSchema,
   reorderInputSchema,
+  inviteInputSchema,
+  passwordChangeInputSchema,
   settingsInputSchema,
   shippingTableInputSchema,
   type EnvironmentStatus,
@@ -49,7 +51,22 @@ import { env, hasStripe, isSqlite } from "../env.js";
 import { deleteImageFile, storeImage, uploadMiddleware } from "../uploads.js";
 import { archiveProductInStripe, syncProductToStripe } from "../catalog-sync.js";
 import { StripeNotConfiguredError, requireStripe } from "../stripe.js";
-import { sendOrderEmail, templateForStatus } from "../email.js";
+import { sendEmail, sendOrderEmail, templateForStatus } from "../email.js";
+import {
+  EmailTakenError,
+  countOwners,
+  createInvite,
+  deleteAdmin,
+  emailIsTaken,
+  destroySessionsForUser,
+  findAdminById,
+  listAdmins,
+  listPendingInvites,
+  revokeInvite,
+  updateAdminPassword,
+  verifyPasswordFor,
+} from "../auth.js";
+import { loginRateLimit } from "../middleware.js";
 
 /**
  * Admin API.
@@ -64,6 +81,7 @@ adminRouter.use(requireAdmin, verifyCsrf, writeRateLimit);
 
 function toHttp(error: unknown): never {
   if (error instanceof SlugTakenError) throw httpError(409, error.message);
+  if (error instanceof EmailTakenError) throw httpError(409, error.message);
   if (error instanceof StripeNotConfiguredError) throw httpError(503, error.message);
   if (error instanceof ZodError) {
     const first = error.issues[0];
@@ -612,4 +630,106 @@ adminRouter.post("/orders/:id/refund", async (req, res) => {
   }
 
   res.json({ order: updated, emailed });
+});
+
+
+/* ------------------------------------------------------------------- staff */
+
+/**
+ * Administrators.
+ *
+ * `role` is recorded but does not gate anything: every administrator can do
+ * everything, and the UI says so plainly. Gating it would multiply the
+ * permission surface across every route and needs its own security-test matrix,
+ * which is a separate decision — but the column exists now, so making it a
+ * decision later is not also a migration.
+ */
+adminRouter.get("/users", async (req, res) => {
+  res.json({
+    users: await listAdmins(req.session.adminId!),
+    invites: await listPendingInvites(),
+  });
+});
+
+adminRouter.post("/users", async (req, res) => {
+  let input;
+  try {
+    input = inviteInputSchema.parse(req.body);
+  } catch (error) {
+    toHttp(error);
+  }
+
+  // Caught here rather than at accept time, so the admin finds out while they
+  // are still looking at the form.
+  if (await emailIsTaken(input.email)) {
+    throw httpError(409, `${input.email} already has an account.`);
+  }
+
+  const { id, token } = await createInvite(input.email, input.role);
+  const inviteUrl = new URL(`/admin/accept-invite?token=${token}`, env.PUBLIC_URL).toString();
+
+  const settings = await getSettings();
+  const storeName = settings?.name ?? "Beluga";
+
+  const sent = await sendEmail(
+    input.email,
+    `You have been invited to help run ${storeName}`,
+    `<p>You have been invited to help run <strong>${storeName}</strong>.</p>
+     <p><a href="${inviteUrl}">Set your password and sign in</a>. The link works once and expires in 72 hours.</p>`,
+  );
+
+  // Without SMTP there is no way for the invitee to receive the link, so hand
+  // it back to the admin to pass on. It is a credential, so it is returned
+  // exactly once and only when there was no other way to deliver it.
+  res.status(201).json({ id, email: input.email, ...(sent ? {} : { inviteUrl }) });
+});
+
+adminRouter.delete("/users/:id", async (req, res) => {
+  const target = await findAdminById(req.params.id);
+  if (!target) throw httpError(404, "That account does not exist.");
+
+  if (target.id === req.session.adminId) {
+    throw httpError(409, "You cannot remove your own account.");
+  }
+
+  // A store with no owner has nobody who can add one back.
+  if (target.role === "owner" && (await countOwners()) <= 1) {
+    throw httpError(409, "This is the last owner. Make someone else an owner first.");
+  }
+
+  // Order matters: sessions first, so there is no window in which the account
+  // is gone but its cookie still works.
+  await destroySessionsForUser(target.id);
+  await deleteAdmin(target.id);
+
+  res.status(204).end();
+});
+
+adminRouter.delete("/users/invites/:id", async (req, res) => {
+  await revokeInvite(req.params.id);
+  res.status(204).end();
+});
+
+/**
+ * Change your own password.
+ *
+ * Rate-limited with the login limiter rather than the write limiter: this
+ * verifies a password, so it is a guessing surface, and the write ceiling of
+ * 120/minute is far too generous for that.
+ */
+adminRouter.put("/users/me/password", loginRateLimit, async (req, res) => {
+  let input;
+  try {
+    input = passwordChangeInputSchema.parse(req.body);
+  } catch (error) {
+    toHttp(error);
+  }
+
+  const id = req.session.adminId!;
+  if (!(await verifyPasswordFor(id, input.current))) {
+    throw httpError(401, "That is not your current password.");
+  }
+
+  await updateAdminPassword(id, input.next);
+  res.status(204).end();
 });

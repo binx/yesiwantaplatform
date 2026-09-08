@@ -1,14 +1,14 @@
 ---
 task: "07"
 title: Staff accounts
-status: todo
+status: done
 tier: 1
 size: M
 migration: one column
 blocked_by: []
 blocks: []
 touches: server/auth.ts:82 · server/routes/admin.ts · server/security.test.ts
-completed: 
+completed: 2026-09-07
 shipped_in: 
 summary: >-
   Only `npm run setup` and the setup wizard ever create an account, and there is no route

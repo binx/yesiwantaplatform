@@ -7,6 +7,7 @@ import {
   LogoutOutlined,
   ProfileOutlined,
   SettingOutlined,
+  TeamOutlined,
   ShopOutlined,
   ShoppingOutlined,
 } from "@ant-design/icons";
@@ -31,6 +32,7 @@ const NAV = [
   { key: "collections", icon: <ProfileOutlined />, label: "Collections" },
   { key: "orders", icon: <ShopOutlined />, label: "Orders" },
   { key: "shipping", icon: <CarOutlined />, label: "Shipping" },
+  { key: "users", icon: <TeamOutlined />, label: "Staff" },
   { key: "settings", icon: <SettingOutlined />, label: "Settings" },
 ];
 

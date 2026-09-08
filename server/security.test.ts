@@ -57,6 +57,10 @@ const MUTATIONS = [
   { method: "put", path: "/api/admin/shipping" },
   { method: "put", path: "/api/admin/orders/demo-order" },
   { method: "post", path: "/api/admin/orders/demo-order/refund" },
+  { method: "post", path: "/api/admin/users" },
+  { method: "delete", path: "/api/admin/users/someone" },
+  { method: "delete", path: "/api/admin/users/invites/some-invite" },
+  { method: "put", path: "/api/admin/users/me/password" },
 ] as const;
 
 const READS = [
@@ -66,6 +70,7 @@ const READS = [
   "/api/admin/shipping",
   "/api/admin/orders",
   "/api/admin/orders.csv",
+  "/api/admin/users",
 ] as const;
 
 describe("anonymous access", () => {

@@ -110,6 +110,16 @@ rather than drag-and-drop: it is real persisted data, and it should be editable 
 phone or a keyboard. v1 used `react-drag-sortable`, which is unmaintained, mouse-only,
 and incompatible with React 19.
 
+### Staff accounts
+
+The admin was a single shared account until now — one password for a two-person shop, and no way to revoke access when someone left. **Staff** in the admin lists everyone who can sign in, invites colleagues, and removes them.
+
+Access is granted by a **single-use invitation**. Only a hash of the token is stored, exactly as a password would be, and the raw token exists only in the emailed link; it works once and expires after 72 hours. When SMTP is not configured the link is returned to the inviting admin to pass on, so a self-hosted store without email can still add a colleague.
+
+Removing someone **destroys their sessions immediately** rather than waiting for a cookie to expire, which is most of the point. You cannot remove your own account, and you cannot remove the last owner — a store with no owner has nobody who can add one back.
+
+`role` is recorded but does not gate anything: every administrator can do everything, and the UI says so. Gating it would multiply the permission surface across every route and needs its own security-test matrix, which is a separate decision — the column exists now so that decision is not also a migration.
+
 ### Images
 
 Uploads are re-encoded by `sharp` — which is what strips EXIF and anything

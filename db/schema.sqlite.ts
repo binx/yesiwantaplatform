@@ -39,7 +39,29 @@ export const adminUsers = sqliteTable("admin_users", {
   email: text("email").notNull().unique(),
   /** argon2id. v1 stored a bcrypt hash in config.env and rewrote that file. */
   passwordHash: text("password_hash").notNull(),
+  /**
+   * "owner" | "staff". A label today: every admin can do everything, and the
+   * UI says so. The column exists now so gating it later is not a migration.
+   */
+  role: text("role").notNull().default("owner"),
   lastLoginAt: integer("last_login_at"),
+  ...timestamps,
+});
+
+/**
+ * Single-use invitations to become an administrator.
+ *
+ * Only a hash of the token is stored, exactly as a password would be: a leaked
+ * database must not hand someone an admin account. The raw token exists only
+ * in the emailed link.
+ */
+export const adminInvites = sqliteTable("admin_invites", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  role: text("role").notNull().default("staff"),
+  expiresAt: integer("expires_at").notNull(),
+  acceptedAt: integer("accepted_at"),
   ...timestamps,
 });
 

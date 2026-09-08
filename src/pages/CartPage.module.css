@@ -91,6 +91,7 @@
 }
 
 .note {
+  composes: notice from "../styles/muted.module.css";
   margin: 0 0 0.5rem;
   font-size: 0.875rem;
   color: var(--beluga-muted);

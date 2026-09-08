@@ -477,9 +477,9 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
   <section class="progress">
     <div class="progress-head">
       <h2 class="progress-title">Progress</h2>
-      <p class="progress-count">2 of 16 shipped.</p>
+      <p class="progress-count">3 of 16 shipped.</p>
     </div>
-    <div class="track" role="img" aria-label="2 of 16 shipped."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--done" title="01 Refund an order from the admin — Shipped"></span><span class="cell cell--todo" title="02 Restore stock when an order is refunded — To do"></span><span class="cell cell--todo" title="03 Discount codes via Stripe — To do"></span><span class="cell cell--todo" title="04 Export orders as CSV — To do"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--todo" title="05 Per-product SEO metadata — To do"></span><span class="cell cell--todo" title="06 Storefront search and sort — To do"></span><span class="cell cell--todo" title="07 Staff accounts — To do"></span><span class="cell cell--todo" title="08 Store pages — To do"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--todo" title="09 Sales tax and VAT — To do"></span><span class="cell cell--todo" title="10 Multi-axis variants — To do"></span><span class="cell cell--todo" title="11 Customer accounts — To do"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--todo" title="12 Abandoned cart recovery — To do"></span><span class="cell cell--todo" title="13 Digital and downloadable products — To do"></span><span class="cell cell--todo" title="14 Outbound webhooks — To do"></span><span class="cell cell--todo" title="15 Catalogue CSV import and export — To do"></span></span></div>
+    <div class="track" role="img" aria-label="3 of 16 shipped."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--done" title="01 Refund an order from the admin — Shipped"></span><span class="cell cell--done" title="02 Restore stock when an order is refunded — Shipped"></span><span class="cell cell--todo" title="03 Discount codes via Stripe — To do"></span><span class="cell cell--todo" title="04 Export orders as CSV — To do"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--todo" title="05 Per-product SEO metadata — To do"></span><span class="cell cell--todo" title="06 Storefront search and sort — To do"></span><span class="cell cell--todo" title="07 Staff accounts — To do"></span><span class="cell cell--todo" title="08 Store pages — To do"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--todo" title="09 Sales tax and VAT — To do"></span><span class="cell cell--todo" title="10 Multi-axis variants — To do"></span><span class="cell cell--todo" title="11 Customer accounts — To do"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--todo" title="12 Abandoned cart recovery — To do"></span><span class="cell cell--todo" title="13 Digital and downloadable products — To do"></span><span class="cell cell--todo" title="14 Outbound webhooks — To do"></span><span class="cell cell--todo" title="15 Catalogue CSV import and export — To do"></span></span></div>
     <div class="track-key">
       <span><i class="cell cell--done"></i> Shipped</span>
       <span><i class="cell cell--in-progress"></i> In progress</span>
@@ -502,6 +502,12 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <span class="log-task">01</span>
         <span class="log-title">Refund an order from the admin</span>
         <span class="log-ref">f6db9de</span>
+      </li>
+      <li>
+        <span class="log-date">2026-09-07</span>
+        <span class="log-task">02</span>
+        <span class="log-title">Restore stock when an order is refunded</span>
+        <span class="log-ref"></span>
       </li>
     </ol>
   </section>
@@ -531,8 +537,8 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <text class="pt-label" x="601.5" y="239.5" text-anchor="end">Abandoned cart recovery</text>
         <circle cx="184" cy="73.5" r="6" class="dot dot--done"></circle><path d="M181 73.5 l2.2 2.4 l4-4.8" class="tick"></path>
         <text class="pt-label now shipped" x="174" y="77.5" text-anchor="end">Refund an order from the admin</text>
-        <circle cx="155.5" cy="114" r="5.5" class="dot dot--now"></circle>
-        <text class="pt-label now" x="165.5" y="118">Restore stock when an order is refunded</text>
+        <circle cx="155.5" cy="114" r="6" class="dot dot--done"></circle><path d="M152.5 114 l2.2 2.4 l4-4.8" class="tick"></path>
+        <text class="pt-label now shipped" x="165.5" y="118">Restore stock when an order is refunded</text>
         <circle cx="212.5" cy="87" r="5.5" class="dot dot--now"></circle>
         <text class="pt-label now" x="222.5" y="91">Discount codes via Stripe</text>
         <circle cx="184" cy="141" r="5.5" class="dot dot--now"></circle>
@@ -553,7 +559,7 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
 
   <section class="tier tier--now">
     <div class="tier-head">
-      <div class="tier-tag">Tier 0 · No migration · Days <span class="tier-done">2 of 5 shipped</span></div>
+      <div class="tier-tag">Tier 0 · No migration · Days <span class="tier-done">3 of 5 shipped</span></div>
       <h2>Money is currently leaking</h2>
       <p class="tier-verdict">Gaps a merchant hits in their first week of real orders. None needs a schema reshape, and three of them are closer to correctness bugs than features.</p>
     </div>
@@ -588,11 +594,11 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
           <span><b>Brief</b> docs/tasks/01-refund-order.md</span></div>
       </article>
 
-      <article class="item item--todo">
+      <article class="item item--done">
         <div class="item-head">
           <span class="seq">02</span>
           <h3>Restore stock when an order is refunded</h3>
-          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--status chip--done">Shipped</span>
           <span class="chip chip--s">Small</span>
         </div>
         <p><code>decrementInventoryForOrder</code> runs on <code>checkout.session.completed</code>, but <code>handleRefund</code> only changes the status — nothing reverses it. Every refund silently burns inventory, and because the decrement is guarded against going negative, the error compounds quietly rather than crashing. Ship this with 01; they're the same afternoon.</p>

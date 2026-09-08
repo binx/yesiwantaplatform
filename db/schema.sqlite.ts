@@ -226,6 +226,8 @@ export const orders = sqliteTable(
     oversold: integer("oversold", { mode: "boolean" }).notNull().default(false),
     /** Cumulative amount refunded. Less than totalCents means a partial refund. */
     refundedCents: integer("refunded_cents").notNull().default(0),
+    /** Set once stock has been returned, so a second refund event is a no-op. */
+    restockedAt: integer("restocked_at"),
     ...timestamps,
   },
   (t) => [

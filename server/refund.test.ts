@@ -58,6 +58,26 @@ function sendEvent(event: Record<string, unknown>) {
     .send(payload);
 }
 
+async function setStock(variantId: string, quantity: number) {
+  const { getDatabase } = await import("../db/client.js");
+  const { drizzle: db, schema } = await getDatabase();
+  await db
+    .update(schema.variants)
+    .set({ inventoryType: "finite", inventoryQuantity: quantity })
+    .where(eq(schema.variants.id, variantId));
+}
+
+async function stockOf(variantId: string): Promise<number> {
+  const { getDatabase } = await import("../db/client.js");
+  const { drizzle: db, schema } = await getDatabase();
+  const rows = (await db
+    .select({ q: schema.variants.inventoryQuantity })
+    .from(schema.variants)
+    .where(eq(schema.variants.id, variantId))
+    .limit(1)) as unknown as { q: number }[];
+  return rows[0]?.q ?? -1;
+}
+
 async function signIn() {
   const agent = request.agent(app);
   const bootstrap = await agent.get("/api/session").expect(200);
@@ -291,5 +311,62 @@ describe("recordRefund", () => {
     await recordRefund(orderId, 450);
 
     expect((await getOrder(orderId))?.refundedCents).toBe(750);
+  });
+});
+
+describe("restocking", () => {
+  it("returns the stock a fully refunded order took", async () => {
+    await setStock("demo-mug-default", 10);
+    const { orderId } = await paidOrder();
+    expect(await stockOf("demo-mug-default")).toBe(9);
+
+    await sendEvent(refundEvent({ orderId, amount: 2200, amountRefunded: 2200 })).expect(200);
+
+    expect(await stockOf("demo-mug-default")).toBe(10);
+  });
+
+  it("does not restock a partial refund", async () => {
+    await setStock("demo-mug-default", 10);
+    const { orderId } = await paidOrder();
+
+    await sendEvent(refundEvent({ orderId, amount: 2200, amountRefunded: 500 })).expect(200);
+
+    // A partial refund says nothing about which line came back.
+    expect(await stockOf("demo-mug-default")).toBe(9);
+  });
+
+  it("does not restock twice when Stripe replays the refund", async () => {
+    await setStock("demo-mug-default", 10);
+    const { orderId } = await paidOrder();
+
+    // Two distinct events for the same charge, so webhook dedup does not cover
+    // this — the restockedAt guard has to.
+    await sendEvent(refundEvent({ orderId, amount: 2200, amountRefunded: 2200 })).expect(200);
+    await sendEvent(refundEvent({ orderId, amount: 2200, amountRefunded: 2200 })).expect(200);
+
+    expect(await stockOf("demo-mug-default")).toBe(10);
+  });
+
+  it("restocks when an order is cancelled, but not on every later save", async () => {
+    await setStock("demo-mug-default", 10);
+    const { orderId } = await paidOrder();
+    const { agent, csrf } = await signIn();
+
+    await agent
+      .put(`/api/admin/orders/${orderId}`)
+      .set("x-csrf-token", csrf)
+      .send({ status: "cancelled", carrier: null, trackingNumber: null, notify: false })
+      .expect(200);
+
+    expect(await stockOf("demo-mug-default")).toBe(10);
+
+    // A merchant correcting a tracking-number typo must not restock again.
+    await agent
+      .put(`/api/admin/orders/${orderId}`)
+      .set("x-csrf-token", csrf)
+      .send({ status: "cancelled", carrier: "Royal Mail", trackingNumber: "X1", notify: false })
+      .expect(200);
+
+    expect(await stockOf("demo-mug-default")).toBe(10);
   });
 });

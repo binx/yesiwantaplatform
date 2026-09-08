@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import {
   orderReference,
   orderSchema,
@@ -437,6 +437,69 @@ export async function decrementInventoryForOrder(orderId: string): Promise<strin
   if (shortfalls.length > 0) await flagOversold(orderId);
 
   return shortfalls;
+}
+
+/**
+ * Rows changed by an update, across both drivers.
+ *
+ * better-sqlite3 reports `changes`, node-postgres reports `rowCount`. Neither
+ * is in Drizzle's public type for a dialect-agnostic call, hence the probing.
+ */
+function affectedRows(result: unknown): number {
+  const shape = result as { changes?: number; rowCount?: number } | null;
+  return shape?.changes ?? shape?.rowCount ?? 0;
+}
+
+/**
+ * Return an order's stock to the catalogue.
+ *
+ * Mirrors `decrementInventoryForOrder`: finite variants only, and skipping
+ * lines whose variant has since been deleted. Unguarded on the way up, because
+ * unlike the decrement, putting stock back can never drive a count negative.
+ *
+ * Returns false if this order had already been restocked. Nothing here is
+ * per-line, so calling it twice would silently inflate the catalogue — a refund
+ * can arrive as several webhooks, and a merchant can also cancel by hand.
+ */
+export async function restockInventoryForOrder(orderId: string): Promise<boolean> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+
+  const order = await getOrder(orderId);
+  if (!order) return false;
+
+  // Claim the order with a conditional update rather than a read-then-write,
+  // so two webhooks arriving together cannot both proceed. Same reasoning as
+  // the decrement's guard: the transaction API differs between the dialects,
+  // and a WHERE clause does not.
+  const now = dialect === "pg" ? new Date() : Math.floor(Date.now() / 1000);
+
+  const claim = await db
+    .update(schema.orders)
+    .set({ restockedAt: now })
+    .where(and(eq(schema.orders.id, orderId), isNull(schema.orders.restockedAt)));
+
+  // Comparing the stamp we wrote against the one now in the row would look
+  // like a claim check but isn't: two callers a millisecond apart write the
+  // same whole second on SQLite, and both would think they won.
+  if (affectedRows(claim) !== 1) return false;
+
+  for (const item of order.items) {
+    if (!item.variantId) continue;
+
+    await db
+      .update(schema.variants)
+      .set({
+        inventoryQuantity: sql`${schema.variants.inventoryQuantity} + ${item.quantity}`,
+      })
+      .where(
+        and(
+          eq(schema.variants.id, item.variantId),
+          eq(schema.variants.inventoryType, "finite"),
+        ),
+      );
+  }
+
+  return true;
 }
 
 /**

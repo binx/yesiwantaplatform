@@ -111,6 +111,12 @@ for (const { name, context } of dialects) {
       await context?.cleanup();
     });
 
+    async function stockOf(variantId: string): Promise<number> {
+      const product = await db.findProductBySlug("canvas-tote");
+      const variant = product?.variants.find((v) => v.id === variantId);
+      return variant?.inventory.type === "finite" ? variant.inventory.quantity : -1;
+    }
+
     it("returns a schema-valid store snapshot", async () => {
       const store = await db.getStoreSnapshot();
 
@@ -262,6 +268,109 @@ for (const { name, context } of dialects) {
       const items = await db.orders.loadItems(ids);
 
       expect(items.size).toBe(0);
+    });
+
+    it("restocks a refunded order exactly once", async () => {
+      const product = (await db.findProductBySlug("canvas-tote"))!;
+      const variant = product.variants.find((v) => v.inventory.type === "finite")!;
+      const before = variant.inventory.type === "finite" ? variant.inventory.quantity : 0;
+
+      const id = randomUUID();
+      await db.orders.createPendingOrder({
+        id,
+        checkoutSessionId: `cs_${id}`,
+        email: "restock@example.com",
+        currency: "usd",
+        subtotalCents: variant.priceCents * 2,
+        lines: [
+          {
+            productId: product.id,
+            variantId: variant.id,
+            productName: product.name,
+            variantLabel: variant.label,
+            unitPriceCents: variant.priceCents,
+            quantity: 2,
+            options: {},
+          },
+        ],
+      });
+
+      await db.orders.decrementInventoryForOrder(id);
+      expect(await stockOf(variant.id)).toBe(before - 2);
+
+      expect(await db.orders.restockInventoryForOrder(id)).toBe(true);
+      expect(await stockOf(variant.id)).toBe(before);
+
+      // A refund can arrive as several webhooks; the second must be a no-op.
+      expect(await db.orders.restockInventoryForOrder(id)).toBe(false);
+      expect(await stockOf(variant.id)).toBe(before);
+    });
+
+    it("leaves infinite-inventory variants alone when restocking", async () => {
+      const product = (await db.findProductBySlug("canvas-tote"))!;
+      const infinite = product.variants.find((v) => v.inventory.type !== "finite");
+      if (!infinite) return;
+
+      const id = randomUUID();
+      await db.orders.createPendingOrder({
+        id,
+        checkoutSessionId: `cs_${id}`,
+        email: "infinite@example.com",
+        currency: "usd",
+        subtotalCents: infinite.priceCents,
+        lines: [
+          {
+            productId: product.id,
+            variantId: infinite.id,
+            productName: product.name,
+            variantLabel: infinite.label,
+            unitPriceCents: infinite.priceCents,
+            quantity: 1,
+            options: {},
+          },
+        ],
+      });
+
+      expect(await db.orders.restockInventoryForOrder(id)).toBe(true);
+    });
+
+    it("restocks the remaining lines when a variant has been deleted", async () => {
+      const product = (await db.findProductBySlug("canvas-tote"))!;
+      const variant = product.variants.find((v) => v.inventory.type === "finite")!;
+      const before = variant.inventory.type === "finite" ? variant.inventory.quantity : 0;
+
+      const id = randomUUID();
+      await db.orders.createPendingOrder({
+        id,
+        checkoutSessionId: `cs_${id}`,
+        email: "gone@example.com",
+        currency: "usd",
+        subtotalCents: variant.priceCents * 2,
+        lines: [
+          {
+            productId: product.id,
+            variantId: variant.id,
+            productName: product.name,
+            variantLabel: variant.label,
+            unitPriceCents: variant.priceCents,
+            quantity: 1,
+            options: {},
+          },
+          // The variant is gone, as it would be after the product was deleted.
+          {
+            productId: product.id,
+            variantId: "deleted-variant",
+            productName: "Deleted",
+            variantLabel: "",
+            unitPriceCents: variant.priceCents,
+            quantity: 1,
+            options: {},
+          },
+        ],
+      });
+
+      expect(await db.orders.restockInventoryForOrder(id)).toBe(true);
+      expect(await stockOf(variant.id)).toBe(before + 1);
     });
 
     it("rejects a duplicate slug", async () => {

@@ -100,7 +100,7 @@ export function OrderDetailPage() {
           type="error"
           showIcon
           title="Paid, but stock had run out"
-          description="Payment succeeded after the last unit was sold. The money has been taken, so this needs a refund or a restock before it can be fulfilled — it was recorded rather than dropped so it could not be missed."
+          description="Payment succeeded after the last unit was sold. The money has been taken, so this needs a refund or a restock before it can be fulfilled — it was recorded rather than dropped so it could not be missed. Note that stock was not fully deducted for this order, so refunding or cancelling it will put back more than it took: check the counts afterwards."
         />
       ) : null}
 

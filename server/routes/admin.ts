@@ -38,6 +38,7 @@ import {
   getOrder,
   getOrderPaymentIntentId,
   listOrders,
+  restockInventoryForOrder,
   updateFulfilment,
 } from "../../db/orders-repository.js";
 import { getShippingTable, replaceShippingTable } from "../../db/shipping-repository.js";
@@ -353,6 +354,17 @@ adminRouter.put("/orders/:id", async (req, res) => {
     input = fulfilmentInputSchema.parse(req.body);
   } catch (error) {
     toHttp(error);
+  }
+
+  // Cancelling gives the stock back — but only on the transition, not on every
+  // save. A merchant fixing a typo in the tracking number of an already
+  // cancelled order must not restock it again. `restockedAt` guards this too;
+  // both belts, because the cost of getting it wrong is silent overselling.
+  const consumedStock =
+    order.status === "paid" || order.status === "processing" || order.status === "shipped";
+
+  if (input.status === "cancelled" && consumedStock) {
+    await restockInventoryForOrder(order.id);
   }
 
   await updateFulfilment(order.id, {

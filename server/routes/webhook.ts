@@ -8,6 +8,7 @@ import {
   markOrderPaid,
   recordRefund,
   recordWebhookEvent,
+  restockInventoryForOrder,
   updateFulfilment,
 } from "../../db/orders-repository.js";
 import { env } from "../env.js";
@@ -117,8 +118,14 @@ async function handleRefund(charge: Stripe.Charge): Promise<void> {
   await recordRefund(order.id, charge.amount_refunded - order.refundedCents);
 
   // A partial refund leaves fulfilment alone: a buyer refunded for one damaged
-  // item of three still has two shipping.
+  // item of three still has two shipping. It also tells us nothing about which
+  // line came back, so there is nothing to restock.
   if (charge.amount_refunded < charge.amount) return;
+
+  // Before this, every refund permanently burned the stock the order consumed.
+  // Silently, too: the decrement is guarded against going negative, so the
+  // count simply drifted until the store showed sold out on things it had.
+  await restockInventoryForOrder(order.id);
 
   await updateFulfilment(order.id, {
     status: "refunded",

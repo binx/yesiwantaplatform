@@ -1,14 +1,14 @@
 ---
 task: "02"
 title: Restore stock when an order is refunded
-status: todo
+status: done
 tier: 0
 size: S
 migration: one column
 blocked_by: ["01"]
 blocks: []
 touches: db/orders-repository.ts:328 · server/routes/webhook.ts:103
-completed: 
+completed: 2026-09-07
 shipped_in: 
 summary: >-
   `decrementInventoryForOrder` runs on `checkout.session.completed`, but `handleRefund`

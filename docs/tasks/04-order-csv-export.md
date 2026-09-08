@@ -9,7 +9,7 @@ blocked_by: ["00"]
 blocks: []
 touches: server/routes/admin.ts · db/orders-repository.ts
 completed: 2026-09-07
-shipped_in: 
+shipped_in: 3ba1e1b
 summary: >-
   The orders query and its joins already exist; this is a route that streams them with a
   `text/csv` header. Unglamorous and non-negotiable — it's how a merchant does their

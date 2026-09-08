@@ -183,8 +183,19 @@ export function ProductsPage() {
             {
               title: "Status",
               dataIndex: "isLive",
-              render: (isLive: boolean) =>
-                isLive ? <Tag color="green">Live</Tag> : <Tag>Draft</Tag>,
+              render: (isLive: boolean, product) =>
+                !isLive ? (
+                  <Tag>Draft</Tag>
+                ) : product.needsPublish ? (
+                  // Live and unsellable is worse than either state on its own:
+                  // the storefront shows it, and checkout refuses the whole
+                  // order the moment someone tries to buy it.
+                  <Tooltip title="On the storefront, but not published to Stripe — checkout will refuse an order containing it.">
+                    <Tag color="error">Live · not published</Tag>
+                  </Tooltip>
+                ) : (
+                  <Tag color="green">Live</Tag>
+                ),
             },
             {
               title: "Order",

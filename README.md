@@ -181,6 +181,11 @@ column on the settings row — so anything else meant editing React.
 in **Markdown**; a page is a draft until it is published, and can optionally be
 linked in the storefront menu. Drag-free reordering, as everywhere else.
 
+**Every published page is listed in the storefront footer, in the menu or not.**
+The menu flag decides whether a page is also in the header — it does not decide
+whether the page can be found. A returns policy left out of the menu is still
+one link from every page of the shop, which is the point of publishing it.
+
 Bodies are stored as Markdown and rendered to HTML **on the server, on every
 read** — never stored as HTML. Two things follow from that. Tightening the
 sanitiser applies retroactively to every page already written, rather than only

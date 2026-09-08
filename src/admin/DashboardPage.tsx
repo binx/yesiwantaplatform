@@ -49,6 +49,8 @@ export function DashboardPage() {
 
       {environment.data ? <Wiring environment={environment.data} /> : null}
 
+      <Unpublished live={products.data?.filter((product) => product.needsPublish) ?? []} />
+
       <Tax
         enabled={settings.data?.taxEnabled ?? false}
         stale={products.data?.filter((product) => product.needsTaxRepublish) ?? []}
@@ -72,7 +74,13 @@ export function DashboardPage() {
             value={formatMoney(revenue, currency)}
             loading={orders.isPending}
           />
-          <p className={cx(styles.statNote)}>Across the most recent {paidOrders.length} paid orders</p>
+          <p className={cx(styles.statNote)}>
+            {paidOrders.length === 0
+              ? "No paid orders yet"
+              : `Across the most recent ${paidOrders.length} paid order${
+                  paidOrders.length === 1 ? "" : "s"
+                }`}
+          </p>
         </Card>
       </div>
 
@@ -124,6 +132,49 @@ export function DashboardPage() {
         )}
       </Card>
     </>
+  );
+}
+
+interface UnpublishedProps {
+  /** On the storefront, with a variant that has no Stripe Price. */
+  live: { id: string; name: string; slug: string }[];
+}
+
+/**
+ * Live but unsellable, said out loud on the first screen.
+ *
+ * This one only ever fails in front of a customer: the product looks normal
+ * on the storefront, goes into a cart, and checkout refuses the whole order.
+ * The buyer is told the product is unavailable — they can do nothing with the
+ * reason, and naming Stripe to them means naming a company they have no
+ * relationship with — so the reason is said here instead, where someone can
+ * act on it.
+ */
+function Unpublished({ live }: UnpublishedProps) {
+  if (live.length === 0) return null;
+
+  return (
+    <Alert
+      className={cx(styles.wiring)}
+      type="error"
+      showIcon
+      title={`${live.length} live product${live.length === 1 ? " is" : "s are"} not published to Stripe`}
+      description={
+        <>
+          {live.length === 1 ? "It is" : "They are"} on the storefront and can be added to a
+          cart, but checkout refuses any order containing {live.length === 1 ? "it" : "them"}.
+          Publish from the product editor, or take {live.length === 1 ? "it" : "them"} off the
+          storefront until you do.
+          <span className={cx(styles.staleList)}>
+            {live.map((product) => (
+              <Link key={product.id} to={`/admin/products/${product.slug}`}>
+                {product.name}
+              </Link>
+            ))}
+          </span>
+        </>
+      }
+    />
   );
 }
 

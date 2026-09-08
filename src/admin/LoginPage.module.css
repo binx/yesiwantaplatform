@@ -36,6 +36,19 @@
   color: #71717a;
 }
 
+/* Same rule as the storefront's muted notes, written out rather than composed:
+   this page's palette is literal on purpose, and --beluga-ink is the *store's*
+   ink, which on a dark shop would be near-white on this white card. */
+.footer a {
+  color: #18181b;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.footer a:hover {
+  text-decoration-thickness: 2px;
+}
+
 .code {
   display: block;
   margin-top: 0.5rem;

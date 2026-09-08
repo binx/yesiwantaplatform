@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { findCollection, getCollectionProducts, getLiveProducts } from "@shared/catalog";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { ProductBrowser } from "@/components/product/ProductBrowser";
@@ -8,11 +8,17 @@ import { NotFoundPage } from "./NotFoundPage";
 export function CollectionPage() {
   const store = useStore();
   const { slug = "" } = useParams();
+  const [params] = useSearchParams();
+  const query = (params.get("q") ?? "").trim();
 
   if (slug === "all-products") {
     return (
       <PageWrapper width="wide">
-        <h1>All products</h1>
+        {/* The heading names what is under it, so a filtered list is not
+            titled "All products". A named collection below keeps its own
+            name: the search there is scoped to it, and "Results for ..."
+            would read as store-wide. */}
+        <h1>{query ? `Results for “${query}”` : "All products"}</h1>
         <ProductBrowser
           products={getLiveProducts(store)}
           collection="All products"

@@ -335,13 +335,16 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
             help="Hours of inactivity before the one reminder goes out."
           >
             {(control) => (
+              // `suffix` rather than `addonAfter`, which antd 6 deprecates in
+              // favour of Space.Compact — but a unit is not a second control,
+              // and the suffix keeps it inside the field where it belongs.
               <InputNumber
                 {...control}
                 min={1}
                 max={168}
                 value={cartRecoveryDelayHours}
                 onChange={(value) => setCartRecoveryDelayHours(value ?? 4)}
-                addonAfter="hours"
+                suffix="hours"
               />
             )}
           </Field>

@@ -145,3 +145,14 @@
   color: #a1a1aa;
   user-select: none;
 }
+
+/* Matches Field's own label, so the values list reads as a labelled group
+   rather than more anonymous inputs. It is not a <label>: it names a list of
+   inputs, and htmlFor points at exactly one. */
+.valuesLabel {
+  display: block;
+  margin: 0 0 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #3f3f46;
+}

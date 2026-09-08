@@ -6,7 +6,7 @@ tier: 3
 size: M
 migration: one column
 blocked_by: []
-blocks: ["16"]
+blocks: []
 touches: shared/shipping.ts · server/routes/checkout.ts · shared/api.ts
 completed: 2026-09-08
 shipped_in: 1
@@ -16,7 +16,8 @@ summary: >-
   weight and subtotal banding entirely rather than counted as zero, and a downloads-only
   cart reaches Stripe with no address collection. Finite stock is refused on a digital
   variant rather than letting it register as `oversold`. Delivery — the file, the
-  entitlement, the download route — is [16](16-digital-delivery.md).
+  entitlement, the download route — is an open gap, recorded in
+  [docs/gaps/digital-delivery.md](../gaps/digital-delivery.md).
 ---
 
 # 13 · Digital and downloadable products
@@ -70,14 +71,16 @@ cannot run out.
 ## What this deliberately did not do
 
 Delivery. There is no file, no entitlement, and no download route — see
-[16](16-digital-delivery.md), which also carries the two collisions this brief
-left open (a `delivered` fulfilment state, and revoking entitlements on refund).
+[docs/gaps/digital-delivery.md](../gaps/digital-delivery.md), which also carries
+the two collisions this brief left open (a `delivered` fulfilment state, and
+revoking entitlements on refund). It is a known gap with no chosen approach, so
+it is recorded there rather than queued as a task.
 
 None of it can exist before there is a file to point at, so it was left whole
 rather than half-built. That includes the security question: **a purchasable
 file must not live under the statically-served upload directory.** Nothing in
 this task writes a purchasable file anywhere, so that decision is still open and
-belongs to 16.
+belongs with that gap.
 
 ## Acceptance
 
@@ -89,7 +92,7 @@ belongs to 16.
 
 ## Out of scope
 
-- Everything in [16](16-digital-delivery.md).
+- Everything in [docs/gaps/digital-delivery.md](../gaps/digital-delivery.md).
 - License-key generation or per-customer watermarking.
 - Streaming media, DRM.
 - Subscriptions or recurring access — a different Stripe mode entirely.

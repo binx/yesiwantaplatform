@@ -83,10 +83,14 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
     }
 
     if (!variant.stripePriceId) {
-      throw httpError(
-        409,
-        `"${product.name}" is not published to Stripe yet, so it cannot be sold.`,
+      // Two audiences, two sentences. The shopper cannot act on this and has
+      // no relationship with Stripe, so they get the plain fact; the merchant
+      // can act on it, and gets the reason — in the log here, and on the
+      // product row and the dashboard, which is where merchants look.
+      console.error(
+        `[checkout] "${product.name}" is live but not published to Stripe, so it cannot be sold.`,
       );
+      throw httpError(409, `${product.name} is unavailable right now.`);
     }
 
     if (product.kind === "physical") hasPhysicalLine = true;

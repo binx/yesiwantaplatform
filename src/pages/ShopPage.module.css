@@ -18,3 +18,15 @@
   margin: 0.75rem 0 0;
   font-size: 1.125rem;
 }
+
+.collections {
+  margin-bottom: 3rem;
+}
+
+/* Matches the landing page's section rule, so the two pages' section breaks
+   look like the same idea. */
+.heading {
+  margin: 0 0 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--beluga-line);
+}

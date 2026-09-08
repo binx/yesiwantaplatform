@@ -204,7 +204,10 @@ describe("checkout", () => {
       .send({ lines: [{ productId: "demo-scarf", variantId: "demo-scarf-rust", quantity: 1 }] })
       .expect(409);
 
-    expect(response.body.error).toMatch(/not published to Stripe/);
+    // What the shopper is told: the fact, not the merchant's plumbing. Naming
+    // Stripe here told a buyer about a relationship they do not have.
+    expect(response.body.error).toBe("Silk Scarf is unavailable right now.");
+    expect(response.body.error).not.toMatch(/Stripe/);
   });
 
   it("refuses a draft or unknown product", async () => {

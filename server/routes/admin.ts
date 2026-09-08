@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { ZodError } from "zod";
 import {
   collectionInputSchema,
@@ -37,7 +37,13 @@ import {
   updateProductImageAlt,
   updateSettings,
 } from "../../db/admin-repository.js";
-import { findProductBySlug, getSettings, listCollections, listProducts } from "../../db/repository.js";
+import {
+  findProductBySlug,
+  findProductsBySlugs,
+  getSettings,
+  listCollections,
+  listProducts,
+} from "../../db/repository.js";
 import {
   createPage,
   deletePage,
@@ -47,7 +53,21 @@ import {
   updatePage,
 } from "../../db/pages-repository.js";
 import { formatMoney } from "../../shared/money.js";
-import { CSV_BOM, csvRow } from "../../shared/csv.js";
+import {
+  CSV_BOM,
+  CsvStreamParser,
+  csvRow,
+  unguardCsvField,
+  type CsvRecord,
+} from "../../shared/csv.js";
+import {
+  CATALOGUE_CSV_COLUMNS,
+  CsvFormatError,
+  buildImportPlan,
+  productCsvRows,
+  readCsvHeader,
+  type ImportPlan,
+} from "../../shared/catalogue-csv.js";
 import {
   getOrder,
   getOrderPaymentIntentId,
@@ -120,6 +140,9 @@ function toHttp(error: unknown): never {
   if (error instanceof EmailTakenError) throw httpError(409, error.message);
   if (error instanceof StripeNotConfiguredError) throw httpError(503, error.message);
   if (error instanceof EndpointNotAllowedError) throw httpError(422, error.message);
+  // The file's shape is wrong rather than its contents, so there is no row to
+  // point at — the message says what the header must look like instead.
+  if (error instanceof CsvFormatError) throw httpError(400, error.message);
   if (error instanceof ZodError) {
     const first = error.issues[0];
     throw httpError(400, first ? `${first.path.join(".")}: ${first.message}` : "Invalid input.");
@@ -186,6 +209,219 @@ adminRouter.get("/products/full", async (req, res) => {
   const limit = Number(req.query.limit ?? 50);
   const offset = Number(req.query.offset ?? 0);
   res.json(await listProducts({ liveOnly: false, limit, offset }));
+});
+
+/* ------------------------------------------------------- catalogue as CSV */
+
+/**
+ * A merchant with a catalogue larger than this is past what a spreadsheet
+ * round trip is the right tool for, and an unbounded read would let one
+ * request stream for hours.
+ */
+const CATALOGUE_CSV_ROW_CAP = 50_000;
+
+/**
+ * The whole catalogue, one row per variant with product fields repeated.
+ *
+ * Drafts included: the file is a working copy of the catalogue, and a merchant
+ * migrating from Shopify is editing drafts more often than live products.
+ * Streamed a page at a time rather than assembled in memory, like
+ * `/orders.csv` above and for the same reason.
+ */
+adminRouter.get("/products.csv", async (_req, res) => {
+  const stamp = new Date().toISOString().slice(0, 10);
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="catalogue-${stamp}.csv"`);
+
+  // The BOM has to be the first bytes on the wire, before the header row.
+  res.write(CSV_BOM);
+  res.write(csvRow(CATALOGUE_CSV_COLUMNS));
+
+  let offset = 0;
+  let written = 0;
+
+  for (;;) {
+    const page = await listProducts({ liveOnly: false, limit: 200, offset });
+    if (page.products.length === 0) break;
+
+    for (const product of page.products) {
+      for (const row of productCsvRows(product)) {
+        if (written >= CATALOGUE_CSV_ROW_CAP) break;
+        res.write(csvRow(row));
+        written += 1;
+      }
+    }
+
+    offset += page.products.length;
+    if (offset >= page.total || written >= CATALOGUE_CSV_ROW_CAP) break;
+  }
+
+  if (written >= CATALOGUE_CSV_ROW_CAP) {
+    console.warn(`Catalogue CSV export stopped at the ${CATALOGUE_CSV_ROW_CAP} row cap.`);
+  }
+
+  res.end();
+});
+
+/** Enough for a large migration, bounded so one request cannot exhaust memory. */
+const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
+const IMPORT_MAX_ROWS = 5_000;
+
+/**
+ * More than this in one response is unreadable in the preview table and large
+ * enough to be worth not serialising. The count of what was left out is
+ * reported instead.
+ */
+const IMPORT_MAX_REPORTED_ERRORS = 200;
+
+/**
+ * Read the uploaded file and work out what it would do.
+ *
+ * The body is the CSV itself as `text/csv`, so it arrives as an untouched
+ * stream — `express.json` ignores it — and is fed to the parser chunk by chunk.
+ * Nothing is buffered whole: the byte cap stops an oversized upload while it is
+ * still arriving rather than after it has been held in memory, and the row cap
+ * stops reading a file with more rows than this will ever write.
+ */
+async function planCatalogueImport(req: Request): Promise<ImportPlan> {
+  const parser = new CsvStreamParser();
+  const records: CsvRecord[] = [];
+  let header: Map<string, number> | null = null;
+  let bytes = 0;
+
+  const take = (batch: CsvRecord[]) => {
+    for (const record of batch) {
+      // The first record is the header, whatever it says.
+      if (!header) {
+        header = readCsvHeader(record.fields);
+        continue;
+      }
+
+      if (records.length >= IMPORT_MAX_ROWS) {
+        throw httpError(
+          413,
+          `This file has more than ${IMPORT_MAX_ROWS} rows. Split it and import the parts one at a time.`,
+        );
+      }
+
+      records.push(record);
+    }
+  };
+
+  req.setEncoding("utf8");
+
+  for await (const chunk of req as AsyncIterable<string>) {
+    bytes += Buffer.byteLength(chunk, "utf8");
+    if (bytes > IMPORT_MAX_BYTES) {
+      throw httpError(
+        413,
+        `This file is larger than ${Math.round(IMPORT_MAX_BYTES / 1024 / 1024)} MB. Split it and import the parts one at a time.`,
+      );
+    }
+
+    take(parser.push(chunk));
+  }
+
+  take(parser.end());
+
+  if (!header) throw httpError(400, "That file is empty. The first row must name the columns.");
+
+  const slugs = [...new Set(records.map((record) => record.fields[header!.get("slug") ?? -1] ?? ""))]
+    .map((slug) => unguardCsvField(slug).trim())
+    .filter((slug) => slug !== "");
+
+  const existing = await findProductsBySlugs(slugs);
+
+  return buildImportPlan({
+    records,
+    header,
+    existing: new Map(existing.map((product) => [product.slug, product])),
+  });
+}
+
+/** The plan as the preview screen receives it: counts, errors, and a summary row per product. */
+function summariseImport(plan: ImportPlan) {
+  return {
+    rows: plan.rows,
+    creates: plan.creates,
+    updates: plan.updates,
+    errors: plan.errors.slice(0, IMPORT_MAX_REPORTED_ERRORS),
+    errorsOmitted: Math.max(plan.errors.length - IMPORT_MAX_REPORTED_ERRORS, 0),
+    products: plan.entries.map((entry) => ({
+      slug: entry.slug,
+      name: entry.name,
+      action: entry.action,
+      variants: entry.variants,
+      rows: entry.rows,
+      /** False when this product has errors and would be skipped. */
+      valid: Boolean(entry.input),
+    })),
+  };
+}
+
+/**
+ * Phase one: say what the file would do, and change nothing.
+ *
+ * Separate from the commit because a partial import that half-updated a live
+ * catalogue is worse than no import at all. The merchant sees every error at
+ * once — a 500-row file corrected one error per attempt is a file that never
+ * gets imported.
+ */
+adminRouter.post("/products/import/validate", async (req, res) => {
+  try {
+    res.json(summariseImport(await planCatalogueImport(req)));
+  } catch (error) {
+    toHttp(error);
+  }
+});
+
+/**
+ * Phase two: apply it.
+ *
+ * The file is parsed and validated again rather than carried over from the
+ * preview in a session. Re-reading is cheap, and it means nothing can be
+ * committed that has not just been validated by the same code — including a
+ * file edited between the two requests.
+ *
+ * **Nothing here writes to Stripe.** Invariant 7: products reach Stripe only
+ * through the explicit per-product publish below. An imported product lands as
+ * a draft unless `is_live` says otherwise, and even a live one is not
+ * published until someone asks.
+ */
+adminRouter.post("/products/import/commit", async (req, res) => {
+  const skipInvalid = req.query.skipInvalid === "true";
+
+  try {
+    const plan = await planCatalogueImport(req);
+
+    if (plan.errors.length > 0 && !skipInvalid) {
+      throw httpError(
+        400,
+        `${plan.errors.length} row${plan.errors.length === 1 ? " has" : "s have"} a problem, so nothing was imported. Fix the file, or choose to skip the invalid rows.`,
+      );
+    }
+
+    let created = 0;
+    let updated = 0;
+
+    for (const entry of plan.entries) {
+      // Absent means the product had errors; reaching here means the merchant
+      // asked for the rest to go in anyway.
+      if (!entry.input) continue;
+
+      if (entry.productId) {
+        await updateProduct(entry.productId, entry.input);
+        updated += 1;
+      } else {
+        await createProduct(entry.input);
+        created += 1;
+      }
+    }
+
+    res.json({ created, updated, skipped: plan.entries.length - created - updated });
+  } catch (error) {
+    toHttp(error);
+  }
 });
 
 adminRouter.get("/products/:slug", async (req, res) => {

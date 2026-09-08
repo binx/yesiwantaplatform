@@ -355,6 +355,29 @@ This runs only in the production branch, so it is **not visible under `npm run d
 
 Every money column is named `*_cents` and holds an integer, because a column of dollars in a spreadsheet is how floating-point money gets back in. Fields whose first character is `=`, `+`, `-` or `@` are prefixed with an apostrophe: a product named `=HYPERLINK(...)` is a live formula the moment the file opens in Excel, and product names are merchant- and buyer-supplied. The file starts with a UTF-8 BOM so Excel reads accented names correctly.
 
+### Importing and exporting the catalogue
+
+`GET /api/admin/products.csv` writes the whole catalogue, drafts included, **one row per variant** with the product's own fields repeated across its rows — the shape Shopify exports, so the two files can be diffed. The **Export CSV** and **Import CSV** buttons on the Products screen are the same thing with a preview attached.
+
+Columns: `slug`, `name`, `kind`, `description`, `bullet_points`, `seo_title`, `seo_description`, `tax_code`, `option1_name`/`option1_value` through `option3_*`, `variant_price_cents`, `variant_inventory_type`, `variant_inventory_quantity`, `variant_weight_grams`, `is_live`, `image_paths`. Lists inside one cell — bullet points, image paths — are `|`-separated, because the comma is taken. Prices are integer cents, and a decimal in a `*_cents` column is refused by name rather than rounded.
+
+Importing is **two requests, and the split is the feature**:
+
+```
+POST /api/admin/products/import/validate  -> { rows, creates, updates, errors[], products[] }
+POST /api/admin/products/import/commit    -> { created, updated, skipped }
+```
+
+Both take the file as the request body with `Content-Type: text/csv`, parsed as a stream so neither side holds it whole; the caps are 5 MB and 5,000 rows. Validation writes nothing and reports **every** error at once, each with its row and column — a merchant fixing a 500-row file one error per attempt gives up. If anything fails, the whole file is refused unless `?skipInvalid=true`, which the preview offers and defaults to off; skipping is per product, since half a variant matrix is not a product. The commit re-parses and re-validates rather than trusting a token from the preview.
+
+Things worth knowing before importing over a live catalogue:
+
+- **Products are matched by `slug`** — present is an update, absent is a create.
+- **A column the file omits leaves the stored value alone.** A three-column price list will not blank every description in the catalogue. A column that is present but empty *does* clear the field, so there is still a way to.
+- **A variant keeps its id** when its combination of option values still matches, so an update does not orphan the Stripe Price behind it. For the same reason an import will refuse to collapse a product's options by leaving their columns out, rather than deleting the variants that would fall off.
+- **An import never writes to Stripe.** Invariant 7 holds here: imported products land as drafts unless `is_live` says otherwise, and even a live one is not published until someone publishes it.
+- **Images and non-priced option groups are not managed by the file.** `image_paths` is written on export and ignored on import; both are edited in the product editor.
+
 ### Outbound webhooks
 
 Beluga can POST to your own endpoints when something happens in the store, which is what a merchant would otherwise need an app ecosystem for: wire up a fulfilment provider, an accounting ledger or a Zapier-style connector without either side shipping code into the other's process. Add endpoints under **Admin → Webhooks**.

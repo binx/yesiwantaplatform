@@ -65,6 +65,8 @@ const MUTATIONS = [
   { method: "put", path: "/api/admin/products/demo-tote" },
   { method: "delete", path: "/api/admin/products/demo-tote" },
   { method: "post", path: "/api/admin/products/reorder" },
+  { method: "post", path: "/api/admin/products/import/validate" },
+  { method: "post", path: "/api/admin/products/import/commit" },
   { method: "post", path: "/api/admin/products/demo-tote/images" },
   { method: "delete", path: "/api/admin/products/demo-tote/images" },
   { method: "post", path: "/api/admin/collections" },
@@ -92,6 +94,7 @@ const MUTATIONS = [
 
 const READS = [
   "/api/admin/products",
+  "/api/admin/products.csv",
   "/api/admin/collections",
   "/api/admin/pages",
   "/api/admin/settings",

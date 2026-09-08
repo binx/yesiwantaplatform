@@ -1,0 +1,828 @@
+<title>Beluga v2 Roadmap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap">
+
+<style>
+/* Styles for the generated docs/roadmap.html. Edited here, never there. */
+
+:root {
+  --ground: #f2f4f4;
+  --surface: #fbfcfc;
+  --surface-lift: #eaeeee;
+  --ink: #131a1e;
+  --ink-soft: #4a5a61;
+  --ink-faint: #7c8b91;
+  --rule: #d8dede;
+  --rule-strong: #b9c3c4;
+  --brass: #a8712a;
+  --teal: #1e5567;
+  --good: #2c6f52;
+  --warn: #8d5c14;
+  --stop: #9c4530;
+
+  --display: "Newsreader", Georgia, "Times New Roman", serif;
+  --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #151d22;
+    --surface: #1b252b;
+    --surface-lift: #202c33;
+    --ink: #e8edee;
+    --ink-soft: #a3b2b8;
+    --ink-faint: #75868d;
+    --rule: #2c3940;
+    --rule-strong: #3d4d55;
+    --brass: #d5a052;
+    --teal: #6fb3c9;
+    --good: #63b58e;
+    --warn: #d9a054;
+    --stop: #d4816a;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: #151d22;
+  --surface: #1b252b;
+  --surface-lift: #202c33;
+  --ink: #e8edee;
+  --ink-soft: #a3b2b8;
+  --ink-faint: #75868d;
+  --rule: #2c3940;
+  --rule-strong: #3d4d55;
+  --brass: #d5a052;
+  --teal: #6fb3c9;
+  --good: #63b58e;
+  --warn: #d9a054;
+  --stop: #d4816a;
+}
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 56px 24px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+}
+
+/* ---------- masthead ---------- */
+
+.masthead { display: flex; flex-direction: column; gap: 18px; }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--teal);
+}
+
+h1 {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(38px, 6vw, 56px);
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+h1 em { font-style: italic; color: var(--brass); }
+
+.standfirst {
+  font-size: 18px;
+  line-height: 1.62;
+  color: var(--ink-soft);
+  max-width: 62ch;
+  margin: 0;
+}
+
+.standfirst strong { color: var(--ink); font-weight: 500; }
+
+/* ---------- progress ---------- */
+
+.progress { display: flex; flex-direction: column; gap: 14px; }
+
+.progress-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.progress-title {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.progress-count {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* One cell per task, gapped into tiers, so the shape of the queue is legible. */
+.track { display: flex; gap: 14px; }
+.group { display: flex; gap: 3px; flex: 1 1 auto; }
+
+.cell {
+  flex: 1 1 auto;
+  height: 10px;
+  background: var(--rule);
+  border-radius: 1px;
+}
+
+.cell--done { background: var(--good); }
+.cell--in-progress {
+  background: repeating-linear-gradient(
+    -45deg, var(--brass), var(--brass) 3px, transparent 3px, transparent 6px
+  );
+  box-shadow: inset 0 0 0 1px var(--brass);
+}
+
+.track-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.track-key span { display: inline-flex; align-items: center; gap: 7px; }
+.track-key i { width: 16px; height: 8px; flex: none; }
+.track-tiers { margin-left: auto; }
+
+/* ---------- changelog ---------- */
+
+.log {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: 26px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.log h2 { font-size: 24px; }
+
+.log--empty p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 15px;
+  max-width: 62ch;
+}
+
+.log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.log-list li {
+  display: grid;
+  grid-template-columns: 6.5rem 2.5rem 1fr auto;
+  gap: 4px 16px;
+  align-items: baseline;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.log-list li:last-child { border-bottom: none; }
+
+.log-date, .log-task, .log-ref {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.log-task { color: var(--good); }
+.log-title { font-size: 15.5px; color: var(--ink); }
+
+/* ---------- plot ---------- */
+
+.plot {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: 22px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.plot-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.plot-title {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.plot-note { font-size: 13.5px; color: var(--ink-faint); margin: 0; max-width: 46ch; }
+.plot-scroll { overflow-x: auto; }
+.plot svg { display: block; min-width: 640px; width: 100%; height: auto; }
+
+.ax-line { stroke: var(--rule-strong); stroke-width: 1; fill: none; }
+.ax-guide { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 3 4; fill: none; }
+
+.ax-text {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  fill: var(--ink-faint);
+}
+
+.dot--now { fill: var(--brass); }
+.dot--next { fill: var(--teal); }
+.dot--later { fill: var(--ink-faint); }
+.dot--done { fill: var(--good); }
+.dot[stroke-dasharray] { fill: none; stroke: var(--brass); stroke-width: 2; }
+.tick { fill: none; stroke: var(--surface); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+.pt-label { font-family: var(--body); font-size: 12.5px; fill: var(--ink-soft); }
+.pt-label.now { fill: var(--ink); font-weight: 500; }
+.pt-label.shipped { fill: var(--good); }
+
+.zone-text {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  fill: var(--brass);
+}
+
+/* ---------- tiers ---------- */
+
+.tier { display: flex; flex-direction: column; gap: 4px; }
+
+.tier-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 18px;
+  border-bottom: 2px solid var(--ink);
+}
+
+.tier-tag {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--brass);
+}
+
+.tier-done { color: var(--good); }
+
+h2 {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(26px, 3.6vw, 34px);
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.tier-verdict { margin: 0; color: var(--ink-soft); font-size: 15.5px; max-width: 64ch; }
+
+.tier--now .tier-head { border-bottom-color: var(--brass); }
+.tier--now .items { background: var(--surface-lift); }
+.tier--now .item { padding-left: 20px; padding-right: 20px; }
+
+.items { display: flex; flex-direction: column; }
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.item:last-child { border-bottom: none; }
+
+/* Shipped work stays readable but stops competing for attention. */
+.item--done .seq,
+.item--done h3,
+.item--done p { color: var(--ink-faint); }
+.item--done p strong { color: var(--ink-soft); }
+
+.item-head { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
+
+.seq {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  min-width: 2ch;
+}
+
+h3 {
+  font-family: var(--body);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+.chip {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.chip--s { color: var(--good); }
+.chip--m { color: var(--warn); }
+.chip--l { color: var(--stop); }
+
+.chip--status { border-style: solid; }
+.chip--todo { color: var(--ink-faint); }
+.chip--in-progress { color: var(--brass); background: color-mix(in srgb, var(--brass) 12%, transparent); }
+.chip--done { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
+
+.item p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 15.5px;
+  max-width: 68ch;
+  padding-left: calc(2ch + 14px);
+}
+
+.item p strong { color: var(--ink); font-weight: 500; }
+
+code { font-family: var(--mono); font-size: 0.87em; color: var(--teal); word-break: break-word; }
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+  padding-left: calc(2ch + 14px);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.meta b {
+  font-weight: 500;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 10.5px;
+}
+
+.meta span { color: var(--ink-soft); }
+
+/* ---------- closing ---------- */
+
+.cut {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cut h2 { font-size: 24px; }
+
+.cut ul {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  color: var(--ink-soft);
+  font-size: 15px;
+  max-width: 66ch;
+}
+
+.cut li::marker { color: var(--rule-strong); }
+
+.colophon {
+  border-top: 1px solid var(--rule);
+  padding-top: 20px;
+  font-size: 13.5px;
+  color: var(--ink-faint);
+  max-width: 66ch;
+  margin: 0;
+}
+
+a { color: var(--brass); }
+a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+
+@media (max-width: 620px) {
+  .item p, .meta { padding-left: 0; }
+  .wrap { padding-top: 40px; gap: 44px; }
+  .log-list li { grid-template-columns: 6.5rem 2.5rem 1fr; }
+  .log-ref { grid-column: 3; }
+  .track { gap: 8px; }
+}
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Beluga v2 · Generated from docs/tasks · 2026-09-08</div>
+    <h1>Sixteen things between Beluga and <em>a store someone could actually run</em></h1>
+    <p class="standfirst">
+      The gap review found the misses. This orders them by what they cost against what a merchant
+      assumes on day one. The ranking leans on one fact about this codebase: <strong>a Drizzle schema
+      change is the expensive boundary</strong>, because <code>npm run db:generate</code> has to emit
+      migrations for SQLite and Postgres both, and <code>db/dialect.test.ts</code> holds them to the
+      same assertions. Everything above that line is days. Everything below it is a plan.
+    </p>
+    <p class="standfirst">
+      Every item has a full implementation brief in <code>docs/tasks/</code> — files to open, exact
+      routes and schema, tests required, and what's explicitly out of scope. This page is generated
+      from those briefs, so status here is whatever the briefs say.
+    </p>
+  </header>
+
+  <section class="progress">
+    <div class="progress-head">
+      <h2 class="progress-title">Progress</h2>
+      <p class="progress-count">Nothing shipped yet — 16 tasks queued.</p>
+    </div>
+    <div class="track" role="img" aria-label="Nothing shipped yet — 16 tasks queued."><span class="group" aria-label="Tier 0"><span class="cell cell--todo" title="00 Fetch order items by order id — To do"></span><span class="cell cell--todo" title="01 Refund an order from the admin — To do"></span><span class="cell cell--todo" title="02 Restore stock when an order is refunded — To do"></span><span class="cell cell--todo" title="03 Discount codes via Stripe — To do"></span><span class="cell cell--todo" title="04 Export orders as CSV — To do"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--todo" title="05 Per-product SEO metadata — To do"></span><span class="cell cell--todo" title="06 Storefront search and sort — To do"></span><span class="cell cell--todo" title="07 Staff accounts — To do"></span><span class="cell cell--todo" title="08 Store pages — To do"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--todo" title="09 Sales tax and VAT — To do"></span><span class="cell cell--todo" title="10 Multi-axis variants — To do"></span><span class="cell cell--todo" title="11 Customer accounts — To do"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--todo" title="12 Abandoned cart recovery — To do"></span><span class="cell cell--todo" title="13 Digital and downloadable products — To do"></span><span class="cell cell--todo" title="14 Outbound webhooks — To do"></span><span class="cell cell--todo" title="15 Catalogue CSV import and export — To do"></span></span></div>
+    <div class="track-key">
+      <span><i class="cell cell--done"></i> Shipped</span>
+      <span><i class="cell cell--in-progress"></i> In progress</span>
+      <span><i class="cell cell--todo"></i> To do</span>
+      <span class="track-tiers">Grouped by tier</span>
+    </div>
+  </section>
+
+  <section class="log log--empty">
+    <h2>Shipped</h2>
+    <p>
+      Nothing yet. The first entry appears here when a brief's <code>status</code> becomes
+      <code>done</code> — this page is generated from <code>docs/tasks/</code>, so the
+      changelog writes itself as the work lands.
+    </p>
+  </section>
+
+  <section class="plot">
+    <div class="plot-head">
+      <h2 class="plot-title">Why this order</h2>
+      <p class="plot-note">Effort is engineering days; expectation is how quickly a merchant coming from Shopify notices it missing. Internal correctness work isn't plotted — nobody asks for it by name.</p>
+    </div>
+
+    <div class="plot-scroll">
+      <svg viewBox="0 0 720 400" role="img" aria-label="Roadmap tasks plotted by engineering effort against how quickly a merchant notices the gap. Low-effort, high-expectation work sits in the upper left.">
+        <line class="ax-line" x1="70" y1="330" x2="655" y2="330"></line>
+        <line class="ax-line" x1="70" y1="45" x2="70" y2="330"></line>
+        <line class="ax-guide" x1="70" y1="115" x2="655" y2="115"></line>
+        <line class="ax-guide" x1="360" y1="45" x2="360" y2="330"></line>
+        <text class="zone-text" x="80" y="62">Do these first</text>
+        <text class="ax-text" x="70" y="352">Low effort</text>
+        <text class="ax-text" x="655" y="352" text-anchor="end">High effort</text>
+        <text class="ax-text" x="70" y="378">Effort →</text>
+        <text class="ax-text" transform="translate(24,330) rotate(-90)" x="0" y="0">Merchant expects it →</text>
+        <circle cx="554.5" cy="141" r="5.5" class="dot dot--later"></circle>
+        <text class="pt-label" x="544.5" y="145" text-anchor="end">Multi-axis variants</text>
+        <circle cx="583" cy="168" r="5.5" class="dot dot--later"></circle>
+        <text class="pt-label" x="573" y="172" text-anchor="end">Customer accounts</text>
+        <circle cx="611.5" cy="235.5" r="5.5" class="dot dot--later"></circle>
+        <text class="pt-label" x="601.5" y="239.5" text-anchor="end">Abandoned cart recovery</text>
+        <circle cx="184" cy="73.5" r="5.5" class="dot dot--now"></circle>
+        <text class="pt-label now" x="174" y="77.5" text-anchor="end">Refund an order from the admin</text>
+        <circle cx="155.5" cy="114" r="5.5" class="dot dot--now"></circle>
+        <text class="pt-label now" x="165.5" y="118">Restore stock when an order is refunded</text>
+        <circle cx="212.5" cy="87" r="5.5" class="dot dot--now"></circle>
+        <text class="pt-label now" x="222.5" y="91">Discount codes via Stripe</text>
+        <circle cx="184" cy="141" r="5.5" class="dot dot--now"></circle>
+        <text class="pt-label now" x="194" y="145">Export orders as CSV</text>
+        <circle cx="355" cy="87" r="5.5" class="dot dot--next"></circle>
+        <text class="pt-label" x="365" y="91">Per-product SEO metadata</text>
+        <circle cx="269.5" cy="127.5" r="5.5" class="dot dot--next"></circle>
+        <text class="pt-label" x="259.5" y="131.5" text-anchor="end">Storefront search and sort</text>
+        <circle cx="326.5" cy="181.5" r="5.5" class="dot dot--next"></circle>
+        <text class="pt-label" x="336.5" y="185.5">Staff accounts</text>
+        <circle cx="298" cy="154.5" r="5.5" class="dot dot--next"></circle>
+        <text class="pt-label" x="308" y="158.5">Store pages</text>
+        <circle cx="469" cy="100.5" r="5.5" class="dot dot--later"></circle>
+        <text class="pt-label" x="479" y="104.5">Sales tax and VAT</text>
+      </svg>
+    </div>
+  </section>
+
+  <section class="tier tier--now">
+    <div class="tier-head">
+      <div class="tier-tag">Tier 0 · No migration · Days </div>
+      <h2>Money is currently leaking</h2>
+      <p class="tier-verdict">Gaps a merchant hits in their first week of real orders. None needs a schema reshape, and three of them are closer to correctness bugs than features.</p>
+    </div>
+    <div class="items">
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">00</span>
+          <h3>Fetch order items by order id</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--s">Small</span>
+        </div>
+        <p><code>loadItems</code> selects the entire <code>order_items</code> table and filters it in JavaScript, with an <code>includes()</code> inside the loop. Every caller pays it — including the payment webhook, which reaches it through <code>getOrder</code>. It's invisible on a demo catalogue and quietly quadratic on a real one. <strong>Fix this before the CSV export</strong>, which would otherwise page through the whole table once per batch.</p>
+        <div class="meta"><span><b>Migration</b> none</span>
+          <span><b>Touches</b> db/orders-repository.ts:168</span>
+          <span><b>Blocks</b> 04</span>
+          <span><b>Brief</b> docs/tasks/00-order-items-query.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">01</span>
+          <h3>Refund an order from the admin</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--s">Small</span>
+        </div>
+        <p>Most of this already exists. The <code>charge.refunded</code> handler is live and flips the order to <code>refunded</code>, and the Refunded email template is written. What's missing is the half that moves money: an admin route calling <code>stripe.refunds.create</code> and a button on the order page. Today a merchant marks an order refunded in Beluga and the buyer gets an email about a refund that never happened.</p>
+        <div class="meta"><span><b>Migration</b> one column</span>
+          <span><b>Touches</b> server/routes/admin.ts · src/admin/OrderDetailPage.tsx</span>
+          <span><b>Blocks</b> 02</span>
+          <span><b>Brief</b> docs/tasks/01-refund-order.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">02</span>
+          <h3>Restore stock when an order is refunded</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--s">Small</span>
+        </div>
+        <p><code>decrementInventoryForOrder</code> runs on <code>checkout.session.completed</code>, but <code>handleRefund</code> only changes the status — nothing reverses it. Every refund silently burns inventory, and because the decrement is guarded against going negative, the error compounds quietly rather than crashing. Ship this with 01; they're the same afternoon.</p>
+        <div class="meta"><span><b>Migration</b> one column</span>
+          <span><b>Touches</b> db/orders-repository.ts:328 · server/routes/webhook.ts:103</span>
+          <span><b>Blocked by</b> 01 Refund an order from the admin</span>
+          <span><b>Brief</b> docs/tasks/02-restock-on-refund.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">03</span>
+          <h3>Discount codes via Stripe</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--s">Small</span>
+        </div>
+        <p>Setting <code>allow_promotion_codes: true</code> on the Checkout Session gets you the whole entry field, validation and redemption limits for free — the merchant creates codes in the Stripe dashboard. The work is on the recording side: a <code>discountCents</code> column so the order shows what came off, plus a line in the confirmation page and the order emails. <strong>Be honest in the README that code management lives in Stripe</strong>, not Beluga.</p>
+        <div class="meta"><span><b>Migration</b> one column</span>
+          <span><b>Touches</b> server/routes/checkout.ts:138 · emails/ · src/pages/ConfirmPage.tsx</span>
+          <span><b>Brief</b> docs/tasks/03-discount-codes.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">04</span>
+          <h3>Export orders as CSV</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--s">Small</span>
+        </div>
+        <p>The orders query and its joins already exist; this is a route that streams them with a <code>text/csv</code> header. Unglamorous and non-negotiable — it's how a merchant does their books, and its absence is the kind of thing that ends an evaluation. Keep amounts in integer cents in the file and let the spreadsheet divide, consistent with <code>shared/money.ts</code>.</p>
+        <div class="meta"><span><b>Migration</b> none</span>
+          <span><b>Touches</b> server/routes/admin.ts · db/orders-repository.ts</span>
+          <span><b>Blocked by</b> 00 Fetch order items by order id</span>
+          <span><b>Brief</b> docs/tasks/04-order-csv-export.md</span></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="tier">
+    <div class="tier-head">
+      <div class="tier-tag">Tier 1 · Light migrations · Weeks </div>
+      <h2>The quarter's real work</h2>
+      <p class="tier-verdict">Tier 0 fixes stores that already have customers. This tier is about getting them.</p>
+    </div>
+    <div class="items">
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">05</span>
+          <h3>Per-product SEO metadata</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--m">Medium</span>
+        </div>
+        <p><strong>The highest-leverage item on this page, and cheaper than it looks.</strong> Every product currently shares one meta description — <em>A Beluga storefront.</em> — so nothing in the catalogue produces a usable Google result or link preview. The instinct is &quot;we need SSR&quot;, but the server already serves <code>dist/index.html</code> on the SPA fallback, which means per-route title, description, Open Graph tags and JSON-LD can be templated into that HTML on the way out. No framework migration. Add <code>sitemap.xml</code> and <code>robots.txt</code> while you're there.</p>
+        <div class="meta"><span><b>Migration</b> two columns</span>
+          <span><b>Touches</b> server/app.ts:74 · server/routes/public.ts</span>
+          <span><b>Brief</b> docs/tasks/05-seo-metadata.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">06</span>
+          <h3>Storefront search and sort</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--s">Small</span>
+        </div>
+        <p><strong>The backend already exists — don't build one.</strong> <code>listProducts</code> implements case-insensitive matching across name and description, <code>productQuerySchema</code> accepts <code>search</code>, and <code>GET /api/products</code> passes it through. Nothing on the storefront calls any of it, because the storefront loads the whole catalogue once from <code>/api/store</code>. So this is client-side filtering over data already in memory: no request, no server change, works against the demo fixture.</p>
+        <div class="meta"><span><b>Migration</b> none</span>
+          <span><b>Touches</b> src/pages/ShopPage.tsx · shared/catalog.ts</span>
+          <span><b>Brief</b> docs/tasks/06-storefront-search.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">07</span>
+          <h3>Staff accounts</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--m">Medium</span>
+        </div>
+        <p>Only <code>npm run setup</code> and the setup wizard ever create an account, and there is no route to add a second — so a two-person shop shares one password. The machinery is already built: argon2id hashing, database-backed sessions, and <code>countAdmins</code> all live in <code>server/auth.ts</code>, and the email layer can carry an invite. Add CRUD under the existing <code>requireAdmin</code> router and a <code>role</code> column if you want anything finer than full access.</p>
+        <div class="meta"><span><b>Migration</b> one column</span>
+          <span><b>Touches</b> server/auth.ts:82 · server/routes/admin.ts · server/security.test.ts</span>
+          <span><b>Brief</b> docs/tasks/07-staff-accounts.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">08</span>
+          <h3>Store pages</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--m">Medium</span>
+        </div>
+        <p>The store has exactly one editable page, and it's a single <code>aboutText</code> blob on the settings row. A merchant can't publish a returns policy — which several payment and consumer-protection regimes expect them to have — without editing React. A <code>pages</code> table with slug, title and body, one storefront route and a nav toggle covers it; the editor can reuse the autosaving form pattern from the product editor.</p>
+        <div class="meta"><span><b>Migration</b> one table</span>
+          <span><b>Touches</b> db/schema.*.ts · src/router.tsx · src/admin/useAutosave.ts</span>
+          <span><b>Brief</b> docs/tasks/08-store-pages.md</span></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="tier">
+    <div class="tier-head">
+      <div class="tier-tag">Tier 2 · Schema reshape · Plan them </div>
+      <h2>Don't squeeze these in</h2>
+      <p class="tier-verdict">Each one changes the shape of the data or the shape of the merchant's obligations. They're worth doing and they're worth scheduling.</p>
+    </div>
+    <div class="items">
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">09</span>
+          <h3>Sales tax and VAT</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--m">Medium</span>
+        </div>
+        <p>Every order currently collects zero tax. The recording half already works — the webhook reads <code>amount_tax</code> and the order page renders a tax line — but nothing ever asks Stripe to calculate any. Turning on <code>automatic_tax</code> plus <code>customer_update</code> is a small diff; the real cost is merchant-facing. Stripe Tax is a paid add-on with a registration workflow, published products need tax codes, and shipping rates need a tax behaviour. <strong>Most of this work is in the setup wizard and the dashboard notices</strong>, explaining an obligation the merchant may not know they have.</p>
+        <div class="meta"><span><b>Migration</b> product + rate columns</span>
+          <span><b>Touches</b> server/routes/checkout.ts · server/catalog-sync.ts · src/admin/SetupPage.tsx</span>
+          <span><b>Brief</b> docs/tasks/09-tax.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">10</span>
+          <h3>Multi-axis variants</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--l">Large</span>
+        </div>
+        <p><code>products.variantName</code> is a single label for one axis, so a shirt in three sizes and two colours means hand-enumerating six flat variants with no way to render two selectors. This needs an options/values pair of tables, a variant-to-option join, and rework of the product editor, the cart's selection UI and the seed. The Stripe mapping is untouched — a variant is still exactly one Price. <strong>Land this before any catalogue CSV import</strong>, or you'll build an importer for a shape you're about to change.</p>
+        <div class="meta"><span><b>Migration</b> two tables + backfill</span>
+          <span><b>Touches</b> db/schema.*.ts:67 · src/admin/ProductEditorPage.tsx · src/pages/ProductPage.tsx</span>
+          <span><b>Blocks</b> 15</span>
+          <span><b>Brief</b> docs/tasks/10-multi-axis-variants.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">11</span>
+          <h3>Customer accounts</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--l">Large</span>
+        </div>
+        <p>There is no customers table at all — orders are guest-only, retrieved by an unguessable Stripe session id, and a buyer who loses the confirmation email has no way back to their order. The hashing and session machinery is reusable, but this still adds storefront auth screens, password reset, an address book and an <code>orders.customerId</code> backfill. It's the keystone of Tier 3: order history, reorder and abandoned-cart recovery all sit behind it.</p>
+        <div class="meta"><span><b>Migration</b> two tables + orders column</span>
+          <span><b>Touches</b> db/schema.*.ts · server/auth.ts · src/router.tsx</span>
+          <span><b>Blocks</b> 12</span>
+          <span><b>Brief</b> docs/tasks/11-customer-accounts.md</span></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="tier">
+    <div class="tier-head">
+      <div class="tier-tag">Tier 3 · After a real store runs on this </div>
+      <h2>Platform bets</h2>
+      <p class="tier-verdict">Defensible to defer. Each assumes a merchant already trusts Beluga with their revenue.</p>
+    </div>
+    <div class="items">
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">12</span>
+          <h3>Abandoned cart recovery</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--l">Large</span>
+        </div>
+        <p>The cart is deliberately client-side identifiers only, so there is nothing on the server to email about. Needs customer accounts, server-side cart persistence and a scheduler — three new moving parts, in exchange for the single highest-ROI email in ecommerce. One thing to salvage first: <code>checkout.session.expired</code> is already handled, so emailing on that alone catches the highest-intent abandonment for a fraction of the work.</p>
+        <div class="meta"><span><b>Migration</b> one table</span>
+          <span><b>Touches</b> db/schema.*.ts · server/routes/webhook.ts:91</span>
+          <span><b>Blocked by</b> 11 Customer accounts</span>
+          <span><b>Brief</b> docs/tasks/12-abandoned-cart.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">13</span>
+          <h3>Digital and downloadable products</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--m">Medium</span>
+        </div>
+        <p>Entitlements granted on payment and served over expiring signed URLs. Note the collisions with existing rules: a download has no weight, so it must skip shipping-zone matching entirely rather than register as zero-weight, and it needs to bypass the inventory decrement rather than register as <code>oversold</code>. The purchasable file must not live under the statically-served upload directory.</p>
+        <div class="meta"><span><b>Migration</b> one table</span>
+          <span><b>Touches</b> shared/shipping.ts · db/orders-repository.ts:328 · server/uploads.ts</span>
+          <span><b>Brief</b> docs/tasks/13-digital-products.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">14</span>
+          <h3>Outbound webhooks</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--m">Medium</span>
+        </div>
+        <p>The substitute for an app ecosystem. Emitting <code>order.paid</code> and <code>order.shipped</code> to a merchant's own endpoint buys most of the integration surface for a fraction of the cost — and Beluga already has a correct at-least-once consumer in <code>server/routes/webhook.ts</code> to model the producer on. Refuse private address ranges at endpoint creation, or this becomes an SSRF primitive against the host.</p>
+        <div class="meta"><span><b>Migration</b> two tables</span>
+          <span><b>Touches</b> server/routes/webhook.ts</span>
+          <span><b>Brief</b> docs/tasks/14-outbound-webhooks.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">15</span>
+          <h3>Catalogue CSV import and export</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--m">Medium</span>
+        </div>
+        <p>Migrating a hundred products from Shopify is currently a hundred trips through the product editor, which is a real reason an evaluation stops. Straightforward once the variant shape is settled, and a trap before it. Validate the whole file and show a preview before committing anything — a partial import that half-updated a live catalogue is worse than no import.</p>
+        <div class="meta"><span><b>Migration</b> none</span>
+          <span><b>Touches</b> server/routes/admin.ts · src/admin/ProductsPage.tsx</span>
+          <span><b>Blocked by</b> 10 Multi-axis variants</span>
+          <span><b>Brief</b> docs/tasks/15-catalogue-csv.md</span></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="cut">
+    <h2>Deliberately not on this roadmap</h2>
+    <ul>
+      <li>
+        <strong>Live carrier rates.</strong> They require <code>ui_mode: 'elements'</code>, which means
+        owning the checkout page again and leaving PCI SAQ-A. The trade is already argued in
+        <code>docs/shipping.md</code>; nothing here reopens it.
+      </li>
+      <li>
+        <strong>An app or plugin ecosystem.</strong> Task 14 buys the useful part of this without the
+        governance, review and versioning burden that a marketplace actually is.
+      </li>
+      <li>
+        <strong>Additional payment gateways and multi-currency.</strong> A single <code>currency</code>
+        on the settings row is a deliberate simplification. Revisit when a merchant asks, not before.
+      </li>
+      <li>
+        <strong>POS and marketplace channels.</strong> Not a gap in the product — a different product.
+      </li>
+    </ul>
+  </section>
+
+  <p class="colophon">
+    One item sits outside this ranking: the Phase 4 Lighthouse pass. It's a morning's work, the
+    structural changes it measures have already landed, and it's the difference between claiming an
+    accessibility score and having verified one. Do it whenever the branch is quiet.
+    <br><br>
+    Generated by <code>npm run roadmap</code> from <code>docs/tasks/*.md</code>. Edit a brief, not
+    this page.
+  </p>
+
+</div>

@@ -1,6 +1,24 @@
-# 01 · Refund an order from the admin
+---
+task: "01"
+title: Refund an order from the admin
+status: todo
+tier: 0
+size: S
+migration: one column
+blocked_by: []
+blocks: ["02"]
+touches: server/routes/admin.ts · src/admin/OrderDetailPage.tsx
+completed: 
+shipped_in: 
+summary: >-
+  Most of this already exists. The `charge.refunded` handler is live and flips the order
+  to `refunded`, and the Refunded email template is written. What's missing is the half
+  that moves money: an admin route calling `stripe.refunds.create` and a button on the
+  order page. Today a merchant marks an order refunded in Beluga and the buyer gets an
+  email about a refund that never happened.
+---
 
-**Size** small · **Migration** one column · **Blocked by** nothing
+# 01 · Refund an order from the admin
 
 ## The problem
 

@@ -1,6 +1,24 @@
-# 12 · Abandoned cart recovery
+---
+task: "12"
+title: Abandoned cart recovery
+status: todo
+tier: 3
+size: L
+migration: one table
+blocked_by: ["11"]
+blocks: []
+touches: db/schema.*.ts · server/routes/webhook.ts:91
+completed: 
+shipped_in: 
+summary: >-
+  The cart is deliberately client-side identifiers only, so there is nothing on the server
+  to email about. Needs customer accounts, server-side cart persistence and a scheduler —
+  three new moving parts, in exchange for the single highest-ROI email in ecommerce. One
+  thing to salvage first: `checkout.session.expired` is already handled, so emailing on
+  that alone catches the highest-intent abandonment for a fraction of the work.
+---
 
-**Size** large · **Migration** one table · **Blocked by** [11](11-customer-accounts.md)
+# 12 · Abandoned cart recovery
 
 ## Why it's blocked
 

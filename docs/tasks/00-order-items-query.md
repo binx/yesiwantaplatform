@@ -1,6 +1,24 @@
-# 00 · Fetch order items by order id
+---
+task: "00"
+title: Fetch order items by order id
+status: todo
+tier: 0
+size: S
+migration: none
+blocked_by: []
+blocks: ["04"]
+touches: db/orders-repository.ts:168
+completed: 
+shipped_in: 
+summary: >-
+  `loadItems` selects the entire `order_items` table and filters it in JavaScript, with an
+  `includes()` inside the loop. Every caller pays it — including the payment webhook,
+  which reaches it through `getOrder`. It's invisible on a demo catalogue and quietly
+  quadratic on a real one. **Fix this before the CSV export**, which would otherwise page
+  through the whole table once per batch.
+---
 
-**Size** small · **Migration** none · **Blocks** [04](04-order-csv-export.md)
+# 00 · Fetch order items by order id
 
 ## The problem
 

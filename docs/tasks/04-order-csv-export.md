@@ -1,6 +1,24 @@
-# 04 · Export orders as CSV
+---
+task: "04"
+title: Export orders as CSV
+status: todo
+tier: 0
+size: S
+migration: none
+blocked_by: ["00"]
+blocks: []
+touches: server/routes/admin.ts · db/orders-repository.ts
+completed: 
+shipped_in: 
+summary: >-
+  The orders query and its joins already exist; this is a route that streams them with a
+  `text/csv` header. Unglamorous and non-negotiable — it's how a merchant does their
+  books, and its absence is the kind of thing that ends an evaluation. Keep amounts in
+  integer cents in the file and let the spreadsheet divide, consistent with
+  `shared/money.ts`.
+---
 
-**Size** small · **Migration** none · **Blocked by** [00](00-order-items-query.md)
+# 04 · Export orders as CSV
 
 ## Why
 

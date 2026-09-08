@@ -1,6 +1,26 @@
-# 09 · Sales tax and VAT
+---
+task: "09"
+title: Sales tax and VAT
+status: todo
+tier: 2
+size: M
+migration: product + rate columns
+blocked_by: []
+blocks: []
+touches: server/routes/checkout.ts · server/catalog-sync.ts · src/admin/SetupPage.tsx
+completed: 
+shipped_in: 
+summary: >-
+  Every order currently collects zero tax. The recording half already works — the webhook
+  reads `amount_tax` and the order page renders a tax line — but nothing ever asks Stripe
+  to calculate any. Turning on `automatic_tax` plus `customer_update` is a small diff; the
+  real cost is merchant-facing. Stripe Tax is a paid add-on with a registration workflow,
+  published products need tax codes, and shipping rates need a tax behaviour. **Most of
+  this work is in the setup wizard and the dashboard notices**, explaining an obligation
+  the merchant may not know they have.
+---
 
-**Size** medium · **Migration** several columns · **Blocked by** nothing
+# 09 · Sales tax and VAT
 
 ## The problem
 

@@ -1,6 +1,24 @@
-# 15 · Catalogue CSV import and export
+---
+task: "15"
+title: Catalogue CSV import and export
+status: todo
+tier: 3
+size: M
+migration: none
+blocked_by: ["10"]
+blocks: []
+touches: server/routes/admin.ts · src/admin/ProductsPage.tsx
+completed: 
+shipped_in: 
+summary: >-
+  Migrating a hundred products from Shopify is currently a hundred trips through the
+  product editor, which is a real reason an evaluation stops. Straightforward once the
+  variant shape is settled, and a trap before it. Validate the whole file and show a
+  preview before committing anything — a partial import that half-updated a live catalogue
+  is worse than no import.
+---
 
-**Size** medium · **Migration** none · **Blocked by** [10](10-multi-axis-variants.md)
+# 15 · Catalogue CSV import and export
 
 ## Why it's blocked
 

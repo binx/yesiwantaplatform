@@ -1,6 +1,26 @@
-# 05 · Per-product SEO metadata
+---
+task: "05"
+title: Per-product SEO metadata
+status: todo
+tier: 1
+size: M
+migration: two columns
+blocked_by: []
+blocks: []
+touches: server/app.ts:74 · server/routes/public.ts
+completed: 
+shipped_in: 
+summary: >-
+  **The highest-leverage item on this page, and cheaper than it looks.** Every product
+  currently shares one meta description — *A Beluga storefront.* — so nothing in the
+  catalogue produces a usable Google result or link preview. The instinct is "we need
+  SSR", but the server already serves `dist/index.html` on the SPA fallback, which means
+  per-route title, description, Open Graph tags and JSON-LD can be templated into that
+  HTML on the way out. No framework migration. Add `sitemap.xml` and `robots.txt` while
+  you're there.
+---
 
-**Size** medium · **Migration** two columns · **Blocked by** nothing
+# 05 · Per-product SEO metadata
 
 ## The problem
 

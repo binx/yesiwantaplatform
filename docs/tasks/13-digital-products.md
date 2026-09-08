@@ -1,6 +1,24 @@
-# 13 · Digital and downloadable products
+---
+task: "13"
+title: Digital and downloadable products
+status: todo
+tier: 3
+size: M
+migration: one table
+blocked_by: []
+blocks: []
+touches: shared/shipping.ts · db/orders-repository.ts:328 · server/uploads.ts
+completed: 
+shipped_in: 
+summary: >-
+  Entitlements granted on payment and served over expiring signed URLs. Note the
+  collisions with existing rules: a download has no weight, so it must skip shipping-zone
+  matching entirely rather than register as zero-weight, and it needs to bypass the
+  inventory decrement rather than register as `oversold`. The purchasable file must not
+  live under the statically-served upload directory.
+---
 
-**Size** medium · **Migration** one table · **Blocked by** nothing
+# 13 · Digital and downloadable products
 
 ## The problem
 

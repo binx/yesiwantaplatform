@@ -1,6 +1,24 @@
-# 07 · Staff accounts
+---
+task: "07"
+title: Staff accounts
+status: todo
+tier: 1
+size: M
+migration: one column
+blocked_by: []
+blocks: []
+touches: server/auth.ts:82 · server/routes/admin.ts · server/security.test.ts
+completed: 
+shipped_in: 
+summary: >-
+  Only `npm run setup` and the setup wizard ever create an account, and there is no route
+  to add a second — so a two-person shop shares one password. The machinery is already
+  built: argon2id hashing, database-backed sessions, and `countAdmins` all live in
+  `server/auth.ts`, and the email layer can carry an invite. Add CRUD under the existing
+  `requireAdmin` router and a `role` column if you want anything finer than full access.
+---
 
-**Size** medium · **Migration** one column · **Blocked by** nothing
+# 07 · Staff accounts
 
 ## The problem
 

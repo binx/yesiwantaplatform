@@ -1,6 +1,24 @@
-# 03 · Discount codes via Stripe
+---
+task: "03"
+title: Discount codes via Stripe
+status: todo
+tier: 0
+size: S
+migration: one column
+blocked_by: []
+blocks: []
+touches: server/routes/checkout.ts:138 · emails/ · src/pages/ConfirmPage.tsx
+completed: 
+shipped_in: 
+summary: >-
+  Setting `allow_promotion_codes: true` on the Checkout Session gets you the whole entry
+  field, validation and redemption limits for free — the merchant creates codes in the
+  Stripe dashboard. The work is on the recording side: a `discountCents` column so the
+  order shows what came off, plus a line in the confirmation page and the order emails.
+  **Be honest in the README that code management lives in Stripe**, not Beluga.
+---
 
-**Size** small · **Migration** one column · **Blocked by** nothing
+# 03 · Discount codes via Stripe
 
 ## The problem
 

@@ -1,6 +1,25 @@
-# 06 · Storefront search and sort
+---
+task: "06"
+title: Storefront search and sort
+status: todo
+tier: 1
+size: S
+migration: none
+blocked_by: []
+blocks: []
+touches: src/pages/ShopPage.tsx · shared/catalog.ts
+completed: 
+shipped_in: 
+summary: >-
+  **The backend already exists — don't build one.** `listProducts` implements
+  case-insensitive matching across name and description, `productQuerySchema` accepts
+  `search`, and `GET /api/products` passes it through. Nothing on the storefront calls any
+  of it, because the storefront loads the whole catalogue once from `/api/store`. So this
+  is client-side filtering over data already in memory: no request, no server change,
+  works against the demo fixture.
+---
 
-**Size** small · **Migration** none · **Blocked by** nothing
+# 06 · Storefront search and sort
 
 ## What already exists
 

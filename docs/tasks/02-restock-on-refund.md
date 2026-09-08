@@ -1,6 +1,23 @@
-# 02 · Restore stock when an order is refunded
+---
+task: "02"
+title: Restore stock when an order is refunded
+status: todo
+tier: 0
+size: S
+migration: one column
+blocked_by: ["01"]
+blocks: []
+touches: db/orders-repository.ts:328 · server/routes/webhook.ts:103
+completed: 
+shipped_in: 
+summary: >-
+  `decrementInventoryForOrder` runs on `checkout.session.completed`, but `handleRefund`
+  only changes the status — nothing reverses it. Every refund silently burns inventory,
+  and because the decrement is guarded against going negative, the error compounds quietly
+  rather than crashing. Ship this with 01; they're the same afternoon.
+---
 
-**Size** small · **Migration** one column · **Blocked by** [01](01-refund-order.md)
+# 02 · Restore stock when an order is refunded
 
 ## The problem
 

@@ -1,6 +1,24 @@
-# 08 · Store pages
+---
+task: "08"
+title: Store pages
+status: todo
+tier: 1
+size: M
+migration: one table
+blocked_by: []
+blocks: []
+touches: db/schema.*.ts · src/router.tsx · src/admin/useAutosave.ts
+completed: 
+shipped_in: 
+summary: >-
+  The store has exactly one editable page, and it's a single `aboutText` blob on the
+  settings row. A merchant can't publish a returns policy — which several payment and
+  consumer-protection regimes expect them to have — without editing React. A `pages` table
+  with slug, title and body, one storefront route and a nav toggle covers it; the editor
+  can reuse the autosaving form pattern from the product editor.
+---
 
-**Size** medium · **Migration** one table · **Blocked by** nothing
+# 08 · Store pages
 
 ## The problem
 

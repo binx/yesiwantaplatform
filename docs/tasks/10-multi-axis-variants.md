@@ -1,6 +1,25 @@
-# 10 · Multi-axis variants
+---
+task: "10"
+title: Multi-axis variants
+status: todo
+tier: 2
+size: L
+migration: two tables + backfill
+blocked_by: []
+blocks: ["15"]
+touches: db/schema.*.ts:67 · src/admin/ProductEditorPage.tsx · src/pages/ProductPage.tsx
+completed: 
+shipped_in: 
+summary: >-
+  `products.variantName` is a single label for one axis, so a shirt in three sizes and two
+  colours means hand-enumerating six flat variants with no way to render two selectors.
+  This needs an options/values pair of tables, a variant-to-option join, and rework of the
+  product editor, the cart's selection UI and the seed. The Stripe mapping is untouched —
+  a variant is still exactly one Price. **Land this before any catalogue CSV import**, or
+  you'll build an importer for a shape you're about to change.
+---
 
-**Size** large · **Migration** two tables + backfill · **Blocks** [15](15-catalogue-csv.md)
+# 10 · Multi-axis variants
 
 ## The problem
 

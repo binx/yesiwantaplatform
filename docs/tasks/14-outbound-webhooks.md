@@ -1,6 +1,24 @@
-# 14 · Outbound webhooks
+---
+task: "14"
+title: Outbound webhooks
+status: todo
+tier: 3
+size: M
+migration: two tables
+blocked_by: []
+blocks: []
+touches: server/routes/webhook.ts
+completed: 
+shipped_in: 
+summary: >-
+  The substitute for an app ecosystem. Emitting `order.paid` and `order.shipped` to a
+  merchant's own endpoint buys most of the integration surface for a fraction of the cost
+  — and Beluga already has a correct at-least-once consumer in `server/routes/webhook.ts`
+  to model the producer on. Refuse private address ranges at endpoint creation, or this
+  becomes an SSRF primitive against the host.
+---
 
-**Size** medium · **Migration** two tables · **Blocked by** nothing
+# 14 · Outbound webhooks
 
 ## Why this instead of an app ecosystem
 

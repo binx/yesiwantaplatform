@@ -1,6 +1,25 @@
-# 11 · Customer accounts
+---
+task: "11"
+title: Customer accounts
+status: todo
+tier: 2
+size: L
+migration: two tables + orders column
+blocked_by: []
+blocks: ["12"]
+touches: db/schema.*.ts · server/auth.ts · src/router.tsx
+completed: 
+shipped_in: 
+summary: >-
+  There is no customers table at all — orders are guest-only, retrieved by an unguessable
+  Stripe session id, and a buyer who loses the confirmation email has no way back to their
+  order. The hashing and session machinery is reusable, but this still adds storefront
+  auth screens, password reset, an address book and an `orders.customerId` backfill. It's
+  the keystone of Tier 3: order history, reorder and abandoned-cart recovery all sit
+  behind it.
+---
 
-**Size** large · **Migration** two tables · **Blocks** [12](12-abandoned-cart.md)
+# 11 · Customer accounts
 
 ## The problem
 

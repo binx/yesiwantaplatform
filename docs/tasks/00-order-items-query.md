@@ -9,7 +9,7 @@ blocked_by: []
 blocks: ["04"]
 touches: db/orders-repository.ts:168
 completed: 2026-09-07
-shipped_in: 
+shipped_in: 256587f
 summary: >-
   `loadItems` selects the entire `order_items` table and filters it in JavaScript, with an
   `includes()` inside the loop. Every caller pays it — including the payment webhook,

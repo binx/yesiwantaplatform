@@ -51,6 +51,8 @@ export interface ProductSummary {
   name: string;
   slug: string;
   isLive: boolean;
+  /** Live on the storefront with a variant that has no Stripe Price. */
+  needsPublish: boolean;
   /** Published to Stripe under tax settings the store no longer uses. */
   needsTaxRepublish: boolean;
 }

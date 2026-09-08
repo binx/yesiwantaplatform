@@ -64,6 +64,14 @@
   width: 5rem;
 }
 
+/* Says why the field just changed under the shopper. Warm rather than muted:
+   it is a correction, not a caption. */
+.stockNote {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--beluga-ink);
+}
+
 .lineTotal {
   white-space: nowrap;
 }

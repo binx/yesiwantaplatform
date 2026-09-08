@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, inArray, max, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, max, ne } from "drizzle-orm";
 import type { CollectionInput, ProductInput, SettingsInput } from "../shared/api.js";
 import { regenerateLabel } from "../shared/product-options.js";
 import { taxSignature } from "../shared/tax.js";
@@ -492,6 +492,16 @@ export interface AdminProductSummary {
    * has always enforced: nothing writes to a live Stripe account unasked.
    */
   needsTaxRepublish: boolean;
+  /**
+   * Live on the storefront with a variant that has no Stripe Price.
+   *
+   * The storefront will happily show it and let it be added to a cart, and
+   * checkout then refuses the whole order — which the shopper sees and the
+   * merchant does not. `isLive` and "published to Stripe" are separate
+   * switches by design (nothing writes to a live Stripe account unasked), so
+   * the combination has to be said out loud somewhere.
+   */
+  needsPublish: boolean;
 }
 
 export async function listAllProductsForAdmin(): Promise<AdminProductSummary[]> {
@@ -519,11 +529,21 @@ export async function listAllProductsForAdmin(): Promise<AdminProductSummary[]> 
     stripeTaxSignature: string | null;
   }[];
 
+  // One extra read rather than a join: the set is small, and checkout refuses
+  // an order per *variant* without a Price, so the product-level
+  // `stripeProductId` is not the thing to test.
+  const unpriced = (await db
+    .select({ productId: schema.variants.productId })
+    .from(schema.variants)
+    .where(isNull(schema.variants.stripePriceId))) as unknown as { productId: string }[];
+  const unpricedProducts = new Set(unpriced.map((row) => row.productId));
+
   return rows.map((row) => ({
     id: row.id,
     name: row.name,
     slug: row.slug,
     isLive: row.isLive === true || row.isLive === 1,
+    needsPublish: (row.isLive === true || row.isLive === 1) && unpricedProducts.has(row.id),
     needsTaxRepublish:
       settings !== null &&
       settings.taxEnabled &&

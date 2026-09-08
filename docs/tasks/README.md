@@ -27,7 +27,7 @@ blocked_by: []        # task numbers this waits on
 blocks: []            # task numbers waiting on this
 touches: server/routes/checkout.ts:138 · emails/
 completed:            # YYYY-MM-DD, required once status is done
-shipped_in:           # commit sha or PR number
+shipped_in:           # PR number, e.g. 42
 summary: >-
   Two to four sentences. Rendered on the roadmap page; supports `code`
   and **bold**.
@@ -44,6 +44,12 @@ npm run roadmap
 That regenerates `docs/roadmap.html` and the task table at the bottom of this
 file. Commit the regenerated page with your change — the changelog on that page
 is built from `completed` dates, so it writes itself as work lands.
+
+**`shipped_in` is a PR number, not a commit sha.** A sha cannot go in the commit
+that produces it: the frontmatter and the regenerated page are both inside that
+commit, and amending to add the sha changes the sha. A PR number exists before
+the merge does, so it can be written as part of the branch's own work. Tasks 00
+through 07 predate this and carry shas, recorded in a follow-up commit each.
 
 The generator validates as it goes: an unknown status, an empty summary, or
 `done` without a `completed` date fails the build rather than producing a
@@ -119,7 +125,7 @@ layer, it must stay green for both.
 - No `console.log` left behind except deliberate operator-facing lines that
   match the existing style (see `server/email.ts:114`).
 - The brief's frontmatter says `status: done` with a `completed` date and a
-  `shipped_in` reference, and `npm run roadmap` has been run and its output
+  `shipped_in` PR number, and `npm run roadmap` has been run and its output
   committed.
 
 ## Dependency graph

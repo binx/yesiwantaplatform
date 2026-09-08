@@ -229,7 +229,15 @@ export function CartPage() {
                       <td>
                         <InputNumber
                           min={1}
-                          {...(stock !== null ? { max: stock } : {})}
+                          /*
+                           * Deliberately no `max`. antd clamps to it silently,
+                           * before onChange ever fires — which is the whole
+                           * bug: the field snapped to the stock on hand and
+                           * nothing said why. `normalizeQuantity` does the
+                           * clamping instead, so there is one authority on it
+                           * and a moment at which to say something.
+                           */
+                          {...(stock !== null ? { "aria-valuemax": stock } : {})}
                           step={1}
                           precision={0}
                           value={line.quantity}

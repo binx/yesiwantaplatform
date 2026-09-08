@@ -9,7 +9,7 @@ blocked_by: ["01"]
 blocks: []
 touches: db/orders-repository.ts:328 · server/routes/webhook.ts:103
 completed: 2026-09-07
-shipped_in: 
+shipped_in: 65d6f67
 summary: >-
   `decrementInventoryForOrder` runs on `checkout.session.completed`, but `handleRefund`
   only changes the status — nothing reverses it. Every refund silently burns inventory,

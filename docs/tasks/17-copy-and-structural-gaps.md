@@ -1,7 +1,7 @@
 ---
 task: "17"
 title: Storefront copy and the gaps a UI pass found
-status: todo
+status: in-progress
 tier: 0
 size: M
 migration: none

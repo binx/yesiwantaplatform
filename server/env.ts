@@ -44,6 +44,20 @@ const schema = z.object({
 
   /** Max upload size in bytes. */
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(8 * 1024 * 1024),
+
+  /**
+   * Let outbound webhooks reach plain HTTP and private addresses.
+   *
+   * Off by default, and it should stay off on anything public: without it an
+   * endpoint URL is checked against the address its hostname *resolves to*, so
+   * a merchant cannot point Beluga at 169.254.169.254 and read the host's cloud
+   * metadata back out of the delivery log. The opt-out exists for a self-hoster
+   * whose fulfilment script genuinely listens on localhost.
+   */
+  WEBHOOK_ALLOW_INSECURE_TARGETS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
 });
 
 export type Env = z.infer<typeof schema> & { SESSION_SECRET: string };

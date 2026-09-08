@@ -112,6 +112,12 @@ export const router = createBrowserRouter([
             path: "users",
             lazy: async () => ({ Component: (await import("./admin/UsersPage")).UsersPage }),
           },
+          {
+            path: "webhooks",
+            lazy: async () => ({
+              Component: (await import("./admin/WebhooksPage")).WebhooksPage,
+            }),
+          },
         ],
       },
     ],

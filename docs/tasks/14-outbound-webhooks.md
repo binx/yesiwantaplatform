@@ -1,15 +1,15 @@
 ---
 task: "14"
 title: Outbound webhooks
-status: todo
+status: done
 tier: 3
 size: M
 migration: two tables
 blocked_by: []
 blocks: []
-touches: server/routes/webhook.ts
-completed: 
-shipped_in: 
+touches: server/webhooks.ts · db/webhooks-repository.ts · server/routes/webhook.ts
+completed: 2026-09-08
+shipped_in: 2
 summary: >-
   The substitute for an app ecosystem. Emitting `order.paid` and `order.shipped` to a
   merchant's own endpoint buys most of the integration surface for a fraction of the cost

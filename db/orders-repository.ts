@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import {
   orderReference,
   orderSchema,
@@ -246,12 +246,30 @@ export interface OrderPage {
 }
 
 export async function listOrders(
-  options: { status?: OrderStatus; limit?: number; offset?: number } = {},
+  options: {
+    status?: OrderStatus;
+    limit?: number;
+    offset?: number;
+    /** Inclusive bounds on `createdAt`, in epoch milliseconds. */
+    from?: number;
+    to?: number;
+  } = {},
 ): Promise<OrderPage> {
-  const { drizzle: db, schema } = await getDatabase();
+  const { drizzle: db, schema, dialect } = await getDatabase();
   const limit = Math.min(Math.max(options.limit ?? 25, 1), 100);
   const offset = Math.max(options.offset ?? 0, 0);
-  const where = options.status ? eq(schema.orders.status, options.status) : undefined;
+
+  // createdAt is unix *seconds* on SQLite and a timestamptz on Postgres, so a
+  // raw millisecond bound would land tens of thousands of years out on one of
+  // them. See toEpochMs, which reads the same difference back.
+  const bound = (epochMs: number) =>
+    dialect === "pg" ? new Date(epochMs) : Math.floor(epochMs / 1000);
+
+  const where = and(
+    options.status ? eq(schema.orders.status, options.status) : undefined,
+    options.from !== undefined ? gte(schema.orders.createdAt, bound(options.from)) : undefined,
+    options.to !== undefined ? lte(schema.orders.createdAt, bound(options.to)) : undefined,
+  );
 
   const [rows, totals] = await Promise.all([
     db

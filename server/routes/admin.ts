@@ -34,6 +34,7 @@ import {
 } from "../../db/admin-repository.js";
 import { findProductBySlug, getSettings, listCollections, listProducts } from "../../db/repository.js";
 import { formatMoney } from "../../shared/money.js";
+import { CSV_BOM, csvRow } from "../../shared/csv.js";
 import {
   getOrder,
   getOrderPaymentIntentId,
@@ -337,6 +338,155 @@ adminRouter.get("/orders", async (req, res) => {
       offset: Number(req.query.offset ?? 0),
     }),
   );
+});
+
+const CSV_COLUMNS = [
+  "order_reference",
+  "order_id",
+  "placed_at",
+  "status",
+  "email",
+  "product_name",
+  "variant_label",
+  "options",
+  "quantity",
+  "unit_price_cents",
+  "line_total_cents",
+  "order_subtotal_cents",
+  "order_shipping_cents",
+  "order_tax_cents",
+  "order_discount_cents",
+  "order_total_cents",
+  "order_refunded_cents",
+  "currency",
+  "shipping_name",
+  "shipping_line1",
+  "shipping_line2",
+  "shipping_city",
+  "shipping_state",
+  "shipping_postal_code",
+  "shipping_country",
+  "carrier",
+  "tracking_number",
+  "oversold",
+] as const;
+
+/**
+ * A merchant with more orders than this needs a date range, which is what
+ * `from` and `to` are for. Without a cap, one request could stream for hours.
+ */
+const CSV_ROW_CAP = 50_000;
+
+/**
+ * Orders as CSV, one row per order *line* so the file pivots usefully.
+ *
+ * Registered before `/orders/:id` on purpose: Express matches in order, so with
+ * these the other way round "orders.csv" would arrive as an order id and the
+ * export would 404 with no hint why.
+ *
+ * Every money column is named `*_cents` and holds an integer. Invariant 1 does
+ * not stop at the database — a column of dollars in a spreadsheet is how the
+ * rounding errors get back in.
+ */
+adminRouter.get("/orders.csv", async (req, res) => {
+  const status = orderStatusSchema.safeParse(req.query.status);
+  const from = Number(req.query.from);
+  const to = Number(req.query.to);
+
+  const filters = {
+    ...(status.success ? { status: status.data } : {}),
+    ...(Number.isFinite(from) ? { from } : {}),
+    ...(Number.isFinite(to) ? { to } : {}),
+  };
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="orders-${stamp}.csv"`);
+
+  // The BOM has to be the first bytes on the wire, before the header row.
+  res.write(CSV_BOM);
+  res.write(csvRow(CSV_COLUMNS));
+
+  let offset = 0;
+  let written = 0;
+  let truncated = false;
+
+  // Paged and streamed rather than built in memory: the whole point of this
+  // file is the merchant whose order table is too big to read on screen.
+  for (;;) {
+    const page = await listOrders({ ...filters, limit: 100, offset });
+    if (page.orders.length === 0) break;
+
+    for (const order of page.orders) {
+      const placedAt = new Date(order.createdAt).toISOString();
+      const orderFields = [
+        order.subtotalCents,
+        order.shippingCents,
+        order.taxCents,
+        order.discountCents,
+        order.totalCents,
+        order.refundedCents,
+        order.currency,
+        order.shipping.name,
+        order.shipping.line1,
+        order.shipping.line2,
+        order.shipping.city,
+        order.shipping.state,
+        order.shipping.postalCode,
+        order.shipping.country,
+        order.carrier,
+        order.trackingNumber,
+        order.oversold,
+      ];
+
+      // An order with no lines still deserves a row; it is exactly the kind of
+      // thing a merchant is exporting in order to go and look at.
+      const items = order.items.length > 0 ? order.items : [null];
+
+      for (const item of items) {
+        if (written >= CSV_ROW_CAP) {
+          truncated = true;
+          break;
+        }
+
+        res.write(
+          csvRow([
+            order.reference,
+            order.id,
+            placedAt,
+            order.status,
+            order.email,
+            item?.productName ?? "",
+            item?.variantLabel ?? "",
+            item
+              ? Object.entries(item.options)
+                  .map(([key, value]) => `${key}: ${value}`)
+                  .join("; ")
+              : "",
+            item?.quantity ?? "",
+            item?.unitPriceCents ?? "",
+            item ? item.unitPriceCents * item.quantity : "",
+            ...orderFields,
+          ]),
+        );
+        written += 1;
+      }
+
+      if (truncated) break;
+    }
+
+    if (truncated) break;
+    offset += page.orders.length;
+    if (offset >= page.total) break;
+  }
+
+  if (truncated) {
+    console.warn(
+      `Order CSV export stopped at the ${CSV_ROW_CAP} row cap. Narrow it with ?from= and ?to=.`,
+    );
+  }
+
+  res.end();
 });
 
 adminRouter.get("/orders/:id", async (req, res) => {

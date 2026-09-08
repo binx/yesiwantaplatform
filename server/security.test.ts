@@ -64,6 +64,8 @@ const READS = [
   "/api/admin/collections",
   "/api/admin/settings",
   "/api/admin/shipping",
+  "/api/admin/orders",
+  "/api/admin/orders.csv",
 ] as const;
 
 describe("anonymous access", () => {

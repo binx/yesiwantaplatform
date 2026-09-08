@@ -179,6 +179,12 @@ Add the `whsec_…` it prints to `.env` as `STRIPE_WEBHOOK_SECRET`, restart the
 API, and pay with test card `4242 4242 4242 4242`. Replaying a delivered event
 (`stripe events resend <id>`) must not move stock a second time.
 
+### Exporting orders
+
+`GET /api/admin/orders.csv` streams orders as CSV, one row per order **line** so the file pivots — order-level fields repeat across an order's rows. `?status=`, `?from=` and `?to=` (epoch milliseconds) narrow it; there is a hard cap of 50,000 rows, which is what the date range is for.
+
+Every money column is named `*_cents` and holds an integer, because a column of dollars in a spreadsheet is how floating-point money gets back in. Fields whose first character is `=`, `+`, `-` or `@` are prefixed with an apostrophe: a product named `=HYPERLINK(...)` is a live formula the moment the file opens in Excel, and product names are merchant- and buyer-supplied. The file starts with a UTF-8 BOM so Excel reads accented names correctly.
+
 ### Database
 
 SQLite by default, because a store should run without provisioning anything. Point `DATABASE_URL` at Postgres when a catalogue outgrows a single file:

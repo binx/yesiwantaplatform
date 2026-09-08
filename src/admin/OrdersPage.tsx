@@ -38,6 +38,16 @@ export function OrdersPage() {
       <PageHeader
         title="Orders"
         description="An order is recorded when Stripe's webhook confirms payment, never on the success redirect."
+        actions={
+          /*
+           * A plain link, not a fetch: the route is a cookie-authenticated GET,
+           * and verifyCsrf skips safe methods, so there is no token to attach
+           * and no blob to build. The browser saves the stream as it arrives.
+           */
+          <a href={`/api/admin/orders.csv${status === "all" ? "" : `?status=${status}`}`}>
+            <Button>Download CSV</Button>
+          </a>
+        }
       />
 
       <Segmented<OrderStatus | "all">

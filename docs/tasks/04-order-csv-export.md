@@ -1,14 +1,14 @@
 ---
 task: "04"
 title: Export orders as CSV
-status: todo
+status: done
 tier: 0
 size: S
 migration: none
 blocked_by: ["00"]
 blocks: []
 touches: server/routes/admin.ts · db/orders-repository.ts
-completed: 
+completed: 2026-09-07
 shipped_in: 
 summary: >-
   The orders query and its joins already exist; this is a route that streams them with a

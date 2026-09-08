@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { eq as eqFor } from "drizzle-orm";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -80,12 +81,12 @@ async function loadWith(databaseUrl: string) {
   const repository = await import("./repository.js");
   const admin = await import("./admin-repository.js");
   const orders = await import("./orders-repository.js");
-  const { resetDatabase } = await import("./client.js");
+  const { getDatabase, resetDatabase } = await import("./client.js");
 
   await runMigrations();
   await seedIfEmpty();
 
-  return { ...repository, admin, orders, resetDatabase };
+  return { ...repository, admin, orders, getDatabase, resetDatabase };
 }
 
 /**
@@ -371,6 +372,40 @@ for (const { name, context } of dialects) {
 
       expect(await db.orders.restockInventoryForOrder(id)).toBe(true);
       expect(await stockOf(variant.id)).toBe(before + 1);
+    });
+
+    it("bounds a listing by date on either engine", async () => {
+      const { drizzle: drizzleDb, schema, dialect } = await db.getDatabase();
+
+      const id = randomUUID();
+      await db.orders.createPendingOrder({
+        id,
+        checkoutSessionId: `cs_${id}`,
+        email: "dated@example.com",
+        currency: "usd",
+        subtotalCents: 100,
+        lines: [],
+      });
+
+      const placed = Date.UTC(2021, 5, 15);
+      await drizzleDb
+        .update(schema.orders)
+        .set({ createdAt: dialect === "pg" ? new Date(placed) : Math.floor(placed / 1000) })
+        .where(eqFor(schema.orders.id, id));
+
+      // createdAt is unix seconds on one engine and a timestamptz on the other,
+      // so a raw millisecond bound would match nothing on SQLite.
+      const inside = await db.orders.listOrders({
+        from: Date.UTC(2021, 0, 1),
+        to: Date.UTC(2022, 0, 1),
+      });
+      expect(inside.orders.map((o) => o.id)).toContain(id);
+
+      const after = await db.orders.listOrders({ from: Date.UTC(2023, 0, 1) });
+      expect(after.orders.map((o) => o.id)).not.toContain(id);
+
+      const before = await db.orders.listOrders({ to: Date.UTC(2020, 0, 1) });
+      expect(before.orders.map((o) => o.id)).not.toContain(id);
     });
 
     it("rejects a duplicate slug", async () => {

@@ -477,9 +477,9 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
   <section class="progress">
     <div class="progress-head">
       <h2 class="progress-title">Progress</h2>
-      <p class="progress-count">16 of 17 shipped.</p>
+      <p class="progress-count">16 of 17 shipped, 1 in progress.</p>
     </div>
-    <div class="track" role="img" aria-label="16 of 17 shipped."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--done" title="01 Refund an order from the admin — Shipped"></span><span class="cell cell--done" title="02 Restore stock when an order is refunded — Shipped"></span><span class="cell cell--done" title="03 Discount codes via Stripe — Shipped"></span><span class="cell cell--done" title="04 Export orders as CSV — Shipped"></span><span class="cell cell--todo" title="17 Storefront copy and the gaps a UI pass found — To do"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--done" title="05 Per-product SEO metadata — Shipped"></span><span class="cell cell--done" title="06 Storefront search and sort — Shipped"></span><span class="cell cell--done" title="07 Staff accounts — Shipped"></span><span class="cell cell--done" title="08 Store pages — Shipped"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--done" title="09 Sales tax and VAT — Shipped"></span><span class="cell cell--done" title="10 Multi-axis variants — Shipped"></span><span class="cell cell--done" title="11 Customer accounts — Shipped"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--done" title="12 Abandoned cart recovery — Shipped"></span><span class="cell cell--done" title="13 Digital and downloadable products — Shipped"></span><span class="cell cell--done" title="14 Outbound webhooks — Shipped"></span><span class="cell cell--done" title="15 Catalogue CSV import and export — Shipped"></span></span></div>
+    <div class="track" role="img" aria-label="16 of 17 shipped, 1 in progress."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--done" title="01 Refund an order from the admin — Shipped"></span><span class="cell cell--done" title="02 Restore stock when an order is refunded — Shipped"></span><span class="cell cell--done" title="03 Discount codes via Stripe — Shipped"></span><span class="cell cell--done" title="04 Export orders as CSV — Shipped"></span><span class="cell cell--in-progress" title="17 Storefront copy and the gaps a UI pass found — In progress"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--done" title="05 Per-product SEO metadata — Shipped"></span><span class="cell cell--done" title="06 Storefront search and sort — Shipped"></span><span class="cell cell--done" title="07 Staff accounts — Shipped"></span><span class="cell cell--done" title="08 Store pages — Shipped"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--done" title="09 Sales tax and VAT — Shipped"></span><span class="cell cell--done" title="10 Multi-axis variants — Shipped"></span><span class="cell cell--done" title="11 Customer accounts — Shipped"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--done" title="12 Abandoned cart recovery — Shipped"></span><span class="cell cell--done" title="13 Digital and downloadable products — Shipped"></span><span class="cell cell--done" title="14 Outbound webhooks — Shipped"></span><span class="cell cell--done" title="15 Catalogue CSV import and export — Shipped"></span></span></div>
     <div class="track-key">
       <span><i class="cell cell--done"></i> Shipped</span>
       <span><i class="cell cell--in-progress"></i> In progress</span>
@@ -716,11 +716,11 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
           <span><b>Brief</b> docs/tasks/04-order-csv-export.md</span></div>
       </article>
 
-      <article class="item item--todo">
+      <article class="item item--in-progress">
         <div class="item-head">
           <span class="seq">17</span>
           <h3>Storefront copy and the gaps a UI pass found</h3>
-          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--status chip--in-progress">In progress</span>
           <span class="chip chip--m">Medium</span>
         </div>
         <p>A pass over the running UI turned up copy that promises something the page does not do, links with no visual affordance at all, and two structural holes: the storefront has no footer of any kind, and a collection's <code>cover</code> can be seeded but never set from the admin. None of it needs a schema change. Seven independent groups — land them in any order, or split them across people.</p>

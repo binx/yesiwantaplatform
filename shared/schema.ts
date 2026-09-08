@@ -70,6 +70,24 @@ export const optionGroupSchema = z.object({
   choices: z.array(z.string().min(1)).min(1),
 });
 
+/**
+ * Whether a quoted price already contains tax.
+ *
+ * The choice is regional rather than aesthetic: EU stores quote inclusive
+ * prices and US stores exclusive ones, and getting it wrong changes what the
+ * buyer pays. Stripe calls the unset state "unspecified"; Beluga always states
+ * one, so a price is never ambiguous.
+ */
+export const taxBehaviorSchema = z.enum(["exclusive", "inclusive"]);
+
+/** Stripe's "general — tangible goods", used when nothing more specific is set. */
+export const DEFAULT_TAX_CODE = "txcd_99999999";
+
+/** Stripe tax codes are `txcd_` and digits, e.g. txcd_99999999. */
+export const taxCodeSchema = z
+  .string()
+  .regex(/^txcd_[0-9]+$/, "must be a Stripe tax code, like txcd_99999999");
+
 export const productSchema = z.object({
   id: z.string().min(1),
   slug: slugSchema,
@@ -87,9 +105,18 @@ export const productSchema = z.object({
   variantName: z.string().nullable().default(null),
   variants: z.array(variantSchema).min(1),
   optionGroups: z.array(optionGroupSchema).default([]),
+  /** Stripe tax code. Null uses the store default. */
+  taxCode: taxCodeSchema.nullable().default(null),
   /** Draft products are editable but absent from the storefront. */
   isLive: z.boolean().default(false),
   stripeProductId: z.string().nullable().default(null),
+  /**
+   * The tax settings this product was last published to Stripe under, as
+   * `code|behavior`. Null means it has never been published, or was published
+   * before tax existed. Compared against the store's current settings to tell
+   * the merchant which products need republishing.
+   */
+  stripeTaxSignature: z.string().nullable().default(null),
 });
 
 export const collectionSchema = z.object({
@@ -163,6 +190,12 @@ export const storeSchema = z.object({
   currency: z.string().length(3).default("USD"),
   theme: themeSchema,
   aboutText: z.string().nullable().default(null),
+  /**
+   * How prices are quoted, so the storefront can say "includes $X tax" rather
+   * than adding a row. Not whether tax is *on* — that is the server's business
+   * and the shopper only ever sees the result.
+   */
+  taxBehavior: taxBehaviorSchema.default("exclusive"),
   collections: z.array(collectionSchema).default([]),
   /**
    * Live pages, as summaries only — the banner needs their titles on first
@@ -219,4 +252,5 @@ export type PageSummary = z.infer<typeof pageSummarySchema>;
 export type Page = z.infer<typeof pageSchema>;
 export type PageDraft = z.infer<typeof pageDraftSchema>;
 export type Theme = z.infer<typeof themeSchema>;
+export type TaxBehavior = z.infer<typeof taxBehaviorSchema>;
 export type Store = z.infer<typeof storeSchema>;

@@ -74,6 +74,8 @@ interface Draft {
   seoTitle: string;
   seoDescription: string;
   variantName: string;
+  /** Stripe tax code. Empty uses the store default. */
+  taxCode: string;
   variants: DraftVariant[];
   optionGroups: OptionGroup[];
   isLive: boolean;
@@ -101,6 +103,7 @@ const EMPTY_DRAFT: Draft = {
   seoTitle: "",
   seoDescription: "",
   variantName: "",
+  taxCode: "",
   variants: [{ key: nextKey(), label: "", priceText: "", infinite: true, quantity: 0, weightGrams: 0 }],
   optionGroups: [],
   isLive: false,
@@ -122,6 +125,8 @@ function toInput(draft: Draft): ProductInput {
     seoTitle: draft.seoTitle.trim() || null,
     seoDescription: draft.seoDescription.trim() || null,
     variantName: draft.variantName.trim() || null,
+    // Empty is stored as null, so "no override" is distinguishable from "".
+    taxCode: draft.taxCode.trim() || null,
     variants: draft.variants.map(
       (variant): VariantInput => ({
         ...(variant.id ? { id: variant.id } : {}),
@@ -144,6 +149,7 @@ function toInput(draft: Draft): ProductInput {
 }
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const TAX_CODE_PATTERN = /^txcd_[0-9]+$/;
 
 interface Problem {
   field: string;
@@ -184,6 +190,13 @@ function problems(draft: Draft): Problem[] {
     found.push({
       field: "variantName",
       message: "Several prices need a label for the choice, like “Size” — shoppers pick by it.",
+    });
+  }
+
+  if (draft.taxCode.trim() !== "" && !TAX_CODE_PATTERN.test(draft.taxCode.trim())) {
+    found.push({
+      field: "taxCode",
+      message: "A Stripe tax code looks like txcd_99999999. Leave it blank to use the store default.",
     });
   }
 
@@ -240,6 +253,7 @@ export function ProductEditorPage() {
       seoTitle: product.seoTitle ?? "",
       seoDescription: product.seoDescription ?? "",
       variantName: product.variantName ?? "",
+      taxCode: product.taxCode ?? "",
       variants: product.variants.map((variant) => ({
         key: nextKey(),
         id: variant.id,
@@ -794,6 +808,41 @@ export function ProductEditorPage() {
               </div>
             </Space>
           </Card>
+
+          {settings.data?.taxEnabled ? (
+            <Card title="Tax" className={cx(styles.card)}>
+              <p className={cx(styles.help)}>
+                Stripe Tax uses the code to decide what rate applies where. Most physical
+                goods want the store default; a few categories — books, food, clothing in
+                some states — are taxed differently.
+              </p>
+
+              <Field
+                label="Tax code"
+                error={issues.find((issue) => issue.field === "taxCode")?.message}
+                help={
+                  <>
+                    Blank uses the store default,{" "}
+                    <code>{settings.data.defaultTaxCode}</code>. Codes are listed in
+                    Stripe&rsquo;s tax-code reference.
+                  </>
+                }
+              >
+                {(control) => (
+                  <Input
+                    {...control}
+                    value={draft.taxCode}
+                    placeholder={settings.data?.defaultTaxCode}
+                    onChange={(event) => set("taxCode", event.target.value.trim())}
+                  />
+                )}
+              </Field>
+
+              <p className={cx(styles.help)}>
+                Changing this takes effect when the product is published again.
+              </p>
+            </Card>
+          ) : null}
 
           <Card title="Search appearance" className={cx(styles.card)}>
             <p className={cx(styles.help)}>

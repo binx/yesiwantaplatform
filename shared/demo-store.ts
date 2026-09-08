@@ -21,6 +21,9 @@ export const demoStore: Store = {
       '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif',
     borderRadius: 2,
   },
+  // Prices are quoted without tax, which is the default a US-shaped demo
+  // wants; a store that quotes VAT-inclusive prices changes it in Settings.
+  taxBehavior: "exclusive",
   // Empty: the fixture is a store before anyone has written a page. An install
   // whose `aboutText` predates the pages table gets an About page from
   // `adoptAboutTextAsPage` on the next migration, not from here.
@@ -67,8 +70,10 @@ export const demoStore: Store = {
         },
       ],
       optionGroups: [{ name: "gift wrap", choices: ["No", "Yes"] }],
+      taxCode: null,
       isLive: true,
       stripeProductId: null,
+      stripeTaxSignature: null,
     },
     {
       id: "demo-mug",
@@ -95,8 +100,10 @@ export const demoStore: Store = {
         },
       ],
       optionGroups: [],
+      taxCode: null,
       isLive: true,
       stripeProductId: null,
+      stripeTaxSignature: null,
     },
     {
       id: "demo-print",
@@ -123,8 +130,10 @@ export const demoStore: Store = {
         },
       ],
       optionGroups: [],
+      taxCode: null,
       isLive: true,
       stripeProductId: null,
+      stripeTaxSignature: null,
     },
     {
       id: "demo-scarf",
@@ -155,8 +164,10 @@ export const demoStore: Store = {
         },
       ],
       optionGroups: [],
+      taxCode: null,
       isLive: true,
       stripeProductId: null,
+      stripeTaxSignature: null,
     },
   ],
   collections: [

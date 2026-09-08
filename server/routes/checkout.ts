@@ -10,7 +10,7 @@ import {
 } from "../../db/orders-repository.js";
 import { getShippingTable } from "../../db/shipping-repository.js";
 import { countriesCovered } from "../../shared/shipping.js";
-import { quoteShipping } from "./shipping.js";
+import { quoteShipping, type QuotedRate } from "./shipping.js";
 import { env } from "../env.js";
 import { httpError, writeRateLimit } from "../middleware.js";
 import { getStripe } from "../stripe.js";
@@ -111,7 +111,7 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
 
   const quote = destination
     ? await quoteShipping(parsed.data.lines, destination)
-    : { rates: [] as { id: string; name: string; priceCents: number }[] };
+    : { rates: [] as QuotedRate[] };
 
   // The buyer's choice goes first: Stripe preselects the first option, so this
   // is what makes the cart's selection survive the redirect.
@@ -127,6 +127,9 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
         type: "fixed_amount",
         fixed_amount: { amount: rate.priceCents, currency },
         display_name: rate.name,
+        // Only when tax is on. Declaring a behaviour on a store that collects
+        // no tax says something about a number nobody is calculating.
+        ...(settings.taxEnabled ? { tax_behavior: rate.taxBehavior } : {}),
       },
     }),
   );
@@ -147,6 +150,20 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
        * alongside `discounts`; never set both.
        */
       allow_promotion_codes: true,
+      /*
+       * Tax, calculated by Stripe Tax, and only when the merchant has turned
+       * it on — see the Settings copy for why that is a deliberate gate rather
+       * than a default. `customer_update` is not optional here: with
+       * `automatic_tax` on, a session that creates a customer is rejected
+       * without it, and the rejection lands at session creation rather than at
+       * payment. Loud and in test, which is the right place for it.
+       */
+      ...(settings.taxEnabled
+        ? {
+            automatic_tax: { enabled: true },
+            customer_update: { shipping: "auto" as const },
+          }
+        : {}),
       /*
        * Locked to the country the rates were priced for.
        *

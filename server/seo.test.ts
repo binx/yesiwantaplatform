@@ -186,6 +186,7 @@ describe("crawler files", () => {
       seoTitle: null,
       seoDescription: null,
       variantName: null,
+      taxCode: null,
       variants: [{ label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0 }],
       optionGroups: [],
       isLive: false,

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { asc, eq } from "drizzle-orm";
 import type { ShippingRate, ShippingRateInput, ShippingZone, ShippingZoneInput } from "../shared/shipping.js";
+import { taxBehaviorSchema } from "../shared/schema.js";
 import { getDatabase } from "./client.js";
 
 /**
@@ -41,6 +42,7 @@ interface RateRow {
   maxWeightGrams: number | null;
   minSubtotalCents: number | null;
   maxSubtotalCents: number | null;
+  taxBehavior: string;
   isActive: unknown;
   position: number;
 }
@@ -80,6 +82,7 @@ export async function getShippingTable(): Promise<ShippingTable> {
       maxWeightGrams: row.maxWeightGrams,
       minSubtotalCents: row.minSubtotalCents,
       maxSubtotalCents: row.maxSubtotalCents,
+      taxBehavior: taxBehaviorSchema.catch("exclusive").parse(row.taxBehavior),
       isActive: row.isActive === true || row.isActive === 1,
       position: row.position,
     })),
@@ -138,6 +141,7 @@ export async function replaceShippingTable(input: {
       maxWeightGrams: rate.maxWeightGrams,
       minSubtotalCents: rate.minSubtotalCents,
       maxSubtotalCents: rate.maxSubtotalCents,
+      taxBehavior: rate.taxBehavior,
       isActive: rate.isActive,
       position,
     });

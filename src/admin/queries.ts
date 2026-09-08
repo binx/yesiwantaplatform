@@ -44,6 +44,8 @@ export interface ProductSummary {
   name: string;
   slug: string;
   isLive: boolean;
+  /** Published to Stripe under tax settings the store no longer uses. */
+  needsTaxRepublish: boolean;
 }
 
 export interface OrderPage {

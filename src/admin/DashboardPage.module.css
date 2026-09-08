@@ -26,3 +26,11 @@
 .recent {
   margin-bottom: 1.5rem;
 }
+
+/* Inline rather than a list: these are links to go and fix, not a table. */
+.staleList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  margin-top: 0.5rem;
+}

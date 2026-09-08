@@ -27,8 +27,10 @@ function productSchemaDefaults(over: Partial<Product> & { id: string }): Product
       { id: `${over.id}-v`, label: "", priceCents: 1000, inventory: { type: "infinite" }, weightGrams: 0, stripePriceId: null },
     ],
     optionGroups: [],
+    taxCode: null,
     isLive: over.isLive ?? true,
     stripeProductId: null,
+    stripeTaxSignature: null,
   };
 }
 

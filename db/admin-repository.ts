@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, max, ne } from "drizzle-orm";
 import type { CollectionInput, ProductInput, SettingsInput } from "../shared/api.js";
+import { taxSignature } from "../shared/tax.js";
 import { getDatabase } from "./client.js";
+import { getSettings } from "./repository.js";
 
 /**
  * Admin writes.
@@ -65,6 +67,7 @@ export async function createProduct(input: ProductInput): Promise<string> {
     seoTitle: input.seoTitle,
     seoDescription: input.seoDescription,
     variantName: input.variantName,
+    taxCode: input.taxCode,
     isLive: input.isLive,
     position: await nextPosition(schema.products, schema.products.position),
   });
@@ -91,6 +94,7 @@ export async function updateProduct(id: string, input: ProductInput): Promise<vo
       seoTitle: input.seoTitle,
       seoDescription: input.seoDescription,
       variantName: input.variantName,
+      taxCode: input.taxCode,
       isLive: input.isLive,
     })
     .where(eq(schema.products.id, id));
@@ -370,6 +374,9 @@ export async function updateSettings(input: SettingsInput): Promise<void> {
     currency: input.currency,
     stripePublishableKey: input.stripePublishableKey,
     aboutText: input.aboutText,
+    taxEnabled: input.taxEnabled,
+    taxBehavior: input.taxBehavior,
+    defaultTaxCode: input.defaultTaxCode,
     themeColorPrimary: input.theme.colorPrimary,
     themeColorAccent: input.theme.colorAccent,
     themeFontFamily: input.theme.fontFamily,
@@ -388,10 +395,25 @@ export async function updateSettings(input: SettingsInput): Promise<void> {
   }
 }
 
-export async function listAllProductsForAdmin(): Promise<
-  { id: string; name: string; slug: string; isLive: boolean }[]
-> {
+export interface AdminProductSummary {
+  id: string;
+  name: string;
+  slug: string;
+  isLive: boolean;
+  /**
+   * Published to Stripe under tax settings the store no longer uses.
+   *
+   * `tax_behavior` is immutable on a Stripe Price, so bringing a product up to
+   * date means new Prices — which only an explicit publish creates. Computing
+   * this here rather than auto-republishing is the same rule the publish gate
+   * has always enforced: nothing writes to a live Stripe account unasked.
+   */
+  needsTaxRepublish: boolean;
+}
+
+export async function listAllProductsForAdmin(): Promise<AdminProductSummary[]> {
   const { drizzle: db, schema } = await getDatabase();
+  const settings = await getSettings();
 
   const rows = (await db
     .select({
@@ -399,6 +421,9 @@ export async function listAllProductsForAdmin(): Promise<
       name: schema.products.name,
       slug: schema.products.slug,
       isLive: schema.products.isLive,
+      taxCode: schema.products.taxCode,
+      stripeProductId: schema.products.stripeProductId,
+      stripeTaxSignature: schema.products.stripeTaxSignature,
     })
     .from(schema.products)
     .orderBy(asc(schema.products.position))) as unknown as {
@@ -406,7 +431,21 @@ export async function listAllProductsForAdmin(): Promise<
     name: string;
     slug: string;
     isLive: unknown;
+    taxCode: string | null;
+    stripeProductId: string | null;
+    stripeTaxSignature: string | null;
   }[];
 
-  return rows.map((r) => ({ ...r, isLive: r.isLive === true || r.isLive === 1 }));
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    isLive: row.isLive === true || row.isLive === 1,
+    needsTaxRepublish:
+      settings !== null &&
+      settings.taxEnabled &&
+      row.stripeProductId !== null &&
+      row.stripeTaxSignature !==
+        taxSignature(row.taxCode ?? settings.defaultTaxCode, settings.taxBehavior),
+  }));
 }

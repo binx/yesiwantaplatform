@@ -116,6 +116,7 @@ export function ShippingPage() {
           maxWeightGrams: rate.maxWeightGrams,
           minSubtotalCents: rate.minSubtotalCents,
           maxSubtotalCents: rate.maxSubtotalCents,
+          taxBehavior: rate.taxBehavior,
           isActive: rate.isActive,
         })),
       },
@@ -298,6 +299,7 @@ export function ShippingPage() {
                   maxWeightGrams: null,
                   minSubtotalCents: null,
                   maxSubtotalCents: null,
+                  taxBehavior: "exclusive" as const,
                   isActive: true,
                   position: rates.length,
                 },
@@ -422,6 +424,28 @@ export function ShippingPage() {
                     </span>
                   )}
                 </Field>
+
+                {settings.data?.taxEnabled ? (
+                  <Field
+                    label="Tax on postage"
+                    help="Shipping is taxable in some places and not others; Stripe decides which, from the destination."
+                  >
+                    {(control) => (
+                      <Select
+                        {...control}
+                        className={cx(styles.grow)}
+                        value={rate.taxBehavior}
+                        onChange={(taxBehavior: "exclusive" | "inclusive") =>
+                          setRate(rate.key, { taxBehavior })
+                        }
+                        options={[
+                          { label: "Added to the price", value: "exclusive" },
+                          { label: "Already in the price", value: "inclusive" },
+                        ]}
+                      />
+                    )}
+                  </Field>
+                ) : null}
 
                 <div className={cx(styles.rateActions)}>
                   <Tooltip title={rate.isActive ? "Offered at checkout" : "Hidden from checkout"}>

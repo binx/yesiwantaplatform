@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { shippingQuoteInputSchema } from "../../shared/api.js";
 import { parcelWeight, resolveShippingRates } from "../../shared/shipping.js";
+import type { TaxBehavior } from "../../shared/schema.js";
 import { getShippingTable, variantWeights } from "../../db/shipping-repository.js";
 import { listProducts } from "../../db/repository.js";
 import { httpError, writeRateLimit } from "../middleware.js";
@@ -20,6 +21,8 @@ export interface QuotedRate {
   id: string;
   name: string;
   priceCents: number;
+  /** Whether the price already contains tax; passed to Stripe at checkout. */
+  taxBehavior: TaxBehavior;
 }
 
 export interface ShippingQuote {
@@ -65,7 +68,12 @@ export async function quoteShipping(
   const matched = resolveShippingRates(rates, zones, countryCode, { weightGrams, subtotalCents });
 
   return {
-    rates: matched.map(({ id, name, priceCents }) => ({ id, name, priceCents })),
+    rates: matched.map(({ id, name, priceCents, taxBehavior }) => ({
+      id,
+      name,
+      priceCents,
+      taxBehavior,
+    })),
     weightGrams,
     subtotalCents,
     // Only a gap if the store has rates at all; a store with none has simply

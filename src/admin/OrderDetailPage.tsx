@@ -16,9 +16,16 @@ import {
 } from "antd";
 import type { Order, OrderItem, OrderStatus, RefundReason } from "@shared/orders";
 import { formatMoney, parseCents } from "@shared/money";
+import { taxLineLabel } from "@shared/tax";
 import { ApiError } from "@/lib/api";
 import { cx } from "@/lib/cx";
-import { useEnvironment, useOrder, useRefundOrder, useUpdateFulfilment } from "./queries";
+import {
+  useEnvironment,
+  useOrder,
+  useRefundOrder,
+  useSettings,
+  useUpdateFulfilment,
+} from "./queries";
 import { Field } from "./Field";
 import { PageHeader } from "./RequireAdmin";
 import { OrderStatusTag } from "./OrderStatusTag";
@@ -39,6 +46,7 @@ export function OrderDetailPage() {
 
   const order = useOrder(id);
   const environment = useEnvironment();
+  const settings = useSettings();
   const save = useUpdateFulfilment();
 
   const [status, setStatus] = useState<OrderStatus | null>(null);
@@ -158,7 +166,13 @@ export function OrderDetailPage() {
                     />
                   ) : null}
                   <Total label="Shipping" cents={current.shippingCents} order={current} />
-                  <Total label="Tax" cents={current.taxCents} order={current} />
+                  {/* "Includes tax" when the store quotes inclusive prices,
+                      so the column does not read as a second charge. */}
+                  <Total
+                    label={taxLineLabel(settings.data?.taxBehavior ?? "exclusive")}
+                    cents={current.taxCents}
+                    order={current}
+                  />
                   <Total label="Total" cents={current.totalCents} order={current} strong />
                 </Table.Summary>
               )}

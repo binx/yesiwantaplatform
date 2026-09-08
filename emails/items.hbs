@@ -25,7 +25,7 @@
   <tr style="color:#52525b;"><td>Subtotal</td><td style="text-align:right;">{{order.subtotal}}</td></tr>
   {{#if order.hasDiscount}}<tr style="color:#52525b;"><td>Discount</td><td style="text-align:right;">{{order.discount}}</td></tr>{{/if}}
   <tr style="color:#52525b;"><td>Shipping</td><td style="text-align:right;">{{order.shippingCost}}</td></tr>
-  {{#if order.hasTax}}<tr style="color:#52525b;"><td>Tax</td><td style="text-align:right;">{{order.tax}}</td></tr>{{/if}}
+  {{#if order.hasTax}}<tr style="color:#52525b;"><td>{{order.taxLabel}}</td><td style="text-align:right;">{{order.tax}}</td></tr>{{/if}}
   <tr style="font-weight:600;"><td style="padding-top:8px;">Total</td><td style="text-align:right;padding-top:8px;">{{order.total}}</td></tr>
 </table>
 

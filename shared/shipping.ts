@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { centsSchema } from "./schema.js";
+import { centsSchema, taxBehaviorSchema } from "./schema.js";
 
 /**
  * Shipping, tiers 1 and 2: flat rates and weight/zone tables.
@@ -81,6 +81,12 @@ export const shippingRateSchema = z.object({
   /** `minSubtotalCents` is how "free over $50" is expressed. */
   minSubtotalCents: centsSchema.nullable().default(null),
   maxSubtotalCents: centsSchema.nullable().default(null),
+  /**
+   * Whether this rate's price already contains tax. Per rate, not per store:
+   * shipping is taxable in some jurisdictions and not in others, and a store
+   * that ships to both needs to say so rate by rate.
+   */
+  taxBehavior: taxBehaviorSchema.default("exclusive"),
   isActive: z.boolean().default(true),
   position: z.number().int().min(0).default(0),
 });

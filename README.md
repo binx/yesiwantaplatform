@@ -219,6 +219,46 @@ Add the `whsec_…` it prints to `.env` as `STRIPE_WEBHOOK_SECRET`, restart the
 API, and pay with test card `4242 4242 4242 4242`. Replaying a delivered event
 (`stripe events resend <id>`) must not move stock a second time.
 
+#### Tax
+
+Tax is **off by default** and calculated by **Stripe Tax** when it is on.
+Beluga does no tax arithmetic of its own, holds no rate tables, and files
+nothing on anyone's behalf.
+
+Three things have to be true in Stripe before a store collects correctly, and
+none of them can be done from here:
+
+1. **Stripe Tax is activated** on the account. It is a paid add-on, billed per
+   transaction.
+2. **Tax registrations are recorded** in the Stripe dashboard, one for each
+   place the merchant is obliged to collect. Deciding where that is remains the
+   merchant's job — Stripe collects nothing for a jurisdiction with no
+   registration.
+3. **Products carry tax codes.** Every product uses the store default
+   (`txcd_99999999`, Stripe's general tangible-goods code) unless it sets its
+   own; books, food, digital goods and clothing are taxed differently in many
+   places.
+
+Settings → Tax says all of that before the switch, and the admin overview says
+"this store is not collecting tax" while it is off — because under-collecting
+is otherwise silent: every order goes through, the buyer pays, and the merchant
+owes the difference with nothing anywhere to say so.
+
+**Prices are quoted inclusive or exclusive**, per store. EU and UK shops
+normally quote inclusive prices; US shops quote exclusive and add tax at
+checkout. Shipping rates carry their own behaviour, because postage is taxable
+in some jurisdictions and not others. With inclusive pricing the tax line reads
+"Includes tax" rather than adding a row — an additive-looking row on a total
+that already contains the tax reads as a second charge.
+
+`tax_behavior` is **immutable on a Stripe Price**, exactly like `unit_amount`.
+Changing how a store quotes prices therefore reaches Stripe only when each
+product is published again, which mints new Prices and archives the old ones —
+historic orders keep resolving against the archived ones. Nothing republishes
+itself: writing to a live Stripe account is always something the merchant asks
+for, which is the whole point of the publish gate. The overview lists the
+products that are out of date and links to each one.
+
 ### Storefront search
 
 The shop and collection pages have a search box and a sort control, backed by `searchProducts` / `sortProducts` in `shared/catalog.ts`. Matching is case- and diacritic-insensitive across name, description and bullet points, and every typed term has to match — "blue tote" returns blue totes, not everything blue.

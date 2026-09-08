@@ -1,14 +1,14 @@
 ---
 task: "09"
 title: Sales tax and VAT
-status: todo
+status: done
 tier: 2
 size: M
 migration: product + rate columns
 blocked_by: []
 blocks: []
 touches: server/routes/checkout.ts · server/catalog-sync.ts · src/admin/SetupPage.tsx
-completed: 
+completed: 2026-09-08
 shipped_in: 
 summary: >-
   Every order currently collects zero tax. The recording half already works — the webhook

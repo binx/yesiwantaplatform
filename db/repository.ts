@@ -3,10 +3,12 @@ import {
   collectionSchema,
   productSchema,
   storeSchema,
+  taxBehaviorSchema,
   themeSchema,
   type Collection,
   type Product,
   type Store,
+  type TaxBehavior,
   type Theme,
 } from "../shared/schema.js";
 import { countriesCovered, hasCatchAllZone } from "../shared/shipping.js";
@@ -58,8 +60,10 @@ interface ProductRow {
   seoTitle: string | null;
   seoDescription: string | null;
   variantName: string | null;
+  taxCode: string | null;
   isLive: unknown;
   stripeProductId: string | null;
+  stripeTaxSignature: string | null;
 }
 
 interface VariantRow {
@@ -125,8 +129,10 @@ function buildProduct(
       name: g.name,
       choices: parseJson<string[]>(g.choices, []),
     })),
+    taxCode: row.taxCode,
     isLive: toBool(row.isLive),
     stripeProductId: row.stripeProductId,
+    stripeTaxSignature: row.stripeTaxSignature,
   });
 }
 
@@ -348,6 +354,9 @@ interface SettingsRow {
   currency: string;
   stripePublishableKey: string | null;
   aboutText: string | null;
+  taxEnabled: unknown;
+  taxBehavior: string;
+  defaultTaxCode: string;
   themeColorPrimary: string;
   themeColorAccent: string;
   themeFontFamily: string;
@@ -359,6 +368,9 @@ export async function getSettings(): Promise<{
   currency: string;
   stripePublishableKey: string | null;
   aboutText: string | null;
+  taxEnabled: boolean;
+  taxBehavior: TaxBehavior;
+  defaultTaxCode: string;
   theme: Theme;
 } | null> {
   const { drizzle: db, schema } = await getDatabase();
@@ -372,6 +384,11 @@ export async function getSettings(): Promise<{
     currency: row.currency,
     stripePublishableKey: row.stripePublishableKey,
     aboutText: row.aboutText,
+    taxEnabled: toBool(row.taxEnabled),
+    // Parsed rather than cast: a column edited by hand should not silently
+    // become a third tax behaviour that Stripe has never heard of.
+    taxBehavior: taxBehaviorSchema.catch("exclusive").parse(row.taxBehavior),
+    defaultTaxCode: row.defaultTaxCode,
     theme: themeSchema.parse({
       colorPrimary: row.themeColorPrimary,
       colorAccent: row.themeColorAccent,
@@ -408,6 +425,7 @@ export async function getStoreSnapshot(): Promise<Store | null> {
     currency: settings.currency,
     theme: settings.theme,
     aboutText: settings.aboutText,
+    taxBehavior: settings.taxBehavior,
     collections,
     pages,
     products,

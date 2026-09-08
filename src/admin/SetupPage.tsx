@@ -394,6 +394,29 @@ function PaymentsStep({
         </Form.Item>
       </Form>
 
+      {/*
+        * Tax is named here and settled elsewhere, on purpose.
+        *
+        * Nothing in this wizard can activate Stripe Tax or record a
+        * registration — both happen in the Stripe dashboard — so offering a
+        * switch would let someone finish setup believing they were covered.
+        * Saying it exists, and where it lives, is the honest version.
+        */}
+      <Alert
+        className={cx(styles.alert)}
+        type="info"
+        showIcon
+        message="This store will not collect tax yet"
+        description={
+          <p className={cx(styles.alertText)}>
+            Tax is calculated by Stripe Tax, which is a paid add-on you activate in the Stripe
+            dashboard, along with a registration for each place you are obliged to collect.
+            Once that is done, turn it on in Settings → Tax. Beluga calculates nothing itself
+            and files nothing on your behalf.
+          </p>
+        }
+      />
+
       <div className={cx(styles.actions)}>
         <Button onClick={onBack}>Back</Button>
         <Button type="primary" onClick={onNext} disabled={looksSecret}>

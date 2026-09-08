@@ -6,6 +6,7 @@ import {
   type SetupStatus,
   type SessionResponse,
 } from "../../shared/api.js";
+import { DEFAULT_TAX_CODE } from "../../shared/schema.js";
 import { countAdmins, createAdmin } from "../auth.js";
 import { getSettings, isConfigured } from "../../db/repository.js";
 import { updateSettings } from "../../db/admin-repository.js";
@@ -110,6 +111,11 @@ setupRouter.post("/setup", setupRateLimit, verifyCsrf, async (req, res) => {
       currency: input.currency.toUpperCase(),
       stripePublishableKey: input.stripePublishableKey,
       aboutText: null,
+      // Off until the merchant activates Stripe Tax and registers. The wizard
+      // says so; Settings is where it is turned on.
+      taxEnabled: false,
+      taxBehavior: "exclusive",
+      defaultTaxCode: DEFAULT_TAX_CODE,
       theme: input.theme,
     });
 

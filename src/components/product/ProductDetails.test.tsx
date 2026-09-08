@@ -33,6 +33,8 @@ const baseProduct: Product = {
     },
   ],
   optionGroups: [],
+  taxCode: null,
+  stripeTaxSignature: null,
   isLive: true,
   stripeProductId: null,
 };

@@ -32,6 +32,18 @@ export const storeSettings = sqliteTable("store_settings", {
    * it into a page on first run of the migration that added them.
    */
   aboutText: text("about_text"),
+  /**
+   * Tax, via Stripe Tax.
+   *
+   * Off by default and deliberately not on a switch the merchant can flip
+   * without reading: Stripe Tax is a paid add-on, and the registrations that
+   * make it correct are theirs to create. Beluga calculates nothing itself.
+   */
+  taxEnabled: integer("tax_enabled", { mode: "boolean" }).notNull().default(false),
+  /** "exclusive" (added at checkout) | "inclusive" (already in the price). */
+  taxBehavior: text("tax_behavior").notNull().default("exclusive"),
+  /** Stripe tax code for products that do not set their own. */
+  defaultTaxCode: text("default_tax_code").notNull().default("txcd_99999999"),
   themeColorPrimary: text("theme_color_primary").notNull().default("#18181b"),
   themeColorAccent: text("theme_color_accent").notNull().default("#e07a5f"),
   themeFontFamily: text("theme_font_family").notNull().default("system-ui, sans-serif"),
@@ -95,8 +107,21 @@ export const products = sqliteTable(
     seoDescription: text("seo_description"),
     /** Label for the variant axis, e.g. "size". Null for single-variant products. */
     variantName: text("variant_name"),
+    /** Stripe tax code. Null uses the store default. */
+    taxCode: text("tax_code"),
     isLive: integer("is_live", { mode: "boolean" }).notNull().default(false),
     stripeProductId: text("stripe_product_id"),
+    /**
+     * The tax configuration this product was last published to Stripe under,
+     * as `code|behavior`.
+     *
+     * Recorded because `tax_behavior` is immutable on a Stripe Price: changing
+     * it means new Prices, which only happens on an explicit publish. Without
+     * this there is no way to tell a product that carries the store's current
+     * tax settings from one published before they changed — and auto-publishing
+     * to find out would write to a live Stripe account unasked.
+     */
+    stripeTaxSignature: text("stripe_tax_signature"),
     position: integer("position").notNull().default(0),
     ...timestamps,
   },
@@ -249,6 +274,11 @@ export const shippingRates = sqliteTable("shipping_rates", {
   maxWeightGrams: integer("max_weight_grams"),
   minSubtotalCents: integer("min_subtotal_cents"),
   maxSubtotalCents: integer("max_subtotal_cents"),
+  /**
+   * Whether the rate's price already contains tax. Shipping is taxable in some
+   * jurisdictions and not others, so it is set per rate rather than inherited.
+   */
+  taxBehavior: text("tax_behavior").notNull().default("exclusive"),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   position: integer("position").notNull().default(0),
   ...timestamps,

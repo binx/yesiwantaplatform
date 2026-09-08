@@ -3,10 +3,12 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Result, Skeleton } from "antd";
 import { formatMoney } from "@shared/money";
+import { taxLineLabel } from "@shared/tax";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { apiGet } from "@/lib/api";
 import { cx } from "@/lib/cx";
 import { useCart } from "@/store/cart";
+import { useStore } from "@/lib/useStore";
 import styles from "./ConfirmPage.module.css";
 
 interface ConfirmedOrder {
@@ -32,6 +34,7 @@ export function ConfirmPage() {
   const [params] = useSearchParams();
   const sessionId = params.get("session_id");
   const clear = useCart((s) => s.clear);
+  const store = useStore();
 
   const { data, error, isPending } = useQuery({
     queryKey: ["order", sessionId],
@@ -150,7 +153,9 @@ export function ConfirmPage() {
           </tr>
           {data.taxCents > 0 && (
             <tr>
-              <td>Tax</td>
+              {/* "Includes tax" when the price already contained it — an
+                  additive-looking row would read as a second charge. */}
+              <td>{taxLineLabel(store.taxBehavior)}</td>
               <td className={styles.amount}>{formatMoney(data.taxCents, data.currency)}</td>
             </tr>
           )}

@@ -477,9 +477,9 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
   <section class="progress">
     <div class="progress-head">
       <h2 class="progress-title">Progress</h2>
-      <p class="progress-count">9 of 16 shipped.</p>
+      <p class="progress-count">10 of 16 shipped.</p>
     </div>
-    <div class="track" role="img" aria-label="9 of 16 shipped."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--done" title="01 Refund an order from the admin — Shipped"></span><span class="cell cell--done" title="02 Restore stock when an order is refunded — Shipped"></span><span class="cell cell--done" title="03 Discount codes via Stripe — Shipped"></span><span class="cell cell--done" title="04 Export orders as CSV — Shipped"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--done" title="05 Per-product SEO metadata — Shipped"></span><span class="cell cell--done" title="06 Storefront search and sort — Shipped"></span><span class="cell cell--done" title="07 Staff accounts — Shipped"></span><span class="cell cell--done" title="08 Store pages — Shipped"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--todo" title="09 Sales tax and VAT — To do"></span><span class="cell cell--todo" title="10 Multi-axis variants — To do"></span><span class="cell cell--todo" title="11 Customer accounts — To do"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--todo" title="12 Abandoned cart recovery — To do"></span><span class="cell cell--todo" title="13 Digital and downloadable products — To do"></span><span class="cell cell--todo" title="14 Outbound webhooks — To do"></span><span class="cell cell--todo" title="15 Catalogue CSV import and export — To do"></span></span></div>
+    <div class="track" role="img" aria-label="10 of 16 shipped."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--done" title="01 Refund an order from the admin — Shipped"></span><span class="cell cell--done" title="02 Restore stock when an order is refunded — Shipped"></span><span class="cell cell--done" title="03 Discount codes via Stripe — Shipped"></span><span class="cell cell--done" title="04 Export orders as CSV — Shipped"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--done" title="05 Per-product SEO metadata — Shipped"></span><span class="cell cell--done" title="06 Storefront search and sort — Shipped"></span><span class="cell cell--done" title="07 Staff accounts — Shipped"></span><span class="cell cell--done" title="08 Store pages — Shipped"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--done" title="09 Sales tax and VAT — Shipped"></span><span class="cell cell--todo" title="10 Multi-axis variants — To do"></span><span class="cell cell--todo" title="11 Customer accounts — To do"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--todo" title="12 Abandoned cart recovery — To do"></span><span class="cell cell--todo" title="13 Digital and downloadable products — To do"></span><span class="cell cell--todo" title="14 Outbound webhooks — To do"></span><span class="cell cell--todo" title="15 Catalogue CSV import and export — To do"></span></span></div>
     <div class="track-key">
       <span><i class="cell cell--done"></i> Shipped</span>
       <span><i class="cell cell--in-progress"></i> In progress</span>
@@ -491,6 +491,12 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
   <section class="log">
     <h2>Shipped</h2>
     <ol class="log-list">
+      <li>
+        <span class="log-date">2026-09-08</span>
+        <span class="log-task">09</span>
+        <span class="log-title">Sales tax and VAT</span>
+        <span class="log-ref"></span>
+      </li>
       <li>
         <span class="log-date">2026-09-07</span>
         <span class="log-task">00</span>
@@ -587,8 +593,8 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <text class="pt-label shipped" x="336.5" y="185.5">Staff accounts</text>
         <circle cx="298" cy="154.5" r="6" class="dot dot--done"></circle><path d="M295 154.5 l2.2 2.4 l4-4.8" class="tick"></path>
         <text class="pt-label shipped" x="308" y="158.5">Store pages</text>
-        <circle cx="469" cy="100.5" r="5.5" class="dot dot--later"></circle>
-        <text class="pt-label" x="479" y="104.5">Sales tax and VAT</text>
+        <circle cx="469" cy="100.5" r="6" class="dot dot--done"></circle><path d="M466 100.5 l2.2 2.4 l4-4.8" class="tick"></path>
+        <text class="pt-label shipped" x="479" y="104.5">Sales tax and VAT</text>
       </svg>
     </div>
   </section>
@@ -742,16 +748,16 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
 
   <section class="tier">
     <div class="tier-head">
-      <div class="tier-tag">Tier 2 · Schema reshape · Plan them </div>
+      <div class="tier-tag">Tier 2 · Schema reshape · Plan them <span class="tier-done">1 of 3 shipped</span></div>
       <h2>Don't squeeze these in</h2>
       <p class="tier-verdict">Each one changes the shape of the data or the shape of the merchant's obligations. They're worth doing and they're worth scheduling.</p>
     </div>
     <div class="items">
-      <article class="item item--todo">
+      <article class="item item--done">
         <div class="item-head">
           <span class="seq">09</span>
           <h3>Sales tax and VAT</h3>
-          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--status chip--done">Shipped</span>
           <span class="chip chip--m">Medium</span>
         </div>
         <p>Every order currently collects zero tax. The recording half already works — the webhook reads <code>amount_tax</code> and the order page renders a tax line — but nothing ever asks Stripe to calculate any. Turning on <code>automatic_tax</code> plus <code>customer_update</code> is a small diff; the real cost is merchant-facing. Stripe Tax is a paid add-on with a registration workflow, published products need tax codes, and shipping rates need a tax behaviour. <strong>Most of this work is in the setup wizard and the dashboard notices</strong>, explaining an obligation the merchant may not know they have.</p>

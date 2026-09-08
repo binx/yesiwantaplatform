@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { getDatabase } from "../db/client.js";
 import { findProductBySlug, getSettings } from "../db/repository.js";
 import type { Product } from "../shared/schema.js";
+import { effectiveTaxCode, taxSignature } from "../shared/tax.js";
 import { requireStripe } from "./stripe.js";
 
 /**
@@ -27,6 +28,15 @@ async function setStripeProductId(productId: string, stripeProductId: string): P
   await db
     .update(schema.products)
     .set({ stripeProductId })
+    .where(eq(schema.products.id, productId));
+}
+
+/** Record the tax settings this publish used, so drift is visible afterwards. */
+async function setStripeTaxSignature(productId: string, signature: string | null): Promise<void> {
+  const { drizzle: db, schema } = await getDatabase();
+  await db
+    .update(schema.products)
+    .set({ stripeTaxSignature: signature })
     .where(eq(schema.products.id, productId));
 }
 
@@ -61,6 +71,19 @@ export async function syncProductToStripe(product: Product): Promise<SyncResult>
 
   const description = product.description.trim();
 
+  /*
+   * Tax, and only when the store collects it.
+   *
+   * A store with tax off sends neither a tax code nor a behaviour, and Stripe
+   * records the Price as "unspecified" — which is also what the reuse check
+   * below compares against, so turning tax on and off does not silently churn
+   * every Price in the account.
+   */
+  const taxCode = settings?.taxEnabled
+    ? effectiveTaxCode(product.taxCode, settings.defaultTaxCode)
+    : null;
+  const taxBehavior = settings?.taxEnabled ? settings.taxBehavior : null;
+
   let stripeProductId = product.stripeProductId;
 
   if (stripeProductId) {
@@ -69,12 +92,14 @@ export async function syncProductToStripe(product: Product): Promise<SyncResult>
       // Stripe rejects an empty string, so clear with null instead.
       description: description === "" ? null : description,
       active: product.isLive,
+      ...(taxCode ? { tax_code: taxCode } : {}),
     });
   } else {
     const created = await stripe.products.create({
       name: product.name,
       ...(description === "" ? {} : { description }),
       active: product.isLive,
+      ...(taxCode ? { tax_code: taxCode } : {}),
       metadata: { beluga_product_id: product.id },
     });
     stripeProductId = created.id;
@@ -88,12 +113,21 @@ export async function syncProductToStripe(product: Product): Promise<SyncResult>
   for (const variant of product.variants) {
     const existing = variant.stripePriceId ? await fetchPrice(stripe, variant.stripePriceId) : null;
 
-    // Reuse only when the amount and currency still match exactly.
+    /*
+     * Reuse only when everything immutable about the Price still matches.
+     *
+     * `tax_behavior` belongs in this list for exactly the reason `unit_amount`
+     * does: Stripe will not let it be edited. A store switching from exclusive
+     * to inclusive pricing therefore has to mint new Prices and archive the
+     * old ones, which is the path below — attempting an update would fail, and
+     * skipping the comparison would leave every Price quietly wrong.
+     */
     if (
       existing &&
       existing.active &&
       existing.unit_amount === variant.priceCents &&
-      existing.currency === currency
+      existing.currency === currency &&
+      existing.tax_behavior === (taxBehavior ?? "unspecified")
     ) {
       pricesReused += 1;
       continue;
@@ -109,6 +143,7 @@ export async function syncProductToStripe(product: Product): Promise<SyncResult>
       product: stripeProductId,
       unit_amount: variant.priceCents,
       currency,
+      ...(taxBehavior ? { tax_behavior: taxBehavior } : {}),
       ...(variant.label ? { nickname: variant.label } : {}),
       metadata: { beluga_variant_id: variant.id },
     });
@@ -116,6 +151,12 @@ export async function syncProductToStripe(product: Product): Promise<SyncResult>
     await setStripePriceId(variant.id, price.id);
     pricesCreated += 1;
   }
+
+  // Written last, so a publish that failed part-way is not recorded as current.
+  await setStripeTaxSignature(
+    product.id,
+    taxCode && taxBehavior ? taxSignature(taxCode, taxBehavior) : null,
+  );
 
   return { stripeProductId, pricesCreated, pricesReused, pricesArchived };
 }

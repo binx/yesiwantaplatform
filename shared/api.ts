@@ -9,6 +9,8 @@ import {
   RESERVED_PAGE_SLUGS,
   slugSchema,
   storeSchema,
+  taxBehaviorSchema,
+  taxCodeSchema,
   themeSchema,
 } from "./schema.js";
 
@@ -37,6 +39,8 @@ export const productInputSchema = z.object({
   seoTitle: z.string().max(70).nullable().default(null),
   seoDescription: z.string().max(160).nullable().default(null),
   variantName: z.string().max(50).nullable().default(null),
+  /** Null uses the store's default tax code. */
+  taxCode: taxCodeSchema.nullable().default(null),
   variants: z.array(variantInputSchema).min(1).max(50),
   optionGroups: z.array(optionGroupSchema).max(10).default([]),
   isLive: z.boolean().default(false),
@@ -88,6 +92,14 @@ export const settingsInputSchema = z.object({
     .nullable()
     .default(null),
   aboutText: z.string().max(20000).nullable().default(null),
+  /**
+   * Tax. Off unless the merchant has said otherwise — see the Settings copy,
+   * which is most of this feature: Stripe Tax is a paid add-on, the
+   * registrations are the merchant's to create, and Beluga files nothing.
+   */
+  taxEnabled: z.boolean().default(false),
+  taxBehavior: taxBehaviorSchema.default("exclusive"),
+  defaultTaxCode: taxCodeSchema.default("txcd_99999999"),
   theme: themeSchema,
 });
 

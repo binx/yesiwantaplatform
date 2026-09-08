@@ -4,6 +4,8 @@ import Handlebars from "handlebars";
 import nodemailer, { type Transporter } from "nodemailer";
 import { formatMoney } from "../shared/money.js";
 import type { Order } from "../shared/orders.js";
+import type { TaxBehavior } from "../shared/schema.js";
+import { taxLineLabel } from "../shared/tax.js";
 import { getSettings } from "../db/repository.js";
 import { env } from "./env.js";
 
@@ -45,7 +47,12 @@ async function registerPartials(): Promise<void> {
 }
 
 /** Shape the order into display-ready strings; templates do no arithmetic. */
-function toLocals(order: Order, storeName: string, colorAccent: string) {
+function toLocals(
+  order: Order,
+  storeName: string,
+  colorAccent: string,
+  taxBehavior: TaxBehavior,
+) {
   const currency = order.currency;
 
   return {
@@ -74,6 +81,14 @@ function toLocals(order: Order, storeName: string, colorAccent: string) {
       // Formatted as a deduction here, because templates do no arithmetic.
       discount: `\u2212${formatMoney(order.discountCents, currency)}`,
       hasTax: order.taxCents > 0,
+      /*
+       * "Tax" or "Includes tax", never both readings at once.
+       *
+       * With inclusive pricing the total already contains the tax, so a row
+       * that looks like the other lines reads as a second charge. The label
+       * carries the difference; the template stays arithmetic-free.
+       */
+      taxLabel: taxLineLabel(taxBehavior),
       tax: formatMoney(order.taxCents, currency),
       total: formatMoney(order.totalCents, currency),
       shipping: order.shipping,
@@ -91,6 +106,7 @@ export async function sendOrderEmail(template: EmailTemplate, order: Order): Pro
     order,
     settings?.name ?? "Beluga",
     settings?.theme.colorAccent ?? "#e07a5f",
+    settings?.taxBehavior ?? "exclusive",
   );
 
   let subject: string;

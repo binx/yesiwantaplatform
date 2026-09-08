@@ -34,6 +34,7 @@ const rate = (over: Partial<ShippingRate> & { id: string }): ShippingRate => ({
   maxWeightGrams: null,
   minSubtotalCents: null,
   maxSubtotalCents: null,
+  taxBehavior: "exclusive",
   isActive: true,
   position: 0,
   ...over,

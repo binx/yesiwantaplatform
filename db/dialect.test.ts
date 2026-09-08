@@ -174,6 +174,39 @@ for (const { name, context } of dialects) {
       expect(page?.body).toContain("\n\n");
     });
 
+    it("round-trips the tax settings on either engine", async () => {
+      const settings = (await db.getSettings())!;
+
+      await db.admin.updateSettings({
+        name: settings.name,
+        currency: settings.currency,
+        stripePublishableKey: settings.stripePublishableKey,
+        aboutText: settings.aboutText,
+        taxEnabled: true,
+        taxBehavior: "inclusive",
+        defaultTaxCode: "txcd_20030000",
+        theme: settings.theme,
+      });
+
+      const updated = await db.getSettings();
+
+      // taxEnabled is 0/1 on SQLite and a real boolean on Postgres.
+      expect(updated?.taxEnabled).toBe(true);
+      expect(updated?.taxBehavior).toBe("inclusive");
+      expect(updated?.defaultTaxCode).toBe("txcd_20030000");
+
+      await db.admin.updateSettings({
+        name: settings.name,
+        currency: settings.currency,
+        stripePublishableKey: settings.stripePublishableKey,
+        aboutText: settings.aboutText,
+        taxEnabled: settings.taxEnabled,
+        taxBehavior: settings.taxBehavior,
+        defaultTaxCode: settings.defaultTaxCode,
+        theme: settings.theme,
+      });
+    });
+
     it("returns a schema-valid store snapshot", async () => {
       const store = await db.getStoreSnapshot();
 
@@ -239,6 +272,7 @@ for (const { name, context } of dialects) {
         seoTitle: null,
         seoDescription: null,
         variantName: null,
+        taxCode: null,
         variants: [{ label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0 }],
         optionGroups: [],
         isLive: true,
@@ -477,6 +511,7 @@ for (const { name, context } of dialects) {
           seoTitle: null,
           seoDescription: null,
           variantName: null,
+        taxCode: null,
           variants: [{ label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0 }],
           optionGroups: [],
           isLive: true,

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, App, Button, Card, Input, Select, Skeleton, Tag } from "antd";
+import { Alert, App, Button, Card, Input, Select, Skeleton, Switch, Tag } from "antd";
 import type { SettingsInput } from "@shared/api";
-import { defaultTheme, type Theme } from "@shared/schema";
+import { DEFAULT_TAX_CODE, defaultTheme, type TaxBehavior, type Theme } from "@shared/schema";
 import { cx } from "@/lib/cx";
 import { useEnvironment, useSettings, useUpdateSettings } from "./queries";
 import { Field } from "./Field";
@@ -51,6 +51,9 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
   const [currency, setCurrency] = useState(initial.currency);
   const [publishableKey, setPublishableKey] = useState(initial.stripePublishableKey ?? "");
   const [aboutText, setAboutText] = useState(initial.aboutText ?? "");
+  const [taxEnabled, setTaxEnabled] = useState(initial.taxEnabled);
+  const [taxBehavior, setTaxBehavior] = useState<TaxBehavior>(initial.taxBehavior);
+  const [defaultTaxCode, setDefaultTaxCode] = useState(initial.defaultTaxCode);
   const [theme, setTheme] = useState<Theme>(initial.theme ?? defaultTheme);
 
   const saved = useRef(initial);
@@ -60,10 +63,18 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
     currency !== saved.current.currency ||
     publishableKey !== (saved.current.stripePublishableKey ?? "") ||
     aboutText !== (saved.current.aboutText ?? "") ||
+    taxEnabled !== saved.current.taxEnabled ||
+    taxBehavior !== saved.current.taxBehavior ||
+    defaultTaxCode !== saved.current.defaultTaxCode ||
     JSON.stringify(theme) !== JSON.stringify(saved.current.theme);
 
   const keyLooksSecret = publishableKey.trim().startsWith("sk_");
   const currencyChanged = currency !== initial.currency;
+  const taxCodeLooksWrong =
+    defaultTaxCode.trim() !== "" && !/^txcd_[0-9]+$/.test(defaultTaxCode.trim());
+  // Immutable on a Stripe Price, so this is not a setting that quietly applies
+  // to what is already published — see the warning below.
+  const behaviorChanged = taxEnabled && taxBehavior !== initial.taxBehavior;
 
   const submit = () => {
     const input: SettingsInput = {
@@ -74,6 +85,9 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
       // be reached by clearing the field, never by the form never having been
       // filled in.
       aboutText: aboutText.trim() || null,
+      taxEnabled,
+      taxBehavior,
+      defaultTaxCode: defaultTaxCode.trim() || DEFAULT_TAX_CODE,
       theme,
     };
 
@@ -95,7 +109,7 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
         actions={
           <Button
             type="primary"
-            disabled={!dirty || keyLooksSecret || name.trim() === ""}
+            disabled={!dirty || keyLooksSecret || taxCodeLooksWrong || name.trim() === ""}
             loading={update.isPending}
             onClick={submit}
           >
@@ -181,7 +195,114 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
         </Field>
       </Card>
 
+      <Card title="Tax" className={cx(styles.card)}>
+        <p className={cx(styles.wiring)}>
+          Tax is calculated by <strong>Stripe Tax</strong>. Beluga does no tax arithmetic of
+          its own and files nothing on your behalf.
+        </p>
+
+        <Alert
+          className={cx(styles.notice)}
+          type="info"
+          showIcon
+          title="Three things have to be true in Stripe before this is correct"
+          description={
+            <ul className={cx(styles.checklist)}>
+              <li>
+                Stripe Tax is activated on your account. It is a paid add-on, billed per
+                transaction.
+              </li>
+              <li>
+                Your <strong>tax registrations</strong> are recorded in the Stripe dashboard,
+                one per place you are obliged to collect. Deciding where you are obliged is
+                yours, not Stripe&rsquo;s and not ours — Stripe collects nothing for a
+                jurisdiction you have not registered.
+              </li>
+              <li>
+                Your products carry tax codes. Turning this on gives every product the store
+                default below until you publish something more specific.
+              </li>
+            </ul>
+          }
+        />
+
+        <div className={cx(styles.toggleRow)}>
+          <Switch
+            checked={taxEnabled}
+            onChange={setTaxEnabled}
+            aria-label="Collect tax at checkout"
+          />
+          <div>
+            <p className={cx(styles.toggleLabel)}>
+              {taxEnabled ? "Collecting tax at checkout" : "Not collecting tax"}
+            </p>
+            <p className={cx(styles.help)}>
+              {taxEnabled
+                ? "Stripe calculates tax on each order from the buyer's address."
+                : "Every order is charged with no tax added. If you are obliged to collect, you owe the difference."}
+            </p>
+          </div>
+        </div>
+
+        {taxEnabled ? (
+          <>
+            <Field
+              label="How prices are quoted"
+              help="EU and UK stores normally quote inclusive prices; US stores quote exclusive and add tax at checkout."
+            >
+              {(control) => (
+                <Select
+                  {...control}
+                  className={cx(styles.currency)}
+                  value={taxBehavior}
+                  onChange={(value: TaxBehavior) => setTaxBehavior(value)}
+                  options={[
+                    { label: "Tax added at checkout (exclusive)", value: "exclusive" },
+                    { label: "Tax already in the price (inclusive)", value: "inclusive" },
+                  ]}
+                />
+              )}
+            </Field>
+
+            {behaviorChanged ? (
+              <Alert
+                className={cx(styles.notice)}
+                type="warning"
+                showIcon
+                title="Published products need publishing again"
+                description="Stripe will not let a Price change its tax behaviour, so this only reaches Stripe when each product is published again — which creates new Prices and archives the old ones. Historic orders keep resolving against the archived ones. The overview lists what is out of date."
+              />
+            ) : null}
+
+            <Field
+              label="Default tax code"
+              {...(taxCodeLooksWrong
+                ? { error: "A Stripe tax code looks like txcd_99999999." }
+                : {
+                    help: `Used for every product that does not set its own. ${DEFAULT_TAX_CODE} is Stripe's general tangible-goods code; digital goods, books and food are taxed differently in many places.`,
+                  })}
+            >
+              {(control) => (
+                <Input
+                  {...control}
+                  value={defaultTaxCode}
+                  placeholder={DEFAULT_TAX_CODE}
+                  status={taxCodeLooksWrong ? "error" : ""}
+                  onChange={(event) => setDefaultTaxCode(event.target.value.trim())}
+                />
+              )}
+            </Field>
+          </>
+        ) : null}
+      </Card>
+
       <Card title="About page" className={cx(styles.card)}>
+        <p className={cx(styles.wiring)}>
+          Superseded by <strong>Pages</strong>, which can hold this and everything else a
+          store needs to publish. This field is kept for one release; the copy below has
+          already been copied into a page.
+        </p>
+
         <Field label="Text" help="Leave it empty to drop the About link from the banner.">
           {(control) => (
             <Input.TextArea
@@ -202,7 +323,7 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
       <div className={cx(styles.footer)}>
         <Button
           type="primary"
-          disabled={!dirty || keyLooksSecret || name.trim() === ""}
+          disabled={!dirty || keyLooksSecret || taxCodeLooksWrong || name.trim() === ""}
           loading={update.isPending}
           onClick={submit}
         >

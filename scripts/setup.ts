@@ -393,7 +393,7 @@ async function main(): Promise<void> {
       await seedIfEmpty();
     }
 
-    const { defaultTheme } = await import("../shared/schema.js");
+    const { defaultTheme, DEFAULT_TAX_CODE } = await import("../shared/schema.js");
     const { updateSettings } = await import("../db/admin-repository.js");
 
     await updateSettings({
@@ -401,6 +401,13 @@ async function main(): Promise<void> {
       currency,
       stripePublishableKey: publishableKey?.startsWith("pk_") ? publishableKey : null,
       aboutText: null,
+      // Tax stays off until the merchant has activated Stripe Tax and
+      // registered their obligations. Nothing here can do that for them, and a
+      // store that silently starts collecting would be worse than one that
+      // does not — see the Settings copy.
+      taxEnabled: false,
+      taxBehavior: "exclusive",
+      defaultTaxCode: DEFAULT_TAX_CODE,
       theme: defaultTheme,
     });
 

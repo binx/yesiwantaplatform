@@ -31,6 +31,12 @@ export const storeSettings = pgTable("store_settings", {
   stripePublishableKey: text("stripe_publishable_key"),
   /** @deprecated Superseded by the `pages` table. See db/schema.sqlite.ts. */
   aboutText: text("about_text"),
+  /** Stripe Tax. Off by default — see the note in db/schema.sqlite.ts. */
+  taxEnabled: boolean("tax_enabled").notNull().default(false),
+  /** "exclusive" (added at checkout) | "inclusive" (already in the price). */
+  taxBehavior: text("tax_behavior").notNull().default("exclusive"),
+  /** Stripe tax code for products that do not set their own. */
+  defaultTaxCode: text("default_tax_code").notNull().default("txcd_99999999"),
   themeColorPrimary: text("theme_color_primary").notNull().default("#18181b"),
   themeColorAccent: text("theme_color_accent").notNull().default("#e07a5f"),
   themeFontFamily: text("theme_font_family").notNull().default("system-ui, sans-serif"),
@@ -90,8 +96,12 @@ export const products = pgTable(
     seoTitle: text("seo_title"),
     seoDescription: text("seo_description"),
     variantName: text("variant_name"),
+    /** Stripe tax code. Null uses the store default. */
+    taxCode: text("tax_code"),
     isLive: boolean("is_live").notNull().default(false),
     stripeProductId: text("stripe_product_id"),
+    /** `code|behavior` last published to Stripe. See db/schema.sqlite.ts. */
+    stripeTaxSignature: text("stripe_tax_signature"),
     position: integer("position").notNull().default(0),
     ...timestamps,
   },
@@ -219,6 +229,8 @@ export const shippingRates = pgTable("shipping_rates", {
   maxWeightGrams: integer("max_weight_grams"),
   minSubtotalCents: integer("min_subtotal_cents"),
   maxSubtotalCents: integer("max_subtotal_cents"),
+  /** Whether the rate's price already contains tax. Set per rate. */
+  taxBehavior: text("tax_behavior").notNull().default("exclusive"),
   isActive: boolean("is_active").notNull().default(true),
   position: integer("position").notNull().default(0),
   ...timestamps,

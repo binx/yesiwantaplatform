@@ -28,6 +28,16 @@ async function publishVariant(variantId: string, priceId: string) {
     .where(eq(schema.variants.id, variantId));
 }
 
+/** Turn the store's tax collection on or off, as Settings would. */
+async function setTax(enabled: boolean, behavior: "exclusive" | "inclusive" = "exclusive") {
+  const { getDatabase } = await import("../db/client.js");
+  const { drizzle: db, schema } = await getDatabase();
+  await db
+    .update(schema.storeSettings)
+    .set({ taxEnabled: enabled, taxBehavior: behavior })
+    .where(eq(schema.storeSettings.id, 1));
+}
+
 async function setStock(variantId: string, quantity: number) {
   const { getDatabase } = await import("../db/client.js");
   const { drizzle: db, schema } = await getDatabase();
@@ -210,6 +220,91 @@ describe("checkout", () => {
       .post("/api/checkout")
       .send({ lines: [{ productId: "demo-tote", variantId: "demo-tote-s", quantity: 0 }] })
       .expect(400);
+  });
+});
+
+describe("tax at checkout", () => {
+  async function checkout(): Promise<Stripe.Checkout.SessionCreateParams> {
+    await request(app)
+      .post("/api/checkout")
+      .send({ lines: [{ productId: "demo-tote", variantId: "demo-tote-s", quantity: 1 }] })
+      .expect(200);
+
+    return createSession.mock.calls[0]?.[0] as Stripe.Checkout.SessionCreateParams;
+  }
+
+  it("sends no tax keys at all when the store does not collect tax", async () => {
+    await setTax(false);
+    const params = await checkout();
+
+    // Not "enabled: false" — absent. A store that collects no tax should
+    // produce exactly the session it produced before this feature existed.
+    expect(params.automatic_tax).toBeUndefined();
+    expect(params.customer_update).toBeUndefined();
+  });
+
+  it("enables automatic tax, with the customer_update Stripe requires", async () => {
+    await setTax(true);
+    const params = await checkout();
+
+    expect(params.automatic_tax).toEqual({ enabled: true });
+    /*
+     * Not optional. With automatic_tax on, a session that creates a customer is
+     * rejected at *creation* without this — so leaving it out would take the
+     * store's checkout down entirely rather than merely mis-taxing an order.
+     */
+    expect(params.customer_update).toEqual({ shipping: "auto" });
+
+    await setTax(false);
+  });
+
+  it("declares a tax behaviour on shipping only while tax is on", async () => {
+    const { replaceShippingTable } = await import("../db/shipping-repository.js");
+    await replaceShippingTable({
+      zones: [{ id: "z1", name: "US", countryCodes: ["US"] }],
+      rates: [
+        {
+          id: "r1",
+          name: "Standard",
+          priceCents: 500,
+          zoneId: "z1",
+          minWeightGrams: null,
+          maxWeightGrams: null,
+          minSubtotalCents: null,
+          maxSubtotalCents: null,
+          taxBehavior: "inclusive",
+          isActive: true,
+        },
+      ],
+    });
+
+    await setTax(true);
+    await request(app)
+      .post("/api/checkout")
+      .send({
+        lines: [{ productId: "demo-tote", variantId: "demo-tote-s", quantity: 1 }],
+        shipToCountry: "US",
+      })
+      .expect(200);
+
+    const withTax = createSession.mock.calls[0]?.[0] as Stripe.Checkout.SessionCreateParams;
+    expect(withTax.shipping_options?.[0]?.shipping_rate_data?.tax_behavior).toBe("inclusive");
+
+    await setTax(false);
+    createSession.mockClear();
+
+    await request(app)
+      .post("/api/checkout")
+      .send({
+        lines: [{ productId: "demo-tote", variantId: "demo-tote-s", quantity: 1 }],
+        shipToCountry: "US",
+      })
+      .expect(200);
+
+    const without = createSession.mock.calls[0]?.[0] as Stripe.Checkout.SessionCreateParams;
+    expect(without.shipping_options?.[0]?.shipping_rate_data?.tax_behavior).toBeUndefined();
+
+    await replaceShippingTable({ zones: [], rates: [] });
   });
 });
 

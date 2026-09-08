@@ -49,6 +49,11 @@ export function DashboardPage() {
 
       {environment.data ? <Wiring environment={environment.data} /> : null}
 
+      <Tax
+        enabled={settings.data?.taxEnabled ?? false}
+        stale={products.data?.filter((product) => product.needsTaxRepublish) ?? []}
+      />
+
       <div className={cx(styles.stats)}>
         <Card>
           <Statistic title="Live products" value={live} loading={products.isPending} />
@@ -119,6 +124,69 @@ export function DashboardPage() {
         )}
       </Card>
     </>
+  );
+}
+
+interface TaxProps {
+  enabled: boolean;
+  /** Published under tax settings the store no longer uses. */
+  stale: { id: string; name: string; slug: string }[];
+}
+
+/**
+ * Tax, said out loud on the first screen.
+ *
+ * Under-collecting is silent: every order goes through, the buyer pays, and
+ * the difference is owed by the merchant with nothing anywhere to say so. The
+ * same is true one step in — a store that changed how it quotes prices has
+ * every already-published Stripe Price still carrying the old behaviour,
+ * because Stripe will not let a Price be edited. Neither state announces
+ * itself, so both are announced here.
+ */
+function Tax({ enabled, stale }: TaxProps) {
+  if (!enabled) {
+    return (
+      <Alert
+        className={cx(styles.wiring)}
+        type="info"
+        showIcon
+        title="This store is not collecting tax"
+        description={
+          <>
+            Every order is charged with no tax added. If you are obliged to collect anywhere,
+            activate Stripe Tax and record your registrations in the Stripe dashboard first,
+            then turn it on in <Link to="/admin/settings">Settings</Link>.
+          </>
+        }
+      />
+    );
+  }
+
+  if (stale.length === 0) return null;
+
+  return (
+    <Alert
+      className={cx(styles.wiring)}
+      type="warning"
+      showIcon
+      title={`${stale.length} product${stale.length === 1 ? "" : "s"} ${
+        stale.length === 1 ? "was" : "were"
+      } published before these tax settings`}
+      description={
+        <>
+          Stripe will not let a Price change its tax code or behaviour, so these still carry
+          the old ones until each is published again. Nothing republishes on its own —
+          writing to a live Stripe account is always something you ask for.
+          <span className={cx(styles.staleList)}>
+            {stale.map((product) => (
+              <Link key={product.id} to={`/admin/products/${product.slug}`}>
+                {product.name}
+              </Link>
+            ))}
+          </span>
+        </>
+      }
+    />
   );
 }
 

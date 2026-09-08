@@ -67,6 +67,7 @@ export async function createProduct(input: ProductInput): Promise<string> {
     bulletPoints: json(input.bulletPoints),
     seoTitle: input.seoTitle,
     seoDescription: input.seoDescription,
+    kind: input.kind,
     // Derived, not taken from the request: see the deprecation note on the
     // column itself.
     variantName: input.options[0]?.name ?? null,
@@ -97,6 +98,7 @@ export async function updateProduct(id: string, input: ProductInput): Promise<vo
       bulletPoints: json(input.bulletPoints),
       seoTitle: input.seoTitle,
       seoDescription: input.seoDescription,
+      kind: input.kind,
       variantName: input.options[0]?.name ?? null,
       taxCode: input.taxCode,
       isLive: input.isLive,

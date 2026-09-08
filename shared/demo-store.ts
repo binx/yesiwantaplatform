@@ -36,6 +36,7 @@ export const demoStore: Store = {
       id: "demo-tote",
       slug: "canvas-tote",
       name: "Canvas Tote",
+      kind: "physical",
       description:
         "Heavyweight cotton canvas with a boxed base and webbing straps. Roomy enough for a laptop, a lunch, and a paperback.",
       bulletPoints: ["16 oz cotton canvas", "38 × 40 × 12 cm", "Machine washable, cold"],
@@ -85,6 +86,7 @@ export const demoStore: Store = {
       id: "demo-mug",
       slug: "enamel-mug",
       name: "Enamel Mug",
+      kind: "physical",
       description:
         "Speckled enamel over steel, with a rolled rim. Takes a campfire or a dishwasher without complaint.",
       bulletPoints: ["350 ml", "Enamel over steel", "Not microwave safe"],
@@ -117,6 +119,7 @@ export const demoStore: Store = {
       id: "demo-print",
       slug: "risograph-print",
       name: "Risograph Print",
+      kind: "physical",
       description:
         "Two-colour risograph on 120 gsm recycled stock. Every pull sits a little differently, which is the point.",
       bulletPoints: ["A3, unframed", "Edition of 50", "Signed on the reverse"],
@@ -149,6 +152,7 @@ export const demoStore: Store = {
       id: "demo-scarf",
       slug: "silk-scarf",
       name: "Silk Scarf",
+      kind: "physical",
       description: "Hand-rolled edges on lightweight silk twill. Folds down to nothing in a pocket.",
       bulletPoints: ["90 × 90 cm", "100% silk twill", "Dry clean only"],
       seoTitle: null,
@@ -186,6 +190,7 @@ export const demoStore: Store = {
       id: "demo-hoodie",
       slug: "zip-hoodie",
       name: "Zip Hoodie",
+      kind: "physical",
       description:
         "Brushed-fleece interior with a full metal zip. Cut generously, so it layers over anything.",
       bulletPoints: ["Cotton-poly fleece", "Ribbed cuffs and hem", "Two axes: size and colour"],

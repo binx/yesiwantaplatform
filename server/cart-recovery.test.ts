@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
+import type * as EmailModule from "./email.js";
 
 /**
  * Abandoned cart recovery — docs/tasks/12-abandoned-cart.md's acceptance list,
@@ -10,6 +11,16 @@ import type { Express } from "express";
  * paths; simulating a signed event here would test the signature verifier,
  * not this feature).
  */
+
+/*
+ * Sending is already a no-op in tests (no SMTP configured), which makes "no
+ * email went out" unobservable. Stub just that one send so it can be asserted;
+ * every other export keeps its real implementation.
+ */
+vi.mock("./email.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof EmailModule>()),
+  sendCartRecoveryEmail: vi.fn(),
+}));
 
 let app: Express;
 const PASSWORD = "a-sufficiently-long-test-password";
@@ -352,6 +363,7 @@ describe("checkout.session.expired salvage", () => {
     const { createCustomer } = await import("./auth.js");
     const { createPendingOrder, getOrder } = await import("../db/orders-repository.js");
     const { notifyCheckoutExpired } = await import("./cart-recovery.js");
+    const { sendCartRecoveryEmail } = await import("./email.js");
 
     const email = freshEmail();
     const customerId = await createCustomer(email, PASSWORD, null);
@@ -382,7 +394,12 @@ describe("checkout.session.expired salvage", () => {
     const order = await getOrder(orderId);
 
     await db.update(schema.storeSettings).set({ cartRecoveryEnabled: false }).where(eq(schema.storeSettings.id, 1));
+    vi.mocked(sendCartRecoveryEmail).mockClear();
     await notifyCheckoutExpired(customerId, order!);
+
+    // The brief's promise is the merchant's sending reputation: nothing leaves
+    // their SMTP until they opt in.
+    expect(sendCartRecoveryEmail).not.toHaveBeenCalled();
 
     // Stripe drives this path, not the merchant: an opted-out store must end up
     // with no cart row at all, not merely an unsent reminder.

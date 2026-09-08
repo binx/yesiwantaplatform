@@ -177,7 +177,57 @@ export function resolveShippingRates(
     .sort((a, b) => a.priceCents - b.priceCents || a.position - b.position);
 }
 
-/** Total weight of a cart, in grams. */
+/**
+ * A cart line, as far as shipping is concerned.
+ *
+ * `isDigital` is not cosmetic. A download has no weight, and the tempting
+ * shortcut — give it `weightGrams: 0` and let the arithmetic take care of
+ * itself — is wrong: a zero-gram line still *participates*, so a cart holding
+ * nothing but PDFs reports a 0 g parcel and quietly matches the store's
+ * lightest weight band. The buyer is then offered, and charged, postage on a
+ * parcel that does not exist. Digital lines are therefore excluded rather than
+ * zeroed.
+ */
+export interface ShippingLine {
+  weightGrams: number;
+  quantity: number;
+  priceCents: number;
+  isDigital: boolean;
+}
+
+/** The physical lines of a cart — the only ones a parcel is made of. */
+export function physicalLines<T extends { isDigital: boolean }>(
+  lines: readonly T[],
+): T[] {
+  return lines.filter((line) => !line.isDigital);
+}
+
+/** True when a cart has anything that needs an address. */
+export function requiresShipping(lines: readonly { isDigital: boolean }[]): boolean {
+  return lines.some((line) => !line.isDigital);
+}
+
+/**
+ * The parcel a cart makes: its weight, and the value of what is in it.
+ *
+ * Both figures come from the physical lines only. Weight is obvious; subtotal
+ * less so, and it is a deliberate choice — `minSubtotalCents` is how "free over
+ * $50" is expressed, and a merchant setting that is pricing a parcel, not an
+ * order. Counting a $40 download toward it would hand out free postage on a $10
+ * box, and on an upper bound (`maxSubtotalCents`) it is worse: a digital-heavy
+ * cart can be pushed past every band's ceiling, match nothing at all, and ship
+ * free in silence. `findCoverageGaps` exists because that failure is invisible.
+ */
+export function parcelFor(lines: readonly ShippingLine[]): ParcelSummary {
+  const physical = physicalLines(lines);
+
+  return {
+    weightGrams: parcelWeight(physical),
+    subtotalCents: physical.reduce((total, line) => total + line.priceCents * line.quantity, 0),
+  };
+}
+
+/** Total weight of a cart, in grams. Callers pass physical lines only. */
 export function parcelWeight(
   lines: readonly { weightGrams: number; quantity: number }[],
 ): number {

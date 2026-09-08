@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 import type Stripe from "stripe";
@@ -220,6 +220,105 @@ describe("checkout", () => {
       .post("/api/checkout")
       .send({ lines: [{ productId: "demo-tote", variantId: "demo-tote-s", quantity: 0 }] })
       .expect(400);
+  });
+});
+
+/**
+ * Digital products at checkout — see docs/tasks/13-digital-products.md.
+ *
+ * The failure this guards is not an error but a form field: a buyer asked for
+ * a postal address to receive a PDF, and a Stripe session carrying a shipping
+ * address for an order with nothing to ship.
+ */
+describe("digital products at checkout", () => {
+  /** Mark a seeded product digital, as the admin's Type control would. */
+  async function setKind(productId: string, kind: "physical" | "digital") {
+    const { getDatabase } = await import("../db/client.js");
+    const { drizzle: db, schema } = await getDatabase();
+    await db.update(schema.products).set({ kind }).where(eq(schema.products.id, productId));
+  }
+
+  beforeEach(async () => {
+    await setKind("demo-mug", "digital");
+  });
+
+  // Put it back: the seeded mug is physical everywhere else in this file, and
+  // a describe that leaves the fixture changed makes the suite order-dependent.
+  afterEach(async () => {
+    await setKind("demo-mug", "physical");
+  });
+
+  async function checkoutWith(lines: unknown[]): Promise<Stripe.Checkout.SessionCreateParams> {
+    await request(app).post("/api/checkout").send({ lines }).expect(200);
+    return createSession.mock.calls[0]?.[0] as Stripe.Checkout.SessionCreateParams;
+  }
+
+  it("collects no address and offers no shipping for a cart of downloads", async () => {
+    const params = await checkoutWith([
+      { productId: "demo-mug", variantId: "demo-mug-default", quantity: 1 },
+    ]);
+
+    // Absent entirely, not an empty list: an empty `allowed_countries` is a
+    // Stripe error, and an empty `shipping_options` still renders the section.
+    expect(params.shipping_address_collection).toBeUndefined();
+    expect(params.shipping_options).toBeUndefined();
+  });
+
+  it("still collects an address when one physical line is in the cart", async () => {
+    const params = await checkoutWith([
+      { productId: "demo-mug", variantId: "demo-mug-default", quantity: 1 },
+      { productId: "demo-tote", variantId: "demo-tote-s", quantity: 1 },
+    ]);
+
+    expect(params.shipping_address_collection).toBeDefined();
+  });
+
+  it("ignores a shipToCountry the buyer sends for a downloads-only cart", async () => {
+    await request(app)
+      .post("/api/checkout")
+      .send({
+        lines: [{ productId: "demo-mug", variantId: "demo-mug-default", quantity: 1 }],
+        shipToCountry: "US",
+      })
+      .expect(200);
+
+    const params = createSession.mock.calls[0]?.[0] as Stripe.Checkout.SessionCreateParams;
+    expect(params.shipping_address_collection).toBeUndefined();
+  });
+
+  it("prices a mixed cart on the physical line only", async () => {
+    const { quoteShipping } = await import("./routes/shipping.js");
+
+    const mixed = await quoteShipping(
+      [
+        { productId: "demo-mug", variantId: "demo-mug-default", quantity: 1 },
+        { productId: "demo-tote", variantId: "demo-tote-s", quantity: 1 },
+      ],
+      "US",
+    );
+    const physicalOnly = await quoteShipping(
+      [{ productId: "demo-tote", variantId: "demo-tote-s", quantity: 1 }],
+      "US",
+    );
+
+    // Adding a download to the cart changes neither the parcel nor its price.
+    expect(mixed.weightGrams).toBe(physicalOnly.weightGrams);
+    expect(mixed.subtotalCents).toBe(physicalOnly.subtotalCents);
+    expect(mixed.requiresShipping).toBe(true);
+  });
+
+  it("reports a downloads-only cart as needing no shipping, and not as a gap", async () => {
+    const { quoteShipping } = await import("./routes/shipping.js");
+
+    const quote = await quoteShipping(
+      [{ productId: "demo-mug", variantId: "demo-mug-default", quantity: 1 }],
+      "US",
+    );
+
+    expect(quote.requiresShipping).toBe(false);
+    expect(quote.rates).toEqual([]);
+    // A gap means "the merchant has a hole in their table"; this is not one.
+    expect(quote.gap).toBe(false);
   });
 });
 

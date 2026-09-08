@@ -161,6 +161,12 @@ export const products = pgTable(
     seoTitle: text("seo_title"),
     seoDescription: text("seo_description"),
     /**
+     * "physical" | "digital". A digital product has no weight and never ships,
+     * so it is excluded from parcel weight and from shipping-address collection
+     * — see shared/shipping.ts and server/routes/checkout.ts.
+     */
+    kind: text("kind").notNull().default("physical"),
+    /**
      * @deprecated Superseded by `product_options`. Kept in sync with the first
      * option's name (or null) for one release, so a rollback still has a label.
      */

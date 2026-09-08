@@ -531,7 +531,7 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <span class="log-date">2026-09-07</span>
         <span class="log-task">06</span>
         <span class="log-title">Storefront search and sort</span>
-        <span class="log-ref"></span>
+        <span class="log-ref">2234008</span>
       </li>
     </ol>
   </section>
@@ -695,6 +695,7 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <p><strong>The backend already exists — don't build one.</strong> <code>listProducts</code> implements case-insensitive matching across name and description, <code>productQuerySchema</code> accepts <code>search</code>, and <code>GET /api/products</code> passes it through. Nothing on the storefront calls any of it, because the storefront loads the whole catalogue once from <code>/api/store</code>. So this is client-side filtering over data already in memory: no request, no server change, works against the demo fixture.</p>
         <div class="meta"><span><b>Migration</b> none</span>
           <span><b>Touches</b> src/pages/ShopPage.tsx · shared/catalog.ts</span>
+          <span><b>Shipped in</b> 2234008</span>
           <span><b>Brief</b> docs/tasks/06-storefront-search.md</span></div>
       </article>
 

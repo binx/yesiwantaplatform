@@ -9,7 +9,7 @@ blocked_by: []
 blocks: []
 touches: src/pages/ShopPage.tsx · shared/catalog.ts
 completed: 2026-09-07
-shipped_in: 
+shipped_in: 2234008
 summary: >-
   **The backend already exists — don't build one.** `listProducts` implements
   case-insensitive matching across name and description, `productQuerySchema` accepts

@@ -156,6 +156,12 @@ Three rules the code holds to:
 - **The webhook is the only thing that marks an order paid.** The success redirect proves nothing — a buyer can close the tab, and the URL can be visited directly.
 - **Webhook delivery is at-least-once**, so events are deduplicated by id. If a handler fails, the dedup record is released so Stripe's retry is actually processed rather than dismissed as a duplicate.
 
+#### Discount codes
+
+Discount codes are created and managed **in the Stripe dashboard**, not in Beluga. Checkout sets `allow_promotion_codes`, so Stripe's hosted page owns the code field and everything behind it: validation, expiry, usage caps, per-customer limits. Beluga records what came off (`discount_cents` on the order) and shows it on the confirmation page, the admin order, and the confirmation email — it does not create, list or edit codes.
+
+That is a deliberate trade. Owning codes in Beluga would mean owning validation, races on usage caps, and Coupon synchronisation; this way the feature is complete and correct on day one. Cart-condition discounts ("10% off orders over $50") are not supported, because computing them Beluga-side would break the rule that prices only ever come from the database.
+
 Stock is returned when an order is refunded in full or cancelled, guarded by a `restocked_at` stamp claimed with a conditional update so several refund webhooks — or a merchant re-saving a cancelled order — cannot inflate the catalogue. A partial refund does not restock: it says nothing about which line came back.
 
 **Refunds follow the same rule as payment.** `POST /api/admin/orders/:id/refund` calls Stripe and stops there; `refunded_cents` and the order's status are written by the `charge.refunded` webhook, which is where the money actually settles. Refunds are additive, so several partial refunds accumulate against one charge, and the order only moves to `refunded` once the whole charge is covered — a partial refund leaves fulfilment alone.

@@ -149,6 +149,14 @@ export function OrderDetailPage() {
               summary={() => (
                 <Table.Summary>
                   <Total label="Subtotal" cents={current.subtotalCents} order={current} />
+                  {current.discountCents > 0 ? (
+                    <Total
+                      label="Discount"
+                      cents={current.discountCents}
+                      order={current}
+                      negative
+                    />
+                  ) : null}
                   <Total label="Shipping" cents={current.shippingCents} order={current} />
                   <Total label="Tax" cents={current.taxCents} order={current} />
                   <Total label="Total" cents={current.totalCents} order={current} strong />
@@ -398,23 +406,24 @@ function Total({
   cents,
   order,
   strong,
+  negative,
 }: {
   label: string;
   cents: number;
   order: Order;
   strong?: boolean;
+  /** Render as a deduction. The stored figure is positive either way. */
+  negative?: boolean;
 }) {
+  const amount = `${negative ? "\u2212" : ""}${formatMoney(cents, order.currency)}`;
+
   return (
     <Table.Summary.Row>
       <Table.Summary.Cell index={0} colSpan={3} align="right">
         {strong ? <strong>{label}</strong> : label}
       </Table.Summary.Cell>
       <Table.Summary.Cell index={1} align="right">
-        {strong ? (
-          <strong>{formatMoney(cents, order.currency)}</strong>
-        ) : (
-          formatMoney(cents, order.currency)
-        )}
+        {strong ? <strong>{amount}</strong> : amount}
       </Table.Summary.Cell>
     </Table.Summary.Row>
   );

@@ -73,6 +73,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
     subtotalCents: session.amount_subtotal ?? order.subtotalCents,
     shippingCents: session.total_details?.amount_shipping ?? 0,
     taxCents: session.total_details?.amount_tax ?? 0,
+    discountCents: session.total_details?.amount_discount ?? 0,
     totalCents: session.amount_total ?? order.totalCents,
     currency: (session.currency ?? order.currency).toUpperCase(),
     shipping: readShipping(session),

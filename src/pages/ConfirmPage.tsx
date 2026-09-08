@@ -17,6 +17,7 @@ interface ConfirmedOrder {
   subtotalCents: number;
   shippingCents: number;
   taxCents: number;
+  discountCents: number;
   totalCents: number;
   items: {
     productName: string;
@@ -132,6 +133,15 @@ export function ConfirmPage() {
             <td>Subtotal</td>
             <td className={styles.amount}>{formatMoney(data.subtotalCents, data.currency)}</td>
           </tr>
+          {data.discountCents > 0 && (
+            <tr>
+              <td>Discount</td>
+              <td className={styles.amount}>
+                {"\u2212"}
+                {formatMoney(data.discountCents, data.currency)}
+              </td>
+            </tr>
+          )}
           <tr>
             <td>Shipping</td>
             <td className={styles.amount}>

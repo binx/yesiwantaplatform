@@ -55,6 +55,12 @@ export const orderSchema = z.object({
   subtotalCents: centsSchema,
   shippingCents: centsSchema,
   taxCents: centsSchema,
+  /**
+   * What a promotion code took off, as a positive number. Stored, not
+   * subtracted: `subtotalCents` is Stripe's pre-discount figure and
+   * `totalCents` its post-discount one, so deducting here would double it.
+   */
+  discountCents: centsSchema,
   totalCents: centsSchema,
   shipping: shippingAddressSchema,
   carrier: z.string().nullable(),

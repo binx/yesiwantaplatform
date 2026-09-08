@@ -212,6 +212,8 @@ export const orders = sqliteTable(
     subtotalCents: integer("subtotal_cents").notNull().default(0),
     shippingCents: integer("shipping_cents").notNull().default(0),
     taxCents: integer("tax_cents").notNull().default(0),
+    /** Total discount applied at Stripe. Zero when no code was used. */
+    discountCents: integer("discount_cents").notNull().default(0),
     totalCents: integer("total_cents").notNull().default(0),
     shippingName: text("shipping_name"),
     shippingLine1: text("shipping_line1"),

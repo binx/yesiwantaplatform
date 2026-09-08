@@ -70,6 +70,9 @@ function toLocals(order: Order, storeName: string, colorAccent: string) {
       })),
       subtotal: formatMoney(order.subtotalCents, currency),
       shippingCost: order.shippingCents === 0 ? "Free" : formatMoney(order.shippingCents, currency),
+      hasDiscount: order.discountCents > 0,
+      // Formatted as a deduction here, because templates do no arithmetic.
+      discount: `\u2212${formatMoney(order.discountCents, currency)}`,
       hasTax: order.taxCents > 0,
       tax: formatMoney(order.taxCents, currency),
       total: formatMoney(order.totalCents, currency),

@@ -102,6 +102,7 @@ interface OrderRow {
   subtotalCents: number;
   shippingCents: number;
   taxCents: number;
+  discountCents: number;
   totalCents: number;
   shippingName: string | null;
   shippingLine1: string | null;
@@ -139,6 +140,7 @@ function buildOrder(row: OrderRow, items: OrderItemRow[]): Order {
     subtotalCents: row.subtotalCents,
     shippingCents: row.shippingCents,
     taxCents: row.taxCents,
+    discountCents: row.discountCents,
     totalCents: row.totalCents,
     shipping: {
       name: row.shippingName,
@@ -280,6 +282,8 @@ export interface PaymentDetails {
   subtotalCents: number;
   shippingCents: number;
   taxCents: number;
+  /** What a promotion code took off, as a positive number. */
+  discountCents: number;
   totalCents: number;
   currency: string;
   shipping: {
@@ -305,6 +309,7 @@ export async function markOrderPaid(orderId: string, details: PaymentDetails): P
       subtotalCents: details.subtotalCents,
       shippingCents: details.shippingCents,
       taxCents: details.taxCents,
+      discountCents: details.discountCents,
       totalCents: details.totalCents,
       currency: details.currency,
       shippingName: details.shipping.name,

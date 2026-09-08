@@ -1,14 +1,14 @@
 ---
 task: "03"
 title: Discount codes via Stripe
-status: todo
+status: done
 tier: 0
 size: S
 migration: one column
 blocked_by: []
 blocks: []
 touches: server/routes/checkout.ts:138 · emails/ · src/pages/ConfirmPage.tsx
-completed: 
+completed: 2026-09-07
 shipped_in: 
 summary: >-
   Setting `allow_promotion_codes: true` on the Checkout Session gets you the whole entry

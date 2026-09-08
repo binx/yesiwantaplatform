@@ -43,6 +43,13 @@
       "when": 1788834117428,
       "tag": "0005_married_loners",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1788834260373,
+      "tag": "0006_robust_firestar",
+      "breakpoints": true
     }
   ]
 }

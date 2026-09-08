@@ -64,6 +64,7 @@ function completedSessionEvent(overrides: {
   amountSubtotal?: number;
   amountTotal?: number;
   shipping?: number;
+  discount?: number;
 }) {
   return {
     id: overrides.id ?? `evt_${Math.random().toString(36).slice(2)}`,
@@ -77,7 +78,11 @@ function completedSessionEvent(overrides: {
         currency: "usd",
         amount_subtotal: overrides.amountSubtotal ?? 3400,
         amount_total: overrides.amountTotal ?? 3400,
-        total_details: { amount_shipping: overrides.shipping ?? 0, amount_tax: 0 },
+        total_details: {
+          amount_shipping: overrides.shipping ?? 0,
+          amount_tax: 0,
+          amount_discount: overrides.discount ?? 0,
+        },
         customer_details: { email: "buyer@example.com", name: "A Buyer" },
         collected_information: {
           shipping_details: {
@@ -157,6 +162,18 @@ describe("checkout", () => {
     const session = createSession.mock.results[0]?.value as { id: string };
     const order = await findOrderByCheckoutSession(session.id);
     expect(order?.items[0]?.unitPriceCents).toBe(3400);
+  });
+
+  it("lets Stripe host the promotion-code field", async () => {
+    await request(app)
+      .post("/api/checkout")
+      .send({ lines: [{ productId: "demo-tote", variantId: "demo-tote-s", quantity: 1 }] })
+      .expect(200);
+
+    const params = createSession.mock.calls[0]?.[0] as Stripe.Checkout.SessionCreateParams;
+    expect(params.allow_promotion_codes).toBe(true);
+    // Stripe rejects the two together, so this must never appear alongside it.
+    expect(params.discounts).toBeUndefined();
   });
 
   it("refuses to sell more than is in stock", async () => {
@@ -302,6 +319,51 @@ describe("webhooks", () => {
     expect(await stockOf("demo-tote-s")).toBe(0);
 
     await setStock("demo-tote-s", 12);
+  });
+
+  it("records a promotion code's discount without touching the subtotal", async () => {
+    const { sessionId, orderId } = await startCheckout("demo-tote-s", "demo-tote");
+
+    // Stripe's amount_subtotal is pre-discount and amount_total post-discount.
+    const { payload, header } = signedEvent(
+      completedSessionEvent({
+        sessionId,
+        orderId,
+        amountSubtotal: 3400,
+        amountTotal: 2900,
+        discount: 500,
+      }),
+    );
+
+    await request(app)
+      .post("/api/webhooks/stripe")
+      .set("content-type", "application/json")
+      .set("stripe-signature", header)
+      .send(payload)
+      .expect(200);
+
+    const { getOrder } = await import("../db/orders-repository.js");
+    const order = await getOrder(orderId);
+
+    expect(order?.discountCents).toBe(500);
+    // Deducting on the way in would double-count it against amount_total.
+    expect(order?.subtotalCents).toBe(3400);
+    expect(order?.totalCents).toBe(2900);
+  });
+
+  it("records zero, not null, when no code was used", async () => {
+    const { sessionId, orderId } = await startCheckout("demo-tote-s", "demo-tote");
+    const { payload, header } = signedEvent(completedSessionEvent({ sessionId, orderId }));
+
+    await request(app)
+      .post("/api/webhooks/stripe")
+      .set("content-type", "application/json")
+      .set("stripe-signature", header)
+      .send(payload)
+      .expect(200);
+
+    const { getOrder } = await import("../db/orders-repository.js");
+    expect((await getOrder(orderId))?.discountCents).toBe(0);
   });
 
   it("acknowledges an event type it does not handle", async () => {

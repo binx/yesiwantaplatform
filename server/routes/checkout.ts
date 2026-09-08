@@ -141,6 +141,13 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
       line_items: lineItems,
       currency,
       /*
+       * Stripe hosts the whole redemption flow — the code field, validation,
+       * expiry, usage caps — so codes are created in the Stripe dashboard and
+       * Beluga only records what came off. Note that Stripe rejects this
+       * alongside `discounts`; never set both.
+       */
+      allow_promotion_codes: true,
+      /*
        * Locked to the country the rates were priced for.
        *
        * Letting the buyer change country at Stripe would let them keep a
@@ -196,6 +203,7 @@ checkoutRouter.get("/checkout/:sessionId", async (req, res) => {
     subtotalCents: order.subtotalCents,
     shippingCents: order.shippingCents,
     taxCents: order.taxCents,
+    discountCents: order.discountCents,
     totalCents: order.totalCents,
     items: order.items.map((i) => ({
       productName: i.productName,

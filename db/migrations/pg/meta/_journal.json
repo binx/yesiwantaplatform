@@ -43,6 +43,13 @@
       "when": 1788834117735,
       "tag": "0005_absurd_darkhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788834260686,
+      "tag": "0006_brown_kat_farrell",
+      "breakpoints": true
     }
   ]
 }

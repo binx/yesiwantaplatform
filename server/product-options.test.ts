@@ -120,3 +120,96 @@ describe("multi-axis product validation", () => {
     expect(labels).toEqual(["Large / Blue", "Large / Red", "Small / Blue", "Small / Red"]);
   });
 });
+
+
+/**
+ * Downloads have unlimited stock — see docs/tasks/13-digital-products.md.
+ *
+ * Asserted at the admin boundary because that is where it is enforced: the
+ * refinement lives on `productInputSchema`, so both the editor and any other
+ * caller hit the same rule. The consequence of letting it through is not a
+ * crash but a slow one — `decrementInventoryForOrder` counts the variant down,
+ * it hits zero, and paid orders start being flagged `oversold` for a file that
+ * cannot run out.
+ */
+describe("stock on a downloadable product", () => {
+  function payload(overrides: Partial<Record<string, unknown>> = {}) {
+    return {
+      slug: "field-guide-pdf",
+      name: "Field Guide",
+      kind: "digital",
+      description: "",
+      bulletPoints: [],
+      seoTitle: null,
+      seoDescription: null,
+      taxCode: null,
+      isLive: false,
+      optionGroups: [],
+      options: [],
+      variants: [{ label: "", priceCents: 1200, inventory: { type: "infinite" }, optionValues: [] }],
+      ...overrides,
+    };
+  }
+
+  it("refuses a finite count, naming the fix", async () => {
+    const { agent, csrf } = await signIn();
+
+    const response = await agent
+      .post("/api/admin/products")
+      .set("x-csrf-token", csrf)
+      .send(
+        payload({
+          variants: [
+            { label: "", priceCents: 1200, inventory: { type: "finite", quantity: 5 }, optionValues: [] },
+          ],
+        }),
+      )
+      .expect(400);
+
+    // The message has to say what to do, not just that something is wrong.
+    expect(response.body.error).toMatch(/unlimited/i);
+  });
+
+  it("accepts unlimited stock", async () => {
+    const { agent, csrf } = await signIn();
+
+    await agent
+      .post("/api/admin/products")
+      .set("x-csrf-token", csrf)
+      .send(payload())
+      .expect(201);
+  });
+
+  it("still allows a finite count on a physical product", async () => {
+    const { agent, csrf } = await signIn();
+
+    await agent
+      .post("/api/admin/products")
+      .set("x-csrf-token", csrf)
+      .send(
+        payload({
+          slug: "counted-thing",
+          name: "Counted Thing",
+          kind: "physical",
+          variants: [
+            { label: "", priceCents: 1200, inventory: { type: "finite", quantity: 5 }, optionValues: [] },
+          ],
+        }),
+      )
+      .expect(201);
+  });
+
+  it("defaults to physical when the caller omits the type", async () => {
+    const { agent, csrf } = await signIn();
+
+    const created = await agent
+      .post("/api/admin/products")
+      .set("x-csrf-token", csrf)
+      .send(payload({ slug: "unspecified-kind", name: "Unspecified", kind: undefined }))
+      .expect(201);
+
+    const product = await agent.get("/api/admin/products/unspecified-kind").expect(200);
+    expect(product.body.id).toBe(created.body.id);
+    expect(product.body.kind).toBe("physical");
+  });
+});

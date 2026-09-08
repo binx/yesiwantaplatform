@@ -17,6 +17,7 @@ function productSchemaDefaults(over: Partial<Product> & { id: string }): Product
     id: over.id,
     slug: over.slug ?? over.id,
     name: over.name ?? over.id,
+    kind: over.kind ?? "physical",
     description: over.description ?? "",
     bulletPoints: over.bulletPoints ?? [],
     seoTitle: null,

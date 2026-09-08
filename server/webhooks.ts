@@ -258,6 +258,12 @@ function productPayload(product: Product, stripeProductId: string): Record<strin
     id: product.id,
     slug: product.slug,
     name: product.name,
+    /*
+     * "physical" | "digital". Carried because it is the one thing a fulfilment
+     * subscriber must not have to guess: a digital product never ships, and an
+     * integration that assumed otherwise would raise a pick list for a download.
+     */
+    kind: product.kind,
     isLive: product.isLive,
     stripeProductId,
     variants: product.variants.map((variant) => ({

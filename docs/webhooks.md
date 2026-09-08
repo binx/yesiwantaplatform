@@ -160,6 +160,7 @@ and `unitPriceCents` are snapshots taken at purchase and are always present.
     "id": "demo-tote",
     "slug": "canvas-tote",
     "name": "Canvas Tote",
+    "kind": "physical",
     "isLive": true,
     "stripeProductId": "prod_QxYz123",
     "variants": [
@@ -169,6 +170,10 @@ and `unitPriceCents` are snapshots taken at purchase and are always present.
   }
 }
 ```
+
+`kind` is `"physical"` or `"digital"`. A digital product never ships and has no
+weight, so branch on this rather than inferring it from the absence of a
+shipping address — that is the field to check before raising a pick list.
 
 ### `inventory.low`
 

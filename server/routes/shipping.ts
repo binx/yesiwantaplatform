@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { shippingQuoteInputSchema } from "../../shared/api.js";
-import { parcelWeight, resolveShippingRates } from "../../shared/shipping.js";
+import {
+  parcelFor,
+  requiresShipping,
+  resolveShippingRates,
+  type ShippingLine,
+} from "../../shared/shipping.js";
 import type { TaxBehavior } from "../../shared/schema.js";
 import { getShippingTable, variantWeights } from "../../db/shipping-repository.js";
 import { listProducts } from "../../db/repository.js";
@@ -27,10 +32,20 @@ export interface QuotedRate {
 
 export interface ShippingQuote {
   rates: QuotedRate[];
+  /** Physical lines only — see `parcelFor` in shared/shipping.ts. */
   weightGrams: number;
   subtotalCents: number;
   /** True when the store priced this destination but nothing matched. */
   gap: boolean;
+  /**
+   * False for a cart of downloads only, which has nothing to post.
+   *
+   * The distinction the caller needs is not "no rates matched" but "no rates
+   * should exist": a digital-only cart must reach Stripe with no address
+   * collection at all, whereas an empty `rates` on a physical cart is a
+   * coverage gap the merchant needs telling about.
+   */
+  requiresShipping: boolean;
 }
 
 /**
@@ -51,21 +66,33 @@ export async function quoteShipping(
   const byId = new Map(products.map((p) => [p.id, p]));
   const weights = await variantWeights(lines.map((l) => l.variantId));
 
-  let subtotalCents = 0;
-  const weighed: { weightGrams: number; quantity: number }[] = [];
+  const priced: ShippingLine[] = [];
 
   for (const line of lines) {
-    const variant = byId.get(line.productId)?.variants.find((v) => v.id === line.variantId);
+    const product = byId.get(line.productId);
+    const variant = product?.variants.find((v) => v.id === line.variantId);
     // An unknown line contributes nothing rather than throwing: a stale cart
     // should still get a quote for the items that are real.
-    if (!variant) continue;
+    if (!product || !variant) continue;
 
-    subtotalCents += variant.priceCents * line.quantity;
-    weighed.push({ weightGrams: weights.get(variant.id) ?? 0, quantity: line.quantity });
+    priced.push({
+      weightGrams: weights.get(variant.id) ?? 0,
+      quantity: line.quantity,
+      priceCents: variant.priceCents,
+      isDigital: product.kind === "digital",
+    });
   }
 
-  const weightGrams = parcelWeight(weighed);
-  const matched = resolveShippingRates(rates, zones, countryCode, { weightGrams, subtotalCents });
+  // Weight and subtotal both come from the physical lines only.
+  const parcel = parcelFor(priced);
+  const shippable = requiresShipping(priced);
+
+  // Nothing to post: no rates, and — importantly — not a coverage gap either.
+  // Running the matcher on an empty parcel would let a 0 g / $0 "parcel" match
+  // the store's lightest band and offer postage on a cart of downloads.
+  const matched = shippable
+    ? resolveShippingRates(rates, zones, countryCode, parcel)
+    : [];
 
   return {
     rates: matched.map(({ id, name, priceCents, taxBehavior }) => ({
@@ -74,11 +101,12 @@ export async function quoteShipping(
       priceCents,
       taxBehavior,
     })),
-    weightGrams,
-    subtotalCents,
+    weightGrams: parcel.weightGrams,
+    subtotalCents: parcel.subtotalCents,
     // Only a gap if the store has rates at all; a store with none has simply
     // not set shipping up, which is a different message.
-    gap: matched.length === 0 && rates.length > 0,
+    gap: shippable && matched.length === 0 && rates.length > 0,
+    requiresShipping: shippable,
   };
 }
 

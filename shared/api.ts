@@ -5,6 +5,7 @@ import {
   collectionSchema,
   inventorySchema,
   optionGroupSchema,
+  productKindSchema,
   productSchema,
   RESERVED_PAGE_SLUGS,
   slugSchema,
@@ -44,9 +45,11 @@ export const productOptionInputSchema = z.object({
   values: z.array(z.string().min(1).max(80)).min(1).max(50),
 });
 
-export const productInputSchema = z.object({
+export const productInputSchema = z
+  .object({
   slug: slugSchema,
   name: z.string().min(1).max(200),
+  kind: productKindSchema.default("physical"),
   description: z.string().max(5000).default(""),
   bulletPoints: z.array(z.string().max(300)).max(20).default([]),
   seoTitle: z.string().max(70).nullable().default(null),
@@ -58,7 +61,31 @@ export const productInputSchema = z.object({
   options: z.array(productOptionInputSchema).max(3).default([]),
   optionGroups: z.array(optionGroupSchema).max(10).default([]),
   isLive: z.boolean().default(false),
-});
+  })
+  /*
+   * A download has unlimited stock, so a digital variant may not carry a finite
+   * count.
+   *
+   * Refused here rather than tolerated downstream: `decrementInventoryForOrder`
+   * skips anything that is not `finite`, so a digital variant set finite *would*
+   * be decremented, run out, and start flagging paid orders as `oversold` — for
+   * a file that cannot run out. Rejecting the combination at the input boundary
+   * is the only place that stops it before it reaches an order.
+   */
+  .superRefine((product, ctx) => {
+    if (product.kind !== "digital") return;
+
+    product.variants.forEach((variant, index) => {
+      if (variant.inventory.type !== "finite") return;
+
+      ctx.addIssue({
+        code: "custom",
+        path: ["variants", index, "inventory", "type"],
+        message:
+          "A digital product has unlimited stock. Set this variant's inventory to unlimited, or make the product physical.",
+      });
+    });
+  });
 
 export const collectionInputSchema = z.object({
   slug: slugSchema,

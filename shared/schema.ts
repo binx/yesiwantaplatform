@@ -110,10 +110,22 @@ export const taxCodeSchema = z
   .string()
   .regex(/^txcd_[0-9]+$/, "must be a Stripe tax code, like txcd_99999999");
 
+/**
+ * Physical goods ship; digital ones download.
+ *
+ * The distinction is load-bearing well beyond a label: a digital line has no
+ * weight, so it must be left out of parcel weight entirely rather than counted
+ * as zero grams — a zero-gram line would silently qualify a cart for a
+ * light-parcel band it should never have matched. See `shared/shipping.ts`.
+ */
+export const productKindSchema = z.enum(["physical", "digital"]);
+
 export const productSchema = z.object({
   id: z.string().min(1),
   slug: slugSchema,
   name: z.string().min(1),
+  /** Physical by default: every product that existed before downloads did. */
+  kind: productKindSchema.default("physical"),
   description: z.string().default(""),
   bulletPoints: z.array(z.string()).default([]),
   /**
@@ -298,6 +310,7 @@ export type Inventory = z.infer<typeof inventorySchema>;
 export type Variant = z.infer<typeof variantSchema>;
 export type OptionGroup = z.infer<typeof optionGroupSchema>;
 export type ProductOption = z.infer<typeof productOptionSchema>;
+export type ProductKind = z.infer<typeof productKindSchema>;
 export type Product = z.infer<typeof productSchema>;
 export type Collection = z.infer<typeof collectionSchema>;
 export type PageSummary = z.infer<typeof pageSummarySchema>;

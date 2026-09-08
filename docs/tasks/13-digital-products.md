@@ -1,7 +1,7 @@
 ---
 task: "13"
 title: Digital and downloadable products
-status: todo
+status: in-progress
 tier: 3
 size: M
 migration: one table
@@ -19,6 +19,43 @@ summary: >-
 ---
 
 # 13 · Digital and downloadable products
+
+## Status: the modelling half has landed, delivery has not
+
+Split deliberately, because the two halves have different risk. What has
+shipped is everything that decides *how a download behaves in a cart*:
+
+- `products.kind`, with a **Type** control in the product editor.
+- Shipping skips digital lines rather than weighing them as zero — for the
+  parcel weight *and* for the subtotal a rate is banded against. A cart of
+  downloads reaches Stripe with no `shipping_address_collection` and no
+  `shipping_options`; a mixed cart collects an address and prices on its
+  physical lines alone.
+- Finite inventory is refused on a digital variant at the input schema, so it
+  can never register as `oversold`.
+
+Deferred, and still to do — this is collision 3 and 4 below, plus all of
+**What to build**:
+
+- The `assets` table, the non-served storage directory, and the upload route.
+- `entitlements`, granted in `handleCheckoutCompleted`.
+- The signed download route, its expiry and download cap.
+- The `delivered` state and the download email.
+- Revoking entitlements on refund.
+
+None of it can exist before there is a file to point at, so it was left whole
+rather than half-built. **The security note under "Storage" below is the
+reason to be careful here: the purchasable file must not live under the
+statically-served upload directory.** That question is untouched — nothing in
+this pass writes a purchasable file anywhere.
+
+One decision worth recording, because the brief does not settle it: **subtotal
+bands see the physical lines only.** The brief fixes the rule for weight and is
+silent on `minSubtotalCents` / `maxSubtotalCents`. Physical-only was chosen
+because the upper bound is the dangerous direction — counting a $600 download
+toward the subtotal can push a cart past every band's ceiling, match no rate,
+and ship free with nobody told. `findCoverageGaps` exists because that failure
+is invisible.
 
 ## The problem
 

@@ -234,6 +234,32 @@ Live carrier rates are deliberately absent. They need `ui_mode: 'elements'`,
 which means owning the checkout page again; [docs/shipping.md](docs/shipping.md)
 has the evidence and the trade.
 
+**Downloads are left out of all of it.** A product is `physical` or `digital`,
+and a digital line is excluded from the parcel rather than counted as weighing
+nothing — a zero-gram line still participates, so a cart of downloads would
+report a 0 g parcel and match the store's lightest weight band. Both the weight
+*and* the subtotal a rate is matched against come from the physical lines only:
+a $45 download must not push a $10 tote over a "free over $50" threshold, and on
+an upper bound it is worse, since it can push a cart past every band, match
+nothing, and ship free in silence.
+
+A cart holding only downloads reaches Stripe with no address collection and no
+shipping options at all. A mixed cart still collects an address, priced on its
+physical lines.
+
+### Products
+
+Every product is `physical` or `digital`, set by the **Type** control in the
+product editor. Digital is a modelling flag today: it governs shipping and
+stock, but the file itself, the entitlements that grant access to it, and the
+download route are not built yet — see
+[docs/tasks/13-digital-products.md](docs/tasks/13-digital-products.md).
+
+A digital product's stock is always unlimited, and the API refuses a finite
+count on one. That is not tidiness: `decrementInventoryForOrder` would count the
+variant down, it would reach zero, and paid orders would start being flagged
+`oversold` for a file that cannot run out.
+
 ### Payments
 
 Checkout uses Stripe **Checkout Sessions** — Stripe's hosted page owns the card fields, 3-D Secure, wallets, and address collection, which keeps this project at PCI SAQ-A.

@@ -10,6 +10,16 @@ interface ProductImageProps {
   sizes?: string;
   priority?: boolean;
   className?: string;
+  /**
+   * Hide the image from assistive technology.
+   *
+   * For an image inside a card whose own text already names the thing. A
+   * collection cover's alt is the collection's name, so the shop grid's link
+   * announced "Home goods Home Goods" — the picture is decoration there, and
+   * the heading beside it is the name. Leave this off wherever the alt carries
+   * something the surrounding text does not, as a product photo's does.
+   */
+  decorative?: boolean;
 }
 
 /**
@@ -26,17 +36,20 @@ export function ProductImage({
   sizes = "100vw",
   priority = false,
   className,
+  decorative = false,
 }: ProductImageProps) {
   const style = { aspectRatio: ratio ?? (image ? image.width / image.height : 1) };
 
   if (!image) {
     // v1 emitted `background-image: url(null)`, costing a 404 per missing image.
+    // A decorative placeholder is an empty frame, not an image worth announcing.
     return (
       <div
         className={`${styles.placeholder} ${className ?? ""}`}
         style={style}
-        role="img"
-        aria-label="No image available"
+        {...(decorative
+          ? { "aria-hidden": true }
+          : { role: "img", "aria-label": "No image available" })}
       />
     );
   }
@@ -64,7 +77,7 @@ export function ProductImage({
       {...(srcSet ? { srcSet, sizes } : {})}
       width={image.width}
       height={image.height}
-      alt={image.alt}
+      alt={decorative ? "" : image.alt}
       loading={priority ? "eager" : "lazy"}
       decoding={priority ? "sync" : "async"}
       draggable={false}

@@ -204,6 +204,8 @@ export const orders = pgTable(
     trackingNumber: text("tracking_number"),
     /** Payment succeeded but stock had gone; flagged for the owner. */
     oversold: boolean("oversold").notNull().default(false),
+    /** Cumulative amount refunded. Less than totalCents means a partial refund. */
+    refundedCents: integer("refunded_cents").notNull().default(0),
     ...timestamps,
   },
   (t) => [

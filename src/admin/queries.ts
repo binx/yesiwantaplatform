@@ -8,7 +8,7 @@ import type {
 } from "@shared/api";
 import type { ShippingRate, ShippingZone } from "@shared/shipping";
 import type { Collection, Image, Product } from "@shared/schema";
-import type { FulfilmentInput, Order, OrderStatus } from "@shared/orders";
+import type { FulfilmentInput, Order, OrderStatus, RefundInput } from "@shared/orders";
 import { apiGet, csrfDelete, csrfPost, csrfPut, csrfUpload } from "@/lib/api";
 
 /**
@@ -295,6 +295,25 @@ export function useOrder(id: string | undefined) {
     queryKey: adminKeys.order(id ?? ""),
     queryFn: ({ signal }) => apiGet<Order>(`/admin/orders/${id ?? ""}`, signal),
     enabled: Boolean(id),
+  });
+}
+
+/**
+ * Refunds are recorded by the `charge.refunded` webhook, not by the response
+ * to this call, so the order that comes back is usually still the old one.
+ * Invalidate rather than write it into the cache and let the refetch pick up
+ * the new figures once Stripe has called us back.
+ */
+export function useRefundOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: RefundInput }) =>
+      csrfPost<{ order: Order; emailed: boolean }>(`/admin/orders/${id}/refund`, input),
+    onSuccess: async ({ order }) => {
+      await queryClient.invalidateQueries({ queryKey: adminKeys.order(order.id) });
+      await queryClient.invalidateQueries({ queryKey: ["admin", "orders"] });
+    },
   });
 }
 

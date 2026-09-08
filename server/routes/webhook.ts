@@ -6,6 +6,7 @@ import {
   forgetWebhookEvent,
   getOrder,
   markOrderPaid,
+  recordRefund,
   recordWebhookEvent,
   updateFulfilment,
 } from "../../db/orders-repository.js";
@@ -106,6 +107,18 @@ async function handleRefund(charge: Stripe.Charge): Promise<void> {
 
   const order = await getOrder(orderId);
   if (!order) return;
+
+  /**
+   * `amount_refunded` is the running total on the charge, not the delta for
+   * this event, so record the difference against what we already knew. A
+   * replayed event finds the difference is zero and changes nothing — which is
+   * what keeps a Stripe retry from doubling the figure.
+   */
+  await recordRefund(order.id, charge.amount_refunded - order.refundedCents);
+
+  // A partial refund leaves fulfilment alone: a buyer refunded for one damaged
+  // item of three still has two shipping.
+  if (charge.amount_refunded < charge.amount) return;
 
   await updateFulfilment(order.id, {
     status: "refunded",

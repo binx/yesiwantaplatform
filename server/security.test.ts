@@ -55,6 +55,8 @@ const MUTATIONS = [
   { method: "delete", path: "/api/admin/collections/demo-home" },
   { method: "put", path: "/api/admin/settings" },
   { method: "put", path: "/api/admin/shipping" },
+  { method: "put", path: "/api/admin/orders/demo-order" },
+  { method: "post", path: "/api/admin/orders/demo-order/refund" },
 ] as const;
 
 const READS = [

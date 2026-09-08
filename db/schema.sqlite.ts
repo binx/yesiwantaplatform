@@ -224,6 +224,8 @@ export const orders = sqliteTable(
     trackingNumber: text("tracking_number"),
     /** Payment succeeded but stock had gone; flagged for the owner. */
     oversold: integer("oversold", { mode: "boolean" }).notNull().default(false),
+    /** Cumulative amount refunded. Less than totalCents means a partial refund. */
+    refundedCents: integer("refunded_cents").notNull().default(0),
     ...timestamps,
   },
   (t) => [

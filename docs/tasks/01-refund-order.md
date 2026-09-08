@@ -1,14 +1,14 @@
 ---
 task: "01"
 title: Refund an order from the admin
-status: todo
+status: done
 tier: 0
 size: S
 migration: one column
 blocked_by: []
 blocks: ["02"]
 touches: server/routes/admin.ts · src/admin/OrderDetailPage.tsx
-completed: 
+completed: 2026-09-07
 shipped_in: 
 summary: >-
   Most of this already exists. The `charge.refunded` handler is live and flips the order

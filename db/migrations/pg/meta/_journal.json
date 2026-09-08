@@ -29,6 +29,13 @@
       "when": 1788821888213,
       "tag": "0003_handy_shard",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788833850379,
+      "tag": "0004_loose_red_hulk",
+      "breakpoints": true
     }
   ]
 }

@@ -113,6 +113,7 @@ interface OrderRow {
   carrier: string | null;
   trackingNumber: string | null;
   oversold: unknown;
+  refundedCents: number;
   createdAt: unknown;
 }
 
@@ -151,6 +152,7 @@ function buildOrder(row: OrderRow, items: OrderItemRow[]): Order {
     carrier: row.carrier,
     trackingNumber: row.trackingNumber,
     oversold: toBool(row.oversold),
+    refundedCents: row.refundedCents,
     createdAt: toEpochMs(row.createdAt),
     items: items.map((i) => ({
       id: i.id,
@@ -329,6 +331,43 @@ export async function updateFulfilment(
       carrier: input.carrier,
       trackingNumber: input.trackingNumber,
     })
+    .where(eq(schema.orders.id, orderId));
+}
+
+/**
+ * The Stripe payment intent for an order.
+ *
+ * Deliberately not on the `Order` schema. Only the refund path needs it, and
+ * `Order` is serialised to buyers on the confirmation page — a field that never
+ * enters the shared type cannot leak from a response someone forgets to narrow.
+ */
+export async function getOrderPaymentIntentId(orderId: string): Promise<string | null> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const rows = (await db
+    .select({ paymentIntentId: schema.orders.stripePaymentIntentId })
+    .from(schema.orders)
+    .where(eq(schema.orders.id, orderId))
+    .limit(1)) as unknown as { paymentIntentId: string | null }[];
+
+  return rows[0]?.paymentIntentId ?? null;
+}
+
+/**
+ * Record a refund. Additive, because Stripe allows several partial refunds
+ * against one charge and each arrives as its own webhook.
+ *
+ * The increment happens in SQL rather than as a read-modify-write, so two
+ * webhooks landing at once cannot lose one of the amounts.
+ */
+export async function recordRefund(orderId: string, amountCents: number): Promise<void> {
+  if (amountCents <= 0) return;
+
+  const { drizzle: db, schema } = await getDatabase();
+
+  await db
+    .update(schema.orders)
+    .set({ refundedCents: sql`${schema.orders.refundedCents} + ${amountCents}` })
     .where(eq(schema.orders.id, orderId));
 }
 

@@ -9,15 +9,16 @@ import {
   Descriptions,
   Empty,
   Input,
+  Popconfirm,
   Select,
   Skeleton,
   Table,
 } from "antd";
-import type { Order, OrderItem, OrderStatus } from "@shared/orders";
-import { formatMoney } from "@shared/money";
+import type { Order, OrderItem, OrderStatus, RefundReason } from "@shared/orders";
+import { formatMoney, parseCents } from "@shared/money";
 import { ApiError } from "@/lib/api";
 import { cx } from "@/lib/cx";
-import { useEnvironment, useOrder, useUpdateFulfilment } from "./queries";
+import { useEnvironment, useOrder, useRefundOrder, useUpdateFulfilment } from "./queries";
 import { Field } from "./Field";
 import { PageHeader } from "./RequireAdmin";
 import { OrderStatusTag } from "./OrderStatusTag";
@@ -251,9 +252,144 @@ export function OrderDetailPage() {
               Save
             </Button>
           </Card>
+
+          <RefundCard order={current} />
         </div>
       </div>
     </>
+  );
+}
+
+const REFUND_REASONS: { label: string; value: RefundReason }[] = [
+  { label: "Requested by the customer", value: "requested_by_customer" },
+  { label: "Duplicate charge", value: "duplicate" },
+  { label: "Fraudulent", value: "fraudulent" },
+];
+
+/**
+ * Refunding, in whole or in part.
+ *
+ * The order does not change when this succeeds: `charge.refunded` is what
+ * writes the new figures, exactly as `checkout.session.completed` is what marks
+ * an order paid. So the message says the refund is on its way rather than
+ * claiming it has landed, and the page picks up the real total on the refetch.
+ */
+function RefundCard({ order }: { order: Order }) {
+  const { message } = App.useApp();
+  const environment = useEnvironment();
+  const refund = useRefundOrder();
+
+  const remaining = order.totalCents - order.refundedCents;
+  const [amount, setAmount] = useState(() => (remaining / 100).toFixed(2));
+  const [reason, setReason] = useState<RefundReason>("requested_by_customer");
+  const [notify, setNotify] = useState(false);
+
+  const amountCents = parseCents(amount);
+  const error =
+    amountCents === null
+      ? "Enter an amount like 12.50."
+      : amountCents <= 0
+        ? "A refund has to be for more than zero."
+        : amountCents > remaining
+          ? `That is more than the ${formatMoney(remaining, order.currency)} still refundable.`
+          : null;
+
+  if (remaining <= 0) {
+    return (
+      <Card title="Refund" className={cx(styles.card)}>
+        <p className={cx(styles.help)}>
+          Refunded in full — {formatMoney(order.refundedCents, order.currency)}.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card title="Refund" className={cx(styles.card)}>
+      <p className={cx(styles.help)}>
+        {order.refundedCents > 0
+          ? `${formatMoney(order.refundedCents, order.currency)} already refunded; ${formatMoney(remaining, order.currency)} still refundable.`
+          : `${formatMoney(remaining, order.currency)} refundable.`}
+      </p>
+
+      <Field label="Amount" error={error}>
+        {(control) => (
+          <Input
+            {...control}
+            value={amount}
+            prefix={order.currency === "USD" ? "$" : order.currency}
+            onChange={(event) => setAmount(event.target.value)}
+          />
+        )}
+      </Field>
+
+      <Field label="Reason">
+        {(control) => (
+          <Select<RefundReason>
+            {...control}
+            className={cx(styles.control)}
+            value={reason}
+            onChange={setReason}
+            options={REFUND_REASONS}
+          />
+        )}
+      </Field>
+
+      <Checkbox
+        className={cx(styles.notify)}
+        checked={notify}
+        disabled={!environment.data?.hasEmail}
+        onChange={(event) => setNotify(event.target.checked)}
+      >
+        Email the customer about the refund
+      </Checkbox>
+
+      <Popconfirm
+        title="Refund this payment?"
+        description={
+          amountCents === null || error
+            ? "Fix the amount first."
+            : `${formatMoney(amountCents, order.currency)} goes back to the customer. This cannot be undone.`
+        }
+        okText="Refund"
+        okButtonProps={{ danger: true }}
+        disabled={Boolean(error)}
+        onConfirm={() => {
+          if (amountCents === null || error) return;
+
+          refund.mutate(
+            {
+              id: order.id,
+              // A full refund is sent as null so Stripe refunds the remainder
+              // itself, rather than us racing a concurrent partial.
+              input: {
+                amountCents: amountCents === remaining ? null : amountCents,
+                reason,
+                notify,
+              },
+            },
+            {
+              onSuccess: (result) => {
+                setNotify(false);
+                message.success(
+                  result.emailed
+                    ? "Refund sent to Stripe, and the customer was emailed. The order updates when Stripe confirms it."
+                    : "Refund sent to Stripe. The order updates when Stripe confirms it.",
+                );
+              },
+              onError: (mutationError: unknown) =>
+                void message.error(
+                  mutationError instanceof Error ? mutationError.message : "Could not refund.",
+                ),
+            },
+          );
+        }}
+      >
+        <Button danger block disabled={Boolean(error)} loading={refund.isPending}>
+          Refund {amountCents !== null && !error ? formatMoney(amountCents, order.currency) : ""}
+        </Button>
+      </Popconfirm>
+    </Card>
   );
 }
 

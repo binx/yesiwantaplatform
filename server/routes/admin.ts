@@ -33,14 +33,20 @@ import {
   updateSettings,
 } from "../../db/admin-repository.js";
 import { findProductBySlug, getSettings, listCollections, listProducts } from "../../db/repository.js";
-import { getOrder, listOrders, updateFulfilment } from "../../db/orders-repository.js";
+import { formatMoney } from "../../shared/money.js";
+import {
+  getOrder,
+  getOrderPaymentIntentId,
+  listOrders,
+  updateFulfilment,
+} from "../../db/orders-repository.js";
 import { getShippingTable, replaceShippingTable } from "../../db/shipping-repository.js";
-import { fulfilmentInputSchema, orderStatusSchema } from "../../shared/orders.js";
+import { fulfilmentInputSchema, orderStatusSchema, refundInputSchema } from "../../shared/orders.js";
 import { httpError, requireAdmin, verifyCsrf, writeRateLimit } from "../middleware.js";
 import { env, hasStripe, isSqlite } from "../env.js";
 import { deleteImageFile, storeImage, uploadMiddleware } from "../uploads.js";
 import { archiveProductInStripe, syncProductToStripe } from "../catalog-sync.js";
-import { StripeNotConfiguredError } from "../stripe.js";
+import { StripeNotConfiguredError, requireStripe } from "../stripe.js";
 import { sendOrderEmail, templateForStatus } from "../email.js";
 
 /**
@@ -363,6 +369,84 @@ adminRouter.put("/orders/:id", async (req, res) => {
   if (input.notify) {
     const template = templateForStatus(input.status);
     if (template) emailed = await sendOrderEmail(template, updated);
+  }
+
+  res.json({ order: updated, emailed });
+});
+
+/**
+ * Refund an order, in whole or in part.
+ *
+ * Money moves here; order state does not. The `charge.refunded` webhook is
+ * still the only thing that writes `refundedCents` or flips the status, for
+ * the same reason `checkout.session.completed` is the only thing that marks an
+ * order paid: a 200 from Stripe's API is not the same as a settled refund, and
+ * the webhook path is already idempotent. The client polls for the change.
+ */
+adminRouter.post("/orders/:id/refund", async (req, res) => {
+  const order = await getOrder(req.params.id);
+  if (!order) throw httpError(404, "Order not found.");
+
+  let input;
+  try {
+    input = refundInputSchema.parse(req.body);
+  } catch (error) {
+    toHttp(error);
+  }
+
+  const paymentIntentId = await getOrderPaymentIntentId(order.id);
+  if (!paymentIntentId) {
+    throw httpError(
+      409,
+      "This order has no payment to refund. It was never paid, or payment is still pending.",
+    );
+  }
+
+  const remaining = order.totalCents - order.refundedCents;
+  if (remaining <= 0) {
+    throw httpError(409, "This order has already been refunded in full.");
+  }
+
+  const amountCents = input.amountCents ?? remaining;
+  if (amountCents <= 0) {
+    throw httpError(400, "A refund has to be for more than zero.");
+  }
+  if (amountCents > remaining) {
+    throw httpError(
+      409,
+      `That is more than the ${formatMoney(remaining, order.currency)} still refundable on this order.`,
+    );
+  }
+
+  const stripe = requireStripe();
+
+  try {
+    await stripe.refunds.create(
+      {
+        payment_intent: paymentIntentId,
+        amount: amountCents,
+        reason: input.reason,
+        // Copied onto the resulting charge update so the webhook can find the
+        // order without a lookup by payment intent.
+        metadata: { beluga_order_id: order.id },
+      },
+      // Keyed on the amount as well as the order: a merchant refunding the same
+      // partial amount twice by mistake gets one refund, but two deliberate
+      // partials of different sizes both go through.
+      { idempotencyKey: `refund-${order.id}-${input.amountCents ?? "full"}` },
+    );
+  } catch (error) {
+    toHttp(error);
+  }
+
+  // Deliberately re-read rather than patched: the webhook owns the new figures,
+  // and returning a guess would have the UI flicker back when it lands.
+  const updated = await getOrder(order.id);
+  if (!updated) throw httpError(404, "Order not found.");
+
+  let emailed = false;
+  if (input.notify) {
+    emailed = await sendOrderEmail("Refunded", updated);
   }
 
   res.json({ order: updated, emailed });

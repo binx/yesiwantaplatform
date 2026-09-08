@@ -65,6 +65,11 @@ export const orderSchema = z.object({
    * than silently oversold or dropped.
    */
   oversold: z.boolean(),
+  /**
+   * Cumulative amount refunded. Stripe allows several partial refunds against
+   * one charge, so this accumulates; below `totalCents` means partial.
+   */
+  refundedCents: centsSchema,
   createdAt: z.number().int(),
   items: z.array(orderItemSchema),
 });
@@ -112,11 +117,27 @@ export const fulfilmentInputSchema = z.object({
   notify: z.boolean().default(false),
 });
 
+/** Stripe's own refund reasons; there is no free-text option on the API. */
+export const refundReasonSchema = z.enum([
+  "duplicate",
+  "fraudulent",
+  "requested_by_customer",
+]);
+
+export const refundInputSchema = z.object({
+  /** Omit to refund the full remaining amount. */
+  amountCents: centsSchema.nullable().default(null),
+  reason: refundReasonSchema.default("requested_by_customer"),
+  notify: z.boolean().default(false),
+});
+
 export type OrderStatus = z.infer<typeof orderStatusSchema>;
 export type OrderItem = z.infer<typeof orderItemSchema>;
 export type Order = z.infer<typeof orderSchema>;
 export type CheckoutRequest = z.infer<typeof checkoutRequestSchema>;
 export type FulfilmentInput = z.infer<typeof fulfilmentInputSchema>;
+export type RefundReason = z.infer<typeof refundReasonSchema>;
+export type RefundInput = z.infer<typeof refundInputSchema>;
 
 /**
  * A short order reference derived from the row id.

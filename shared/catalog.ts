@@ -58,3 +58,71 @@ export function isSoldOut(product: Product): boolean {
     (v) => v.inventory.type === "finite" && v.inventory.quantity === 0,
   );
 }
+
+export type SortOrder = "featured" | "price-asc" | "price-desc" | "name";
+
+/**
+ * Fold a string to something worth comparing.
+ *
+ * Diacritics are stripped so "cafe" finds "Café" — a shopper types what is on
+ * their keyboard, not what is on the label.
+ */
+function fold(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+}
+
+function haystack(product: Product): string {
+  return fold([product.name, product.description, ...product.bulletPoints].join(" "));
+}
+
+/**
+ * Filter a catalogue by a free-text query.
+ *
+ * Every whitespace-separated term must match somewhere, so "blue tote" returns
+ * the blue totes rather than everything blue plus everything tote-shaped.
+ * An empty or whitespace-only query returns the input untouched, which keeps
+ * the curated order intact when the box is cleared.
+ */
+export function searchProducts(products: Product[], query: string): Product[] {
+  const terms = fold(query).split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return products;
+
+  return products.filter((product) => {
+    const text = haystack(product);
+    return terms.every((term) => text.includes(term));
+  });
+}
+
+/** The lowest price across a product's variants, which is what a grid shows. */
+function lowestPrice(product: Product): Cents {
+  return product.variants.reduce(
+    (lowest, variant) => (variant.priceCents < lowest ? variant.priceCents : lowest),
+    product.variants[0]?.priceCents ?? 0,
+  );
+}
+
+/**
+ * Order a catalogue.
+ *
+ * "featured" returns the input as-is, and is the default for a reason: the
+ * server sorts by position then name, and a collection carries a curated order
+ * that any re-sort would throw away. Sorting is a copy, never in place.
+ */
+export function sortProducts(products: Product[], by: SortOrder): Product[] {
+  if (by === "featured") return products;
+
+  const sorted = [...products];
+
+  if (by === "name") {
+    sorted.sort((a, b) => a.name.localeCompare(b.name));
+    return sorted;
+  }
+
+  const direction = by === "price-asc" ? 1 : -1;
+  // Array.prototype.sort is stable, so equal prices keep the curated order.
+  sorted.sort((a, b) => (lowestPrice(a) - lowestPrice(b)) * direction);
+  return sorted;
+}

@@ -1,7 +1,7 @@
 import { useParams } from "react-router-dom";
 import { findCollection, getCollectionProducts, getLiveProducts } from "@shared/catalog";
 import { PageWrapper } from "@/components/layout/PageWrapper";
-import { ProductList } from "@/components/product/ProductList";
+import { ProductBrowser } from "@/components/product/ProductBrowser";
 import { useStore } from "@/lib/useStore";
 import { NotFoundPage } from "./NotFoundPage";
 
@@ -13,7 +13,7 @@ export function CollectionPage() {
     return (
       <PageWrapper width="wide">
         <h1>All products</h1>
-        <ProductList
+        <ProductBrowser
           products={getLiveProducts(store)}
           collection="All products"
           currency={store.currency}
@@ -28,7 +28,9 @@ export function CollectionPage() {
   return (
     <PageWrapper width="wide">
       <h1>{collection.name}</h1>
-      <ProductList
+      {/* Scoped to this collection: a shopper in "Paper goods" searching for
+          "print" means a print in here, not one anywhere in the store. */}
+      <ProductBrowser
         products={getCollectionProducts(store, slug)}
         collection={collection.name}
         currency={store.currency}

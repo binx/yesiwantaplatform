@@ -1,0 +1,64 @@
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+  margin-bottom: 8px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field:first-child {
+  flex: 1 1 260px;
+}
+
+.label {
+  font-size: 13px;
+  color: #52525b;
+}
+
+.input,
+.select {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid #d4d4d8;
+  border-radius: var(--beluga-radius, 2px);
+  background: #fff;
+  color: inherit;
+}
+
+.input {
+  width: 100%;
+}
+
+.input:focus-visible,
+.select:focus-visible,
+.clear:focus-visible {
+  outline: 2px solid var(--beluga-color-primary, #18181b);
+  outline-offset: 2px;
+}
+
+.count {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: #52525b;
+}
+
+.empty {
+  padding: 40px 0;
+  color: #52525b;
+}
+
+.clear {
+  font: inherit;
+  margin-top: 8px;
+  padding: 8px 14px;
+  border: 1px solid #d4d4d8;
+  border-radius: var(--beluga-radius, 2px);
+  background: #fff;
+  cursor: pointer;
+}

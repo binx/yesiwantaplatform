@@ -179,6 +179,14 @@ Add the `whsec_…` it prints to `.env` as `STRIPE_WEBHOOK_SECRET`, restart the
 API, and pay with test card `4242 4242 4242 4242`. Replaying a delivered event
 (`stripe events resend <id>`) must not move stock a second time.
 
+### Storefront search
+
+The shop and collection pages have a search box and a sort control, backed by `searchProducts` / `sortProducts` in `shared/catalog.ts`. Matching is case- and diacritic-insensitive across name, description and bullet points, and every typed term has to match — "blue tote" returns blue totes, not everything blue.
+
+It filters **client-side**, against the catalogue the storefront already loaded from `/api/store`. That is instant, costs no request, and works against the bundled fixture with `VITE_BELUGA_API=false`. When a catalogue outgrows `STORE_SNAPSHOT_LIMIT`, the swap is to `GET /api/products?search=` — which already exists — behind `src/lib/store-source.ts`, the same seam that absorbed the fixture-to-database change.
+
+`?q=` and `?sort=` live in the URL, so a result is shareable, survives a reload, and the back button undoes a search rather than one keystroke.
+
 ### Search and link previews
 
 The storefront is client-rendered, so without help a crawler or a link unfurler fetching `/product/anything` would get the generic shell — no product name, no price, no image. Rather than migrating to SSR, the production HTML handler rewrites the `<head>` for the path being requested: title, description, canonical, Open Graph and Twitter tags, and JSON-LD `Product` with an `Offer` on product pages. Only the head is touched; React still boots and renders the body exactly as before.

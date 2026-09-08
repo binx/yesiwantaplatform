@@ -1,14 +1,14 @@
 ---
 task: "06"
 title: Storefront search and sort
-status: todo
+status: done
 tier: 1
 size: S
 migration: none
 blocked_by: []
 blocks: []
 touches: src/pages/ShopPage.tsx · shared/catalog.ts
-completed: 
+completed: 2026-09-07
 shipped_in: 
 summary: >-
   **The backend already exists — don't build one.** `listProducts` implements

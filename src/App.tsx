@@ -2,6 +2,7 @@ import { Suspense, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import { App as AntApp, ConfigProvider, Skeleton } from "antd";
 import { Banner } from "@/components/layout/Banner";
+import { Footer } from "@/components/layout/Footer";
 import { ScrollToTop } from "@/components/layout/ScrollToTop";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { StoreErrorBoundary } from "@/components/layout/StoreErrorBoundary";
@@ -65,6 +66,7 @@ function ThemedShell() {
         <main id="main">
           <Outlet />
         </main>
+        <Footer />
       </AntApp>
     </ConfigProvider>
   );

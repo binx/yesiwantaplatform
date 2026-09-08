@@ -12,10 +12,12 @@ import { setupRouter } from "./routes/setup.js";
 import { adminRouter } from "./routes/admin.js";
 import { checkoutRouter } from "./routes/checkout.js";
 import { shippingRouter } from "./routes/shipping.js";
+import { cartRouter } from "./routes/cart.js";
 import { webhookRouter } from "./routes/webhook.js";
 import { siteRouter } from "./routes/site.js";
 import { injectMeta } from "./html.js";
 import { metaForPath } from "./seo.js";
+import { startCartRecoveryScheduler } from "./cart-recovery.js";
 
 export function createApp(): Express {
   const app = express();
@@ -26,6 +28,11 @@ export function createApp(): Express {
 
   app.disable("x-powered-by");
   app.use(securityHeaders);
+
+  // Same shape as the session store's prune timer just below: a `setInterval`
+  // in this process, unref'd so it never holds the process open. See
+  // server/cart-recovery.ts for why running it per-instance is safe.
+  startCartRecoveryScheduler();
 
   // Stripe signs the raw request body, so the webhook must be mounted before
   // any body parser rewrites it — and before sessions, which it does not use.
@@ -68,6 +75,7 @@ export function createApp(): Express {
   app.use(siteRouter);
   app.use("/api", checkoutRouter);
   app.use("/api", shippingRouter);
+  app.use("/api/cart", cartRouter);
   app.use("/api/admin", adminRouter);
 
   // Uploaded product imagery.

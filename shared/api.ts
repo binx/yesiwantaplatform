@@ -114,6 +114,13 @@ export const settingsInputSchema = z.object({
   taxEnabled: z.boolean().default(false),
   taxBehavior: taxBehaviorSchema.default("exclusive"),
   defaultTaxCode: taxCodeSchema.default("txcd_99999999"),
+  /**
+   * Abandoned cart reminders. Off by default, same reasoning as tax: this
+   * sends email under the merchant's own SMTP sending reputation, so it is
+   * theirs to turn on, not a default we pick for them.
+   */
+  cartRecoveryEnabled: z.boolean().default(false),
+  cartRecoveryDelayHours: z.number().int().min(1).max(168).default(4),
   theme: themeSchema,
 });
 

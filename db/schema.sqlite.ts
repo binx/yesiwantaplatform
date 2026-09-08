@@ -44,6 +44,16 @@ export const storeSettings = sqliteTable("store_settings", {
   taxBehavior: text("tax_behavior").notNull().default("exclusive"),
   /** Stripe tax code for products that do not set their own. */
   defaultTaxCode: text("default_tax_code").notNull().default("txcd_99999999"),
+  /**
+   * Abandoned cart reminders. Off by default — see the Settings copy: the
+   * merchant must opt in, and the email goes out under their own SMTP sending
+   * reputation, not Beluga's.
+   */
+  cartRecoveryEnabled: integer("cart_recovery_enabled", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  /** Hours of inactivity before the one reminder goes out. */
+  cartRecoveryDelayHours: integer("cart_recovery_delay_hours").notNull().default(4),
   themeColorPrimary: text("theme_color_primary").notNull().default("#18181b"),
   themeColorAccent: text("theme_color_accent").notNull().default("#e07a5f"),
   themeFontFamily: text("theme_font_family").notNull().default("system-ui, sans-serif"),
@@ -109,6 +119,16 @@ export const customers = sqliteTable("customers", {
   passwordResetTokenHash: text("password_reset_token_hash"),
   passwordResetExpiresAt: integer("password_reset_expires_at"),
   lastLoginAt: integer("last_login_at"),
+  /** Set once this customer clicks "unsubscribe" on a cart reminder. */
+  cartRecoveryOptOutAt: integer("cart_recovery_opt_out_at"),
+  /**
+   * Hash only. Minted fresh on every reminder send rather than once at
+   * registration, so there is nothing to provision for customers who never
+   * get a reminder. An older email's unsubscribe link stops working once a
+   * newer one is sent — the same trade-off the password-reset token already
+   * makes, and low-stakes here since clicking it only ever opts out.
+   */
+  cartRecoveryUnsubscribeTokenHash: text("cart_recovery_unsubscribe_token_hash"),
   ...timestamps,
 });
 
@@ -460,3 +480,42 @@ export const webhookEvents = sqliteTable("webhook_events", {
     .notNull()
     .default(sql`(unixepoch())`),
 });
+
+/**
+ * A signed-in customer's cart, mirrored server-side so there is something to
+ * remind them about — see docs/tasks/12-abandoned-cart.md.
+ *
+ * Only ever populated for a customer with an account: a guest's cart never
+ * reaches the server before checkout, so there is no address to contact and
+ * nothing worth storing. `customerId` is NOT NULL for that reason, unlike the
+ * brief's own sketch of this table, which left room for an anonymous-with-email
+ * case this codebase has no way to produce.
+ *
+ * At most one *active* (unrecovered) row per customer — see
+ * `db/carts-repository.ts`'s `upsertActiveCart`. `reminderSentAt` doubles as
+ * "when the recovery token was minted," so its 7-day expiry needs no column
+ * of its own.
+ */
+export const carts = sqliteTable(
+  "carts",
+  {
+    id: text("id").primaryKey(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    /** Snapshot of the customer's email at last sync — never a live join. */
+    email: text("email").notNull(),
+    /** JSON: CartLine[] — identifiers and quantities only, same rule as order items. */
+    lines: text("lines").notNull().default("[]"),
+    currency: text("currency").notNull(),
+    /** Hash only; single-use. Cleared on redemption. */
+    recoveryTokenHash: text("recovery_token_hash"),
+    reminderSentAt: integer("reminder_sent_at"),
+    recoveredAt: integer("recovered_at"),
+    ...timestamps,
+  },
+  (t) => [
+    index("carts_customer_idx").on(t.customerId),
+    index("carts_updated_idx").on(t.updatedAt),
+  ],
+);

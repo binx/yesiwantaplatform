@@ -126,6 +126,14 @@ export const router = createBrowserRouter([
       { path: "product/:slug", element: <ProductPage /> },
       { path: "cart", element: <CartPage /> },
       { path: "confirm", element: <ConfirmPage /> },
+      {
+        // Reached from a cart-reminder email; a shopper who never gets one
+        // downloads none of it.
+        path: "unsubscribe",
+        lazy: async () => ({
+          Component: (await import("./pages/UnsubscribeCartRecoveryPage")).UnsubscribeCartRecoveryPage,
+        }),
+      },
       { path: "about", element: <AboutPage /> },
       {
         // Customer accounts, loaded on demand like /admin — a shopper who

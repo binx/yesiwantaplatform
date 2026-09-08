@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, App, Button, Card, Input, Select, Skeleton, Switch, Tag } from "antd";
+import { Alert, App, Button, Card, Input, InputNumber, Select, Skeleton, Switch, Tag } from "antd";
 import type { SettingsInput } from "@shared/api";
 import { DEFAULT_TAX_CODE, defaultTheme, type TaxBehavior, type Theme } from "@shared/schema";
 import { cx } from "@/lib/cx";
@@ -54,6 +54,10 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
   const [taxEnabled, setTaxEnabled] = useState(initial.taxEnabled);
   const [taxBehavior, setTaxBehavior] = useState<TaxBehavior>(initial.taxBehavior);
   const [defaultTaxCode, setDefaultTaxCode] = useState(initial.defaultTaxCode);
+  const [cartRecoveryEnabled, setCartRecoveryEnabled] = useState(initial.cartRecoveryEnabled);
+  const [cartRecoveryDelayHours, setCartRecoveryDelayHours] = useState(
+    initial.cartRecoveryDelayHours,
+  );
   const [theme, setTheme] = useState<Theme>(initial.theme ?? defaultTheme);
 
   const saved = useRef(initial);
@@ -66,6 +70,8 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
     taxEnabled !== saved.current.taxEnabled ||
     taxBehavior !== saved.current.taxBehavior ||
     defaultTaxCode !== saved.current.defaultTaxCode ||
+    cartRecoveryEnabled !== saved.current.cartRecoveryEnabled ||
+    cartRecoveryDelayHours !== saved.current.cartRecoveryDelayHours ||
     JSON.stringify(theme) !== JSON.stringify(saved.current.theme);
 
   const keyLooksSecret = publishableKey.trim().startsWith("sk_");
@@ -88,6 +94,8 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
       taxEnabled,
       taxBehavior,
       defaultTaxCode: defaultTaxCode.trim() || DEFAULT_TAX_CODE,
+      cartRecoveryEnabled,
+      cartRecoveryDelayHours,
       theme,
     };
 
@@ -293,6 +301,50 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
               )}
             </Field>
           </>
+        ) : null}
+      </Card>
+
+      <Card title="Abandoned cart recovery" className={cx(styles.card)}>
+        <p className={cx(styles.wiring)}>
+          One reminder email, sent once, to a signed-in customer with a verified address who
+          leaves items in their cart. It goes out under <strong>your own SMTP sending
+          reputation</strong>, not ours — Beluga sends nothing on your behalf until this is on.
+        </p>
+
+        <div className={cx(styles.toggleRow)}>
+          <Switch
+            checked={cartRecoveryEnabled}
+            onChange={setCartRecoveryEnabled}
+            aria-label="Send abandoned cart reminders"
+          />
+          <div>
+            <p className={cx(styles.toggleLabel)}>
+              {cartRecoveryEnabled ? "Sending cart reminders" : "Not sending cart reminders"}
+            </p>
+            <p className={cx(styles.help)}>
+              {cartRecoveryEnabled
+                ? "A customer who leaves items untouched gets one email, with a link to recover their cart and an unsubscribe link."
+                : "No cart data is collected or emailed while this is off."}
+            </p>
+          </div>
+        </div>
+
+        {cartRecoveryEnabled ? (
+          <Field
+            label="Wait before sending"
+            help="Hours of inactivity before the one reminder goes out."
+          >
+            {(control) => (
+              <InputNumber
+                {...control}
+                min={1}
+                max={168}
+                value={cartRecoveryDelayHours}
+                onChange={(value) => setCartRecoveryDelayHours(value ?? 4)}
+                addonAfter="hours"
+              />
+            )}
+          </Field>
         ) : null}
       </Card>
 

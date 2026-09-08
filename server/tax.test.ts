@@ -261,6 +261,8 @@ describe("the settings round-trip", () => {
       taxEnabled: true,
       taxBehavior: "inclusive",
       defaultTaxCode: "txcd_20030000",
+      cartRecoveryEnabled: false,
+      cartRecoveryDelayHours: 4,
       theme: defaultTheme,
     });
 

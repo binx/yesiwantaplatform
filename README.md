@@ -132,6 +132,39 @@ This is a different authentication surface from the admin's, and is held to the 
 
 Guest checkout stays the default path and nothing in the cart forces an account — the cart page only *offers* signing in, and prefills the shipping country from a signed-in buyer's default address. Reset and verification tokens follow the staff-invite pattern from the section above: only a hash is stored, single-use, and short-lived (an hour for a reset link, a day for verification, since a reset link is a live credential and a verification link is an onboarding step).
 
+### Abandoned cart recovery
+
+**Off by default.** A merchant opts in under Settings, and the reminder goes
+out under their own SMTP sending reputation — Beluga sends nothing on its
+own until this is turned on.
+
+The cart is client-side identifiers only, so there is nothing server-side to
+remind anyone about until a signed-in customer's cart is mirrored to the new
+`carts` table (debounced from the browser, only ever for a customer with an
+account — a guest's cart never reaches the server before checkout, so there
+is no address to contact and nothing worth storing). A customer with nothing
+untouched in their cart for the configured delay (default four hours) gets
+**exactly one** reminder, with a single-use, 7-day `/cart?recover=<token>`
+link that repopulates the cart from the stored identifiers and re-resolves
+every line against the live catalogue — dropped, discontinued or unpublished
+lines are simply not in the recovered cart, the same way an ordinary cart
+already hides them.
+
+A `checkout.session.expired` webhook — a buyer who reached Stripe and did not
+pay — is the highest-intent signal available, so it salvages into the same
+machinery immediately rather than waiting for the delay.
+
+There is no job runner in this project, so the reminder is sent by a
+`setInterval` in the API process, the same shape as the session store's prune
+timer. What keeps two API instances from sending two emails is not that timer
+— each instance runs its own — but a conditional `UPDATE ... WHERE
+reminder_sent_at IS NULL` when claiming a cart to remind: only the first of
+two racing claims can win, so a duplicate tick costs a wasted query, never a
+duplicate email. Every reminder needs a verified, non-suppressed email —
+unverified per the same gate as [customer accounts](#customer-accounts), and
+suppressed the moment a customer clicks the unsubscribe link every reminder
+carries.
+
 ### Pages
 
 A store needs prose the catalogue does not hold: a returns policy, shipping

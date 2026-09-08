@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, Button, InputNumber, Radio, Select, Skeleton } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ import { ProductImage } from "@/components/ui/ProductImage";
 import { useCartLines } from "@/lib/useCartLines";
 import { useStore } from "@/lib/useStore";
 import { useAddresses, useCustomer } from "@/lib/account";
+import { useRecoverCart } from "@/lib/cart-recovery";
 import { useCart, normalizeQuantity } from "@/store/cart";
 import { cx } from "@/lib/cx";
 import styles from "./CartPage.module.css";
@@ -20,6 +21,7 @@ export function CartPage() {
   const { lines, subtotalCents, orphanedCount } = useCartLines();
   const setQuantity = useCart((s) => s.setQuantity);
   const remove = useCart((s) => s.remove);
+  const setLines = useCart((s) => s.setLines);
   const shipToCountry = useCart((s) => s.shipToCountry);
   const setShipToCountry = useCart((s) => s.setShipToCountry);
   const shippingRateId = useCart((s) => s.shippingRateId);
@@ -29,6 +31,32 @@ export function CartPage() {
   const customer = useCustomer();
   const addresses = useAddresses(Boolean(customer.data));
   const defaultAddress = addresses.data?.find((a) => a.isDefault) ?? null;
+
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const recoverToken = params.get("recover");
+  const recover = useRecoverCart();
+  const recoverAttempted = useRef(false);
+
+  /*
+   * Redeem a `/cart?recover=<token>` link from a reminder email.
+   *
+   * Replaces the cart wholesale — the recovered one is what the shopper came
+   * here for, not whatever this browser happened to already hold. Dropped
+   * lines need no bespoke handling: they simply are not in the repopulated
+   * cart, so the existing `orphanedCount` alert below never even sees them.
+   */
+  useEffect(() => {
+    if (!recoverToken || recoverAttempted.current) return;
+    recoverAttempted.current = true;
+
+    recover.mutate(recoverToken, {
+      onSuccess: ({ lines: recovered }) => {
+        setLines(recovered);
+        void navigate("/cart", { replace: true });
+      },
+    });
+  }, [recoverToken, recover, setLines, navigate]);
 
   /*
    * A catch-all zone prices everywhere, so the picker has to offer everywhere —
@@ -107,6 +135,19 @@ export function CartPage() {
   return (
     <PageWrapper>
       <h1>Cart</h1>
+
+      {recover.isError && (
+        <Alert
+          type="error"
+          showIcon
+          className={cx(styles.alert)}
+          title={
+            recover.error instanceof ApiError
+              ? recover.error.message
+              : "That recovery link could not be used."
+          }
+        />
+      )}
 
       {orphanedCount > 0 && (
         <Alert

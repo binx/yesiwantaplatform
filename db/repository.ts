@@ -3,6 +3,7 @@ import {
   collectionSchema,
   productSchema,
   storeSchema,
+  colorSchemeSchema,
   taxBehaviorSchema,
   themeSchema,
   type Collection,
@@ -460,10 +461,18 @@ interface SettingsRow {
   taxEnabled: unknown;
   taxBehavior: string;
   defaultTaxCode: string;
+  cartRecoveryEnabled: unknown;
+  cartRecoveryDelayHours: number;
   themeColorPrimary: string;
   themeColorAccent: string;
   themeFontFamily: string;
   themeBorderRadius: number;
+  themeColorScheme: string;
+  themeColorPage: string | null;
+  themeLogoPath: string | null;
+  themeLogoWidth: number | null;
+  themeLogoHeight: number | null;
+  themeLogoAlt: string | null;
 }
 
 export async function getSettings(): Promise<{
@@ -474,6 +483,8 @@ export async function getSettings(): Promise<{
   taxEnabled: boolean;
   taxBehavior: TaxBehavior;
   defaultTaxCode: string;
+  cartRecoveryEnabled: boolean;
+  cartRecoveryDelayHours: number;
   theme: Theme;
 } | null> {
   const { drizzle: db, schema } = await getDatabase();
@@ -492,11 +503,27 @@ export async function getSettings(): Promise<{
     // become a third tax behaviour that Stripe has never heard of.
     taxBehavior: taxBehaviorSchema.catch("exclusive").parse(row.taxBehavior),
     defaultTaxCode: row.defaultTaxCode,
+    cartRecoveryEnabled: toBool(row.cartRecoveryEnabled),
+    cartRecoveryDelayHours: row.cartRecoveryDelayHours,
     theme: themeSchema.parse({
       colorPrimary: row.themeColorPrimary,
       colorAccent: row.themeColorAccent,
       fontFamily: row.themeFontFamily,
-      borderRadius: row.themeBorderRadius,
+      // Clamped, not parsed strictly: the cap used to be 24, so rows written
+      // before it dropped to 4 are still out there. A stale cosmetic value must
+      // not 500 the storefront.
+      borderRadius: Math.min(row.themeBorderRadius, 4),
+      colorScheme: colorSchemeSchema.catch("light").parse(row.themeColorScheme),
+      colorPage: row.themeColorPage,
+      logo:
+        row.themeLogoPath && row.themeLogoWidth && row.themeLogoHeight
+          ? {
+              path: row.themeLogoPath,
+              width: row.themeLogoWidth,
+              height: row.themeLogoHeight,
+              alt: row.themeLogoAlt ?? "",
+            }
+          : null,
     }),
   };
 }

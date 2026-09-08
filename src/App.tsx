@@ -7,6 +7,7 @@ import { PageWrapper } from "@/components/layout/PageWrapper";
 import { StoreErrorBoundary } from "@/components/layout/StoreErrorBoundary";
 import { useStore } from "@/lib/useStore";
 import { toAntdTheme } from "@/lib/theme";
+import { useCartRecoverySync } from "@/lib/useCartRecoverySync";
 
 function DocumentTitle() {
   const store = useStore();
@@ -27,6 +28,7 @@ function DocumentTitle() {
  */
 function ThemedShell() {
   const store = useStore();
+  useCartRecoverySync();
 
   return (
     <ConfigProvider theme={toAntdTheme(store.theme)}>

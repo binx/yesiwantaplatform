@@ -37,6 +37,10 @@ export const storeSettings = pgTable("store_settings", {
   taxBehavior: text("tax_behavior").notNull().default("exclusive"),
   /** Stripe tax code for products that do not set their own. */
   defaultTaxCode: text("default_tax_code").notNull().default("txcd_99999999"),
+  /** Abandoned cart reminders. Off by default — see db/schema.sqlite.ts. */
+  cartRecoveryEnabled: boolean("cart_recovery_enabled").notNull().default(false),
+  /** Hours of inactivity before the one reminder goes out. */
+  cartRecoveryDelayHours: integer("cart_recovery_delay_hours").notNull().default(4),
   themeColorPrimary: text("theme_color_primary").notNull().default("#18181b"),
   themeColorAccent: text("theme_color_accent").notNull().default("#e07a5f"),
   themeFontFamily: text("theme_font_family").notNull().default("system-ui, sans-serif"),
@@ -101,6 +105,10 @@ export const customers = pgTable("customers", {
   passwordResetTokenHash: text("password_reset_token_hash"),
   passwordResetExpiresAt: timestamp("password_reset_expires_at", { withTimezone: true }),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  /** Set once this customer clicks "unsubscribe" on a cart reminder. */
+  cartRecoveryOptOutAt: timestamp("cart_recovery_opt_out_at", { withTimezone: true }),
+  /** Hash only. See db/schema.sqlite.ts for why it's minted fresh per send. */
+  cartRecoveryUnsubscribeTokenHash: text("cart_recovery_unsubscribe_token_hash"),
   ...timestamps,
 });
 
@@ -403,3 +411,25 @@ export const webhookEvents = pgTable("webhook_events", {
   type: text("type").notNull(),
   receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Postgres mirror of `carts` in db/schema.sqlite.ts — see the comment there. */
+export const carts = pgTable(
+  "carts",
+  {
+    id: text("id").primaryKey(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    lines: jsonb("lines").notNull().default(sql`'[]'::jsonb`),
+    currency: text("currency").notNull(),
+    recoveryTokenHash: text("recovery_token_hash"),
+    reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
+    recoveredAt: timestamp("recovered_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index("carts_customer_idx").on(t.customerId),
+    index("carts_updated_idx").on(t.updatedAt),
+  ],
+);

@@ -408,6 +408,9 @@ async function main(): Promise<void> {
       taxEnabled: false,
       taxBehavior: "exclusive",
       defaultTaxCode: DEFAULT_TAX_CODE,
+      // Off until the merchant opts in from Settings — see the Settings copy.
+      cartRecoveryEnabled: false,
+      cartRecoveryDelayHours: 4,
       theme: defaultTheme,
     });
 

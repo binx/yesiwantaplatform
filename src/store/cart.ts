@@ -34,6 +34,8 @@ interface CartState {
   setQuantity: (index: number, quantity: number) => void;
   remove: (index: number) => void;
   clear: () => void;
+  /** Replaces the cart wholesale — used to repopulate it from a recovered cart. */
+  setLines: (lines: CartLine[]) => void;
   setShipToCountry: (countryCode: string | null) => void;
   setShippingRateId: (rateId: string | null) => void;
 }
@@ -110,6 +112,8 @@ export const useCart = create<CartState>()(
         }),
 
       clear: () => set({ lines: [], shippingRateId: null }),
+
+      setLines: (lines) => set({ lines }),
     }),
     {
       name: "beluga.cart",

@@ -1,7 +1,7 @@
 ---
 task: "12"
 title: Abandoned cart recovery
-status: todo
+status: in-progress
 tier: 3
 size: L
 migration: one table

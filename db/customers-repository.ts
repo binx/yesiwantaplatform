@@ -181,3 +181,50 @@ export async function findVerifiedCustomerByEmail(
   const row = rows[0];
   return row ? { id: row.id, email: row.email } : null;
 }
+
+/**
+ * Store the (already hashed) unsubscribe token for this customer's next cart
+ * reminder email.
+ *
+ * Minted fresh on every send rather than once — see the comment on
+ * `cartRecoveryUnsubscribeTokenHash` in db/schema.sqlite.ts for why an older
+ * email's link simply stops working once a newer one goes out.
+ */
+export async function setCartRecoveryUnsubscribeTokenHash(
+  customerId: string,
+  tokenHash: string,
+): Promise<void> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  await db
+    .update(schema.customers)
+    .set({ cartRecoveryUnsubscribeTokenHash: tokenHash })
+    .where(eq(schema.customers.id, customerId));
+}
+
+/**
+ * Redeem an unsubscribe link.
+ *
+ * Idempotent by design — clicking it twice only ever opts out, so unlike the
+ * recovery token this needs no single-use guard.
+ */
+export async function optOutOfCartRecoveryByTokenHash(tokenHash: string): Promise<boolean> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+
+  const rows = (await db
+    .select({ id: schema.customers.id })
+    .from(schema.customers)
+    .where(eq(schema.customers.cartRecoveryUnsubscribeTokenHash, tokenHash))
+    .limit(1)) as unknown as { id: string }[];
+
+  const row = rows[0];
+  if (!row) return false;
+
+  const now = dialect === "pg" ? new Date() : Math.floor(Date.now() / 1000);
+  await db
+    .update(schema.customers)
+    .set({ cartRecoveryOptOutAt: now })
+    .where(eq(schema.customers.id, row.id));
+
+  return true;
+}

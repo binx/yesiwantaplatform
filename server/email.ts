@@ -190,6 +190,42 @@ export async function sendAccountEmail(
   return deliver(to, rendered.subject, rendered.html);
 }
 
+export interface CartRecoveryItem {
+  productName: string;
+  variantLabel: string;
+  optionsText: string;
+  quantity: number;
+  lineTotal: string;
+}
+
+/**
+ * A cart recovery reminder.
+ *
+ * Not order-shaped like `sendOrderEmail`, and not the two-template account
+ * path either — its own template, but the same render/deliver/fail-silently
+ * shape as both, so `server/cart-recovery.ts` never touches `render` or
+ * `deliver` directly.
+ */
+export async function sendCartRecoveryEmail(
+  to: string,
+  locals: {
+    items: CartRecoveryItem[];
+    subtotal: string;
+    droppedCount: number;
+    recoverUrl: string;
+    unsubscribeUrl: string;
+  },
+): Promise<boolean> {
+  const settings = await getSettings();
+  const rendered = await render("AbandonedCart", {
+    store: { name: settings?.name ?? "Beluga", colorAccent: settings?.theme.colorAccent ?? "#e07a5f" },
+    ...locals,
+  });
+  if (!rendered) return false;
+
+  return deliver(to, rendered.subject, rendered.html);
+}
+
 /** Which template, if any, a fulfilment change should notify with. */
 export function templateForStatus(status: string): EmailTemplate | null {
   switch (status) {

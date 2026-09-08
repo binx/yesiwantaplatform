@@ -450,10 +450,18 @@ export async function updateSettings(input: SettingsInput): Promise<void> {
     taxEnabled: input.taxEnabled,
     taxBehavior: input.taxBehavior,
     defaultTaxCode: input.defaultTaxCode,
+    cartRecoveryEnabled: input.cartRecoveryEnabled,
+    cartRecoveryDelayHours: input.cartRecoveryDelayHours,
     themeColorPrimary: input.theme.colorPrimary,
     themeColorAccent: input.theme.colorAccent,
     themeFontFamily: input.theme.fontFamily,
     themeBorderRadius: input.theme.borderRadius,
+    themeColorScheme: input.theme.colorScheme,
+    themeColorPage: input.theme.colorPage,
+    themeLogoPath: input.theme.logo?.path ?? null,
+    themeLogoWidth: input.theme.logo?.width ?? null,
+    themeLogoHeight: input.theme.logo?.height ?? null,
+    themeLogoAlt: input.theme.logo?.alt ?? null,
   };
 
   const existing = (await db

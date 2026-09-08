@@ -17,6 +17,7 @@ import { findVerifiedCustomerByEmail } from "../../db/customers-repository.js";
 import { env } from "../env.js";
 import { getStripe } from "../stripe.js";
 import { sendOrderEmail } from "../email.js";
+import { markCheckoutRecovered, notifyCheckoutExpired } from "../cart-recovery.js";
 
 /**
  * Stripe webhooks — the authority on whether an order was paid.
@@ -104,6 +105,12 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
 
   const paid = await getOrder(order.id);
   if (paid) await sendOrderEmail("Ordered", paid);
+
+  // A buyer who completed checkout did not abandon it — clear any reminder
+  // still pending for them so a "you forgot something" never follows a
+  // purchase. No-op for a guest or a customer with nothing persisted.
+  const customerId = await getOrderCustomerId(order.id);
+  if (customerId) await markCheckoutRecovered(customerId);
 }
 
 async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<void> {
@@ -115,6 +122,14 @@ async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<
       carrier: order.carrier,
       trackingNumber: order.trackingNumber,
     });
+
+    /*
+     * The highest-intent abandonment signal there is: this buyer reached
+     * Stripe's payment page. Salvaged here rather than waiting for the
+     * scheduled sweep — see docs/tasks/12-abandoned-cart.md.
+     */
+    const customerId = await getOrderCustomerId(order.id);
+    if (customerId) await notifyCheckoutExpired(customerId, order);
   }
 }
 

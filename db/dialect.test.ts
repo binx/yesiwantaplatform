@@ -185,6 +185,8 @@ for (const { name, context } of dialects) {
         taxEnabled: true,
         taxBehavior: "inclusive",
         defaultTaxCode: "txcd_20030000",
+        cartRecoveryEnabled: settings.cartRecoveryEnabled,
+        cartRecoveryDelayHours: settings.cartRecoveryDelayHours,
         theme: settings.theme,
       });
 
@@ -203,6 +205,8 @@ for (const { name, context } of dialects) {
         taxEnabled: settings.taxEnabled,
         taxBehavior: settings.taxBehavior,
         defaultTaxCode: settings.defaultTaxCode,
+        cartRecoveryEnabled: settings.cartRecoveryEnabled,
+        cartRecoveryDelayHours: settings.cartRecoveryDelayHours,
         theme: settings.theme,
       });
     });

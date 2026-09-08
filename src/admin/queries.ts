@@ -296,6 +296,18 @@ export function useUpdateCollection() {
   });
 }
 
+/**
+ * Uploads a cover and returns it. Like the logo, it deliberately does not
+ * invalidate anything: the image exists on disk, but no collection points at
+ * it until the caller saves one.
+ */
+export function useUploadCollectionCover() {
+  return useMutation({
+    mutationFn: ({ id, file, alt }: { id: string; file: File; alt: string }) =>
+      csrfUpload<Image>(`/admin/collections/${id}/cover`, file, { alt }),
+  });
+}
+
 export function useDeleteCollection() {
   const invalidate = useInvalidate();
 

@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
-import { App, Button, Card, Empty, Input, Modal, Select, Skeleton, Space, Tooltip } from "antd";
-import { ArrowDownOutlined, ArrowUpOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import { App, Button, Card, Empty, Input, Modal, Select, Skeleton, Space, Tooltip, Upload } from "antd";
+import {
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  DeleteOutlined,
+  PlusOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import { FEATURED_SLUG, type Collection } from "@shared/schema";
+import { assetUrl } from "@/lib/store-source";
 import { cx } from "@/lib/cx";
 import {
   useCollections,
@@ -10,6 +17,7 @@ import {
   useProducts,
   useReorderCollections,
   useUpdateCollection,
+  useUploadCollectionCover,
 } from "./queries";
 import { Field } from "./Field";
 import { PageHeader } from "./RequireAdmin";
@@ -31,6 +39,7 @@ export function CollectionsPage() {
   const update = useUpdateCollection();
   const remove = useDeleteCollection();
   const reorder = useReorderCollections();
+  const uploadCover = useUploadCollectionCover();
 
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -80,29 +89,40 @@ export function CollectionsPage() {
     });
   };
 
-  const setProducts = (collection: Collection, productIds: string[]) => {
+  /**
+   * Every save sends the whole collection.
+   *
+   * The three callers below each used to build their own payload from the
+   * fields they cared about, which is how `cover` came to be silently dropped
+   * on every rename and every product change — a merchant could not have set
+   * one anyway, but the shape was already wrong. One place to add a field to
+   * now, and `CollectionInput` makes leaving one out a type error.
+   */
+  const save = (
+    collection: Collection,
+    patch: Partial<Pick<Collection, "name" | "cover" | "productIds">>,
+    failure: string,
+  ) => {
     update.mutate(
-      { id: collection.id, input: { slug: collection.slug, name: collection.name, productIds } },
+      {
+        id: collection.id,
+        input: {
+          slug: collection.slug,
+          name: patch.name ?? collection.name,
+          cover: patch.cover !== undefined ? patch.cover : collection.cover,
+          productIds: patch.productIds ?? collection.productIds,
+        },
+      },
       {
         onError: (error: unknown) =>
-          void message.error(error instanceof Error ? error.message : "Could not save."),
+          void message.error(error instanceof Error ? error.message : failure),
       },
     );
   };
 
   const rename = (collection: Collection, name: string) => {
     if (name.trim() === "" || name === collection.name) return;
-
-    update.mutate(
-      {
-        id: collection.id,
-        input: { slug: collection.slug, name, productIds: collection.productIds },
-      },
-      {
-        onError: (error: unknown) =>
-          void message.error(error instanceof Error ? error.message : "Could not rename."),
-      },
-    );
+    save(collection, { name }, "Could not rename.");
   };
 
   if (collections.isPending) return <Skeleton active paragraph={{ rows: 8 }} />;
@@ -183,6 +203,71 @@ export function CollectionsPage() {
                 ) : null}
               </p>
 
+              <Field
+                label="Cover image"
+                help="Shown on /shop at 16:9. Without one the tile renders a placeholder."
+              >
+                {() => (
+                  <div className={cx(styles.cover)}>
+                    {collection.cover ? (
+                      <img
+                        className={cx(styles.coverImage)}
+                        src={assetUrl(collection.cover.path)}
+                        alt={collection.cover.alt}
+                        width={collection.cover.width}
+                        height={collection.cover.height}
+                      />
+                    ) : null}
+
+                    <Space>
+                      <Upload
+                        accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
+                        showUploadList={false}
+                        // Uploaded here rather than by antd, so the request
+                        // carries the session's CSRF token — and so the row is
+                        // only saved once the file is really on disk.
+                        beforeUpload={(file) => {
+                          uploadCover.mutate(
+                            { id: collection.id, file, alt: `${collection.name} collection` },
+                            {
+                              onSuccess: (cover) =>
+                                save(collection, { cover }, "Could not save the cover."),
+                              onError: (error: unknown) =>
+                                void message.error(
+                                  error instanceof Error
+                                    ? error.message
+                                    : "That image could not be uploaded.",
+                                ),
+                            },
+                          );
+                          return Upload.LIST_IGNORE;
+                        }}
+                      >
+                        <Button
+                          icon={<UploadOutlined />}
+                          loading={uploadCover.isPending}
+                          aria-label={`${collection.cover ? "Replace" : "Upload"} the cover for ${collection.name}`}
+                        >
+                          {collection.cover ? "Replace" : "Upload"}
+                        </Button>
+                      </Upload>
+
+                      {collection.cover ? (
+                        <Button
+                          type="link"
+                          size="small"
+                          onClick={() =>
+                            save(collection, { cover: null }, "Could not remove the cover.")
+                          }
+                        >
+                          Remove
+                        </Button>
+                      ) : null}
+                    </Space>
+                  </div>
+                )}
+              </Field>
+
               <Field label="Products, in the order they appear">
                 {(control) => (
                   <Select
@@ -193,7 +278,7 @@ export function CollectionsPage() {
                     options={productOptions}
                     placeholder="Choose products"
                     optionFilterProp="label"
-                    onChange={(ids: string[]) => setProducts(collection, ids)}
+                    onChange={(ids: string[]) => save(collection, { productIds: ids }, "Could not save.")}
                   />
                 )}
               </Field>
@@ -216,7 +301,7 @@ export function CollectionsPage() {
           if (name === "") return;
 
           create.mutate(
-            { slug: slugify(name), name, productIds: [] },
+            { slug: slugify(name), name, cover: null, productIds: [] },
             {
               onSuccess: () => {
                 setCreating(false);

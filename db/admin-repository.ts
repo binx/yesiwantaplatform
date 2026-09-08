@@ -362,6 +362,23 @@ export async function reorderProductImages(productId: string, paths: string[]): 
   }
 }
 
+/**
+ * A cover as four columns.
+ *
+ * `widths` is dropped on the way in: there is no `cover_widths` column, and
+ * adding one is a migration. An empty `widths` means "serve the single
+ * full-size file", which is what a 16:9 tile does anyway — the derivatives
+ * `storeImage` wrote are simply not advertised for covers.
+ */
+function coverColumns(cover: CollectionInput["cover"]) {
+  return {
+    coverPath: cover?.path ?? null,
+    coverWidth: cover?.width ?? null,
+    coverHeight: cover?.height ?? null,
+    coverAlt: cover?.alt ?? null,
+  };
+}
+
 export async function createCollection(input: CollectionInput): Promise<string> {
   const { drizzle: db, schema } = await getDatabase();
 
@@ -372,6 +389,7 @@ export async function createCollection(input: CollectionInput): Promise<string> 
     id,
     slug: input.slug,
     name: input.name,
+    ...coverColumns(input.cover),
     position: await nextPosition(schema.collections, schema.collections.position),
   });
 
@@ -386,7 +404,7 @@ export async function updateCollection(id: string, input: CollectionInput): Prom
 
   await db
     .update(schema.collections)
-    .set({ slug: input.slug, name: input.name })
+    .set({ slug: input.slug, name: input.name, ...coverColumns(input.cover) })
     .where(eq(schema.collections.id, id));
 
   await setCollectionProducts(id, input.productIds);

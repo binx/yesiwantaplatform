@@ -71,6 +71,7 @@ const MUTATIONS = [
   { method: "delete", path: "/api/admin/products/demo-tote/images" },
   { method: "post", path: "/api/admin/collections" },
   { method: "put", path: "/api/admin/collections/demo-home" },
+  { method: "post", path: "/api/admin/collections/demo-home/cover" },
   { method: "delete", path: "/api/admin/collections/demo-home" },
   { method: "post", path: "/api/admin/pages" },
   { method: "post", path: "/api/admin/pages/preview" },

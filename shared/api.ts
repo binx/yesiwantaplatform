@@ -3,6 +3,7 @@ import { countryCodeSchema, shippingRateInputSchema, shippingZoneInputSchema } f
 import {
   centsSchema,
   collectionSchema,
+  imageSchema,
   inventorySchema,
   optionGroupSchema,
   productKindSchema,
@@ -90,6 +91,13 @@ export const productInputSchema = z
 export const collectionInputSchema = z.object({
   slug: slugSchema,
   name: z.string().min(1).max(200),
+  /**
+   * The tile image on /shop. Uploaded first, to
+   * `POST /admin/collections/:id/cover`, and then carried here — the same
+   * shape the theme's logo uses, so the image exists on disk before any row
+   * points at it.
+   */
+  cover: imageSchema.nullable().default(null),
   productIds: z.array(z.string()).max(500).default([]),
 });
 

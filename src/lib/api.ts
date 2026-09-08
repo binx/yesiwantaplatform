@@ -139,6 +139,40 @@ export const csrfDelete = <T>(path: string, body?: unknown): Promise<T> =>
   csrfSend<T>("DELETE", path, body);
 
 /**
+ * A write whose body is a document rather than a JSON object — the catalogue
+ * CSV import.
+ *
+ * Sent as the file's own media type, not wrapped in JSON: the server reads the
+ * request as a stream and parses it row by row, so a large catalogue is never
+ * held whole on either side. Wrapping it would mean building one enormous
+ * string in the browser and a second copy on the server before the first row
+ * could be read.
+ */
+export async function csrfPostText<T>(
+  path: string,
+  body: string,
+  contentType: string,
+): Promise<T> {
+  const attempt = (token: string) =>
+    fetch(`/api${path}`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { accept: "application/json", "x-csrf-token": token, "content-type": contentType },
+      body,
+    });
+
+  let response = await attempt(await ensureCsrfToken());
+
+  if (response.status === 403) {
+    clearCsrfToken();
+    response = await attempt(await ensureCsrfToken());
+  }
+
+  if (!response.ok) throw new ApiError(await readError(response), response.status);
+  return (await response.json()) as T;
+}
+
+/**
  * Upload one file as multipart.
  *
  * `content-type` is deliberately left unset so the browser writes the

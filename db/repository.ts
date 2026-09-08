@@ -408,6 +408,27 @@ export async function findProductBySlug(slug: string, liveOnly = true): Promise<
   return hydrated[0] ?? null;
 }
 
+/**
+ * Look several products up at once, drafts included.
+ *
+ * One query rather than a `findProductBySlug` per slug: the catalogue importer
+ * needs to know which of a few hundred slugs already exist before it writes
+ * anything, and doing that one round trip at a time is what makes a large
+ * import feel broken.
+ */
+export async function findProductsBySlugs(slugs: string[]): Promise<Product[]> {
+  if (slugs.length === 0) return [];
+
+  const { drizzle: db, schema } = await getDatabase();
+
+  const rows = (await db
+    .select()
+    .from(schema.products)
+    .where(inArray(schema.products.slug, slugs))) as unknown as ProductRow[];
+
+  return hydrate(rows);
+}
+
 export async function listCollections(): Promise<Collection[]> {
   const { drizzle: db, schema } = await getDatabase();
 

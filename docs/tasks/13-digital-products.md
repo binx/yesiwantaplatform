@@ -1,15 +1,15 @@
 ---
 task: "13"
 title: Digital and downloadable products
-status: in-progress
+status: done
 tier: 3
 size: M
 migration: one table
 blocked_by: []
 blocks: []
 touches: shared/shipping.ts · db/orders-repository.ts:328 · server/uploads.ts
-completed: 
-shipped_in: 
+completed: 2026-09-08
+shipped_in: 1
 summary: >-
   Entitlements granted on payment and served over expiring signed URLs. Note the
   collisions with existing rules: a download has no weight, so it must skip shipping-zone

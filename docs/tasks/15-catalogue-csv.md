@@ -1,15 +1,15 @@
 ---
 task: "15"
 title: Catalogue CSV import and export
-status: todo
+status: done
 tier: 3
 size: M
 migration: none
 blocked_by: ["10"]
 blocks: []
 touches: server/routes/admin.ts · src/admin/ProductsPage.tsx
-completed: 
-shipped_in: 
+completed: 2026-09-08
+shipped_in: 3
 summary: >-
   Migrating a hundred products from Shopify is currently a hundred trips through the
   product editor, which is a real reason an evaluation stops. Straightforward once the

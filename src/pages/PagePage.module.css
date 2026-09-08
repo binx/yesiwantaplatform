@@ -1,0 +1,63 @@
+/*
+ * Prose styling for merchant-authored HTML.
+ *
+ * Everything here is a descendant selector rather than a class, because the
+ * markup is generated from Markdown on the server and carries no classes of
+ * its own — and giving the sanitiser a class allow-list would be one more
+ * thing to keep in step for no gain.
+ */
+
+.body > :first-child {
+  margin-top: 0;
+}
+
+.body > :last-child {
+  margin-bottom: 0;
+}
+
+.body h2,
+.body h3,
+.body h4 {
+  margin: 2rem 0 0.75rem;
+  line-height: 1.3;
+}
+
+.body p,
+.body ul,
+.body ol,
+.body blockquote,
+.body pre {
+  margin: 0 0 1.15rem;
+}
+
+.body ul,
+.body ol {
+  padding-left: 1.5rem;
+}
+
+.body li {
+  margin-bottom: 0.35rem;
+}
+
+.body blockquote {
+  padding-left: 1rem;
+  border-left: 2px solid var(--beluga-line);
+  color: var(--beluga-muted);
+}
+
+.body pre {
+  padding: 0.875rem 1rem;
+  overflow-x: auto;
+  background: var(--beluga-page);
+  border: 1px solid var(--beluga-line);
+}
+
+.body code {
+  font-size: 0.9em;
+}
+
+.body hr {
+  margin: 2rem 0;
+  border: 0;
+  border-top: 1px solid var(--beluga-line);
+}

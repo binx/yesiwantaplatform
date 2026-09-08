@@ -7,6 +7,7 @@ import { ProductPage } from "./pages/ProductPage";
 import { CartPage } from "./pages/CartPage";
 import { ConfirmPage } from "./pages/ConfirmPage";
 import { AboutPage } from "./pages/AboutPage";
+import { PagePage } from "./pages/PagePage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 
 /**
@@ -74,6 +75,22 @@ export const router = createBrowserRouter([
             }),
           },
           {
+            path: "pages",
+            lazy: async () => ({ Component: (await import("./admin/PagesPage")).PagesPage }),
+          },
+          {
+            path: "pages/new",
+            lazy: async () => ({
+              Component: (await import("./admin/PagesPage")).PageEditorPage,
+            }),
+          },
+          {
+            path: "pages/:id",
+            lazy: async () => ({
+              Component: (await import("./admin/PagesPage")).PageEditorPage,
+            }),
+          },
+          {
             path: "shipping",
             lazy: async () => ({ Component: (await import("./admin/ShippingPage")).ShippingPage }),
           },
@@ -110,6 +127,16 @@ export const router = createBrowserRouter([
       { path: "cart", element: <CartPage /> },
       { path: "confirm", element: <ConfirmPage /> },
       { path: "about", element: <AboutPage /> },
+      /*
+       * Merchant-authored pages, matched last.
+       *
+       * A bare `:slug` is as greedy as it looks — put it any higher and it
+       * captures /shop, /cart and every other static route above. React Router
+       * ranks a static segment above a dynamic one regardless of order, but
+       * relying on that would make the ordering here look arbitrary; the API
+       * also refuses to save a page at any of those slugs, so the two agree.
+       */
+      { path: ":slug", element: <PagePage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

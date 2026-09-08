@@ -29,6 +29,7 @@ export const storeSettings = pgTable("store_settings", {
   name: text("name").notNull().default("My Store"),
   currency: text("currency").notNull().default("USD"),
   stripePublishableKey: text("stripe_publishable_key"),
+  /** @deprecated Superseded by the `pages` table. See db/schema.sqlite.ts. */
   aboutText: text("about_text"),
   themeColorPrimary: text("theme_color_primary").notNull().default("#18181b"),
   themeColorAccent: text("theme_color_accent").notNull().default("#e07a5f"),
@@ -163,6 +164,24 @@ export const collections = pgTable(
     ...timestamps,
   },
   (t) => [uniqueIndex("collections_slug_idx").on(t.slug)],
+);
+
+/** Editable prose pages. See the note in db/schema.sqlite.ts. */
+export const pages = pgTable(
+  "pages",
+  {
+    id: text("id").primaryKey(),
+    slug: text("slug").notNull(),
+    title: text("title").notNull(),
+    /** Markdown. Rendered to HTML at read time, never stored as HTML. */
+    body: text("body").notNull().default(""),
+    isLive: boolean("is_live").notNull().default(false),
+    /** Show a link in the storefront banner. */
+    inNav: boolean("in_nav").notNull().default(false),
+    position: integer("position").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("pages_slug_idx").on(t.slug), index("pages_live_idx").on(t.isLive)],
 );
 
 export const collectionProducts = pgTable(

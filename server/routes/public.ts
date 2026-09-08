@@ -1,11 +1,14 @@
 import { Router } from "express";
 import { productQuerySchema } from "../../shared/api.js";
+import { pageSchema } from "../../shared/schema.js";
 import {
   findProductBySlug,
   getStoreSnapshot,
   listCollections,
   listProducts,
 } from "../../db/repository.js";
+import { findPageBySlug, listPageSummaries } from "../../db/pages-repository.js";
+import { renderMarkdown } from "../markdown.js";
 import { httpError } from "../middleware.js";
 
 /**
@@ -57,4 +60,26 @@ publicRouter.get("/products/:slug", async (req, res) => {
   if (!product) throw httpError(404, "Product not found.");
 
   res.json(product);
+});
+
+/* ------------------------------------------------------------------- pages */
+
+publicRouter.get("/pages", async (_req, res) => {
+  res.json(await listPageSummaries({ liveOnly: true }));
+});
+
+/**
+ * One page, rendered.
+ *
+ * The Markdown source stays on the server: the client is sent sanitised HTML,
+ * so the storefront ships no parser and has nothing to decide about what it
+ * has been handed. A draft is a 404 here and renders only in the admin.
+ */
+publicRouter.get("/pages/:slug", async (req, res) => {
+  const page = await findPageBySlug(req.params.slug, true);
+  if (!page) throw httpError(404, "Page not found.");
+
+  // Parsed on the way out, which is also what drops `body` and `isLive`:
+  // the Markdown source and the draft flag are the editor's business.
+  res.json(pageSchema.parse({ ...page, bodyHtml: renderMarkdown(page.body) }));
 });

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   CollectionInput,
   EnvironmentStatus,
+  PageInput,
   ProductInput,
   SettingsInput,
   ShippingTableInput,
@@ -11,7 +12,7 @@ import type {
   PasswordChangeInput,
 } from "@shared/api";
 import type { ShippingRate, ShippingZone } from "@shared/shipping";
-import type { Collection, Image, Product } from "@shared/schema";
+import type { Collection, Image, PageDraft, Product } from "@shared/schema";
 import type { FulfilmentInput, Order, OrderStatus, RefundInput } from "@shared/orders";
 import { apiGet, csrfDelete, csrfPost, csrfPut, csrfUpload } from "@/lib/api";
 
@@ -28,6 +29,7 @@ export const adminKeys = {
   products: ["admin", "products"] as const,
   product: (slug: string) => ["admin", "product", slug] as const,
   collections: ["admin", "collections"] as const,
+  pages: ["admin", "pages"] as const,
   settings: ["admin", "settings"] as const,
   environment: ["admin", "environment"] as const,
   shipping: ["admin", "shipping"] as const,
@@ -59,7 +61,7 @@ export interface PublishResult {
 }
 
 /** Anything the storefront renders is derived from these. */
-const PUBLIC_KEYS: readonly (readonly unknown[])[] = [["store"], ["collections"]];
+const PUBLIC_KEYS: readonly (readonly unknown[])[] = [["store"], ["collections"], ["page"]];
 
 function useInvalidate() {
   const queryClient = useQueryClient();
@@ -223,6 +225,59 @@ export function useReorderCollections() {
   return useMutation({
     mutationFn: (ids: string[]) => csrfPost<void>("/admin/collections/reorder", { ids }),
     onSuccess: () => invalidate(adminKeys.collections),
+  });
+}
+
+/* ------------------------------------------------------------------- pages */
+
+/**
+ * Store pages.
+ *
+ * Bodies are Markdown in both directions. The storefront never sees this
+ * shape — it gets HTML rendered and sanitised on the server — which is why the
+ * editor can hold the source without shipping a parser to shoppers.
+ */
+export function usePages() {
+  return useQuery({
+    queryKey: adminKeys.pages,
+    queryFn: ({ signal }) => apiGet<PageDraft[]>("/admin/pages", signal),
+  });
+}
+
+export function useCreatePage() {
+  const invalidate = useInvalidate();
+
+  return useMutation({
+    mutationFn: (input: PageInput) => csrfPost<{ id: string }>("/admin/pages", input),
+    onSuccess: () => invalidate(adminKeys.pages),
+  });
+}
+
+export function useUpdatePage() {
+  const invalidate = useInvalidate();
+
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: PageInput }) =>
+      csrfPut<void>(`/admin/pages/${id}`, input),
+    onSuccess: () => invalidate(adminKeys.pages),
+  });
+}
+
+export function useDeletePage() {
+  const invalidate = useInvalidate();
+
+  return useMutation({
+    mutationFn: (id: string) => csrfDelete<void>(`/admin/pages/${id}`),
+    onSuccess: () => invalidate(adminKeys.pages),
+  });
+}
+
+export function useReorderPages() {
+  const invalidate = useInvalidate();
+
+  return useMutation({
+    mutationFn: (ids: string[]) => csrfPost<void>("/admin/pages/reorder", { ids }),
+    onSuccess: () => invalidate(adminKeys.pages),
   });
 }
 

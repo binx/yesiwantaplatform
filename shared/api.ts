@@ -6,6 +6,7 @@ import {
   inventorySchema,
   optionGroupSchema,
   productSchema,
+  RESERVED_PAGE_SLUGS,
   slugSchema,
   storeSchema,
   themeSchema,
@@ -45,6 +46,36 @@ export const collectionInputSchema = z.object({
   slug: slugSchema,
   name: z.string().min(1).max(200),
   productIds: z.array(z.string()).max(500).default([]),
+});
+
+/**
+ * A store page.
+ *
+ * The slug check is here rather than in the route so both sides of the wire
+ * enforce it: the editor can say why before a save is attempted, and the API
+ * still refuses if something else asks. The message names the route it would
+ * collide with, because "invalid slug" tells a merchant nothing they can act on.
+ */
+export const pageInputSchema = z.object({
+  slug: slugSchema.superRefine((value, ctx) => {
+    const owner = RESERVED_PAGE_SLUGS[value];
+    if (owner) {
+      ctx.addIssue({
+        code: "custom",
+        message: `/${value} is already ${owner}. Choose a different address.`,
+      });
+    }
+  }),
+  title: z.string().min(1).max(200),
+  /** Markdown, not HTML. Rendered and sanitised server-side on the way out. */
+  body: z.string().max(100_000).default(""),
+  isLive: z.boolean().default(false),
+  inNav: z.boolean().default(false),
+});
+
+/** Just the body: the preview endpoint renders it and stores nothing. */
+export const pagePreviewInputSchema = z.object({
+  body: z.string().max(100_000).default(""),
 });
 
 export const settingsInputSchema = z.object({
@@ -202,6 +233,7 @@ export const collectionsResponseSchema = z.array(collectionSchema);
 export type VariantInput = z.infer<typeof variantInputSchema>;
 export type ProductInput = z.infer<typeof productInputSchema>;
 export type CollectionInput = z.infer<typeof collectionInputSchema>;
+export type PageInput = z.infer<typeof pageInputSchema>;
 export type SettingsInput = z.infer<typeof settingsInputSchema>;
 export type LoginInput = z.infer<typeof loginInputSchema>;
 export type ShippingTableInput = z.infer<typeof shippingTableInputSchema>;

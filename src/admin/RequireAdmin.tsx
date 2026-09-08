@@ -4,6 +4,7 @@ import { Button, Grid, Menu, Skeleton, Typography } from "antd";
 import {
   AppstoreOutlined,
   CarOutlined,
+  FileTextOutlined,
   LogoutOutlined,
   ProfileOutlined,
   SettingOutlined,
@@ -30,6 +31,7 @@ const NAV = [
   { key: "", icon: <AppstoreOutlined />, label: "Overview" },
   { key: "products", icon: <ShoppingOutlined />, label: "Products" },
   { key: "collections", icon: <ProfileOutlined />, label: "Collections" },
+  { key: "pages", icon: <FileTextOutlined />, label: "Pages" },
   { key: "orders", icon: <ShopOutlined />, label: "Orders" },
   { key: "shipping", icon: <CarOutlined />, label: "Shipping" },
   { key: "users", icon: <TeamOutlined />, label: "Staff" },

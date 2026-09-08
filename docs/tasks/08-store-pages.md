@@ -1,14 +1,14 @@
 ---
 task: "08"
 title: Store pages
-status: todo
+status: done
 tier: 1
 size: M
 migration: one table
 blocked_by: []
 blocks: []
 touches: db/schema.*.ts · src/router.tsx · src/admin/useAutosave.ts
-completed: 
+completed: 2026-09-07
 shipped_in: 
 summary: >-
   The store has exactly one editable page, and it's a single `aboutText` blob on the

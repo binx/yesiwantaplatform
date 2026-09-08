@@ -1,0 +1,98 @@
+.list {
+  display: grid;
+  gap: 1rem;
+}
+
+.card :global(.ant-card-head-title) a {
+  color: inherit;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--beluga-muted);
+  font-size: 0.875rem;
+}
+
+.badge {
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--beluga-line);
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+
+.badgeDraft {
+  color: var(--beluga-muted);
+  font-style: italic;
+}
+
+.alert {
+  margin-bottom: 1.5rem;
+}
+
+.editor {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 46rem;
+}
+
+.modes {
+  margin-bottom: 0.5rem;
+}
+
+.body {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+/*
+ * The preview is sized to match the textarea it replaces, so toggling between
+ * the two does not make the page jump under the cursor.
+ */
+.preview {
+  min-height: 24rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--beluga-line);
+  background: var(--beluga-surface);
+  overflow-wrap: break-word;
+}
+
+.preview > :first-child {
+  margin-top: 0;
+}
+
+.preview pre {
+  overflow-x: auto;
+}
+
+.toggles {
+  display: grid;
+  gap: 1rem;
+}
+
+.toggle {
+  display: flex;
+  align-items: start;
+  gap: 0.75rem;
+  cursor: pointer;
+}
+
+.toggle span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.toggle em {
+  color: var(--beluga-muted);
+  font-size: 0.875rem;
+  font-style: normal;
+}
+
+.slugPrefix {
+  color: #a1a1aa;
+  user-select: none;
+}

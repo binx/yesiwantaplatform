@@ -101,6 +101,53 @@ export const collectionSchema = z.object({
   productIds: z.array(z.string()).default([]),
 });
 
+/**
+ * Slugs the storefront router already owns.
+ *
+ * A page is served from `/:slug`, registered last so it cannot shadow a static
+ * route — but "cannot shadow" and "is reachable" are different things: a page
+ * at `/cart` would simply never render, with nothing to say why. They are
+ * refused when the page is saved instead, and the value here is what the
+ * refusal names.
+ */
+export const RESERVED_PAGE_SLUGS: Readonly<Record<string, string>> = {
+  shop: "the shop",
+  cart: "the cart",
+  confirm: "the order confirmation page",
+  product: "product pages",
+  collection: "collection pages",
+  about: "the About page",
+  admin: "the admin",
+  setup: "the setup wizard",
+};
+
+/** Enough to render a nav link. Bodies are fetched a page at a time. */
+export const pageSummarySchema = z.object({
+  id: z.string().min(1),
+  slug: slugSchema,
+  title: z.string().min(1),
+  /** Linked from the storefront banner. */
+  inNav: z.boolean().default(false),
+  position: z.number().int().min(0).default(0),
+});
+
+/**
+ * A page as a shopper receives it.
+ *
+ * `bodyHtml` is rendered from stored Markdown and sanitised on the server, so
+ * the storefront neither ships a Markdown parser nor has to trust what it is
+ * handed. The Markdown source is not sent; only the editor needs it.
+ */
+export const pageSchema = pageSummarySchema.extend({
+  bodyHtml: z.string().default(""),
+});
+
+/** A page as its editor receives it: Markdown source, drafts included. */
+export const pageDraftSchema = pageSummarySchema.extend({
+  body: z.string().default(""),
+  isLive: z.boolean().default(false),
+});
+
 export const themeSchema = z.object({
   colorPrimary: z.string(),
   colorAccent: z.string(),
@@ -117,6 +164,12 @@ export const storeSchema = z.object({
   theme: themeSchema,
   aboutText: z.string().nullable().default(null),
   collections: z.array(collectionSchema).default([]),
+  /**
+   * Live pages, as summaries only — the banner needs their titles on first
+   * paint, and a store with ten long policies should not put all of that in
+   * every shopper's initial payload. Bodies come from `/api/pages/:slug`.
+   */
+  pages: z.array(pageSummarySchema).default([]),
   products: z.array(productSchema).default([]),
   /**
    * Where the shop ships, so the cart can ask for a destination.
@@ -162,5 +215,8 @@ export type Variant = z.infer<typeof variantSchema>;
 export type OptionGroup = z.infer<typeof optionGroupSchema>;
 export type Product = z.infer<typeof productSchema>;
 export type Collection = z.infer<typeof collectionSchema>;
+export type PageSummary = z.infer<typeof pageSummarySchema>;
+export type Page = z.infer<typeof pageSchema>;
+export type PageDraft = z.infer<typeof pageDraftSchema>;
 export type Theme = z.infer<typeof themeSchema>;
 export type Store = z.infer<typeof storeSchema>;

@@ -21,13 +21,21 @@ export function Banner() {
   const count = useCartCount();
   const [open, setOpen] = useState(false);
 
+  // The About page is a page like any other once a store has migrated. Until
+  // then `aboutText` still drives the link — but only when no page has claimed
+  // the slug, or the header would carry the same destination twice.
+  const hasAboutPage = store.pages.some((page) => page.slug === "about");
+
   const links = [
     { to: "/shop", label: "Shop" },
     ...getVisibleCollections(store).map((c) => ({
       to: `/collection/${c.slug}`,
       label: c.name,
     })),
-    ...(store.aboutText ? [{ to: "/about", label: "About" }] : []),
+    ...store.pages
+      .filter((page) => page.inNav)
+      .map((page) => ({ to: `/${page.slug}`, label: page.title })),
+    ...(store.aboutText && !hasAboutPage ? [{ to: "/about", label: "About" }] : []),
   ];
 
   const cartLabel = count > 0 ? `Cart, ${count} item${count === 1 ? "" : "s"}` : "Cart";

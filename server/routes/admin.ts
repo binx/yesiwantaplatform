@@ -6,6 +6,8 @@ import {
   imageInputSchema,
   imagePathInputSchema,
   imageReorderInputSchema,
+  pageInputSchema,
+  pagePreviewInputSchema,
   productInputSchema,
   reorderInputSchema,
   inviteInputSchema,
@@ -35,6 +37,14 @@ import {
   updateSettings,
 } from "../../db/admin-repository.js";
 import { findProductBySlug, getSettings, listCollections, listProducts } from "../../db/repository.js";
+import {
+  createPage,
+  deletePage,
+  listPageDrafts,
+  pageExists,
+  reorderPages,
+  updatePage,
+} from "../../db/pages-repository.js";
 import { formatMoney } from "../../shared/money.js";
 import { CSV_BOM, csvRow } from "../../shared/csv.js";
 import {
@@ -51,6 +61,7 @@ import { env, hasStripe, isSqlite } from "../env.js";
 import { deleteImageFile, storeImage, uploadMiddleware } from "../uploads.js";
 import { archiveProductInStripe, syncProductToStripe } from "../catalog-sync.js";
 import { StripeNotConfiguredError, requireStripe } from "../stripe.js";
+import { renderMarkdown } from "../markdown.js";
 import { sendEmail, sendOrderEmail, templateForStatus } from "../email.js";
 import {
   EmailTakenError,
@@ -268,6 +279,73 @@ adminRouter.delete("/collections/:id", async (req, res) => {
 adminRouter.post("/collections/reorder", async (req, res) => {
   const { ids } = reorderInputSchema.parse(req.body);
   await reorderCollections(ids);
+  res.status(204).end();
+});
+
+/* ------------------------------------------------------------------- pages */
+
+/**
+ * Store pages — a returns policy, shipping information, contact terms.
+ *
+ * Drafts are included here and nowhere else. Bodies travel as Markdown in both
+ * directions; the storefront gets HTML, rendered and sanitised on the way out
+ * by `server/markdown.ts`, and nothing is ever stored as HTML.
+ */
+adminRouter.get("/pages", async (_req, res) => {
+  res.json(await listPageDrafts());
+});
+
+adminRouter.post("/pages", async (req, res) => {
+  try {
+    const input = pageInputSchema.parse(req.body);
+    res.status(201).json({ id: await createPage(input) });
+  } catch (error) {
+    toHttp(error);
+  }
+});
+
+/**
+ * What a body will look like once it is published.
+ *
+ * The editor cannot render its own preview: the Markdown parser and the
+ * sanitiser are deliberately server-side, so that neither reaches a shopper's
+ * bundle. Rendering the preview through the same function the storefront uses
+ * is also the only way a preview is worth trusting — a second implementation
+ * would eventually disagree with the first about what is safe.
+ */
+adminRouter.post("/pages/preview", (req, res) => {
+  const parsed = pagePreviewInputSchema.safeParse(req.body);
+  if (!parsed.success) throw httpError(400, "A Markdown body is required.");
+
+  res.json({ bodyHtml: renderMarkdown(parsed.data.body) });
+});
+
+/*
+ * Registered before `/pages/:id`, so "reorder" and "preview" are never read as
+ * page ids — the same ordering trap as `/orders.csv` above.
+ */
+adminRouter.post("/pages/reorder", async (req, res) => {
+  const { ids } = reorderInputSchema.parse(req.body);
+  await reorderPages(ids);
+  res.status(204).end();
+});
+
+adminRouter.put("/pages/:id", async (req, res) => {
+  if (!(await pageExists(req.params.id))) throw httpError(404, "Page not found.");
+
+  try {
+    const input = pageInputSchema.parse(req.body);
+    await updatePage(req.params.id, input);
+    res.status(204).end();
+  } catch (error) {
+    toHttp(error);
+  }
+});
+
+adminRouter.delete("/pages/:id", async (req, res) => {
+  if (!(await pageExists(req.params.id))) throw httpError(404, "Page not found.");
+
+  await deletePage(req.params.id);
   res.status(204).end();
 });
 

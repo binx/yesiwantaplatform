@@ -26,6 +26,11 @@ export const storeSettings = sqliteTable("store_settings", {
   currency: text("currency").notNull().default("USD"),
   /** Publishable key only — the secret key lives in the environment. */
   stripePublishableKey: text("stripe_publishable_key"),
+  /**
+   * @deprecated Superseded by the `pages` table. Kept for one release so an
+   * install that rolls back still has its About copy; `db/migrate.ts` copies
+   * it into a page on first run of the migration that added them.
+   */
   aboutText: text("about_text"),
   themeColorPrimary: text("theme_color_primary").notNull().default("#18181b"),
   themeColorAccent: text("theme_color_accent").notNull().default("#e07a5f"),
@@ -168,6 +173,31 @@ export const collections = sqliteTable(
     ...timestamps,
   },
   (t) => [uniqueIndex("collections_slug_idx").on(t.slug)],
+);
+
+/**
+ * Editable prose pages — returns policy, shipping information, contact.
+ *
+ * Replaces the single `aboutText` column, which could hold exactly one page
+ * and no title. Bodies are Markdown and are rendered to HTML at read time;
+ * nothing here is ever stored as HTML, so a change to the sanitiser applies
+ * retroactively to everything already written.
+ */
+export const pages = sqliteTable(
+  "pages",
+  {
+    id: text("id").primaryKey(),
+    slug: text("slug").notNull(),
+    title: text("title").notNull(),
+    /** Markdown. Rendered to HTML at read time, never stored as HTML. */
+    body: text("body").notNull().default(""),
+    isLive: integer("is_live", { mode: "boolean" }).notNull().default(false),
+    /** Show a link in the storefront banner. */
+    inNav: integer("in_nav", { mode: "boolean" }).notNull().default(false),
+    position: integer("position").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("pages_slug_idx").on(t.slug), index("pages_live_idx").on(t.isLive)],
 );
 
 export const collectionProducts = sqliteTable(

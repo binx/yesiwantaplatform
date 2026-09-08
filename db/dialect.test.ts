@@ -81,12 +81,13 @@ async function loadWith(databaseUrl: string) {
   const repository = await import("./repository.js");
   const admin = await import("./admin-repository.js");
   const orders = await import("./orders-repository.js");
+  const pages = await import("./pages-repository.js");
   const { getDatabase, resetDatabase } = await import("./client.js");
 
   await runMigrations();
   await seedIfEmpty();
 
-  return { ...repository, admin, orders, getDatabase, resetDatabase };
+  return { ...repository, admin, orders, pages, getDatabase, resetDatabase };
 }
 
 /**
@@ -117,6 +118,61 @@ for (const { name, context } of dialects) {
       const variant = product?.variants.find((v) => v.id === variantId);
       return variant?.inventory.type === "finite" ? variant.inventory.quantity : -1;
     }
+
+    it("round-trips a page's booleans on either engine", async () => {
+      const id = await db.pages.createPage({
+        slug: "dialect-page",
+        title: "Dialect Page",
+        body: "# Hello",
+        isLive: true,
+        inNav: true,
+      });
+
+      const page = await db.pages.findPageBySlug("dialect-page");
+
+      // SQLite stores 0/1 and Postgres a real boolean; both must arrive as one.
+      expect(page?.id).toBe(id);
+      expect(page?.isLive).toBe(true);
+      expect(page?.inNav).toBe(true);
+      expect(page?.body).toBe("# Hello");
+
+      // A draft is invisible to the storefront on both engines.
+      await db.pages.updatePage(id, {
+        slug: "dialect-page",
+        title: "Dialect Page",
+        body: "# Hello",
+        isLive: false,
+        inNav: true,
+      });
+
+      expect(await db.pages.findPageBySlug("dialect-page")).toBeNull();
+      expect(await db.pages.findPageBySlug("dialect-page", false)).not.toBeNull();
+
+      await db.pages.deletePage(id);
+    });
+
+    /*
+     * The `aboutText` column is the whole reason this table exists, and a
+     * migration that runs on every boot has to be able to run twice. The seed
+     * writes an `aboutText` and no page, which is exactly the shape of an
+     * install that predates pages.
+     */
+    it("adopts aboutText as a page exactly once", async () => {
+      expect(await db.pages.adoptAboutTextAsPage()).toBe(true);
+      expect(await db.pages.adoptAboutTextAsPage()).toBe(false);
+
+      const summaries = await db.pages.listPageSummaries({ liveOnly: true });
+      const about = summaries.filter((page) => page.slug === "about");
+
+      expect(about).toHaveLength(1);
+      expect(about[0]?.title).toBe("About");
+      expect(about[0]?.inNav).toBe(true);
+
+      // Paragraphs survive: the old column was newline-separated plain text,
+      // and a single newline is a soft break in Markdown, not a new paragraph.
+      const page = await db.pages.findPageBySlug("about");
+      expect(page?.body).toContain("\n\n");
+    });
 
     it("returns a schema-valid store snapshot", async () => {
       const store = await db.getStoreSnapshot();

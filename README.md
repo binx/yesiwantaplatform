@@ -120,6 +120,36 @@ Removing someone **destroys their sessions immediately** rather than waiting for
 
 `role` is recorded but does not gate anything: every administrator can do everything, and the UI says so. Gating it would multiply the permission surface across every route and needs its own security-test matrix, which is a separate decision — the column exists now so that decision is not also a migration.
 
+### Pages
+
+A store needs prose the catalogue does not hold: a returns policy, shipping
+information, contact terms. Consumer-protection rules in several jurisdictions
+and Stripe's own account requirements expect a shop to publish them. Until now
+there was exactly one page of prose in the whole product — an `aboutText`
+column on the settings row — so anything else meant editing React.
+
+**Pages** in the admin writes them. Each has a title, a web address, and a body
+in **Markdown**; a page is a draft until it is published, and can optionally be
+linked in the storefront menu. Drag-free reordering, as everywhere else.
+
+Bodies are stored as Markdown and rendered to HTML **on the server, on every
+read** — never stored as HTML. Two things follow from that. Tightening the
+sanitiser applies retroactively to every page already written, rather than only
+to pages saved afterwards. And no Markdown parser reaches a shopper's bundle,
+which is why the admin's preview asks the server to render it: a second
+implementation in the browser would eventually disagree with the first about
+what is safe. The allow-list is prose and nothing else — headings, paragraphs,
+lists, links, emphasis, code, quotes, rules. No scripts, no styles, no frames,
+no event handlers, and external links carry `rel="nofollow noopener noreferrer"`.
+
+Slugs the storefront already owns — `shop`, `cart`, `confirm`, `product`,
+`collection`, `about`, `admin`, `setup` — are refused with a message naming the
+conflict, since a page at `/cart` would simply never load.
+
+An existing store's `aboutText` becomes an About page the first time the new
+migration runs, once. The column is deprecated and stays for one release so an
+install can roll back.
+
 ### Images
 
 Uploads are re-encoded by `sharp` — which is what strips EXIF and anything

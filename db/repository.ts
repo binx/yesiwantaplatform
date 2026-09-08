@@ -11,6 +11,7 @@ import {
 } from "../shared/schema.js";
 import { countriesCovered, hasCatchAllZone } from "../shared/shipping.js";
 import { getDatabase } from "./client.js";
+import { listPageSummaries } from "./pages-repository.js";
 import { getShippingTable } from "./shipping-repository.js";
 
 /**
@@ -390,9 +391,12 @@ export async function getStoreSnapshot(): Promise<Store | null> {
   const settings = await getSettings();
   if (!settings) return null;
 
-  const [{ products }, collections] = await Promise.all([
+  const [{ products }, collections, pages] = await Promise.all([
     listProducts({ liveOnly: true, limit: STORE_SNAPSHOT_LIMIT }),
     listCollections(),
+    // Summaries only: the banner needs titles on first paint, and bodies are
+    // fetched a page at a time from /api/pages/:slug.
+    listPageSummaries({ liveOnly: true }),
   ]);
 
   const { zones } = await getShippingTable();
@@ -405,6 +409,7 @@ export async function getStoreSnapshot(): Promise<Store | null> {
     theme: settings.theme,
     aboutText: settings.aboutText,
     collections,
+    pages,
     products,
     shipping: {
       countries: countriesCovered(zones),

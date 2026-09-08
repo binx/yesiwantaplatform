@@ -64,6 +64,13 @@
       "when": 1788835168069,
       "tag": "0008_clear_wind_dancer",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788836422316,
+      "tag": "0009_funny_exodus",
+      "breakpoints": true
     }
   ]
 }

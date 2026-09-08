@@ -10,6 +10,7 @@ import { PageWrapper } from "@/components/layout/PageWrapper";
 import { ProductImage } from "@/components/ui/ProductImage";
 import { useCartLines } from "@/lib/useCartLines";
 import { useStore } from "@/lib/useStore";
+import { useAddresses, useCustomer } from "@/lib/account";
 import { useCart, normalizeQuantity } from "@/store/cart";
 import { cx } from "@/lib/cx";
 import styles from "./CartPage.module.css";
@@ -25,6 +26,10 @@ export function CartPage() {
   const setShippingRateId = useCart((s) => s.setShippingRateId);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
+  const customer = useCustomer();
+  const addresses = useAddresses(Boolean(customer.data));
+  const defaultAddress = addresses.data?.find((a) => a.isDefault) ?? null;
+
   /*
    * A catch-all zone prices everywhere, so the picker has to offer everywhere —
    * otherwise "Rest of world" is a zone no buyer can select. Without one, the
@@ -39,6 +44,13 @@ export function CartPage() {
   useEffect(() => {
     if (!shipToCountry && destinations.length === 1) setShipToCountry(destinations[0] ?? null);
   }, [shipToCountry, destinations, setShipToCountry]);
+
+  // A signed-in buyer's saved address answers "ship to" before they type
+  // anything — but only ever a country this store actually prices for.
+  useEffect(() => {
+    if (shipToCountry || !defaultAddress) return;
+    if (destinations.includes(defaultAddress.country)) setShipToCountry(defaultAddress.country);
+  }, [shipToCountry, defaultAddress, destinations, setShipToCountry]);
 
   const quoteLines = lines.map(({ line }) => ({
     productId: line.productId,
@@ -260,6 +272,20 @@ export function CartPage() {
                 ? "Taxes, if any, are calculated at checkout."
                 : "Shipping and taxes are calculated at checkout."}
             </p>
+            {/*
+              * Offered, never required — guest checkout stays the default
+              * path. See docs/tasks/11-customer-accounts.md: forcing an
+              * account ahead of checkout is a well-documented conversion
+              * loss.
+              */}
+            {!customer.isPending && !customer.data ? (
+              <p className={styles.note}>
+                <Link to="/account/login" state={{ from: "/cart" }}>
+                  Sign in
+                </Link>{" "}
+                for faster checkout and order tracking.
+              </p>
+            ) : null}
             {checkoutError && (
               <Alert
                 type="error"

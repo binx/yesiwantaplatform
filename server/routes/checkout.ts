@@ -14,6 +14,7 @@ import { quoteShipping, type QuotedRate } from "./shipping.js";
 import { env } from "../env.js";
 import { httpError, writeRateLimit } from "../middleware.js";
 import { getStripe } from "../stripe.js";
+import { findCustomerById } from "../auth.js";
 
 /**
  * Checkout.
@@ -138,11 +139,21 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
   // uses it to find this order without having to reconstruct the cart.
   const orderId = randomUUID();
 
+  /*
+   * A signed-in buyer's order is linked at creation, not guessed at from the
+   * email Stripe hands back later — see the webhook's `handleCheckoutCompleted`
+   * for the guest path, which only ever links by matching a *verified*
+   * customer's address.
+   */
+  const customer = req.session.customerId ? await findCustomerById(req.session.customerId) : null;
+
   const session = await stripe.checkout.sessions.create(
     {
       mode: "payment",
       line_items: lineItems,
       currency,
+      // Saves a signed-in buyer retyping what we already know.
+      ...(customer ? { customer_email: customer.email } : {}),
       /*
        * Stripe hosts the whole redemption flow — the code field, validation,
        * expiry, usage caps — so codes are created in the Stripe dashboard and
@@ -191,10 +202,11 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
   await createPendingOrder({
     id: orderId,
     checkoutSessionId: session.id,
-    email: session.customer_details?.email ?? "",
+    email: session.customer_details?.email ?? customer?.email ?? "",
     currency: settings.currency,
     subtotalCents,
     lines: orderLines,
+    customerId: customer?.id ?? null,
   });
 
   res.json({ url: session.url, orderId });

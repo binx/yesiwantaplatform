@@ -17,12 +17,13 @@ const PASSWORD = "a-sufficiently-long-test-password";
 beforeAll(async () => {
   const { runMigrations } = await import("../db/migrate.js");
   const { seedIfEmpty } = await import("../db/seed.js");
-  const { createAdmin } = await import("./auth.js");
+  const { createAdmin, createCustomer } = await import("./auth.js");
   const { createApp } = await import("./app.js");
 
   await runMigrations();
   await seedIfEmpty();
   await createAdmin("admin@example.com", PASSWORD);
+  await createCustomer("customer@example.com", PASSWORD, null);
 
   app = createApp();
 });
@@ -38,6 +39,22 @@ async function signIn() {
     .post("/api/session")
     .set("x-csrf-token", initialToken)
     .send({ email: "admin@example.com", password: PASSWORD })
+    .expect(200);
+
+  return { agent, csrf: login.body.csrfToken as string };
+}
+
+/** Log in as the storefront customer, not an administrator. */
+async function signInCustomer() {
+  const agent = request.agent(app);
+
+  const bootstrap = await agent.get("/api/session").expect(200);
+  const initialToken = bootstrap.body.csrfToken as string;
+
+  const login = await agent
+    .post("/api/account/session")
+    .set("x-csrf-token", initialToken)
+    .send({ email: "customer@example.com", password: PASSWORD })
     .expect(200);
 
   return { agent, csrf: login.body.csrfToken as string };
@@ -179,6 +196,27 @@ describe("login", () => {
 
     // Must not disclose whether the account exists.
     expect(response.body.error).toBe("Incorrect email or password.");
+  });
+});
+
+describe("customer session", () => {
+  // The single most important assertion in this file's customer-accounts
+  // addition: a storefront login must never grant admin, on any route.
+  it.each(MUTATIONS)("rejects $method $path with 401", async ({ method, path }) => {
+    const { agent, csrf } = await signInCustomer();
+    const response = await agent[method](path).set("x-csrf-token", csrf).send({});
+    expect(response.status).toBe(401);
+  });
+
+  it.each(READS)("rejects GET %s with 401", async (path) => {
+    const { agent } = await signInCustomer();
+    await agent.get(path).expect(401);
+  });
+
+  it("is never reported as admin", async () => {
+    const { agent } = await signInCustomer();
+    const response = await agent.get("/api/session").expect(200);
+    expect(response.body.isAdmin).toBe(false);
   });
 });
 

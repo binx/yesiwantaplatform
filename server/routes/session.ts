@@ -8,19 +8,9 @@ import {
   recordLogin,
   verifyLogin,
 } from "../auth.js";
-import { csrfToken, httpError, loginRateLimit, verifyCsrf } from "../middleware.js";
+import { csrfToken, httpError, loginRateLimit, sessionOp, verifyCsrf } from "../middleware.js";
 
 export const sessionRouter: Router = Router();
-
-/** express-session's callbacks pass `any`; normalise to a real Error. */
-function callback(run: (done: (error?: unknown) => void) => void): Promise<void> {
-  return new Promise((resolve, reject) => {
-    run((error) => {
-      if (!error) return resolve();
-      reject(error instanceof Error ? error : new Error("Session operation failed."));
-    });
-  });
-}
 
 /**
  * Current session.
@@ -47,12 +37,12 @@ sessionRouter.post("/session", loginRateLimit, verifyCsrf, async (req, res) => {
   if (!admin) throw httpError(401, "Incorrect email or password.");
 
   // Prevent session fixation: a new id is issued on privilege change.
-  await callback((done) => req.session.regenerate(done));
+  await sessionOp((done) => req.session.regenerate(done));
 
   req.session.adminId = admin.id;
   const token = csrfToken(req);
 
-  await callback((done) => req.session.save(done));
+  await sessionOp((done) => req.session.save(done));
 
   // Best-effort: the staff list is nicer with it, and nobody should be locked
   // out because a timestamp write failed.
@@ -99,11 +89,11 @@ sessionRouter.post("/invites/accept", loginRateLimit, verifyCsrf, async (req, re
     throw error;
   }
 
-  await callback((done) => req.session.regenerate(done));
+  await sessionOp((done) => req.session.regenerate(done));
 
   req.session.adminId = adminId;
   const token = csrfToken(req);
-  await callback((done) => req.session.save(done));
+  await sessionOp((done) => req.session.save(done));
 
   res.status(201).json({ isAdmin: true, csrfToken: token, isConfigured: true } satisfies SessionResponse);
 });

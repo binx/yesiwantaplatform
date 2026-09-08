@@ -59,6 +59,8 @@ export interface CreatePendingOrderInput {
   currency: string;
   subtotalCents: number;
   lines: PendingOrderLine[];
+  /** Set only when the buyer was signed in at checkout. Null for a guest. */
+  customerId?: string | null;
 }
 
 export async function createPendingOrder(input: CreatePendingOrderInput): Promise<string> {
@@ -75,6 +77,7 @@ export async function createPendingOrder(input: CreatePendingOrderInput): Promis
     currency: input.currency,
     subtotalCents: input.subtotalCents,
     totalCents: input.subtotalCents,
+    customerId: input.customerId ?? null,
   });
 
   for (const line of input.lines) {
@@ -238,6 +241,92 @@ export async function findOrderByCheckoutSession(sessionId: string): Promise<Ord
   return buildOrder(row, items.get(row.id) ?? []);
 }
 
+/**
+ * An order, but only if it belongs to this customer.
+ *
+ * Filtering by `customerId` in the query itself — rather than fetching by id
+ * and comparing afterwards — is what makes another customer's order a 404
+ * instead of a bug waiting for someone to remove the comparison. See the
+ * acceptance criteria in docs/tasks/11-customer-accounts.md: this is the IDOR
+ * this route exists to close.
+ */
+export async function getOrderForCustomer(id: string, customerId: string): Promise<Order | null> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const rows = (await db
+    .select()
+    .from(schema.orders)
+    .where(and(eq(schema.orders.id, id), eq(schema.orders.customerId, customerId)))
+    .limit(1)) as unknown as OrderRow[];
+
+  const row = rows[0];
+  if (!row) return null;
+
+  const items = await loadItems([row.id]);
+  return buildOrder(row, items.get(row.id) ?? []);
+}
+
+export async function listOrdersForCustomer(
+  customerId: string,
+  options: { limit?: number; offset?: number } = {},
+): Promise<OrderPage> {
+  const { drizzle: db, schema } = await getDatabase();
+  const limit = Math.min(Math.max(options.limit ?? 25, 1), 100);
+  const offset = Math.max(options.offset ?? 0, 0);
+
+  const where = eq(schema.orders.customerId, customerId);
+
+  const [rows, totals] = await Promise.all([
+    db
+      .select()
+      .from(schema.orders)
+      .where(where)
+      .orderBy(desc(schema.orders.createdAt))
+      .limit(limit)
+      .offset(offset) as unknown as Promise<OrderRow[]>,
+    db.select({ value: count() }).from(schema.orders).where(where) as unknown as Promise<
+      { value: number }[]
+    >,
+  ]);
+
+  const items = await loadItems(rows.map((r) => r.id));
+
+  return {
+    orders: rows.map((row) => buildOrder(row, items.get(row.id) ?? [])),
+    total: totals[0]?.value ?? 0,
+    limit,
+    offset,
+  };
+}
+
+/**
+ * Link every unclaimed order for an email to a customer account.
+ *
+ * Callers only ever pass a *verified* customer's id — see
+ * `consumeEmailVerificationToken` and the webhook's `findVerifiedCustomerByEmail`
+ * lookup — so this function does not re-check verification itself. The `IS
+ * NULL` guard means an order already claimed by someone else (or by this same
+ * customer, on a retry) is simply left alone rather than reassigned.
+ */
+export async function claimOrdersForCustomer(customerId: string, email: string): Promise<number> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  // Stripe returns an email in whatever case the buyer typed it; the
+  // customer's own address is normalised lower-case at registration. Compare
+  // case-insensitively so those two never silently fail to match.
+  const result = await db
+    .update(schema.orders)
+    .set({ customerId })
+    .where(
+      and(
+        eq(sql`lower(${schema.orders.email})`, email.toLowerCase()),
+        isNull(schema.orders.customerId),
+      ),
+    );
+
+  return affectedRows(result);
+}
+
 export interface OrderPage {
   orders: Order[];
   total: number;
@@ -374,6 +463,26 @@ export async function getOrderPaymentIntentId(orderId: string): Promise<string |
     .limit(1)) as unknown as { paymentIntentId: string | null }[];
 
   return rows[0]?.paymentIntentId ?? null;
+}
+
+/**
+ * Whether an order already belongs to a customer.
+ *
+ * Deliberately not on the `Order` schema — same reasoning as
+ * `getOrderPaymentIntentId` just above: `Order` is serialised to buyers on
+ * the confirmation page, and a field that never enters that type cannot leak
+ * from a response someone forgets to narrow.
+ */
+export async function getOrderCustomerId(orderId: string): Promise<string | null> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const rows = (await db
+    .select({ customerId: schema.orders.customerId })
+    .from(schema.orders)
+    .where(eq(schema.orders.id, orderId))
+    .limit(1)) as unknown as { customerId: string | null }[];
+
+  return rows[0]?.customerId ?? null;
 }
 
 /**

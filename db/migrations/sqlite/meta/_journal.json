@@ -85,6 +85,13 @@
       "when": 1788874662432,
       "tag": "0011_adorable_human_robot",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1788877506893,
+      "tag": "0012_wandering_franklin_richards",
+      "breakpoints": true
     }
   ]
 }

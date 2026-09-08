@@ -74,6 +74,56 @@ export const adminInvites = pgTable("admin_invites", {
   ...timestamps,
 });
 
+/**
+ * Storefront customers — distinct from `admin_users`.
+ *
+ * A customer session must never be mistaken for an admin one: it sets
+ * `req.session.customerId`, a different flag from `adminId`, so `requireAdmin`
+ * refuses it exactly as it would an anonymous caller.
+ */
+export const customers = pgTable("customers", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  /** argon2id, via the same path as admin_users. Never set until registration. */
+  passwordHash: text("password_hash"),
+  name: text("name"),
+  stripeCustomerId: text("stripe_customer_id"),
+  /**
+   * Set once the emailed link is used. Orders are only ever linked to this
+   * account after this is set — see `claimOrdersForCustomer` — so
+   * registering with a stranger's address cannot read their order history.
+   */
+  emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+  /** Hash only; the raw token lives in the emailed link. Single-use. */
+  emailVerifyTokenHash: text("email_verify_token_hash"),
+  emailVerifyExpiresAt: timestamp("email_verify_expires_at", { withTimezone: true }),
+  /** Hash only, same reasoning as the invite tokens in `admin_invites`. */
+  passwordResetTokenHash: text("password_reset_token_hash"),
+  passwordResetExpiresAt: timestamp("password_reset_expires_at", { withTimezone: true }),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  ...timestamps,
+});
+
+export const customerAddresses = pgTable(
+  "customer_addresses",
+  {
+    id: text("id").primaryKey(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    name: text("name"),
+    line1: text("line1").notNull(),
+    line2: text("line2"),
+    city: text("city"),
+    state: text("state"),
+    postalCode: text("postal_code"),
+    country: text("country").notNull(),
+    isDefault: boolean("is_default").notNull().default(false),
+    ...timestamps,
+  },
+  (t) => [index("customer_addresses_customer_idx").on(t.customerId)],
+);
+
 export const sessions = pgTable(
   "sessions",
   {
@@ -289,6 +339,13 @@ export const orders = pgTable(
     stripeCheckoutSessionId: text("stripe_checkout_session_id").notNull(),
     stripePaymentIntentId: text("stripe_payment_intent_id"),
     email: text("email").notNull(),
+    /**
+     * Nullable: guest checkout is the default and stays supported. Set at
+     * creation when the buyer was signed in, or linked afterwards by email —
+     * see `claimOrdersForCustomer`, which only ever runs against a verified
+     * customer.
+     */
+    customerId: text("customer_id").references(() => customers.id, { onDelete: "set null" }),
     status: text("status").notNull().default("pending"),
     currency: text("currency").notNull().default("USD"),
     subtotalCents: integer("subtotal_cents").notNull().default(0),
@@ -318,6 +375,8 @@ export const orders = pgTable(
     uniqueIndex("orders_checkout_session_idx").on(t.stripeCheckoutSessionId),
     index("orders_status_idx").on(t.status),
     index("orders_created_idx").on(t.createdAt),
+    index("orders_customer_idx").on(t.customerId),
+    index("orders_email_idx").on(t.email),
   ],
 );
 

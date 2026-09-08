@@ -120,6 +120,18 @@ Removing someone **destroys their sessions immediately** rather than waiting for
 
 `role` is recorded but does not gate anything: every administrator can do everything, and the UI says so. Gating it would multiply the permission surface across every route and needs its own security-test matrix, which is a separate decision — the column exists now so that decision is not also a migration.
 
+### Customer accounts
+
+Until now orders were guest-only: retrieved by an unguessable Stripe session id, with no way back for a buyer who lost the confirmation email. `customers` and `customer_addresses` add a second, public-facing login — sign in, register, order history, an address book, password reset — under `/account` on the storefront and `/api/account/*` on the API.
+
+This is a different authentication surface from the admin's, and is held to the same posture: a customer session sets `req.session.customerId`, never `adminId`, so `requireAdmin` refuses it exactly like an anonymous request. `server/security.test.ts` asserts this directly — a signed-in customer gets 401 on every admin route.
+
+**Orders are only ever linked to an account after the email is verified.** Registering creates the account immediately (so a new customer can sign in right away), but claiming past guest orders under that address — and the address book that comes with it — waits for the emailed verification link. Skipping that gate would let anyone register with a stranger's email and read their order history and shipping address; it is the sharpest edge in this feature, and the one place verification cannot be skipped even though nothing else forces it. The same gate applies when a *guest* checkout completes under an email that already belongs to a verified account: the webhook links it there, never to an unverified one.
+
+**Registration, login and a password-reset request all answer identically for a known and an unknown email.** `createCustomer` hashes the password before it discovers the email is taken, so the two branches cost about the same, not just look the same in the response — the same reasoning as the admin login's decoy hash.
+
+Guest checkout stays the default path and nothing in the cart forces an account — the cart page only *offers* signing in, and prefills the shipping country from a signed-in buyer's default address. Reset and verification tokens follow the staff-invite pattern from the section above: only a hash is stored, single-use, and short-lived (an hour for a reset link, a day for verification, since a reset link is a live credential and a verification link is an onboarding step).
+
 ### Pages
 
 A store needs prose the catalogue does not hold: a returns policy, shipping

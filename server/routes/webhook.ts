@@ -1,16 +1,19 @@
 import { Router, raw } from "express";
 import type Stripe from "stripe";
 import {
+  claimOrdersForCustomer,
   decrementInventoryForOrder,
   findOrderByCheckoutSession,
   forgetWebhookEvent,
   getOrder,
+  getOrderCustomerId,
   markOrderPaid,
   recordRefund,
   recordWebhookEvent,
   restockInventoryForOrder,
   updateFulfilment,
 } from "../../db/orders-repository.js";
+import { findVerifiedCustomerByEmail } from "../../db/customers-repository.js";
 import { env } from "../env.js";
 import { getStripe } from "../stripe.js";
 import { sendOrderEmail } from "../email.js";
@@ -85,6 +88,18 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
     console.warn(
       `Order ${order.reference} was paid but these items were out of stock: ${shortfalls.join(", ")}. Flagged for review.`,
     );
+  }
+
+  /*
+   * A guest checkout under an email that already belongs to a *verified*
+   * customer gets linked here — the same gate as registration-time claiming,
+   * see `claimOrdersForCustomer`. A signed-in buyer's order already carries
+   * its customerId from checkout, so this is a no-op for them.
+   */
+  if (!(await getOrderCustomerId(order.id))) {
+    const email = session.customer_details?.email ?? order.email;
+    const owner = email ? await findVerifiedCustomerByEmail(email) : null;
+    if (owner) await claimOrdersForCustomer(owner.id, owner.email);
   }
 
   const paid = await getOrder(order.id);

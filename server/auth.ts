@@ -263,8 +263,11 @@ const INVITE_TTL_MS = 72 * 60 * 60 * 1000;
 /**
  * SHA-256 rather than argon2: the token is 256 bits of entropy we generated,
  * not a human-chosen password, so there is nothing for a slow hash to defend.
+ *
+ * Exported so the customer email-verification and password-reset tokens below
+ * share this rather than a second implementation of the same reasoning.
  */
-function hashToken(token: string): string {
+export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
@@ -416,4 +419,282 @@ export function safeEqual(a: string, b: string): boolean {
   const bufB = Buffer.from(b, "utf8");
   if (bufA.length !== bufB.length) return false;
   return timingSafeEqual(bufA, bufB);
+}
+
+/* -------------------------------------------------------------- customers */
+
+/**
+ * Storefront customer accounts.
+ *
+ * A separate table from `admin_users` and a separate session flag
+ * (`customerId`, never `adminId`) — see the security posture in
+ * docs/tasks/11-customer-accounts.md. The hashing and token machinery below
+ * is the same code the admin path above uses; nothing here reimplements it.
+ */
+
+export interface CustomerAuthRow {
+  id: string;
+  email: string;
+  name: string | null;
+}
+
+/**
+ * Create a customer account.
+ *
+ * A normal write on its own, but the *route* above this must respond
+ * identically whether the email was already taken — see the register route,
+ * which never lets this function's `EmailTakenError` reach the client.
+ */
+export async function createCustomer(
+  email: string,
+  password: string,
+  name: string | null,
+): Promise<string> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const id = randomUUID();
+  const normalised = email.toLowerCase().trim();
+
+  try {
+    await db.insert(schema.customers).values({
+      id,
+      email: normalised,
+      name,
+      passwordHash: await hashPassword(password),
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new EmailTakenError(normalised);
+    throw error;
+  }
+
+  return id;
+}
+
+interface CustomerLoginRow extends CustomerAuthRow {
+  passwordHash: string | null;
+}
+
+/**
+ * Verify a customer's credentials.
+ *
+ * Same shape as `verifyLogin`: a decoy hash runs whenever there is no
+ * account, or an account with no password on it yet, so response time never
+ * discloses which emails are registered.
+ */
+export async function verifyCustomerLogin(
+  email: string,
+  password: string,
+): Promise<CustomerAuthRow | null> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const rows = (await db
+    .select({
+      id: schema.customers.id,
+      email: schema.customers.email,
+      name: schema.customers.name,
+      passwordHash: schema.customers.passwordHash,
+    })
+    .from(schema.customers)
+    .where(eq(schema.customers.email, email.toLowerCase().trim()))
+    .limit(1)) as unknown as CustomerLoginRow[];
+
+  const row = rows[0];
+
+  if (!row || !row.passwordHash) {
+    await verify(DECOY_HASH, password).catch(() => false);
+    return null;
+  }
+
+  const ok = await verify(row.passwordHash, password).catch(() => false);
+  return ok ? { id: row.id, email: row.email, name: row.name } : null;
+}
+
+export interface CustomerProfileRow {
+  id: string;
+  email: string;
+  name: string | null;
+  emailVerifiedAt: unknown;
+  createdAt: unknown;
+}
+
+export async function findCustomerById(id: string): Promise<CustomerProfileRow | null> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const rows = (await db
+    .select({
+      id: schema.customers.id,
+      email: schema.customers.email,
+      name: schema.customers.name,
+      emailVerifiedAt: schema.customers.emailVerifiedAt,
+      createdAt: schema.customers.createdAt,
+    })
+    .from(schema.customers)
+    .where(eq(schema.customers.id, id))
+    .limit(1)) as unknown as CustomerProfileRow[];
+
+  return rows[0] ?? null;
+}
+
+export async function updateCustomerName(id: string, name: string | null): Promise<void> {
+  const { drizzle: db, schema } = await getDatabase();
+  await db.update(schema.customers).set({ name }).where(eq(schema.customers.id, id));
+}
+
+/** Stamp a successful sign-in. Best-effort at the call site, as with admins. */
+export async function recordCustomerLogin(id: string): Promise<void> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+  const now = new Date();
+
+  await db
+    .update(schema.customers)
+    .set({ lastLoginAt: dialect === "pg" ? now : Math.floor(now.getTime() / 1000) })
+    .where(eq(schema.customers.id, id));
+}
+
+/** A token that once existed but no longer applies: spent, expired, or never real. */
+export class TokenNotUsableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TokenNotUsableError";
+  }
+}
+
+/** Generous: this is an onboarding step, not a live credential. */
+const EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000;
+/** An hour: a reset link *is* a live credential, so it does not linger. */
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
+
+/** Issue an email-verification token, returning the raw value exactly once. */
+export async function createEmailVerificationToken(customerId: string): Promise<string> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+
+  const token = randomBytes(32).toString("base64url");
+  const expiresAt = new Date(Date.now() + EMAIL_VERIFY_TTL_MS);
+
+  await db
+    .update(schema.customers)
+    .set({
+      emailVerifyTokenHash: hashToken(token),
+      emailVerifyExpiresAt: dialect === "pg" ? expiresAt : Math.floor(expiresAt.getTime() / 1000),
+    })
+    .where(eq(schema.customers.id, customerId));
+
+  return token;
+}
+
+/**
+ * Redeem an email-verification token.
+ *
+ * Marks the address verified and clears the token in one conditional update,
+ * so two requests racing on the same link cannot both succeed. Deliberately
+ * does not claim any orders itself — that is the caller's job once this has
+ * actually succeeded, which is what keeps verification the one gate an
+ * unverified registration cannot walk around.
+ */
+export async function consumeEmailVerificationToken(
+  token: string,
+): Promise<{ id: string; email: string }> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+  const tokenHash = hashToken(token);
+
+  const rows = (await db
+    .select({
+      id: schema.customers.id,
+      email: schema.customers.email,
+      emailVerifyExpiresAt: schema.customers.emailVerifyExpiresAt,
+    })
+    .from(schema.customers)
+    .where(eq(schema.customers.emailVerifyTokenHash, tokenHash))
+    .limit(1)) as unknown as { id: string; email: string; emailVerifyExpiresAt: unknown }[];
+
+  const row = rows[0];
+  if (!row) throw new TokenNotUsableError("That verification link is not valid.");
+  if ((toEpochMs(row.emailVerifyExpiresAt) ?? 0) < Date.now()) {
+    throw new TokenNotUsableError("That verification link has expired. Request a new one.");
+  }
+
+  const now = new Date();
+  const claim = await db
+    .update(schema.customers)
+    .set({
+      emailVerifiedAt: dialect === "pg" ? now : Math.floor(now.getTime() / 1000),
+      emailVerifyTokenHash: null,
+      emailVerifyExpiresAt: null,
+    })
+    .where(and(eq(schema.customers.id, row.id), eq(schema.customers.emailVerifyTokenHash, tokenHash)));
+
+  const changed = (claim as { changes?: number; rowCount?: number } | null) ?? {};
+  if ((changed.changes ?? changed.rowCount ?? 0) !== 1) {
+    throw new TokenNotUsableError("That verification link has already been used.");
+  }
+
+  return { id: row.id, email: row.email };
+}
+
+/**
+ * Issue a password-reset token for an email, if an account holds it.
+ *
+ * Returns null for an unknown email rather than throwing: the route must
+ * answer identically either way, so it — not this function — decides what a
+ * null means.
+ */
+export async function createPasswordResetToken(email: string): Promise<string | null> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+
+  const rows = (await db
+    .select({ id: schema.customers.id })
+    .from(schema.customers)
+    .where(eq(schema.customers.email, email.toLowerCase().trim()))
+    .limit(1)) as unknown as { id: string }[];
+
+  const row = rows[0];
+  if (!row) return null;
+
+  const token = randomBytes(32).toString("base64url");
+  const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
+
+  await db
+    .update(schema.customers)
+    .set({
+      passwordResetTokenHash: hashToken(token),
+      passwordResetExpiresAt: dialect === "pg" ? expiresAt : Math.floor(expiresAt.getTime() / 1000),
+    })
+    .where(eq(schema.customers.id, row.id));
+
+  return token;
+}
+
+/** Redeem a password-reset token. Single-use, exactly like the invite tokens above. */
+export async function consumePasswordResetToken(token: string, password: string): Promise<void> {
+  const { drizzle: db, schema } = await getDatabase();
+  const tokenHash = hashToken(token);
+
+  const rows = (await db
+    .select({
+      id: schema.customers.id,
+      passwordResetExpiresAt: schema.customers.passwordResetExpiresAt,
+    })
+    .from(schema.customers)
+    .where(eq(schema.customers.passwordResetTokenHash, tokenHash))
+    .limit(1)) as unknown as { id: string; passwordResetExpiresAt: unknown }[];
+
+  const row = rows[0];
+  if (!row) throw new TokenNotUsableError("That reset link is not valid.");
+  if ((toEpochMs(row.passwordResetExpiresAt) ?? 0) < Date.now()) {
+    throw new TokenNotUsableError("That reset link has expired. Request a new one.");
+  }
+
+  const claim = await db
+    .update(schema.customers)
+    .set({
+      passwordHash: await hashPassword(password),
+      passwordResetTokenHash: null,
+      passwordResetExpiresAt: null,
+    })
+    .where(and(eq(schema.customers.id, row.id), eq(schema.customers.passwordResetTokenHash, tokenHash)));
+
+  const changed = (claim as { changes?: number; rowCount?: number } | null) ?? {};
+  if ((changed.changes ?? changed.rowCount ?? 0) !== 1) {
+    throw new TokenNotUsableError("That reset link has already been used.");
+  }
 }

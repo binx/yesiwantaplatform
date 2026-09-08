@@ -1,0 +1,103 @@
+.form {
+  max-width: 26rem;
+}
+
+.alert {
+  margin-bottom: 1.25rem;
+}
+
+.footer {
+  margin-top: 1.5rem;
+  font-size: 0.8125rem;
+  color: var(--beluga-muted);
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin: 1.5rem 0 2rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--beluga-line);
+}
+
+.navLink {
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--beluga-muted);
+}
+
+.navLink:hover {
+  color: var(--beluga-ink);
+}
+
+.navLinkActive {
+  color: var(--beluga-ink);
+}
+
+.card {
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--beluga-line);
+  border-radius: 2px;
+  margin-bottom: 1rem;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.cardActions {
+  display: flex;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.default {
+  display: inline-block;
+  margin-left: 0.5rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--beluga-muted);
+}
+
+.empty {
+  color: var(--beluga-muted);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  padding-bottom: 0.625rem;
+  border-bottom: 1px solid var(--beluga-line);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--beluga-muted);
+  text-align: left;
+}
+
+.table td {
+  padding: 0.875rem 0.25rem;
+  border-bottom: 1px solid var(--beluga-line);
+  vertical-align: middle;
+}
+
+.amount {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.meta {
+  color: var(--beluga-muted);
+  font-size: 0.8125rem;
+}

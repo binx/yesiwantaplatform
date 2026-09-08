@@ -7,6 +7,7 @@ import { DrizzleSessionStore } from "./session-store.js";
 import { errorHandler, notFound, securityHeaders } from "./middleware.js";
 import { publicRouter } from "./routes/public.js";
 import { sessionRouter } from "./routes/session.js";
+import { accountRouter } from "./routes/account.js";
 import { setupRouter } from "./routes/setup.js";
 import { adminRouter } from "./routes/admin.js";
 import { checkoutRouter } from "./routes/checkout.js";
@@ -59,6 +60,7 @@ export function createApp(): Express {
   app.use("/api", sessionRouter);
   app.use("/api", setupRouter);
   app.use("/api", publicRouter);
+  app.use("/api/account", accountRouter);
 
   // sitemap.xml and robots.txt live at the root, not under /api, and must be
   // mounted before the SPA fallback below — its regex matches everything that

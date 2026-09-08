@@ -127,6 +127,77 @@ export const router = createBrowserRouter([
       { path: "cart", element: <CartPage /> },
       { path: "confirm", element: <ConfirmPage /> },
       { path: "about", element: <AboutPage /> },
+      {
+        // Customer accounts, loaded on demand like /admin — a shopper who
+        // never signs in downloads none of it.
+        path: "account",
+        children: [
+          {
+            path: "login",
+            lazy: async () => ({
+              Component: (await import("./pages/account/AccountLoginPage")).AccountLoginPage,
+            }),
+          },
+          {
+            path: "register",
+            lazy: async () => ({
+              Component: (await import("./pages/account/AccountRegisterPage")).AccountRegisterPage,
+            }),
+          },
+          {
+            path: "verify",
+            lazy: async () => ({
+              Component: (await import("./pages/account/VerifyEmailPage")).VerifyEmailPage,
+            }),
+          },
+          {
+            path: "forgot-password",
+            lazy: async () => ({
+              Component: (await import("./pages/account/ForgotPasswordPage")).ForgotPasswordPage,
+            }),
+          },
+          {
+            path: "reset-password",
+            lazy: async () => ({
+              Component: (await import("./pages/account/ResetPasswordPage")).ResetPasswordPage,
+            }),
+          },
+          {
+            // Pathless: everything below it is behind the session check.
+            lazy: async () => ({
+              Component: (await import("./pages/account/RequireCustomer")).RequireCustomer,
+            }),
+            children: [
+              {
+                index: true,
+                lazy: async () => ({
+                  Component: (await import("./pages/account/AccountOverviewPage")).AccountOverviewPage,
+                }),
+              },
+              {
+                path: "orders",
+                lazy: async () => ({
+                  Component: (await import("./pages/account/AccountOrdersPage")).AccountOrdersPage,
+                }),
+              },
+              {
+                path: "orders/:id",
+                lazy: async () => ({
+                  Component: (await import("./pages/account/AccountOrderDetailPage"))
+                    .AccountOrderDetailPage,
+                }),
+              },
+              {
+                path: "addresses",
+                lazy: async () => ({
+                  Component: (await import("./pages/account/AccountAddressesPage"))
+                    .AccountAddressesPage,
+                }),
+              },
+            ],
+          },
+        ],
+      },
       /*
        * Merchant-authored pages, matched last.
        *

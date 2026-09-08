@@ -8,6 +8,13 @@ import { safeEqual } from "./auth.js";
 declare module "express-session" {
   interface SessionData {
     adminId?: string;
+    /**
+     * A signed-in storefront customer — deliberately a different flag from
+     * `adminId`. `requireAdmin` only ever reads `adminId`, so a customer
+     * session is refused there exactly like an anonymous one; see
+     * `requireCustomer` below for the mirror image.
+     */
+    customerId?: string;
     csrfToken?: string;
   }
 }
@@ -81,6 +88,21 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
   next();
 }
 
+/**
+ * Reject anyone who is not a signed-in customer.
+ *
+ * Reads `customerId` only — never `adminId` — so an administrator's session
+ * does not incidentally satisfy this, and a customer's session cannot
+ * satisfy `requireAdmin` above. The two are different flags on purpose.
+ */
+export function requireCustomer(req: Request, res: Response, next: NextFunction): void {
+  if (!req.session.customerId) {
+    res.status(401).json({ error: "Sign in required." });
+    return;
+  }
+  next();
+}
+
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /** Issue a per-session CSRF token, created on first use. */
@@ -109,6 +131,21 @@ export function verifyCsrf(req: Request, res: Response, next: NextFunction): voi
   }
 
   next();
+}
+
+/**
+ * express-session's callbacks pass `any`; normalise to a real Error.
+ *
+ * Shared by the admin session route and the customer account route — both
+ * regenerate the session on sign-in for the same session-fixation reason.
+ */
+export function sessionOp(run: (done: (error?: unknown) => void) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    run((error) => {
+      if (!error) return resolve();
+      reject(error instanceof Error ? error : new Error("Session operation failed."));
+    });
+  });
 }
 
 export interface ApiError extends Error {

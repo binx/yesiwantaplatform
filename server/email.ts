@@ -98,6 +98,53 @@ function toLocals(
   };
 }
 
+/**
+ * Render a template directory (`subject.hbs` + `body.hbs`) into the shared
+ * layout. The order-shaped path and the account path below both go through
+ * this; neither reimplements it.
+ */
+async function render(
+  template: string,
+  locals: Record<string, unknown>,
+): Promise<{ subject: string; html: string } | null> {
+  try {
+    await registerPartials();
+
+    const [subjectTemplate, bodyTemplate, layoutTemplate] = await Promise.all([
+      compile(path.join(TEMPLATE_ROOT, template, "subject.hbs")),
+      compile(path.join(TEMPLATE_ROOT, template, "body.hbs")),
+      compile(path.join(TEMPLATE_ROOT, "layout.hbs")),
+    ]);
+
+    const subject = subjectTemplate(locals).trim();
+    const html = layoutTemplate({ ...locals, subject, body: bodyTemplate(locals) });
+    return { subject, html };
+  } catch (error) {
+    console.error(`Could not render the "${template}" email:`, error);
+    return null;
+  }
+}
+
+/** Send already-rendered HTML, logging rather than sending when SMTP is off. */
+async function deliver(to: string, subject: string, html: string): Promise<boolean> {
+  const mailer = getTransporter();
+  if (!mailer) {
+    console.log(`[email] SMTP is not configured; would have sent "${subject}" to ${to}.`);
+    return false;
+  }
+
+  try {
+    await mailer.sendMail({ from: env.EMAIL_FROM, to, subject, html });
+    return true;
+  } catch (error) {
+    // A failed email must never fail the caller: for order email the payment
+    // already succeeded and Stripe would retry the whole webhook delivery;
+    // for account email the account or reset itself must still go through.
+    console.error(`Could not send "${subject}" to ${to}:`, error);
+    return false;
+  }
+}
+
 export async function sendOrderEmail(template: EmailTemplate, order: Order): Promise<boolean> {
   if (!order.email) return false;
 
@@ -109,42 +156,38 @@ export async function sendOrderEmail(template: EmailTemplate, order: Order): Pro
     settings?.taxBehavior ?? "exclusive",
   );
 
-  let subject: string;
-  let html: string;
+  const rendered = await render(template, locals);
+  if (!rendered) return false;
 
-  try {
-    await registerPartials();
+  return deliver(order.email, rendered.subject, rendered.html);
+}
 
-    const [subjectTemplate, bodyTemplate, layoutTemplate] = await Promise.all([
-      compile(path.join(TEMPLATE_ROOT, template, "subject.hbs")),
-      compile(path.join(TEMPLATE_ROOT, template, "body.hbs")),
-      compile(path.join(TEMPLATE_ROOT, "layout.hbs")),
-    ]);
+export type AccountEmailTemplate = "VerifyEmail" | "ResetPassword";
 
-    subject = subjectTemplate(locals).trim();
-    html = layoutTemplate({ ...locals, subject, body: bodyTemplate(locals) });
-  } catch (error) {
-    console.error(`Could not render the "${template}" email:`, error);
-    return false;
-  }
+/**
+ * A customer-account email: verification or a password reset.
+ *
+ * Not order-shaped, so it does not go through `toLocals` — but it renders
+ * into the same layout, with the same store name and accent colour, and fails
+ * the same way: logged and swallowed, never thrown. The register and
+ * forgot-password routes must respond identically whether this succeeds, so a
+ * throw here would be a second enumeration channel.
+ */
+export async function sendAccountEmail(
+  template: AccountEmailTemplate,
+  to: string,
+  actionUrl: string,
+): Promise<boolean> {
+  const settings = await getSettings();
+  const locals = {
+    store: { name: settings?.name ?? "Beluga", colorAccent: settings?.theme.colorAccent ?? "#e07a5f" },
+    ...(template === "VerifyEmail" ? { verifyUrl: actionUrl } : { resetUrl: actionUrl }),
+  };
 
-  const mailer = getTransporter();
-  if (!mailer) {
-    console.log(
-      `[email] SMTP is not configured; would have sent "${subject}" to ${order.email}.`,
-    );
-    return false;
-  }
+  const rendered = await render(template, locals);
+  if (!rendered) return false;
 
-  try {
-    await mailer.sendMail({ from: env.EMAIL_FROM, to: order.email, subject, html });
-    return true;
-  } catch (error) {
-    // A failed email must never fail the webhook: the payment already
-    // succeeded, and Stripe would retry the whole delivery.
-    console.error(`Could not send the "${template}" email to ${order.email}:`, error);
-    return false;
-  }
+  return deliver(to, rendered.subject, rendered.html);
 }
 
 /** Which template, if any, a fulfilment change should notify with. */
@@ -180,18 +223,5 @@ export function resetMailer(): void {
  * link back to the admin instead, so a store without email is not stuck.
  */
 export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
-  const mailer = getTransporter();
-
-  if (!mailer) {
-    console.log(`[email] SMTP is not configured; would have sent "${subject}" to ${to}.`);
-    return false;
-  }
-
-  try {
-    await mailer.sendMail({ from: env.EMAIL_FROM, to, subject, html });
-    return true;
-  } catch (error) {
-    console.error(`Could not send "${subject}" to ${to}:`, error);
-    return false;
-  }
+  return deliver(to, subject, html);
 }

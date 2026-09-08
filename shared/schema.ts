@@ -173,6 +173,7 @@ export const RESERVED_PAGE_SLUGS: Readonly<Record<string, string>> = {
   about: "the About page",
   admin: "the admin",
   setup: "the setup wizard",
+  account: "customer accounts",
 };
 
 /** Enough to render a nav link. Bodies are fetched a page at a time. */

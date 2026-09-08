@@ -1,14 +1,14 @@
 ---
 task: "11"
 title: Customer accounts
-status: todo
+status: done
 tier: 2
 size: L
 migration: two tables + orders column
 blocked_by: []
 blocks: ["12"]
 touches: db/schema.*.ts · server/auth.ts · src/router.tsx
-completed: 
+completed: 2026-09-08
 shipped_in: 
 summary: >-
   There is no customers table at all — orders are guest-only, retrieved by an unguessable

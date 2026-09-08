@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { Badge, Button, Drawer } from "antd";
-import { MenuOutlined, ShoppingOutlined } from "@ant-design/icons";
+import { MenuOutlined, ShoppingOutlined, UserOutlined } from "@ant-design/icons";
 import { getVisibleCollections } from "@shared/catalog";
 import { useStore } from "@/lib/useStore";
+import { useCustomer } from "@/lib/account";
 import { useCartCount } from "@/store/cart";
 import { cx } from "@/lib/cx";
 import styles from "./Banner.module.css";
@@ -19,7 +20,13 @@ import styles from "./Banner.module.css";
 export function Banner() {
   const store = useStore();
   const count = useCartCount();
+  const customer = useCustomer();
   const [open, setOpen] = useState(false);
+
+  // Signed-in goes straight to order history; signed-out goes to sign-in
+  // rather than a dead-end profile page it cannot show.
+  const accountHref = customer.data ? "/account" : "/account/login";
+  const accountLabel = customer.data ? "Your account" : "Sign in";
 
   // The About page is a page like any other once a store has migrated. Until
   // then `aboutText` still drives the link — but only when no page has claimed
@@ -58,6 +65,10 @@ export function Banner() {
         ))}
       </nav>
 
+      <Link to={accountHref} className={styles.cart} aria-label={accountLabel}>
+        <UserOutlined className={styles.cartIcon} aria-hidden />
+      </Link>
+
       <Link to="/cart" className={styles.cart} aria-label={cartLabel}>
         <Badge count={count} size="small" color="var(--beluga-ink)" offset={[2, -2]}>
           <ShoppingOutlined className={styles.cartIcon} aria-hidden />
@@ -90,6 +101,9 @@ export function Banner() {
           ))}
           <Link to="/cart" onClick={() => setOpen(false)}>
             {cartLabel}
+          </Link>
+          <Link to={accountHref} onClick={() => setOpen(false)}>
+            {accountLabel}
           </Link>
         </nav>
       </Drawer>

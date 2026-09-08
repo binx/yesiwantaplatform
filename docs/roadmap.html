@@ -459,7 +459,7 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
 
   <header class="masthead">
     <div class="eyebrow">Beluga v2 · Generated from docs/tasks · 2026-09-08</div>
-    <h1>18 things between Beluga and <em>a store someone could actually run</em></h1>
+    <h1>17 things between Beluga and <em>a store someone could actually run</em></h1>
     <p class="standfirst">
       The gap review found the misses. This orders them by what they cost against what a merchant
       assumes on day one. The ranking leans on one fact about this codebase: <strong>a Drizzle schema
@@ -477,9 +477,9 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
   <section class="progress">
     <div class="progress-head">
       <h2 class="progress-title">Progress</h2>
-      <p class="progress-count">16 of 18 shipped.</p>
+      <p class="progress-count">16 of 17 shipped.</p>
     </div>
-    <div class="track" role="img" aria-label="16 of 18 shipped."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--done" title="01 Refund an order from the admin — Shipped"></span><span class="cell cell--done" title="02 Restore stock when an order is refunded — Shipped"></span><span class="cell cell--done" title="03 Discount codes via Stripe — Shipped"></span><span class="cell cell--done" title="04 Export orders as CSV — Shipped"></span><span class="cell cell--todo" title="17 Storefront copy and the gaps a UI pass found — To do"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--done" title="05 Per-product SEO metadata — Shipped"></span><span class="cell cell--done" title="06 Storefront search and sort — Shipped"></span><span class="cell cell--done" title="07 Staff accounts — Shipped"></span><span class="cell cell--done" title="08 Store pages — Shipped"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--done" title="09 Sales tax and VAT — Shipped"></span><span class="cell cell--done" title="10 Multi-axis variants — Shipped"></span><span class="cell cell--done" title="11 Customer accounts — Shipped"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--done" title="12 Abandoned cart recovery — Shipped"></span><span class="cell cell--done" title="13 Digital and downloadable products — Shipped"></span><span class="cell cell--done" title="14 Outbound webhooks — Shipped"></span><span class="cell cell--done" title="15 Catalogue CSV import and export — Shipped"></span><span class="cell cell--todo" title="16 Digital product delivery — To do"></span></span></div>
+    <div class="track" role="img" aria-label="16 of 17 shipped."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--done" title="01 Refund an order from the admin — Shipped"></span><span class="cell cell--done" title="02 Restore stock when an order is refunded — Shipped"></span><span class="cell cell--done" title="03 Discount codes via Stripe — Shipped"></span><span class="cell cell--done" title="04 Export orders as CSV — Shipped"></span><span class="cell cell--todo" title="17 Storefront copy and the gaps a UI pass found — To do"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--done" title="05 Per-product SEO metadata — Shipped"></span><span class="cell cell--done" title="06 Storefront search and sort — Shipped"></span><span class="cell cell--done" title="07 Staff accounts — Shipped"></span><span class="cell cell--done" title="08 Store pages — Shipped"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--done" title="09 Sales tax and VAT — Shipped"></span><span class="cell cell--done" title="10 Multi-axis variants — Shipped"></span><span class="cell cell--done" title="11 Customer accounts — Shipped"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--done" title="12 Abandoned cart recovery — Shipped"></span><span class="cell cell--done" title="13 Digital and downloadable products — Shipped"></span><span class="cell cell--done" title="14 Outbound webhooks — Shipped"></span><span class="cell cell--done" title="15 Catalogue CSV import and export — Shipped"></span></span></div>
     <div class="track-key">
       <span><i class="cell cell--done"></i> Shipped</span>
       <span><i class="cell cell--in-progress"></i> In progress</span>
@@ -847,7 +847,7 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
 
   <section class="tier">
     <div class="tier-head">
-      <div class="tier-tag">Tier 3 · After a real store runs on this <span class="tier-done">4 of 5 shipped</span></div>
+      <div class="tier-tag">Tier 3 · After a real store runs on this <span class="tier-done">All 4 shipped</span></div>
       <h2>Platform bets</h2>
       <p class="tier-verdict">Defensible to defer. Each assumes a merchant already trusts Beluga with their revenue.</p>
     </div>
@@ -873,10 +873,9 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
           <span class="chip chip--status chip--done">Shipped</span>
           <span class="chip chip--m">Medium</span>
         </div>
-        <p>Teaches the cart what a download is. <code>products.kind</code> splits physical from digital, and the collisions follow from it: a download has no weight, so it is left out of parcel weight and subtotal banding entirely rather than counted as zero, and a downloads-only cart reaches Stripe with no address collection. Finite stock is refused on a digital variant rather than letting it register as <code>oversold</code>. Delivery — the file, the entitlement, the download route — is [16](16-digital-delivery.md).</p>
+        <p>Teaches the cart what a download is. <code>products.kind</code> splits physical from digital, and the collisions follow from it: a download has no weight, so it is left out of parcel weight and subtotal banding entirely rather than counted as zero, and a downloads-only cart reaches Stripe with no address collection. Finite stock is refused on a digital variant rather than letting it register as <code>oversold</code>. Delivery — the file, the entitlement, the download route — is an open gap, recorded in [docs/gaps/digital-delivery.md](../gaps/digital-delivery.md).</p>
         <div class="meta"><span><b>Migration</b> one column</span>
           <span><b>Touches</b> shared/shipping.ts · server/routes/checkout.ts · shared/api.ts</span>
-          <span><b>Blocks</b> 16</span>
           <span><b>Shipped in</b> 1</span>
           <span><b>Brief</b> docs/tasks/13-digital-products.md</span></div>
       </article>
@@ -908,20 +907,6 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
           <span><b>Blocked by</b> 10 Multi-axis variants</span>
           <span><b>Shipped in</b> 3</span>
           <span><b>Brief</b> docs/tasks/15-catalogue-csv.md</span></div>
-      </article>
-
-      <article class="item item--todo">
-        <div class="item-head">
-          <span class="seq">16</span>
-          <h3>Digital product delivery</h3>
-          <span class="chip chip--status chip--todo">To do</span>
-          <span class="chip chip--m">Medium</span>
-        </div>
-        <p>[13](13-digital-products.md) taught the cart what a download <em>is</em>; nothing yet delivers one. Adds the file itself, the entitlement granted on payment, and an expiring signed route that streams it. The failure this feature is known for is storage: a purchasable file must <strong>not</strong> live under the statically-served upload directory, or anyone who guesses the path has it for free.</p>
-        <div class="meta"><span><b>Migration</b> two tables</span>
-          <span><b>Touches</b> server/uploads.ts · server/routes/webhook.ts:51 · server/email.ts:132</span>
-          <span><b>Blocked by</b> 13 Digital and downloadable products</span>
-          <span><b>Brief</b> docs/tasks/16-digital-delivery.md</span></div>
       </article>
     </div>
   </section>

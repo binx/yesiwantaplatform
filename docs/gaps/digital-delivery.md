@@ -1,28 +1,27 @@
 ---
-task: "16"
-title: Digital product delivery
-status: todo
-tier: 3
-size: M
-migration: two tables
-blocked_by: ["13"]
-blocks: []
+gap: digital delivery
+decided: no
+depends_on: docs/tasks/13-digital-products.md
 touches: server/uploads.ts · server/routes/webhook.ts:51 · server/email.ts:132
-completed: 
-shipped_in: 
 summary: >-
-  [13](13-digital-products.md) taught the cart what a download *is*; nothing yet delivers
-  one. Adds the file itself, the entitlement granted on payment, and an expiring signed
-  route that streams it. The failure this feature is known for is storage: a purchasable
-  file must **not** live under the statically-served upload directory, or anyone who
-  guesses the path has it for free.
+  [Task 13](../tasks/13-digital-products.md) taught the cart what a download *is*; nothing
+  yet delivers one. A merchant can mark a product digital, publish it, and take money for
+  it, and then has no mechanism to give the buyer anything. **How to close this is not
+  decided.** What follows is the shape of the problem and one sketch of a solution, not a
+  brief anyone should pick up and build.
 ---
 
-# 16 · Digital product delivery
+# Known gap · Digital product delivery
+
+**This is not a task brief.** It sits in `docs/gaps/` rather than
+`docs/tasks/` because the gap is real and understood but the approach is not
+chosen, so it is deliberately absent from the roadmap and the task table. The
+*What a solution has to handle* section below records what any answer has to
+deal with — it is a description of the constraints, not a decision to build.
 
 ## The problem
 
-[13](13-digital-products.md) shipped the modelling half. A product is
+[13](../tasks/13-digital-products.md) shipped the modelling half. A product is
 `physical` or `digital`, downloads are excluded from parcel weight and subtotal
 banding, a downloads-only cart reaches Stripe with no address collection, and a
 digital variant cannot be given finite stock.
@@ -30,9 +29,13 @@ digital variant cannot be given finite stock.
 What it did **not** ship is any way to deliver the thing. There is no file, no
 record of who bought it, and no route that serves it. A merchant can currently
 mark a product digital, publish it, and take money for it — and then has no
-mechanism to give the buyer anything. That is the gap this brief closes.
+mechanism to give the buyer anything. That is the gap.
 
-## What to build
+## One sketch of a solution
+
+Written while the work was still expected to be a task, and kept because the
+shape of the problem is what it records. Treat it as one option that has been
+thought through, not as the chosen design.
 
 - An `assets` table: `productId`, `variantId` (nullable — a file may cover all
   variants), file path, original filename, size, checksum.
@@ -72,12 +75,12 @@ generated name and compute the checksum on the way through.
    should go straight to a delivered state with a download email. Adding a
    `delivered` status touches `orderStatusSchema` (`shared/orders.ts:12`), the
    admin fulfilment control, and the CSV export.
-2. **Refunds.** [01](01-refund-order.md) and [02](02-restock-on-refund.md): a
+2. **Refunds.** [01](../tasks/01-refund-order.md) and [02](../tasks/02-restock-on-refund.md): a
    refunded download should have its entitlement revoked, and there is no stock
    to restore. `handleChargeRefunded` (`server/routes/webhook.ts`) already
    restocks on a *full* refund only — revocation belongs on the same branch.
 
-## Acceptance
+## What a solution has to handle
 
 - A download URL is unguessable, expires, and stops working after the cap.
 - The raw file is not reachable under `/assets`, or any other static path.
@@ -88,7 +91,7 @@ generated name and compute the checksum on the way through.
   file, not two. (The `claimReminder` idiom in `db/carts-repository.ts` is the
   pattern: a conditional `UPDATE`, checked by affected rows.)
 
-## Out of scope
+## Not part of this gap
 
 - License-key generation or per-customer watermarking.
 - Streaming media, DRM.

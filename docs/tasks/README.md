@@ -1,0 +1,121 @@
+# Task briefs
+
+One file per unit of work, written to be handed to an agent cold. Each brief
+names the files to open, the exact API surface to add, the tests that must pass,
+and what is explicitly out of scope.
+
+**Read this file before starting any brief.** It holds the invariants that apply
+to all of them, so the briefs themselves don't repeat them.
+
+---
+
+## The invariants
+
+These are load-bearing. A change that breaks one is wrong even if it passes.
+
+1. **Money is integer cents, everywhere.** No floats, no `* 100`. See
+   `shared/money.ts`. v1 sent Stripe amounts like `1998.9999999999998`.
+2. **Money never comes from the request.** Prices and totals are read from the
+   database on every path. A request carries product/variant ids and quantities
+   only. See the loop at `server/routes/checkout.ts:58`.
+3. **The webhook is the only thing that marks an order paid.** The success
+   redirect proves nothing. Don't add payment state transitions anywhere else.
+4. **Webhook handling is idempotent.** Events are deduplicated by id, and a
+   failed handler releases the dedup record so Stripe's retry is processed.
+   See `recordWebhookEvent` / `forgetWebhookEvent` in `db/orders-repository.ts`.
+5. **Every admin route is behind `requireAdmin` + `verifyCsrf`**, applied once to
+   the whole router at `server/routes/admin.ts:55`. Never mount an admin
+   endpoint outside that router.
+6. **Every schema change lands in both dialects.** `db/schema.sqlite.ts` and
+   `db/schema.pg.ts` are edited together, then `npm run db:generate` emits a
+   migration for each into `db/migrations/{sqlite,pg}/`. Commit all of it.
+7. **Products reach Stripe only via explicit publish** —
+   `POST /api/admin/products/:id/publish`. Never write to Stripe on save.
+8. **Stripe Prices are immutable.** Changing an amount creates a new Price and
+   archives the old one, which is why historic orders still resolve. Don't
+   "fix" this by mutating.
+
+## Conventions to match
+
+- **Validation lives in `shared/`** as zod schemas, imported by both sides of the
+  wire. Add input schemas to `shared/api.ts` (or `shared/orders.ts` for order
+  shapes), never inline in a route.
+- **Routes stay thin.** Parse, call a repository function, respond. All SQL lives
+  in `db/*-repository.ts`.
+- **Errors** use `httpError(status, message)` from `server/middleware.ts`, and
+  `toHttp(error)` in `server/routes/admin.ts:57` maps known error types.
+  Messages are user-facing: say what went wrong and what to do.
+- **Client mutations** go through `csrfPost` / `csrfPut` / `csrfDelete` from
+  `src/lib/api.ts`, wrapped in a hook in `src/admin/queries.ts` that invalidates
+  both its own key and the public store key.
+- **Comments explain why, not what.** The existing codebase comments decisions
+  and the v1 mistakes they correct. Match that register; don't narrate syntax.
+
+## Commands
+
+```bash
+npm run typecheck      # tsc -b
+npm run lint           # eslint
+npm test               # vitest, unit + component + dialect
+npm run test:e2e       # playwright
+npm run db:generate    # after editing BOTH schema files
+npm run db:migrate     # apply
+```
+
+`db/dialect.test.ts` runs the same assertions against SQLite and Postgres
+(via `embedded-postgres`, no system install needed). If you touch the query
+layer, it must stay green for both.
+
+## Definition of done
+
+- `npm run typecheck && npm run lint && npm test` all pass.
+- New server routes are added to the `MUTATIONS` or `READS` arrays in
+  `server/security.test.ts`. **This is not optional** — that file is what stops
+  an unprotected endpoint from shipping.
+- New schema fields appear in both dialect files and both migration folders.
+- The README section for the area you touched is updated if behaviour changed.
+- No `console.log` left behind except deliberate operator-facing lines that
+  match the existing style (see `server/email.ts:114`).
+
+## Dependency graph
+
+```mermaid
+graph LR
+  T00[00 order items query] --> T04[04 order CSV]
+  T01[01 refund order] --> T02[02 restock on refund]
+  T10[10 multi-axis variants] --> T15[15 catalogue CSV]
+  T11[11 customer accounts] --> T12[12 abandoned cart]
+  T03[03 discount codes]
+  T05[05 SEO metadata]
+  T06[06 storefront search]
+  T07[07 staff accounts]
+  T08[08 store pages]
+  T09[09 tax]
+  T13[13 digital products]
+  T14[14 outbound webhooks]
+```
+
+Everything not joined by an arrow is independent and can run in parallel.
+**Conflict warning:** 01, 02 and 03 all touch `src/admin/OrderDetailPage.tsx`
+or the order schema. Land 01 before starting 02.
+
+## The briefs
+
+| # | Brief | Size | Migration |
+| --- | --- | --- | --- |
+| 00 | [Fetch order items by order id](00-order-items-query.md) | S | none |
+| 01 | [Refund an order from the admin](01-refund-order.md) | S | one column |
+| 02 | [Restore stock when an order is refunded](02-restock-on-refund.md) | S | one column |
+| 03 | [Discount codes via Stripe](03-discount-codes.md) | S | one column |
+| 04 | [Export orders as CSV](04-order-csv-export.md) | S | none |
+| 05 | [Per-product SEO metadata](05-seo-metadata.md) | M | two columns |
+| 06 | [Storefront search and sort](06-storefront-search.md) | S | none |
+| 07 | [Staff accounts](07-staff-accounts.md) | M | one column |
+| 08 | [Store pages](08-store-pages.md) | M | one table |
+| 09 | [Sales tax and VAT](09-tax.md) | M | several columns |
+| 10 | [Multi-axis variants](10-multi-axis-variants.md) | L | two tables |
+| 11 | [Customer accounts](11-customer-accounts.md) | L | two tables |
+| 12 | [Abandoned cart recovery](12-abandoned-cart.md) | L | one table |
+| 13 | [Digital products](13-digital-products.md) | M | one table |
+| 14 | [Outbound webhooks](14-outbound-webhooks.md) | M | two tables |
+| 15 | [Catalogue CSV import/export](15-catalogue-csv.md) | M | none |

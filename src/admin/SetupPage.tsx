@@ -50,16 +50,60 @@ interface IdentityValues {
   confirm: string;
 }
 
+interface WizardState {
+  step: number;
+  identity: IdentityValues | null;
+  publishableKey: string;
+  theme: Theme;
+  seedDemo: boolean;
+}
+
+// Adding a Stripe key means editing `.env` and restarting the API, which is
+// reason enough to reload the tab. sessionStorage survives that reload, so
+// the admin account you already typed on step 1 doesn't vanish for it.
+const WIZARD_STORAGE_KEY = "beluga:setup-wizard";
+
+function loadWizardState(): WizardState | null {
+  try {
+    const raw = sessionStorage.getItem(WIZARD_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as WizardState) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveWizardState(state: WizardState) {
+  try {
+    sessionStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Private browsing or storage disabled: the wizard still works, it just
+    // won't survive a reload.
+  }
+}
+
+function clearWizardState() {
+  try {
+    sessionStorage.removeItem(WIZARD_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export function SetupPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const status = useSetupStatus();
 
-  const [step, setStep] = useState(0);
-  const [identity, setIdentity] = useState<IdentityValues | null>(null);
-  const [publishableKey, setPublishableKey] = useState("");
-  const [theme, setTheme] = useState<Theme>(defaultTheme);
-  const [seedDemo, setSeedDemo] = useState(true);
+  const [saved] = useState(loadWizardState);
+  const [step, setStep] = useState(saved?.step ?? 0);
+  const [identity, setIdentity] = useState<IdentityValues | null>(saved?.identity ?? null);
+  const [publishableKey, setPublishableKey] = useState(saved?.publishableKey ?? "");
+  const [theme, setTheme] = useState<Theme>(saved?.theme ?? defaultTheme);
+  const [seedDemo, setSeedDemo] = useState(saved?.seedDemo ?? true);
+
+  useEffect(() => {
+    saveWizardState({ step, identity, publishableKey, theme, seedDemo });
+  }, [step, identity, publishableKey, theme, seedDemo]);
 
   useEffect(() => {
     document.title = "Set up your store · Beluga";
@@ -68,6 +112,7 @@ export function SetupPage() {
   const submit = useMutation({
     mutationFn: (input: SetupInput) => csrfPost<SessionResponse>("/setup", input),
     onSuccess: async (session) => {
+      clearWizardState();
       setCsrfToken(session.csrfToken);
       queryClient.setQueryData(sessionQueryKey, session);
       await queryClient.invalidateQueries({ queryKey: setupStatusQueryKey });
@@ -88,6 +133,7 @@ export function SetupPage() {
 
   // Someone else finished setup, or this tab was left open across it.
   if (status.data && !status.data.needsSetup && !submit.isSuccess) {
+    clearWizardState();
     return <Navigate to="/admin" replace />;
   }
 
@@ -362,7 +408,11 @@ function PaymentsStep({
               <pre className={cx(styles.code)}>STRIPE_SECRET_KEY=sk_test_…</pre>
               <p className={cx(styles.alertText)}>
                 Or re-run <code>npm run setup</code>, which validates the key against Stripe before
-                writing it.
+                writing it. Find your keys in{" "}
+                <a href="https://docs.stripe.com/keys" target="_blank" rel="noreferrer">
+                  Stripe&apos;s API keys documentation
+                </a>
+                .
               </p>
             </>
           }
@@ -381,7 +431,7 @@ function PaymentsStep({
           help={
             looksSecret
               ? "That is a secret key. It must not go here, or into any browser."
-              : "Public by design — it is sent to every shopper's browser. Optional."
+              : "Needed to take payments. Set it here, via npm run setup, or later in Settings → Stripe."
           }
           {...(looksSecret ? { validateStatus: "error" as const } : {})}
         >
@@ -409,10 +459,14 @@ function PaymentsStep({
         message="This store will not collect tax yet"
         description={
           <p className={cx(styles.alertText)}>
-            Tax is calculated by Stripe Tax, which is a paid add-on you activate in the Stripe
-            dashboard, along with a registration for each place you are obliged to collect.
-            Once that is done, turn it on in Settings → Tax. Beluga calculates nothing itself
-            and files nothing on your behalf.
+            Tax is calculated by{" "}
+            <a href="https://docs.stripe.com/tax" target="_blank" rel="noreferrer">
+              Stripe Tax
+            </a>
+            , which is a paid add-on you activate in the Stripe dashboard, along with a
+            registration for each place you are obliged to collect. Once that is done, turn it
+            on in Settings → Tax. Beluga calculates nothing itself and files nothing on your
+            behalf.
           </p>
         }
       />

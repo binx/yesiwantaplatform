@@ -74,7 +74,13 @@ export function DashboardPage() {
             value={formatMoney(revenue, currency)}
             loading={orders.isPending}
           />
-          <p className={cx(styles.statNote)}>Across the most recent {paidOrders.length} paid orders</p>
+          <p className={cx(styles.statNote)}>
+            {paidOrders.length === 0
+              ? "No paid orders yet"
+              : `Across the most recent ${paidOrders.length} paid order${
+                  paidOrders.length === 1 ? "" : "s"
+                }`}
+          </p>
         </Card>
       </div>
 

@@ -162,7 +162,9 @@ export function Carousel({ images, productName }: CarouselProps) {
                   width="100%"
                   loading={index === 0 ? "eager" : "lazy"}
                   className={styles.slideImage}
-                  preview={{ mask: <ZoomInOutlined aria-hidden /> }}
+                  // `mask` as a node is deprecated in antd 6; `cover` is the
+                  // same thing under its new name.
+                  preview={{ cover: <ZoomInOutlined aria-hidden /> }}
                 />
               </div>
             ))}

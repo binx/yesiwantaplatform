@@ -114,7 +114,8 @@
   width: 100%;
 }
 
-/* The zoom affordance only appears on hover, so it never obscures the photo. */
-.slide :global(.ant-image-mask) {
+/* The zoom affordance only appears on hover, so it never obscures the photo.
+   `ant-image-mask` was renamed with the prop that draws it. */
+.slide :global(.ant-image-cover) {
   font-size: 1.5rem;
 }

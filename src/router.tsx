@@ -118,6 +118,15 @@ export const router = createBrowserRouter([
               Component: (await import("./admin/WebhooksPage")).WebhooksPage,
             }),
           },
+          {
+            // Without this an unknown /admin URL fell through to the root
+            // "*" below and rendered the *storefront's* 404 — no sidebar, and
+            // a "Back to the shop" button that does not go back to the admin.
+            path: "*",
+            lazy: async () => ({
+              Component: (await import("./admin/AdminNotFoundPage")).AdminNotFoundPage,
+            }),
+          },
         ],
       },
     ],

@@ -470,12 +470,6 @@ export function ShippingPage() {
           })}
         </ul>
       </Card>
-
-      <div className={cx(styles.footer)}>
-        <Button type="primary" disabled={invalid} loading={save.isPending} onClick={submit}>
-          Save shipping
-        </Button>
-      </div>
     </>
   );
 }

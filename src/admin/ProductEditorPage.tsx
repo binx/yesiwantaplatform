@@ -421,9 +421,18 @@ export function ProductEditorPage() {
     });
   }, [isNew, loaded.data]);
 
+  /*
+   * Titled from the load state, not the draft.
+   *
+   * On a URL with no product behind it the draft is still empty, so the tab
+   * read "New product · Beluga" over a page saying there is no product at this
+   * address — the one case where the fallback is exactly wrong.
+   */
   useEffect(() => {
-    document.title = `${draft.name || "New product"} · Beluga`;
-  }, [draft.name]);
+    if (!isNew && loaded.isPending) document.title = "Loading… · Beluga";
+    else if (!isNew && loaded.isError) document.title = "Product not found · Beluga";
+    else document.title = `${draft.name || "New product"} · Beluga`;
+  }, [draft.name, isNew, loaded.isPending, loaded.isError]);
 
   /* --- autosave ---------------------------------------------------------- */
 
@@ -825,23 +834,38 @@ export function ProductEditorPage() {
               the price matrix below with new rows; removing one removes the rows it was in.
             </p>
 
+            {/* The axis name and its values were four identical inputs stacked
+                in one box with identical delete buttons and no labels, so
+                nothing said the first row is "Size" and the rest are "Small"
+                and "Large". Labelled the way the card below already labels
+                its own fields. */}
             {draft.options.map((option, index) => (
               <div key={option.key} className={cx(styles.optionGroup)}>
-                <div className={cx(styles.row)}>
-                  <Input
-                    value={option.name}
-                    placeholder="Size"
-                    aria-label={`Option ${index + 1} name`}
-                    onChange={(event) => renameOption(option.key, event.target.value)}
-                  />
-                  <Button
-                    icon={<DeleteOutlined />}
-                    aria-label={`Remove option ${option.name.trim() || index + 1}`}
-                    onClick={() => removeOption(option.key)}
-                  />
-                </div>
+                <Field label="Option name" help="What the shopper is choosing between.">
+                  {(control) => (
+                    <div className={cx(styles.row)}>
+                      <Input
+                        {...control}
+                        value={option.name}
+                        placeholder="Size"
+                        onChange={(event) => renameOption(option.key, event.target.value)}
+                      />
+                      <Button
+                        icon={<DeleteOutlined />}
+                        aria-label={`Remove option ${option.name.trim() || index + 1}`}
+                        onClick={() => removeOption(option.key)}
+                      />
+                    </div>
+                  )}
+                </Field>
 
-                <ul className={cx(styles.optionValues)}>
+                <p className={cx(styles.valuesLabel)} id={`option-values-${option.key}`}>
+                  Values{option.name.trim() ? ` of ${option.name.trim()}` : ""}
+                </p>
+                <ul
+                  className={cx(styles.optionValues)}
+                  aria-labelledby={`option-values-${option.key}`}
+                >
                   {option.values.map((value, vIndex) => (
                     <li key={value.key} className={cx(styles.row)}>
                       <Input
@@ -995,7 +1019,9 @@ export function ProductEditorPage() {
                             className={cx(styles.quantity)}
                             min={0}
                             precision={0}
-                            addonAfter="g"
+                            // See SettingsPage: `addonAfter` is deprecated, and
+                            // a unit belongs inside the field, not beside it.
+                            suffix="g"
                             value={variant.weightGrams}
                             onChange={(value) =>
                               setVariant(variant.key, { weightGrams: value ?? 0 })

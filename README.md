@@ -179,6 +179,14 @@ Add the `whsec_…` it prints to `.env` as `STRIPE_WEBHOOK_SECRET`, restart the
 API, and pay with test card `4242 4242 4242 4242`. Replaying a delivered event
 (`stripe events resend <id>`) must not move stock a second time.
 
+### Search and link previews
+
+The storefront is client-rendered, so without help a crawler or a link unfurler fetching `/product/anything` would get the generic shell — no product name, no price, no image. Rather than migrating to SSR, the production HTML handler rewrites the `<head>` for the path being requested: title, description, canonical, Open Graph and Twitter tags, and JSON-LD `Product` with an `Offer` on product pages. Only the head is touched; React still boots and renders the body exactly as before.
+
+Per-product overrides live under **Search appearance** in the product editor. Blank means the tag is generated from the name and description. `/sitemap.xml` lists live products and collections, and `/robots.txt` points at it.
+
+This runs only in the production branch, so it is **not visible under `npm run dev`** — Vite serves `index.html` untouched. To check it: `npm run build && npm start`, then `curl -s localhost:4000/product/canvas-tote | grep '<title>'`.
+
 ### Exporting orders
 
 `GET /api/admin/orders.csv` streams orders as CSV, one row per order **line** so the file pivots — order-level fields repeat across an order's rows. `?status=`, `?from=` and `?to=` (epoch milliseconds) narrow it; there is a hard cap of 50,000 rows, which is what the date range is for.

@@ -70,6 +70,9 @@ interface Draft {
   name: string;
   description: string;
   bulletPoints: string[];
+  /** Empty means "generate it", which is what the fields preview. */
+  seoTitle: string;
+  seoDescription: string;
   variantName: string;
   variants: DraftVariant[];
   optionGroups: OptionGroup[];
@@ -95,6 +98,8 @@ const EMPTY_DRAFT: Draft = {
   name: "",
   description: "",
   bulletPoints: [],
+  seoTitle: "",
+  seoDescription: "",
   variantName: "",
   variants: [{ key: nextKey(), label: "", priceText: "", infinite: true, quantity: 0, weightGrams: 0 }],
   optionGroups: [],
@@ -113,6 +118,9 @@ function toInput(draft: Draft): ProductInput {
     name: draft.name.trim(),
     description: draft.description,
     bulletPoints: draft.bulletPoints.filter((point) => point.trim() !== ""),
+    // Empty is stored as null so the server can tell "no override" from "".
+    seoTitle: draft.seoTitle.trim() || null,
+    seoDescription: draft.seoDescription.trim() || null,
     variantName: draft.variantName.trim() || null,
     variants: draft.variants.map(
       (variant): VariantInput => ({
@@ -229,6 +237,8 @@ export function ProductEditorPage() {
       name: product.name,
       description: product.description,
       bulletPoints: product.bulletPoints,
+      seoTitle: product.seoTitle ?? "",
+      seoDescription: product.seoDescription ?? "",
       variantName: product.variantName ?? "",
       variants: product.variants.map((variant) => ({
         key: nextKey(),
@@ -783,6 +793,48 @@ export function ProductEditorPage() {
                 </p>
               </div>
             </Space>
+          </Card>
+
+          <Card title="Search appearance" className={cx(styles.card)}>
+            <p className={cx(styles.help)}>
+              What Google and link previews show. Leave either blank to use the generated
+              version below it.
+            </p>
+
+            <Field
+              label="Title"
+              help={`${draft.seoTitle.length}/70 · Google truncates past 70 characters.`}
+            >
+              {(control) => (
+                <Input
+                  {...control}
+                  value={draft.seoTitle}
+                  maxLength={70}
+                  placeholder={draft.name.trim() ? `${draft.name.trim()} · your store` : "Product name · your store"}
+                  onChange={(event) => set("seoTitle", event.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field
+              label="Description"
+              help={`${draft.seoDescription.length}/160 · Google truncates past 160 characters.`}
+            >
+              {(control) => (
+                <Input.TextArea
+                  {...control}
+                  value={draft.seoDescription}
+                  maxLength={160}
+                  autoSize={{ minRows: 2, maxRows: 4 }}
+                  placeholder={
+                    draft.description.trim()
+                      ? draft.description.trim().slice(0, 157)
+                      : "The first 160 characters of the description."
+                  }
+                  onChange={(event) => set("seoDescription", event.target.value)}
+                />
+              )}
+            </Field>
           </Card>
 
           <Card title="Images" className={cx(styles.card)}>

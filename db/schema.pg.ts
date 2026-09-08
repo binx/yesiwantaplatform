@@ -63,6 +63,9 @@ export const products = pgTable(
     name: text("name").notNull(),
     description: text("description").notNull().default(""),
     bulletPoints: jsonb("bullet_points").notNull().default(sql`'[]'::jsonb`),
+    /** Overrides the generated tag. Null falls back to the product name. */
+    seoTitle: text("seo_title"),
+    seoDescription: text("seo_description"),
     variantName: text("variant_name"),
     isLive: boolean("is_live").notNull().default(false),
     stripeProductId: text("stripe_product_id"),

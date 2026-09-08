@@ -37,6 +37,13 @@ function parseJson<T>(value: unknown, fallback: T): T {
 }
 
 /** SQLite has no boolean type; both dialects normalise to a real boolean. */
+/** createdAt/updatedAt are unix seconds on SQLite and a Date on Postgres. */
+function toEpochMs(value: unknown): number {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return value * 1000;
+  return Date.now();
+}
+
 function toBool(value: unknown): boolean {
   return value === true || value === 1;
 }
@@ -47,6 +54,8 @@ interface ProductRow {
   name: string;
   description: string;
   bulletPoints: unknown;
+  seoTitle: string | null;
+  seoDescription: string | null;
   variantName: string | null;
   isLive: unknown;
   stripeProductId: string | null;
@@ -90,6 +99,8 @@ function buildProduct(
     name: row.name,
     description: row.description,
     bulletPoints: parseJson<string[]>(row.bulletPoints, []),
+    seoTitle: row.seoTitle,
+    seoDescription: row.seoDescription,
     images: images.map((i) => ({
       path: i.path,
       width: i.width,
@@ -412,4 +423,48 @@ export async function isConfigured(): Promise<boolean> {
   ]);
 
   return (settings[0]?.value ?? 0) > 0 && (admins[0]?.value ?? 0) > 0;
+}
+
+export interface SitemapEntry {
+  path: string;
+  lastModified: number;
+}
+
+/**
+ * Slugs and modification times for the sitemap.
+ *
+ * A dedicated query rather than `listProducts`, because the sitemap needs
+ * `updatedAt` — which is not on the `Product` schema and does not belong there
+ * for the sake of one consumer — and needs no variants, images or option
+ * groups at all.
+ */
+export async function listSitemapEntries(): Promise<SitemapEntry[]> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const [products, collections] = await Promise.all([
+    db
+      .select({ slug: schema.products.slug, updatedAt: schema.products.updatedAt })
+      .from(schema.products)
+      .where(eq(schema.products.isLive, true))
+      .orderBy(asc(schema.products.position)) as unknown as Promise<
+      { slug: string; updatedAt: unknown }[]
+    >,
+    db
+      .select({ slug: schema.collections.slug, updatedAt: schema.collections.updatedAt })
+      .from(schema.collections)
+      .orderBy(asc(schema.collections.position)) as unknown as Promise<
+      { slug: string; updatedAt: unknown }[]
+    >,
+  ]);
+
+  return [
+    ...collections.map((row) => ({
+      path: `/collection/${row.slug}`,
+      lastModified: toEpochMs(row.updatedAt),
+    })),
+    ...products.map((row) => ({
+      path: `/product/${row.slug}`,
+      lastModified: toEpochMs(row.updatedAt),
+    })),
+  ];
 }

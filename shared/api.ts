@@ -33,6 +33,8 @@ export const productInputSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(5000).default(""),
   bulletPoints: z.array(z.string().max(300)).max(20).default([]),
+  seoTitle: z.string().max(70).nullable().default(null),
+  seoDescription: z.string().max(160).nullable().default(null),
   variantName: z.string().max(50).nullable().default(null),
   variants: z.array(variantInputSchema).min(1).max(50),
   optionGroups: z.array(optionGroupSchema).max(10).default([]),

@@ -50,6 +50,13 @@
       "when": 1788834260373,
       "tag": "0006_robust_firestar",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1788834626262,
+      "tag": "0007_acoustic_mindworm",
+      "breakpoints": true
     }
   ]
 }

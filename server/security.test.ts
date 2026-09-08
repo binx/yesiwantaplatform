@@ -88,6 +88,11 @@ describe("anonymous access", () => {
     const response = await request(app).get("/api/store").expect(200);
     expect(response.body.name).toBeTruthy();
   });
+
+  it("serves the crawler files, which are deliberately public", async () => {
+    await request(app).get("/sitemap.xml").expect(200);
+    await request(app).get("/robots.txt").expect(200);
+  });
 });
 
 describe("CSRF", () => {

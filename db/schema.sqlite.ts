@@ -63,6 +63,9 @@ export const products = sqliteTable(
     description: text("description").notNull().default(""),
     /** JSON array of strings. */
     bulletPoints: text("bullet_points").notNull().default("[]"),
+    /** Overrides the generated tag. Null falls back to the product name. */
+    seoTitle: text("seo_title"),
+    seoDescription: text("seo_description"),
     /** Label for the variant axis, e.g. "size". Null for single-variant products. */
     variantName: text("variant_name"),
     isLive: integer("is_live", { mode: "boolean" }).notNull().default(false),

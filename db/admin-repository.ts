@@ -62,6 +62,8 @@ export async function createProduct(input: ProductInput): Promise<string> {
     name: input.name,
     description: input.description,
     bulletPoints: json(input.bulletPoints),
+    seoTitle: input.seoTitle,
+    seoDescription: input.seoDescription,
     variantName: input.variantName,
     isLive: input.isLive,
     position: await nextPosition(schema.products, schema.products.position),
@@ -86,6 +88,8 @@ export async function updateProduct(id: string, input: ProductInput): Promise<vo
       name: input.name,
       description: input.description,
       bulletPoints: json(input.bulletPoints),
+      seoTitle: input.seoTitle,
+      seoDescription: input.seoDescription,
       variantName: input.variantName,
       isLive: input.isLive,
     })

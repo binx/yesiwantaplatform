@@ -76,6 +76,12 @@ export const productSchema = z.object({
   name: z.string().min(1),
   description: z.string().default(""),
   bulletPoints: z.array(z.string()).default([]),
+  /**
+   * Search-result overrides. Null means the tag is generated from the name and
+   * description. The limits are where Google truncates.
+   */
+  seoTitle: z.string().max(70).nullable().default(null),
+  seoDescription: z.string().max(160).nullable().default(null),
   images: z.array(imageSchema).default([]),
   /** Label for the variant axis, e.g. "size". Null when there is one variant. */
   variantName: z.string().nullable().default(null),

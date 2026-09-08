@@ -10,6 +10,8 @@ const baseProduct: Product = {
   name: "Canvas Tote",
   description: "A bag.",
   bulletPoints: [],
+  seoTitle: null,
+  seoDescription: null,
   images: [],
   variantName: "size",
   variants: [

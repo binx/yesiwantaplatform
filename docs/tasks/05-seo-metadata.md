@@ -1,14 +1,14 @@
 ---
 task: "05"
 title: Per-product SEO metadata
-status: todo
+status: done
 tier: 1
 size: M
 migration: two columns
 blocked_by: []
 blocks: []
 touches: server/app.ts:74 · server/routes/public.ts
-completed: 
+completed: 2026-09-07
 shipped_in: 
 summary: >-
   **The highest-leverage item on this page, and cheaper than it looks.** Every product

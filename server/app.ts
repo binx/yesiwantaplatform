@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import express, { type Express } from "express";
 import session from "express-session";
@@ -11,6 +12,9 @@ import { adminRouter } from "./routes/admin.js";
 import { checkoutRouter } from "./routes/checkout.js";
 import { shippingRouter } from "./routes/shipping.js";
 import { webhookRouter } from "./routes/webhook.js";
+import { siteRouter } from "./routes/site.js";
+import { injectMeta } from "./html.js";
+import { metaForPath } from "./seo.js";
 
 export function createApp(): Express {
   const app = express();
@@ -55,6 +59,11 @@ export function createApp(): Express {
   app.use("/api", sessionRouter);
   app.use("/api", setupRouter);
   app.use("/api", publicRouter);
+
+  // sitemap.xml and robots.txt live at the root, not under /api, and must be
+  // mounted before the SPA fallback below — its regex matches everything that
+  // is not /api, this pair included.
+  app.use(siteRouter);
   app.use("/api", checkoutRouter);
   app.use("/api", shippingRouter);
   app.use("/api/admin", adminRouter);
@@ -72,11 +81,26 @@ export function createApp(): Express {
 
   if (isProduction) {
     const dist = path.resolve("dist");
+
+    // Read once: the built shell does not change while the server runs.
+    const shell = readFileSync(path.join(dist, "index.html"), "utf8");
+
+    // Static first, so a real asset request never reaches the injector below.
     app.use(express.static(dist, { index: false }));
 
-    // SPA fallback for everything that is not an API route.
-    app.get(/^(?!\/api\/).*/, (_req, res) => {
-      res.sendFile(path.join(dist, "index.html"));
+    /*
+     * SPA fallback for everything that is not an API route — but with the
+     * page's own metadata written into the head first.
+     *
+     * The storefront is client-rendered, so without this a crawler or a link
+     * unfurler fetching /product/anything gets the generic shell: no product
+     * name, no price, no image, every shared link previewing identically. This
+     * is not SSR — only <head> is rewritten, and React still boots and renders
+     * the body exactly as before.
+     */
+    app.get(/^(?!\/api\/).*/, async (req, res) => {
+      const meta = await metaForPath(req.path);
+      res.type("html").send(injectMeta(shell, meta));
     });
   }
 

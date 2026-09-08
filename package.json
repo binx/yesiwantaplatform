@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "vite",
@@ -12,8 +12,8 @@
     "dev:all": "concurrently -n web,api -c cyan,magenta \"npm:dev\" \"npm:dev:server\"",
     "setup": "tsx scripts/setup.ts",
     "roadmap": "tsx scripts/roadmap.ts",
-    "build": "tsc -b && vite build",
-    "start": "NODE_ENV=production tsx server/index.ts",
+    "build": "tsc -b && tsc -p tsconfig.server.build.json && vite build",
+    "start": "NODE_ENV=production node dist-server/server/index.js",
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "lint": "eslint .",

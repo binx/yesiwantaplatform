@@ -9,7 +9,7 @@ blocked_by: []
 blocks: ["02"]
 touches: server/routes/admin.ts · src/admin/OrderDetailPage.tsx
 completed: 2026-09-07
-shipped_in: 
+shipped_in: f6db9de
 summary: >-
   Most of this already exists. The `charge.refunded` handler is live and flips the order
   to `refunded`, and the Refunded email template is written. What's missing is the half

@@ -10,6 +10,7 @@ import {
   type ProductSummary,
 } from "./queries";
 import { PageHeader } from "./RequireAdmin";
+import { ImportProductsModal } from "./ImportProductsModal";
 import { cx } from "@/lib/cx";
 import styles from "./ProductsPage.module.css";
 
@@ -29,6 +30,7 @@ export function ProductsPage() {
   const remove = useDeleteProduct();
 
   const [search, setSearch] = useState("");
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     document.title = "Products · Beluga";
@@ -135,12 +137,23 @@ export function ProductsPage() {
               onChange={(event) => setSearch(event.target.value)}
               aria-label="Search products"
             />
+            {/*
+             * A plain link, not a fetch: the route is a cookie-authenticated
+             * GET and verifyCsrf skips safe methods, so there is no token to
+             * attach and no blob to build. Same reasoning as the order export.
+             */}
+            <a href="/api/admin/products.csv">
+              <Button>Export CSV</Button>
+            </a>
+            <Button onClick={() => setImporting(true)}>Import CSV</Button>
             <Link to="/admin/products/new">
               <Button type="primary">New product</Button>
             </Link>
           </>
         }
       />
+
+      <ImportProductsModal open={importing} onClose={() => setImporting(false)} />
 
       {all.length === 0 ? (
         <Empty description="No products yet">

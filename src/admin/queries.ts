@@ -14,7 +14,7 @@ import type {
 import type { ShippingRate, ShippingZone } from "@shared/shipping";
 import type { Collection, Image, PageDraft, Product } from "@shared/schema";
 import type { FulfilmentInput, Order, OrderStatus, RefundInput } from "@shared/orders";
-import { apiGet, csrfDelete, csrfPost, csrfPut, csrfUpload } from "@/lib/api";
+import { apiGet, csrfDelete, csrfPost, csrfPostText, csrfPut, csrfUpload } from "@/lib/api";
 
 /**
  * Admin reads and writes.
@@ -138,6 +138,70 @@ export function usePublishProduct() {
 
   return useMutation({
     mutationFn: (id: string) => csrfPost<PublishResult>(`/admin/products/${id}/publish`),
+    onSuccess: () => invalidate(adminKeys.products),
+  });
+}
+
+/* ------------------------------------------------------- catalogue import */
+
+/** One problem in the file, located so a merchant can go and fix it. */
+export interface ImportIssue {
+  row: number;
+  column: string;
+  message: string;
+}
+
+export interface ImportPreviewProduct {
+  slug: string;
+  name: string;
+  action: "create" | "update";
+  variants: number;
+  rows: number[];
+  /** False when this product has errors and would be skipped. */
+  valid: boolean;
+}
+
+export interface ImportPreview {
+  rows: number;
+  creates: number;
+  updates: number;
+  errors: ImportIssue[];
+  /** Errors beyond the number the server is willing to serialise. */
+  errorsOmitted: number;
+  products: ImportPreviewProduct[];
+}
+
+export interface ImportResult {
+  created: number;
+  updated: number;
+  skipped: number;
+}
+
+/** Says what the file would do. Writes nothing, so it invalidates nothing. */
+export function useValidateImport() {
+  return useMutation({
+    mutationFn: (csv: string) =>
+      csrfPostText<ImportPreview>("/admin/products/import/validate", csv, "text/csv"),
+  });
+}
+
+/**
+ * Applies it.
+ *
+ * The file is sent a second time rather than a token from the preview: the
+ * server re-parses and re-validates, so nothing can be committed that has not
+ * just passed the same checks.
+ */
+export function useCommitImport() {
+  const invalidate = useInvalidate();
+
+  return useMutation({
+    mutationFn: ({ csv, skipInvalid }: { csv: string; skipInvalid: boolean }) =>
+      csrfPostText<ImportResult>(
+        `/admin/products/import/commit${skipInvalid ? "?skipInvalid=true" : ""}`,
+        csv,
+        "text/csv",
+      ),
     onSuccess: () => invalidate(adminKeys.products),
   });
 }

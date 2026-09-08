@@ -1,14 +1,14 @@
 ---
 task: "15"
 title: Catalogue CSV import and export
-status: todo
+status: done
 tier: 3
 size: M
 migration: none
 blocked_by: ["10"]
 blocks: []
 touches: server/routes/admin.ts · src/admin/ProductsPage.tsx
-completed: 
+completed: 2026-09-08
 shipped_in: 
 summary: >-
   Migrating a hundred products from Shopify is currently a hundred trips through the

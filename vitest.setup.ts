@@ -37,7 +37,13 @@ if (!("IntersectionObserver" in globalThis)) {
   );
 }
 
-if (!("matchMedia" in window)) {
+/*
+ * Tested for callability, not for presence: jsdom *declares* `matchMedia` and
+ * leaves it undefined, so an `in` check reports it as already there and skips
+ * the stub. Nothing noticed until antd's Table and Modal — which ask for a
+ * breakpoint on render — reached a component test.
+ */
+if (typeof window.matchMedia !== "function") {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: false,
     media: query,

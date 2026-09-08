@@ -477,9 +477,9 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
   <section class="progress">
     <div class="progress-head">
       <h2 class="progress-title">Progress</h2>
-      <p class="progress-count">13 of 16 shipped, 1 in progress.</p>
+      <p class="progress-count">14 of 16 shipped, 1 in progress.</p>
     </div>
-    <div class="track" role="img" aria-label="13 of 16 shipped, 1 in progress."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--done" title="01 Refund an order from the admin — Shipped"></span><span class="cell cell--done" title="02 Restore stock when an order is refunded — Shipped"></span><span class="cell cell--done" title="03 Discount codes via Stripe — Shipped"></span><span class="cell cell--done" title="04 Export orders as CSV — Shipped"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--done" title="05 Per-product SEO metadata — Shipped"></span><span class="cell cell--done" title="06 Storefront search and sort — Shipped"></span><span class="cell cell--done" title="07 Staff accounts — Shipped"></span><span class="cell cell--done" title="08 Store pages — Shipped"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--done" title="09 Sales tax and VAT — Shipped"></span><span class="cell cell--done" title="10 Multi-axis variants — Shipped"></span><span class="cell cell--done" title="11 Customer accounts — Shipped"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--done" title="12 Abandoned cart recovery — Shipped"></span><span class="cell cell--in-progress" title="13 Digital and downloadable products — In progress"></span><span class="cell cell--todo" title="14 Outbound webhooks — To do"></span><span class="cell cell--todo" title="15 Catalogue CSV import and export — To do"></span></span></div>
+    <div class="track" role="img" aria-label="14 of 16 shipped, 1 in progress."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--done" title="01 Refund an order from the admin — Shipped"></span><span class="cell cell--done" title="02 Restore stock when an order is refunded — Shipped"></span><span class="cell cell--done" title="03 Discount codes via Stripe — Shipped"></span><span class="cell cell--done" title="04 Export orders as CSV — Shipped"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--done" title="05 Per-product SEO metadata — Shipped"></span><span class="cell cell--done" title="06 Storefront search and sort — Shipped"></span><span class="cell cell--done" title="07 Staff accounts — Shipped"></span><span class="cell cell--done" title="08 Store pages — Shipped"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--done" title="09 Sales tax and VAT — Shipped"></span><span class="cell cell--done" title="10 Multi-axis variants — Shipped"></span><span class="cell cell--done" title="11 Customer accounts — Shipped"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--done" title="12 Abandoned cart recovery — Shipped"></span><span class="cell cell--in-progress" title="13 Digital and downloadable products — In progress"></span><span class="cell cell--todo" title="14 Outbound webhooks — To do"></span><span class="cell cell--done" title="15 Catalogue CSV import and export — Shipped"></span></span></div>
     <div class="track-key">
       <span><i class="cell cell--done"></i> Shipped</span>
       <span><i class="cell cell--in-progress"></i> In progress</span>
@@ -513,6 +513,12 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <span class="log-date">2026-09-08</span>
         <span class="log-task">12</span>
         <span class="log-title">Abandoned cart recovery</span>
+        <span class="log-ref"></span>
+      </li>
+      <li>
+        <span class="log-date">2026-09-08</span>
+        <span class="log-task">15</span>
+        <span class="log-title">Catalogue CSV import and export</span>
         <span class="log-ref"></span>
       </li>
       <li>
@@ -816,7 +822,7 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
 
   <section class="tier">
     <div class="tier-head">
-      <div class="tier-tag">Tier 3 · After a real store runs on this <span class="tier-done">1 of 4 shipped</span></div>
+      <div class="tier-tag">Tier 3 · After a real store runs on this <span class="tier-done">2 of 4 shipped</span></div>
       <h2>Platform bets</h2>
       <p class="tier-verdict">Defensible to defer. Each assumes a merchant already trusts Beluga with their revenue.</p>
     </div>
@@ -861,11 +867,11 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
           <span><b>Brief</b> docs/tasks/14-outbound-webhooks.md</span></div>
       </article>
 
-      <article class="item item--todo">
+      <article class="item item--done">
         <div class="item-head">
           <span class="seq">15</span>
           <h3>Catalogue CSV import and export</h3>
-          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--status chip--done">Shipped</span>
           <span class="chip chip--m">Medium</span>
         </div>
         <p>Migrating a hundred products from Shopify is currently a hundred trips through the product editor, which is a real reason an evaluation stops. Straightforward once the variant shape is settled, and a trap before it. Validate the whole file and show a preview before committing anything — a partial import that half-updated a live catalogue is worse than no import.</p>

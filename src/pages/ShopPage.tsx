@@ -36,6 +36,7 @@ export function ShopPage() {
                     image={collection.cover}
                     ratio={16 / 9}
                     sizes="(max-width: 700px) 100vw, 50vw"
+                    decorative
                   />
                   <h3 className={styles.name}>{collection.name}</h3>
                 </Link>

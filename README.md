@@ -17,12 +17,25 @@ Rather than patch it, v2 rebuilds the stack. Work lands in reviewable phases:
 | 1 | Vite + React 19 + TypeScript, antd, new storefront | ✅ Done |
 | 2 | Database (SQLite/Postgres), API server, security | ✅ Done |
 | 3 | Stripe Checkout Sessions, webhooks, orders, email | ✅ Done |
-| 4 | Storefront polish, carousel, accessibility | 🟡 Mostly |
+| 4 | Storefront polish, carousel, accessibility | ✅ Done |
 | 5 | Setup wizard, admin, product editor | ✅ Done |
 
 **What works today:** first-run setup, the admin (products, collections, orders, settings), browsing, variants, cart, checkout through Stripe, order recording, inventory, and order emails.
 
-**What's outstanding:** Phase 4 still owes the Lighthouse pass that confirms accessibility ≥ 95 — the structural work it measures (real `<img>` with alt text and `srcset`, labelled controls, keyboard-reachable buttons, scroll containers) has landed. v1's code stays in [`legacy/`](legacy/) as a reference; nothing builds from it.
+**What's outstanding:** nothing in phases 1–5. v1's code stays in [`legacy/`](legacy/) as a reference; nothing builds from it.
+
+Phase 4 closed with an accessibility gate rather than the Lighthouse score it
+originally promised. `e2e/accessibility.spec.ts` runs axe against every public
+route — and against a filled cart, the mobile nav drawer and the skip link —
+under both Playwright projects, so each one is checked at desktop width and
+again on a phone. `src/lib/theme.test.ts` covers the part no browser in CI ever
+renders: the dark palette's own contrast, as arithmetic.
+
+That is a deliberate substitution. Lighthouse scores a page out of 100 from a
+weighted subset of the same axe rules, so "≥ 95" tolerates a real failure as
+long as the rest of the page averages it away — and it is a number nobody can
+re-derive six months later. A violation count does not average, it names the
+element, and it fails the build.
 
 ## Requirements
 

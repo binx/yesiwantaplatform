@@ -123,11 +123,11 @@ export function SetupPage() {
 
   if (status.isPending) {
     return (
-      <div className={cx(styles.page)}>
+      <main className={cx(styles.page)}>
         <Card className={cx(styles.card)}>
           <Skeleton active paragraph={{ rows: 5 }} />
         </Card>
-      </div>
+      </main>
     );
   }
 
@@ -139,7 +139,7 @@ export function SetupPage() {
 
   if (submit.isSuccess) {
     return (
-      <div className={cx(styles.page)}>
+      <main className={cx(styles.page)}>
         <Card className={cx(styles.card)}>
           <Result
             status="success"
@@ -163,7 +163,7 @@ export function SetupPage() {
             ]}
           />
         </Card>
-      </div>
+      </main>
     );
   }
 
@@ -182,7 +182,7 @@ export function SetupPage() {
   };
 
   return (
-    <div className={cx(styles.page)}>
+    <main className={cx(styles.page)}>
       <Card className={cx(styles.card)}>
         <Typography.Title level={1} className={cx(styles.title)}>
           <span aria-hidden="true">🎷🐋</span> Set up your store
@@ -253,7 +253,7 @@ export function SetupPage() {
           </>
         ) : null}
       </Card>
-    </div>
+    </main>
   );
 }
 

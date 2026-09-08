@@ -537,7 +537,7 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <span class="log-date">2026-09-07</span>
         <span class="log-task">07</span>
         <span class="log-title">Staff accounts</span>
-        <span class="log-ref"></span>
+        <span class="log-ref">1b23e8c</span>
       </li>
     </ol>
   </section>
@@ -715,6 +715,7 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <p>Only <code>npm run setup</code> and the setup wizard ever create an account, and there is no route to add a second — so a two-person shop shares one password. The machinery is already built: argon2id hashing, database-backed sessions, and <code>countAdmins</code> all live in <code>server/auth.ts</code>, and the email layer can carry an invite. Add CRUD under the existing <code>requireAdmin</code> router and a <code>role</code> column if you want anything finer than full access.</p>
         <div class="meta"><span><b>Migration</b> one column</span>
           <span><b>Touches</b> server/auth.ts:82 · server/routes/admin.ts · server/security.test.ts</span>
+          <span><b>Shipped in</b> 1b23e8c</span>
           <span><b>Brief</b> docs/tasks/07-staff-accounts.md</span></div>
       </article>
 

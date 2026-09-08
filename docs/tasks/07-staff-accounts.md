@@ -9,7 +9,7 @@ blocked_by: []
 blocks: []
 touches: server/auth.ts:82 · server/routes/admin.ts · server/security.test.ts
 completed: 2026-09-07
-shipped_in: 
+shipped_in: 1b23e8c
 summary: >-
   Only `npm run setup` and the setup wizard ever create an account, and there is no route
   to add a second — so a two-person shop shares one password. The machinery is already

@@ -477,9 +477,9 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
   <section class="progress">
     <div class="progress-head">
       <h2 class="progress-title">Progress</h2>
-      <p class="progress-count">12 of 16 shipped.</p>
+      <p class="progress-count">13 of 16 shipped.</p>
     </div>
-    <div class="track" role="img" aria-label="12 of 16 shipped."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--done" title="01 Refund an order from the admin — Shipped"></span><span class="cell cell--done" title="02 Restore stock when an order is refunded — Shipped"></span><span class="cell cell--done" title="03 Discount codes via Stripe — Shipped"></span><span class="cell cell--done" title="04 Export orders as CSV — Shipped"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--done" title="05 Per-product SEO metadata — Shipped"></span><span class="cell cell--done" title="06 Storefront search and sort — Shipped"></span><span class="cell cell--done" title="07 Staff accounts — Shipped"></span><span class="cell cell--done" title="08 Store pages — Shipped"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--done" title="09 Sales tax and VAT — Shipped"></span><span class="cell cell--done" title="10 Multi-axis variants — Shipped"></span><span class="cell cell--done" title="11 Customer accounts — Shipped"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--todo" title="12 Abandoned cart recovery — To do"></span><span class="cell cell--todo" title="13 Digital and downloadable products — To do"></span><span class="cell cell--todo" title="14 Outbound webhooks — To do"></span><span class="cell cell--todo" title="15 Catalogue CSV import and export — To do"></span></span></div>
+    <div class="track" role="img" aria-label="13 of 16 shipped."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--done" title="01 Refund an order from the admin — Shipped"></span><span class="cell cell--done" title="02 Restore stock when an order is refunded — Shipped"></span><span class="cell cell--done" title="03 Discount codes via Stripe — Shipped"></span><span class="cell cell--done" title="04 Export orders as CSV — Shipped"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--done" title="05 Per-product SEO metadata — Shipped"></span><span class="cell cell--done" title="06 Storefront search and sort — Shipped"></span><span class="cell cell--done" title="07 Staff accounts — Shipped"></span><span class="cell cell--done" title="08 Store pages — Shipped"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--done" title="09 Sales tax and VAT — Shipped"></span><span class="cell cell--done" title="10 Multi-axis variants — Shipped"></span><span class="cell cell--done" title="11 Customer accounts — Shipped"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--done" title="12 Abandoned cart recovery — Shipped"></span><span class="cell cell--todo" title="13 Digital and downloadable products — To do"></span><span class="cell cell--todo" title="14 Outbound webhooks — To do"></span><span class="cell cell--todo" title="15 Catalogue CSV import and export — To do"></span></span></div>
     <div class="track-key">
       <span><i class="cell cell--done"></i> Shipped</span>
       <span><i class="cell cell--in-progress"></i> In progress</span>
@@ -507,7 +507,13 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <span class="log-date">2026-09-08</span>
         <span class="log-task">11</span>
         <span class="log-title">Customer accounts</span>
-        <span class="log-ref">fd1d6f6</span>
+        <span class="log-ref"></span>
+      </li>
+      <li>
+        <span class="log-date">2026-09-08</span>
+        <span class="log-task">12</span>
+        <span class="log-title">Abandoned cart recovery</span>
+        <span class="log-ref"></span>
       </li>
       <li>
         <span class="log-date">2026-09-07</span>
@@ -587,8 +593,8 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <text class="pt-label shipped" x="544.5" y="145" text-anchor="end">Multi-axis variants</text>
         <circle cx="583" cy="168" r="6" class="dot dot--done"></circle><path d="M580 168 l2.2 2.4 l4-4.8" class="tick"></path>
         <text class="pt-label shipped" x="573" y="172" text-anchor="end">Customer accounts</text>
-        <circle cx="611.5" cy="235.5" r="5.5" class="dot dot--later"></circle>
-        <text class="pt-label" x="601.5" y="239.5" text-anchor="end">Abandoned cart recovery</text>
+        <circle cx="611.5" cy="235.5" r="6" class="dot dot--done"></circle><path d="M608.5 235.5 l2.2 2.4 l4-4.8" class="tick"></path>
+        <text class="pt-label shipped" x="601.5" y="239.5" text-anchor="end">Abandoned cart recovery</text>
         <circle cx="184" cy="73.5" r="6" class="dot dot--done"></circle><path d="M181 73.5 l2.2 2.4 l4-4.8" class="tick"></path>
         <text class="pt-label now shipped" x="174" y="77.5" text-anchor="end">Refund an order from the admin</text>
         <circle cx="155.5" cy="114" r="6" class="dot dot--done"></circle><path d="M152.5 114 l2.2 2.4 l4-4.8" class="tick"></path>
@@ -803,7 +809,6 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <div class="meta"><span><b>Migration</b> two tables + orders column</span>
           <span><b>Touches</b> db/schema.*.ts · server/auth.ts · src/router.tsx</span>
           <span><b>Blocks</b> 12</span>
-          <span><b>Shipped in</b> fd1d6f6</span>
           <span><b>Brief</b> docs/tasks/11-customer-accounts.md</span></div>
       </article>
     </div>
@@ -811,16 +816,16 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
 
   <section class="tier">
     <div class="tier-head">
-      <div class="tier-tag">Tier 3 · After a real store runs on this </div>
+      <div class="tier-tag">Tier 3 · After a real store runs on this <span class="tier-done">1 of 4 shipped</span></div>
       <h2>Platform bets</h2>
       <p class="tier-verdict">Defensible to defer. Each assumes a merchant already trusts Beluga with their revenue.</p>
     </div>
     <div class="items">
-      <article class="item item--todo">
+      <article class="item item--done">
         <div class="item-head">
           <span class="seq">12</span>
           <h3>Abandoned cart recovery</h3>
-          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--status chip--done">Shipped</span>
           <span class="chip chip--l">Large</span>
         </div>
         <p>The cart is deliberately client-side identifiers only, so there is nothing on the server to email about. Needs customer accounts, server-side cart persistence and a scheduler — three new moving parts, in exchange for the single highest-ROI email in ecommerce. One thing to salvage first: <code>checkout.session.expired</code> is already handled, so emailing on that alone catches the highest-intent abandonment for a fraction of the work.</p>

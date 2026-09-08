@@ -96,6 +96,38 @@ const READS = [
   "/api/admin/users",
 ] as const;
 
+/**
+ * The storefront's own authenticated surface, behind `requireCustomer`.
+ *
+ * A second pair of arrays rather than more entries in `MUTATIONS`/`READS`,
+ * because the two registries assert opposite things about a customer session:
+ * these routes must *answer* a signed-in customer and refuse everyone else,
+ * where the admin arrays must refuse the customer too.
+ */
+const CUSTOMER_MUTATIONS = [
+  { method: "put", path: "/api/account" },
+  { method: "post", path: "/api/account/addresses" },
+  { method: "put", path: "/api/account/addresses/some-address" },
+  { method: "delete", path: "/api/account/addresses/some-address" },
+  { method: "post", path: "/api/cart/sync" },
+] as const;
+
+const CUSTOMER_READS = [
+  "/api/account",
+  "/api/account/orders",
+  "/api/account/orders/some-order",
+  "/api/account/addresses",
+] as const;
+
+/**
+ * Deliberately anonymous, and listed here so their absence from the arrays
+ * above reads as a decision rather than an oversight: both are reached from a
+ * link in an email, where there is no session to require. The unguessable
+ * token in the body is the credential, and each is asserted below to reject
+ * one that does not match.
+ */
+const PUBLIC_CART_TOKEN_ROUTES = ["/api/cart/recover", "/api/cart/unsubscribe"] as const;
+
 describe("anonymous access", () => {
   it.each(MUTATIONS)("rejects $method $path with 401", async ({ method, path }) => {
     const response = await request(app)[method](path).send({});
@@ -217,6 +249,66 @@ describe("customer session", () => {
     const { agent } = await signInCustomer();
     const response = await agent.get("/api/session").expect(200);
     expect(response.body.isAdmin).toBe(false);
+  });
+});
+
+describe("customer routes", () => {
+  /** An agent with a valid CSRF token but no session behind it. */
+  async function anonymous() {
+    const agent = request.agent(app);
+    const { body } = await agent.get("/api/session").expect(200);
+    return { agent, csrf: body.csrfToken as string };
+  }
+
+  it.each(CUSTOMER_MUTATIONS)("rejects an anonymous $method $path with 401", async ({ method, path }) => {
+    const { agent, csrf } = await anonymous();
+    const response = await agent[method](path).set("x-csrf-token", csrf).send({});
+    expect(response.status).toBe(401);
+  });
+
+  it.each(CUSTOMER_READS)("rejects an anonymous GET %s with 401", async (path) => {
+    await request(app).get(path).expect(401);
+  });
+
+  // The CSRF check is router-wide and runs first, so a tokenless write never
+  // reaches `requireCustomer` at all — 403 before 401.
+  it.each(CUSTOMER_MUTATIONS)("rejects a tokenless $method $path with 403", async ({ method, path }) => {
+    const response = await request(app)[method](path).send({});
+    expect(response.status).toBe(403);
+  });
+
+  // The mirror of the customer-is-never-admin block: `requireCustomer` reads
+  // `customerId`, which an administrator's session does not carry.
+  it.each(CUSTOMER_READS)("does not answer an admin session on GET %s", async (path) => {
+    const { agent } = await signIn();
+    await agent.get(path).expect(401);
+  });
+
+  it("refuses an unknown recovery token rather than returning a cart", async () => {
+    const { agent, csrf } = await anonymous();
+    const response = await agent
+      .post("/api/cart/recover")
+      .set("x-csrf-token", csrf)
+      .send({ token: "not-a-real-token" });
+
+    expect(response.status).toBe(410);
+    expect(response.body.lines).toBeUndefined();
+  });
+
+  // Unsubscribe answers 204 whether or not the token matched, on purpose: the
+  // link lands in an inbox, and a distinguishable response would turn it into
+  // an oracle for which tokens are live.
+  it("does not disclose whether an unsubscribe token existed", async () => {
+    const { agent, csrf } = await anonymous();
+    await agent
+      .post("/api/cart/unsubscribe")
+      .set("x-csrf-token", csrf)
+      .send({ token: "not-a-real-token" })
+      .expect(204);
+  });
+
+  it.each(PUBLIC_CART_TOKEN_ROUTES)("still requires a CSRF token on %s", async (path) => {
+    await request(app).post(path).send({ token: "not-a-real-token" }).expect(403);
   });
 });
 

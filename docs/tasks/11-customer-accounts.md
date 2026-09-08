@@ -9,7 +9,7 @@ blocked_by: []
 blocks: ["12"]
 touches: db/schema.*.ts · server/auth.ts · src/router.tsx
 completed: 2026-09-08
-shipped_in: fd1d6f6
+shipped_in:
 summary: >-
   There is no customers table at all — orders are guest-only, retrieved by an unguessable
   Stripe session id, and a buyer who loses the confirmation email has no way back to their

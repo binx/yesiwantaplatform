@@ -344,4 +344,54 @@ describe("checkout.session.expired salvage", () => {
     const due = await findCartsDueForReminder(new Date(), 100);
     expect(due.some((c) => c.customerId === customerId)).toBe(false);
   });
+
+  it("persists nothing while the feature is off", async () => {
+    const { getDatabase } = await import("../db/client.js");
+    const { eq } = await import("drizzle-orm");
+    const { drizzle: db, schema } = await getDatabase();
+    const { createCustomer } = await import("./auth.js");
+    const { createPendingOrder, getOrder } = await import("../db/orders-repository.js");
+    const { notifyCheckoutExpired } = await import("./cart-recovery.js");
+
+    const email = freshEmail();
+    const customerId = await createCustomer(email, PASSWORD, null);
+    await markVerified(customerId);
+
+    const line = await demoLine();
+    const orderId = randomUUID();
+    await createPendingOrder({
+      id: orderId,
+      checkoutSessionId: `cs_test_${orderId}`,
+      email,
+      currency: "USD",
+      subtotalCents: 1000,
+      lines: [
+        {
+          productId: line.productId,
+          variantId: line.variantId,
+          productName: "Demo",
+          variantLabel: "",
+          unitPriceCents: 1000,
+          quantity: 1,
+          options: {},
+        },
+      ],
+      customerId,
+    });
+
+    const order = await getOrder(orderId);
+
+    await db.update(schema.storeSettings).set({ cartRecoveryEnabled: false }).where(eq(schema.storeSettings.id, 1));
+    await notifyCheckoutExpired(customerId, order!);
+
+    // Stripe drives this path, not the merchant: an opted-out store must end up
+    // with no cart row at all, not merely an unsent reminder.
+    const rows = await db
+      .select({ id: schema.carts.id })
+      .from(schema.carts)
+      .where(eq(schema.carts.customerId, customerId));
+    expect(rows).toHaveLength(0);
+
+    await enableCartRecovery();
+  });
 });

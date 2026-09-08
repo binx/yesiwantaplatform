@@ -1,14 +1,14 @@
 ---
 task: "12"
 title: Abandoned cart recovery
-status: in-progress
+status: done
 tier: 3
 size: L
 migration: one table
 blocked_by: ["11"]
 blocks: []
 touches: db/schema.*.ts · server/routes/webhook.ts:91
-completed: 
+completed: 2026-09-08
 shipped_in: 
 summary: >-
   The cart is deliberately client-side identifiers only, so there is nothing on the server

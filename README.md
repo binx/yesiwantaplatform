@@ -152,7 +152,10 @@ already hides them.
 
 A `checkout.session.expired` webhook — a buyer who reached Stripe and did not
 pay — is the highest-intent signal available, so it salvages into the same
-machinery immediately rather than waiting for the delay.
+machinery immediately rather than waiting for the delay. It is behind the same
+opt-in as everything else here: Stripe drives this path on its own schedule
+rather than the merchant, so on an opted-out store the webhook stores no cart
+and sends no mail.
 
 There is no job runner in this project, so the reminder is sent by a
 `setInterval` in the API process, the same shape as the session store's prune

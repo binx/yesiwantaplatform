@@ -171,8 +171,16 @@ export function startCartRecoveryScheduler(): { close: () => void } {
  * `sendReminder`/`claimReminder` path, so a cart that already got its one
  * reminder (from the sweep, or an earlier expired session) does not get a
  * second one.
+ *
+ * Gated on the same setting as `syncCart` and `runCartRecoverySweep`. This is
+ * the one entry point the merchant does not trigger — Stripe does, on its own
+ * schedule — so without the gate an opted-out store would still persist a cart
+ * row and send mail from its own SMTP the first time a checkout expired.
  */
 export async function notifyCheckoutExpired(customerId: string, order: Order): Promise<void> {
+  const settings = await getSettings();
+  if (!settings?.cartRecoveryEnabled) return;
+
   const customer = await findCustomerById(customerId);
   if (!customer || customer.emailVerifiedAt == null) return;
 

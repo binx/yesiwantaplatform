@@ -15,7 +15,7 @@
 
 .description {
   margin: 0;
-  color: #3f3f46;
+  color: var(--beluga-muted);
   max-width: 46ch;
 }
 
@@ -57,7 +57,7 @@
 .bullets {
   margin: 1rem 0 0;
   padding-left: 1.125rem;
-  color: #3f3f46;
+  color: var(--beluga-muted);
   font-size: 0.9375rem;
 }
 

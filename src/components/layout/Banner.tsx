@@ -4,6 +4,7 @@ import { Badge, Button, Drawer } from "antd";
 import { MenuOutlined, ShoppingOutlined, UserOutlined } from "@ant-design/icons";
 import { getVisibleCollections } from "@shared/catalog";
 import { useStore } from "@/lib/useStore";
+import { assetUrl } from "@/lib/store-source";
 import { useCustomer } from "@/lib/account";
 import { useCartCount } from "@/store/cart";
 import { cx } from "@/lib/cx";
@@ -50,7 +51,15 @@ export function Banner() {
   return (
     <header className={styles.header}>
       <Link to="/" className={styles.brand}>
-        {store.name}
+        {store.theme.logo ? (
+          <img
+            className={cx(styles.logo)}
+            src={assetUrl(store.theme.logo.path)}
+            alt={store.theme.logo.alt || store.name}
+          />
+        ) : (
+          store.name
+        )}
       </Link>
 
       <nav className={styles.desktopNav} aria-label="Main">
@@ -70,7 +79,7 @@ export function Banner() {
       </Link>
 
       <Link to="/cart" className={styles.cart} aria-label={cartLabel}>
-        <Badge count={count} size="small" color="var(--beluga-ink)" offset={[2, -2]}>
+        <Badge count={count} size="small" color="var(--beluga-accent)" offset={[2, -2]}>
           <ShoppingOutlined className={styles.cartIcon} aria-hidden />
         </Badge>
       </Link>

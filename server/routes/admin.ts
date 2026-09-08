@@ -397,6 +397,31 @@ adminRouter.put("/settings", async (req, res) => {
   }
 });
 
+/**
+ * Stores a logo and hands the image back; it is not persisted here.
+ *
+ * The theme editor drops the result into the settings form it is already
+ * editing, so a logo lands the same way every other look change does — on Save,
+ * with the same chance to back out.
+ */
+adminRouter.post("/settings/logo", (req, res, next) => {
+  uploadMiddleware(req, res, (uploadError: unknown) => {
+    void (async () => {
+      try {
+        if (uploadError) return next(uploadError);
+        if (!req.file) throw httpError(400, "No file was uploaded.");
+
+        const { alt } = imageInputSchema.parse(req.body ?? {});
+        const stored = await storeImage("store-logo", req.file.buffer);
+
+        res.status(201).json({ ...stored, alt });
+      } catch (error) {
+        next(error);
+      }
+    })();
+  });
+});
+
 /* ---------------------------------------------------------------- shipping */
 
 adminRouter.get("/shipping", async (_req, res) => {

@@ -6,7 +6,7 @@ import { ScrollToTop } from "@/components/layout/ScrollToTop";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { StoreErrorBoundary } from "@/components/layout/StoreErrorBoundary";
 import { useStore } from "@/lib/useStore";
-import { toAntdTheme } from "@/lib/theme";
+import { themeCssVars, toAntdTheme } from "@/lib/theme";
 import { useCartRecoverySync } from "@/lib/useCartRecoverySync";
 
 function DocumentTitle() {
@@ -15,6 +15,28 @@ function DocumentTitle() {
   useEffect(() => {
     document.title = store.name;
   }, [store.name]);
+
+  return null;
+}
+
+/**
+ * Publishes the store's theme to CSS custom properties on :root.
+ *
+ * antd's ConfigProvider only reaches antd's own components; every CSS Module in
+ * the storefront reads `--beluga-*`. Without this the two halves disagreed, and
+ * the stylesheet half always won.
+ */
+function ThemeVars() {
+  const { theme } = useStore();
+
+  useEffect(() => {
+    const root = document.documentElement;
+
+    for (const [name, value] of Object.entries(themeCssVars(theme))) {
+      root.style.setProperty(name, value);
+    }
+    root.dataset.colorScheme = theme.colorScheme;
+  }, [theme]);
 
   return null;
 }
@@ -33,6 +55,7 @@ function ThemedShell() {
   return (
     <ConfigProvider theme={toAntdTheme(store.theme)}>
       <AntApp>
+        <ThemeVars />
         <DocumentTitle />
         <ScrollToTop />
         <a href="#main" className="skip-link">

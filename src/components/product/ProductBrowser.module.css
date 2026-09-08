@@ -18,16 +18,16 @@
 
 .label {
   font-size: 13px;
-  color: #52525b;
+  color: var(--beluga-muted);
 }
 
 .input,
 .select {
   font: inherit;
   padding: 8px 10px;
-  border: 1px solid #d4d4d8;
-  border-radius: var(--beluga-radius, 2px);
-  background: #fff;
+  border: 1px solid var(--beluga-line);
+  border-radius: var(--beluga-radius);
+  background: var(--beluga-surface);
   color: inherit;
 }
 
@@ -38,27 +38,29 @@
 .input:focus-visible,
 .select:focus-visible,
 .clear:focus-visible {
-  outline: 2px solid var(--beluga-color-primary, #18181b);
+  /* Was --beluga-color-primary, a name nothing defines, so this outline was
+     always the fallback rather than the store's colour. */
+  outline: 2px solid var(--beluga-primary);
   outline-offset: 2px;
 }
 
 .count {
   margin: 0 0 20px;
   font-size: 13px;
-  color: #52525b;
+  color: var(--beluga-muted);
 }
 
 .empty {
   padding: 40px 0;
-  color: #52525b;
+  color: var(--beluga-muted);
 }
 
 .clear {
   font: inherit;
   margin-top: 8px;
   padding: 8px 14px;
-  border: 1px solid #d4d4d8;
-  border-radius: var(--beluga-radius, 2px);
-  background: #fff;
+  border: 1px solid var(--beluga-line);
+  border-radius: var(--beluga-radius);
+  background: var(--beluga-surface);
   cursor: pointer;
 }

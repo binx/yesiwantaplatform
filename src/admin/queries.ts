@@ -154,6 +154,17 @@ export function useUploadImage() {
   });
 }
 
+/**
+ * Uploads a logo and returns it. Deliberately does not invalidate settings —
+ * the theme editor holds the result in its unsaved form state until Save.
+ */
+export function useUploadLogo() {
+  return useMutation({
+    mutationFn: ({ file, alt }: { file: File; alt: string }) =>
+      csrfUpload<Image>("/admin/settings/logo", file, { alt }),
+  });
+}
+
 export function useDeleteImage() {
   const invalidate = useInvalidate();
 

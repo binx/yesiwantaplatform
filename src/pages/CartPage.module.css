@@ -99,7 +99,7 @@
 
 .shipToLabel {
   font-size: 0.8125rem;
-  color: #52525b;
+  color: var(--beluga-muted);
 }
 
 .shipToSelect {
@@ -135,5 +135,5 @@
 }
 
 .ratePrice {
-  color: #52525b;
+  color: var(--beluga-muted);
 }

@@ -22,11 +22,21 @@
   color: #71717a;
 }
 
+/*
+ * Paints the theme being edited, not the admin's own.
+ *
+ * ThemeEditor sets the --beluga-* variables inline on this element, so the real
+ * ProductCard inside it renders against the unsaved values. Nothing is
+ * clickable: the card is a router Link, and a preview should not navigate the
+ * admin away from the form.
+ */
 .previewSurface {
   padding: 1rem;
-  border: 1px solid #e4e4e7;
+  border: 1px solid var(--beluga-line);
   border-radius: 4px;
-  background: #fff;
+  background: var(--beluga-page);
+  color: var(--beluga-ink);
+  pointer-events: none;
 }
 
 .previewStore {
@@ -38,22 +48,14 @@
   white-space: nowrap;
 }
 
-.previewImage {
-  aspect-ratio: 4 / 3;
-  opacity: 0.85;
+.previewLogo {
+  max-height: 2rem;
+  width: auto;
+  margin-bottom: 0.75rem;
 }
 
-.previewProduct {
-  margin: 0 0 0.25rem;
-  font-weight: 500;
-}
-
-.previewPrice {
-  margin: 0 0 0.75rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #52525b;
+.previewAction {
+  margin-top: 0.75rem;
 }
 
 @media (max-width: 900px) {

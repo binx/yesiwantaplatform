@@ -45,6 +45,13 @@ export const storeSettings = pgTable("store_settings", {
   themeColorAccent: text("theme_color_accent").notNull().default("#e07a5f"),
   themeFontFamily: text("theme_font_family").notNull().default("system-ui, sans-serif"),
   themeBorderRadius: integer("theme_border_radius").notNull().default(2),
+  themeColorScheme: text("theme_color_scheme").notNull().default("light"),
+  /** Null means "follow the scheme". */
+  themeColorPage: text("theme_color_page"),
+  themeLogoPath: text("theme_logo_path"),
+  themeLogoWidth: integer("theme_logo_width"),
+  themeLogoHeight: integer("theme_logo_height"),
+  themeLogoAlt: text("theme_logo_alt"),
   ...timestamps,
 });
 

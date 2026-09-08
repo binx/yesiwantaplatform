@@ -3,7 +3,7 @@
   width: 100%;
   height: auto;
   object-fit: cover;
-  background: #ededeb;
+  background: var(--beluga-line);
 }
 
 .placeholder {

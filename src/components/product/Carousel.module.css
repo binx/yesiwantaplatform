@@ -12,7 +12,7 @@
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
-  background: #ededeb;
+  background: var(--beluga-line);
 }
 
 .track::-webkit-scrollbar {
@@ -34,7 +34,8 @@
   height: 2.5rem;
   border: none;
   border-radius: 50%;
-  background: rgb(255 255 255 / 0.9);
+  /* Was a literal white; on a dark storefront that was a white puck. */
+  background: color-mix(in srgb, var(--beluga-surface) 90%, transparent);
   color: var(--beluga-ink);
   cursor: pointer;
   opacity: 0;
@@ -77,6 +78,7 @@
   flex: 0 0 4.5rem;
   padding: 0;
   border: 1px solid transparent;
+  border-radius: var(--beluga-radius);
   background: none;
   cursor: pointer;
   opacity: 0.55;
@@ -94,7 +96,7 @@
 }
 
 .thumbActive {
-  border-color: var(--beluga-ink);
+  border-color: var(--beluga-primary);
   opacity: 1;
 }
 

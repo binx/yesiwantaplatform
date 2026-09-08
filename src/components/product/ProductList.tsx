@@ -1,8 +1,7 @@
-import { Link } from "react-router-dom";
 import type { Product } from "@shared/schema";
 import { getProductPrices, isSoldOut } from "@shared/catalog";
 import { formatPriceRange } from "@shared/money";
-import { ProductImage } from "@/components/ui/ProductImage";
+import { ProductCard } from "./ProductCard";
 import styles from "./ProductList.module.css";
 
 interface ProductListProps {
@@ -25,22 +24,15 @@ export function ProductList({ products, collection, currency = "USD" }: ProductL
 
         return (
           <li key={product.id}>
-            <Link
-              to={`/product/${product.slug}`}
-              state={collection ? { collection } : null}
-              className={styles.card}
-            >
-              <div className={styles.frame}>
-                <ProductImage
-                  image={product.images[0] ?? null}
-                  ratio={3 / 4}
-                  sizes="(max-width: 650px) 100vw, (max-width: 1100px) 50vw, 33vw"
-                />
-                {soldOut && <span className={styles.badge}>Sold out</span>}
-              </div>
-              <span className={styles.name}>{product.name}</span>
-              {price && <span className={styles.price}>{price}</span>}
-            </Link>
+            <ProductCard
+              href={`/product/${product.slug}`}
+              name={product.name}
+              price={price}
+              soldOut={soldOut}
+              image={product.images[0] ?? null}
+              sizes="(max-width: 650px) 100vw, (max-width: 1100px) 50vw, 33vw"
+              collection={collection}
+            />
           </li>
         );
       })}

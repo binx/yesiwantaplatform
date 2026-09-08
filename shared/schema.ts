@@ -203,12 +203,32 @@ export const pageDraftSchema = pageSummarySchema.extend({
   isLive: z.boolean().default(false),
 });
 
+export const colorSchemeSchema = z.enum(["light", "dark"]);
+
 export const themeSchema = z.object({
   colorPrimary: z.string(),
   colorAccent: z.string(),
   fontFamily: z.string(),
-  /** Corner radius in px; 0 reads as a harder, more editorial look. */
-  borderRadius: z.number().int().min(0).max(24),
+  /**
+   * Corner radius in px. Capped at 4: past that the storefront stops reading as
+   * a shop and starts reading as a dashboard, and the range 4–24 was almost
+   * entirely occupied by looks no shop wanted.
+   */
+  borderRadius: z.number().int().min(0).max(4),
+  /**
+   * Which base palette the storefront is built on. The shop picks one and every
+   * shopper gets it — there is no per-viewer toggle, so a shop's look is the
+   * same in every screenshot anyone takes of it.
+   */
+  colorScheme: colorSchemeSchema.default("light"),
+  /**
+   * Page background. Null means "whatever the scheme says", which is the useful
+   * default: a shop switching to dark should not have to also remember to
+   * change its background out of near-white.
+   */
+  colorPage: z.string().nullable().default(null),
+  /** Replaces the store-name wordmark in the banner when set. */
+  logo: imageSchema.nullable().default(null),
 });
 
 export const storeSchema = z.object({
@@ -264,6 +284,9 @@ export const defaultTheme: Theme = {
   fontFamily:
     '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif',
   borderRadius: 2,
+  colorScheme: "light",
+  colorPage: null,
+  logo: null,
 };
 
 /** Featured products are a normal collection at this reserved slug. */
@@ -281,5 +304,6 @@ export type PageSummary = z.infer<typeof pageSummarySchema>;
 export type Page = z.infer<typeof pageSchema>;
 export type PageDraft = z.infer<typeof pageDraftSchema>;
 export type Theme = z.infer<typeof themeSchema>;
+export type ColorScheme = z.infer<typeof colorSchemeSchema>;
 export type TaxBehavior = z.infer<typeof taxBehaviorSchema>;
 export type Store = z.infer<typeof storeSchema>;

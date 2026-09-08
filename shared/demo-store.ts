@@ -20,6 +20,9 @@ export const demoStore: Store = {
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif',
     borderRadius: 2,
+    colorScheme: "light",
+    colorPage: null,
+    logo: null,
   },
   // Prices are quoted without tax, which is the default a US-shaped demo
   // wants; a store that quotes VAT-inclusive prices changes it in Settings.

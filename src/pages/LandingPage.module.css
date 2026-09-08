@@ -3,7 +3,16 @@
   place-items: center;
   min-height: min(60vh, 30rem);
   padding: 4rem var(--beluga-gutter);
-  background: linear-gradient(160deg, #f3f1ee 0%, #e7e3dd 100%);
+  /*
+   * Was a literal beige gradient, which stayed beige on a dark storefront and
+   * put a bright band across the top of the page. Tinting the store's own
+   * surface with its accent keeps the warmth and follows the theme.
+   */
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--beluga-accent) 6%, var(--beluga-surface)) 0%,
+    color-mix(in srgb, var(--beluga-accent) 14%, var(--beluga-surface)) 100%
+  );
   border-bottom: 1px solid var(--beluga-line);
 }
 
@@ -20,7 +29,7 @@
 .heroText {
   margin: 0 auto 1.75rem;
   max-width: 34rem;
-  color: #52525b;
+  color: var(--beluga-muted);
 }
 
 .section {
@@ -73,7 +82,7 @@
 }
 
 .collectionCard:hover {
-  border-color: var(--beluga-ink);
+  border-color: var(--beluga-primary);
 }
 
 .collectionName {

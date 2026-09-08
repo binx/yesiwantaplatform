@@ -1,6 +1,6 @@
 .lede {
   font-size: 1.0625rem;
-  color: #3f3f46;
+  color: var(--beluga-muted);
 }
 
 .pending {

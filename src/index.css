@@ -6,15 +6,36 @@
  * focus and error states. Neither is reproduced here.
  */
 
+/*
+ * Every --beluga-* colour below is a FIRST-PAINT FALLBACK ONLY.
+ *
+ * The real values are injected onto :root by ThemeVars from the store's saved
+ * theme — see `schemePalette` and `themeCssVars` in src/lib/theme.ts, which are
+ * the source of truth for both schemes. Duplicating the dark palette here would
+ * only give it somewhere to drift, so it lives in one place.
+ */
 :root {
+  color-scheme: light;
+
   --beluga-ink: #18181b;
   --beluga-muted: #71717a;
   --beluga-line: #e4e4e7;
   --beluga-surface: #ffffff;
   --beluga-page: #fafaf9;
 
+  --beluga-primary: #18181b;
+  --beluga-on-primary: #ffffff;
+  --beluga-accent: #e07a5f;
+  --beluga-on-accent: #18181b;
+  --beluga-radius: 2px;
+
   --beluga-gutter: clamp(1rem, 4vw, 2.5rem);
   --beluga-measure: 68ch;
+}
+
+/* Native form controls and scrollbars follow the shop's choice. */
+:root[data-color-scheme="dark"] {
+  color-scheme: dark;
 }
 
 *,
@@ -75,7 +96,7 @@ a {
 }
 
 :focus-visible {
-  outline: 2px solid var(--beluga-ink);
+  outline: 2px solid var(--beluga-primary);
   outline-offset: 2px;
 }
 
@@ -104,14 +125,18 @@ a {
   border: 0;
 }
 
+/* Surface-on-ink rather than white-on-primary: a shop may pick a pale primary,
+   and a skip link is the one control that has to stay readable regardless. */
 .skip-link {
   position: absolute;
   left: 0.5rem;
   top: -3rem;
   z-index: 100;
   padding: 0.5rem 1rem;
-  background: var(--beluga-ink);
-  color: #fff;
+  border: 2px solid var(--beluga-primary);
+  border-radius: var(--beluga-radius);
+  background: var(--beluga-surface);
+  color: var(--beluga-ink);
   text-decoration: none;
   transition: top 0.15s;
 }

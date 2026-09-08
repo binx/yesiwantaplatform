@@ -15,6 +15,13 @@
   text-decoration: none;
 }
 
+/* Height-bounded so the banner keeps its shape whatever the shop uploads. */
+.logo {
+  display: block;
+  max-height: 2rem;
+  width: auto;
+}
+
 .desktopNav {
   display: flex;
   gap: 1.75rem;
@@ -36,7 +43,9 @@
 
 .active {
   color: var(--beluga-ink);
-  border-bottom-color: var(--beluga-ink);
+  /* The underline is the selection marker, so it follows the store's colour;
+     the label stays ink so it is readable whatever that colour is. */
+  border-bottom-color: var(--beluga-primary);
 }
 
 .cart {

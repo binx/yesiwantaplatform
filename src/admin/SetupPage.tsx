@@ -62,6 +62,8 @@ interface WizardState {
   publishableKey: string;
   theme: Theme;
   seedDemo: boolean;
+  lockStorefront: boolean | null;
+  storefrontPassword: string;
 }
 
 // Adding a Stripe key means editing `.env` and restarting the API, which is
@@ -132,13 +134,38 @@ function SetupWizard() {
   const [publishableKey, setPublishableKey] = useState(saved?.publishableKey ?? "");
   const [theme, setTheme] = useState<Theme>(saved?.theme ?? defaultTheme);
   const [seedDemo, setSeedDemo] = useState(saved?.seedDemo ?? true);
+  const [lockStorefrontChoice, setLockStorefrontChoice] = useState<boolean | null>(
+    saved?.lockStorefront ?? null,
+  );
+  const [storefrontPassword, setStorefrontPassword] = useState(saved?.storefrontPassword ?? "");
 
   // Reported by the server, never editable here — see the note on the last step.
   const publicUrl = status.data?.publicUrl ?? null;
 
+  /*
+   * Default the answer to "lock it" once the public URL is known and is not
+   * localhost — see docs/tasks/27-storefront-preview-mode.md §1. A fresh
+   * public address is port-scanned within minutes, and this is precisely the
+   * case where the store is reachable before it is finished. Only sets the
+   * default the first time; a choice already made (including by loading a
+   * saved wizard session) is never overwritten.
+   */
   useEffect(() => {
-    saveWizardState({ step, identity, publishableKey, theme, seedDemo });
-  }, [step, identity, publishableKey, theme, seedDemo]);
+    if (lockStorefrontChoice !== null || !publicUrl) return;
+    setLockStorefrontChoice(!isLocalOrigin(publicUrl));
+  }, [publicUrl, lockStorefrontChoice]);
+
+  useEffect(() => {
+    saveWizardState({
+      step,
+      identity,
+      publishableKey,
+      theme,
+      seedDemo,
+      lockStorefront: lockStorefrontChoice,
+      storefrontPassword,
+    });
+  }, [step, identity, publishableKey, theme, seedDemo, lockStorefrontChoice, storefrontPassword]);
 
   useEffect(() => {
     document.title = "Set up your store · Beluga";
@@ -202,6 +229,8 @@ function SetupWizard() {
     );
   }
 
+  const lockStorefront = Boolean(lockStorefrontChoice) && storefrontPassword.length >= 8;
+
   const finish = () => {
     if (!identity) return;
 
@@ -213,6 +242,8 @@ function SetupWizard() {
       stripePublishableKey: publishableKey.trim() || null,
       theme,
       seedDemo,
+      lockStorefront,
+      ...(lockStorefront ? { storefrontPassword } : {}),
       ...(identity.setupToken?.trim() ? { setupToken: identity.setupToken.trim() } : {}),
     });
   };
@@ -284,6 +315,39 @@ function SetupWizard() {
             </Checkbox>
 
             {/*
+             * See docs/tasks/27-storefront-preview-mode.md §1. The default is
+             * computed once the public URL is known, above — not repeated
+             * here, so this checkbox is never fighting a re-render of its own
+             * default.
+             */}
+            <Checkbox
+              className={cx(styles.seed)}
+              checked={lockStorefrontChoice ?? false}
+              onChange={(event) => setLockStorefrontChoice(event.target.checked)}
+            >
+              Put a password on the storefront until I am ready to open it
+            </Checkbox>
+
+            {lockStorefrontChoice ? (
+              <Form layout="vertical" requiredMark={false}>
+                <Form.Item
+                  label="Storefront password"
+                  help="At least 8 characters. Give it to anyone who should be able to preview the store before it opens."
+                  validateStatus={
+                    storefrontPassword.length > 0 && storefrontPassword.length < 8 ? "error" : ""
+                  }
+                >
+                  <Input.Password
+                    value={storefrontPassword}
+                    onChange={(event) => setStorefrontPassword(event.target.value)}
+                    autoComplete="new-password"
+                    size="large"
+                  />
+                </Form.Item>
+              </Form>
+            ) : null}
+
+            {/*
               * Said, not fixed.
               *
               * This wizard writes no `.env` — the server reads PUBLIC_URL
@@ -314,7 +378,12 @@ function SetupWizard() {
               <Button onClick={() => setStep(1)} disabled={submit.isPending}>
                 Back
               </Button>
-              <Button type="primary" onClick={finish} loading={submit.isPending}>
+              <Button
+                type="primary"
+                onClick={finish}
+                loading={submit.isPending}
+                disabled={Boolean(lockStorefrontChoice) && storefrontPassword.length < 8}
+              >
                 Create my store
               </Button>
             </div>

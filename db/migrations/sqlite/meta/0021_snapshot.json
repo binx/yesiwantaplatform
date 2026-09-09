@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "25517906-6584-4587-9167-931b455e8d8d",
-  "prevId": "19b04778-2994-48a9-b7bf-8d6ec38061e8",
+  "id": "f62934b1-47a1-4f81-ac55-542e494d82b8",
+  "prevId": "25517906-6584-4587-9167-931b455e8d8d",
   "tables": {
     "admin_invites": {
       "name": "admin_invites",
@@ -801,6 +801,13 @@
           "autoincrement": false,
           "default": "''"
         },
+        "sku": {
+          "name": "sku",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "unit_price_cents": {
           "name": "unit_price_cents",
           "type": "integer",
@@ -1253,6 +1260,13 @@
           "autoincrement": false,
           "default": "''"
         },
+        "variant_id": {
+          "name": "variant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "position": {
           "name": "position",
           "type": "integer",
@@ -1283,6 +1297,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "product_images_variant_id_variants_id_fk": {
+          "name": "product_images_variant_id_variants_id_fk",
+          "tableFrom": "product_images",
+          "tableTo": "variants",
+          "columnsFrom": [
+            "variant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -2158,6 +2185,20 @@
           "notNull": true,
           "autoincrement": false
         },
+        "sku": {
+          "name": "sku",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "compare_at_price_cents": {
+          "name": "compare_at_price_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "inventory_type": {
           "name": "inventory_type",
           "type": "text",
@@ -2221,6 +2262,14 @@
             "product_id"
           ],
           "isUnique": false
+        },
+        "variants_sku_idx": {
+          "name": "variants_sku_idx",
+          "columns": [
+            "sku"
+          ],
+          "isUnique": true,
+          "where": "\"variants\".\"sku\" is not null"
         }
       },
       "foreignKeys": {

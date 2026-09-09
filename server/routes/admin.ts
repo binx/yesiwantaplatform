@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { Router, type Request } from "express";
 import { ZodError } from "zod";
 import {
@@ -14,8 +15,11 @@ import {
   passwordChangeInputSchema,
   settingsInputSchema,
   shippingTableInputSchema,
+  storefrontAccessInputSchema,
+  storefrontPasswordInputSchema,
   type EmailTestResult,
   type EnvironmentStatus,
+  type StorefrontStatus,
 } from "../../shared/api.js";
 import { webhookEndpointInputSchema } from "../../shared/webhooks.js";
 import {
@@ -40,11 +44,17 @@ import {
   updateProduct,
   updateProductImage,
   updateSettings,
+  clearStorefrontPassword,
+  clearStorefrontShareToken,
+  setStorefrontAccess,
+  setStorefrontPassword,
+  setStorefrontShareToken,
 } from "../../db/admin-repository.js";
 import {
   findProductBySlug,
   findProductsBySlugs,
   getSettings,
+  getStorefrontState,
   listProducts,
 } from "../../db/repository.js";
 import {
@@ -132,6 +142,8 @@ import {
   emailIsTaken,
   destroySessionsForUser,
   findAdminById,
+  hashPassword,
+  hashToken,
   listAdmins,
   listPendingInvites,
   revokeInvite,
@@ -805,6 +817,88 @@ adminRouter.post("/settings/hero-image", (req, res, next) => {
       }
     })();
   });
+});
+
+/* -------------------------------------------------------- storefront access */
+
+/**
+ * Who may view the storefront — see docs/tasks/27-storefront-preview-mode.md.
+ *
+ * Dedicated routes rather than fields on `settingsInputSchema`: that schema is
+ * a full-object PUT with a `.default()` on nearly every field, so a secret
+ * living there would be cleared by any client that omitted it.
+ */
+adminRouter.get("/storefront", async (_req, res) => {
+  const state = await getStorefrontState();
+
+  res.json({
+    access: state?.access ?? "public",
+    hasPassword: Boolean(state?.passwordHash),
+    hasShareLink: Boolean(state?.shareTokenHash),
+    // Approximate — see the note on the schema. Only meaningful while a link
+    // actually exists.
+    shareLinkCreatedAt: state?.shareTokenHash ? state.updatedAt : null,
+  } satisfies StorefrontStatus);
+});
+
+/** The access mode alone. The password has its own routes below. */
+adminRouter.put("/storefront", async (req, res) => {
+  let input;
+  try {
+    input = storefrontAccessInputSchema.parse(req.body);
+  } catch (error) {
+    toHttp(error);
+  }
+
+  if (input.access === "password") {
+    const state = await getStorefrontState();
+    if (!state?.passwordHash) {
+      throw httpError(409, "Set a password before requiring one.");
+    }
+  }
+
+  await setStorefrontAccess(input.access);
+  res.status(204).end();
+});
+
+/** Set or change the password. Ends every existing viewer session. */
+adminRouter.put("/storefront/password", async (req, res) => {
+  let input;
+  try {
+    input = storefrontPasswordInputSchema.parse(req.body);
+  } catch (error) {
+    toHttp(error);
+  }
+
+  await setStorefrontPassword(await hashPassword(input.password));
+  res.status(204).end();
+});
+
+/**
+ * Clear the password. Falls back to public access — access: "password" with
+ * no password set is not a lockout, but it is a state that means nothing.
+ */
+adminRouter.delete("/storefront/password", async (_req, res) => {
+  await clearStorefrontPassword();
+  res.status(204).end();
+});
+
+/**
+ * Mint a share link, returning the full URL exactly once — the same handling
+ * as the webhook signing secret from task 14, for the same reason. Minting a
+ * new one replaces the old, so there is only ever one live link.
+ */
+adminRouter.post("/storefront/share-link", async (_req, res) => {
+  const token = randomBytes(32).toString("base64url");
+  await setStorefrontShareToken(hashToken(token));
+
+  const url = new URL(`/?preview=${token}`, env.PUBLIC_URL).toString();
+  res.status(201).json({ url });
+});
+
+adminRouter.delete("/storefront/share-link", async (_req, res) => {
+  await clearStorefrontShareToken();
+  res.status(204).end();
 });
 
 /* ---------------------------------------------------------------- shipping */

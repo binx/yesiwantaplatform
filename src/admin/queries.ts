@@ -11,6 +11,8 @@ import type {
   AdminSummary,
   InviteInput,
   PasswordChangeInput,
+  StorefrontAccessInput,
+  StorefrontStatus,
 } from "@shared/api";
 import type { ShippingRate, ShippingZone } from "@shared/shipping";
 import type {
@@ -38,6 +40,7 @@ export const adminKeys = {
   pages: ["admin", "pages"] as const,
   settings: ["admin", "settings"] as const,
   environment: ["admin", "environment"] as const,
+  storefront: ["admin", "storefront"] as const,
   shipping: ["admin", "shipping"] as const,
   users: ["admin", "users"] as const,
   webhooks: ["admin", "webhooks"] as const,
@@ -449,6 +452,71 @@ export function useEnvironment() {
 export function useSendTestEmail() {
   return useMutation({
     mutationFn: () => csrfPost<EmailTestResult>("/admin/email/test", {}),
+  });
+}
+
+/* -------------------------------------------------------- storefront access */
+
+export function useStorefrontStatus() {
+  return useQuery({
+    queryKey: adminKeys.storefront,
+    queryFn: ({ signal }) => apiGet<StorefrontStatus>("/admin/storefront", signal),
+  });
+}
+
+export function useUpdateStorefrontAccess() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: StorefrontAccessInput) => csrfPut<void>("/admin/storefront", input),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminKeys.storefront });
+    },
+  });
+}
+
+export function useSetStorefrontPassword() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (password: string) => csrfPut<void>("/admin/storefront/password", { password }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminKeys.storefront });
+    },
+  });
+}
+
+export function useClearStorefrontPassword() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => csrfDelete<void>("/admin/storefront/password"),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminKeys.storefront });
+    },
+  });
+}
+
+/** The full URL comes back exactly once, on creation — see the route. */
+export function useCreateShareLink() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => csrfPost<{ url: string }>("/admin/storefront/share-link", {}),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminKeys.storefront });
+    },
+  });
+}
+
+export function useRevokeShareLink() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => csrfDelete<void>("/admin/storefront/share-link"),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminKeys.storefront });
+    },
   });
 }
 

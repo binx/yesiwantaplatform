@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, inArray, isNull, max, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, max, ne, sql } from "drizzle-orm";
 import type { CollectionInput, ProductInput, SettingsInput } from "../shared/api.js";
 import { collectionDraftSchema, type CollectionDraft, type ProductKind } from "../shared/schema.js";
 import { regenerateLabel } from "../shared/product-options.js";
@@ -653,6 +653,100 @@ export async function updateSettings(input: SettingsInput): Promise<void> {
   } else {
     await db.update(schema.storeSettings).set(values).where(eq(schema.storeSettings.id, 1));
   }
+}
+
+/* ------------------------------------------------------- storefront access */
+
+/**
+ * Storefront visibility — see docs/tasks/27-storefront-preview-mode.md.
+ *
+ * Deliberately its own group of functions rather than fields on
+ * `updateSettings`: that route accepts a full-object PUT with a `.default()`
+ * on nearly every field, so a secret living there would be cleared by any
+ * client that omitted it. Every write here also creates the settings row if
+ * `updateSettings` has never run — first-run setup can lock a store before
+ * it has saved anything else.
+ */
+
+async function ensureSettingsRow(): Promise<void> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const existing = (await db
+    .select({ id: schema.storeSettings.id })
+    .from(schema.storeSettings)
+    .limit(1)) as unknown as { id: number }[];
+
+  if (existing.length === 0) await db.insert(schema.storeSettings).values({ id: 1 });
+}
+
+/** The access mode alone. Refusing "password" with no hash set is the
+ * route's job, not this function's — it only ever writes what it is given. */
+export async function setStorefrontAccess(access: "public" | "password"): Promise<void> {
+  await ensureSettingsRow();
+  const { drizzle: db, schema } = await getDatabase();
+  await db.update(schema.storeSettings).set({ storefrontAccess: access }).where(eq(schema.storeSettings.id, 1));
+}
+
+/** Set or change the password. Bumps the version, so every existing viewer
+ * session is out on its next request. */
+export async function setStorefrontPassword(passwordHash: string): Promise<void> {
+  await ensureSettingsRow();
+  const { drizzle: db, schema } = await getDatabase();
+
+  await db
+    .update(schema.storeSettings)
+    .set({
+      storefrontPasswordHash: passwordHash,
+      storefrontAccessVersion: sql`${schema.storeSettings.storefrontAccessVersion} + 1`,
+    })
+    .where(eq(schema.storeSettings.id, 1));
+}
+
+/**
+ * Clear the password and fall back to public.
+ *
+ * Leaving `access` at "password" with no hash would be a state that means
+ * nothing — nobody could ever satisfy it, not even by guessing — so this
+ * resets access rather than leaving that behind for something else to notice.
+ */
+export async function clearStorefrontPassword(): Promise<void> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  await db
+    .update(schema.storeSettings)
+    .set({
+      storefrontAccess: "public",
+      storefrontPasswordHash: null,
+      storefrontAccessVersion: sql`${schema.storeSettings.storefrontAccessVersion} + 1`,
+    })
+    .where(eq(schema.storeSettings.id, 1));
+}
+
+/** Mint (or replace) the share link's token. Bumps the version like a
+ * password change — a stale link should not go on working past a fresh one. */
+export async function setStorefrontShareToken(tokenHash: string): Promise<void> {
+  await ensureSettingsRow();
+  const { drizzle: db, schema } = await getDatabase();
+
+  await db
+    .update(schema.storeSettings)
+    .set({
+      storefrontShareToken: tokenHash,
+      storefrontAccessVersion: sql`${schema.storeSettings.storefrontAccessVersion} + 1`,
+    })
+    .where(eq(schema.storeSettings.id, 1));
+}
+
+export async function clearStorefrontShareToken(): Promise<void> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  await db
+    .update(schema.storeSettings)
+    .set({
+      storefrontShareToken: null,
+      storefrontAccessVersion: sql`${schema.storeSettings.storefrontAccessVersion} + 1`,
+    })
+    .where(eq(schema.storeSettings.id, 1));
 }
 
 export interface AdminProductSummary {

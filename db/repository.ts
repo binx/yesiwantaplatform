@@ -658,6 +658,60 @@ export async function getStoreSnapshot(): Promise<Store | null> {
   });
 }
 
+export interface StorefrontState {
+  access: "public" | "password";
+  passwordHash: string | null;
+  shareTokenHash: string | null;
+  accessVersion: number;
+  /** The whole row's own timestamp — see the note on `shareLinkCreatedAt`. */
+  updatedAt: number;
+}
+
+/**
+ * Who may view the storefront right now, and what proves it.
+ *
+ * A narrow select rather than `getSettings()`: this runs on the gate
+ * middleware for every storefront request, and there is no reason to hydrate
+ * the theme and the hero block just to read four columns. `null` means no
+ * settings row exists yet, which the gate treats as public — a store that has
+ * not been set up has nothing to protect.
+ */
+export async function getStorefrontState(): Promise<StorefrontState | null> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const rows = (await db
+    .select({
+      access: schema.storeSettings.storefrontAccess,
+      passwordHash: schema.storeSettings.storefrontPasswordHash,
+      shareTokenHash: schema.storeSettings.storefrontShareToken,
+      accessVersion: schema.storeSettings.storefrontAccessVersion,
+      updatedAt: schema.storeSettings.updatedAt,
+    })
+    .from(schema.storeSettings)
+    .limit(1)) as unknown as {
+    access: string;
+    passwordHash: string | null;
+    shareTokenHash: string | null;
+    accessVersion: number;
+    updatedAt: unknown;
+  }[];
+
+  const row = rows[0];
+  if (!row) return null;
+
+  return {
+    // Cast rather than parsed with a schema: an unrecognised value must fail
+    // closed to "password", never to "public" — the opposite of every other
+    // `.catch()` fallback in this file, because this one guards a security
+    // gate rather than a cosmetic default.
+    access: row.access === "public" ? "public" : "password",
+    passwordHash: row.passwordHash,
+    shareTokenHash: row.shareTokenHash,
+    accessVersion: row.accessVersion,
+    updatedAt: toEpochMs(row.updatedAt),
+  };
+}
+
 /** True once the setup wizard has written settings and an admin user. */
 export async function isConfigured(): Promise<boolean> {
   const { drizzle: db, schema } = await getDatabase();

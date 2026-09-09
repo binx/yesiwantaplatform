@@ -492,7 +492,7 @@ function adoptVariantIds(
       .map((variant) => [variant.sku, variant.id]),
   );
   const byCombination = new Map(
-    existing.variants.map((variant) => [variant.optionValues.join(" "), variant.id]),
+    existing.variants.map((variant) => [variant.optionValues.join("\x1f"), variant.id]),
   );
 
   return variants.map((variant) => {
@@ -503,7 +503,7 @@ function adoptVariantIds(
       (variant.sku !== null ? bySku.get(variant.sku) : undefined) ??
       (existing.options.length === 0 && variants.length === 1
         ? existing.variants[0]?.id
-        : byCombination.get(variant.optionValues.join(" ")));
+        : byCombination.get(variant.optionValues.join("\x1f")));
 
     return id ? { ...variant, id } : variant;
   });
@@ -720,7 +720,7 @@ export function buildImportPlan(options: {
           const duplicateRow =
             rows[
               parsed.data.variants.findLastIndex(
-                (variant) => variant.optionValues.join(" ") === duplicate.join(" "),
+                (variant) => variant.optionValues.join("\x1f") === duplicate.join("\x1f"),
               )
             ];
 

@@ -13,6 +13,7 @@ import {
   skuSchema,
   slugSchema,
   storeSchema,
+  storefrontAccessSchema,
   taxBehaviorSchema,
   taxCodeSchema,
   themeSchema,
@@ -240,11 +241,29 @@ export const setupInputSchema = z.object({
   /** Load the demo catalogue so the storefront has something to render. */
   seedDemo: z.boolean().default(false),
   /**
+   * Put a password on the storefront until the merchant is ready to open it —
+   * see docs/tasks/27-storefront-preview-mode.md. Off by default; the wizard
+   * defaults the *answer* to true when the public URL just given is not
+   * localhost, but that is a UI default, not a schema one.
+   */
+  lockStorefront: z.boolean().default(false),
+  /** Required when `lockStorefront` is true; ignored otherwise. */
+  storefrontPassword: z.string().max(400).optional(),
+  /**
    * The token the server printed at boot, required whenever `GET /setup`
    * reports `requiresToken`. See `activeSetupToken` in server/routes/setup.ts.
    */
   setupToken: z.string().max(200).optional(),
-});
+})
+  .superRefine((input, ctx) => {
+    if (input.lockStorefront && (input.storefrontPassword ?? "").length < 8) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["storefrontPassword"],
+        message: "Use at least 8 characters.",
+      });
+    }
+  });
 
 /**
  * What the setup wizard is allowed to know before anyone has authenticated.
@@ -287,6 +306,44 @@ export const environmentStatusSchema = z.object({
    */
   production: z.boolean(),
 });
+
+/**
+ * Who may view the storefront right now, as the admin is allowed to see it.
+ *
+ * No secret ever appears here: not the password, not the share token. A
+ * share link is returned once, by the route that mints it, and never again.
+ */
+export const storefrontStatusSchema = z.object({
+  access: storefrontAccessSchema,
+  hasPassword: z.boolean(),
+  hasShareLink: z.boolean(),
+  /**
+   * Approximate: there is no dedicated column for this, so it is the store
+   * settings row's own `updatedAt` at the moment a share link exists. Good
+   * enough for "roughly when", which is all the admin UI uses it for.
+   */
+  shareLinkCreatedAt: z.number().nullable(),
+});
+
+/** `PUT /api/admin/storefront` — the access mode alone; the password has its
+ * own routes below, so a form that omits it cannot blank a working password. */
+export const storefrontAccessInputSchema = z.object({
+  access: storefrontAccessSchema,
+});
+
+export const storefrontPasswordInputSchema = z.object({
+  password: z.string().min(8, "Use at least 8 characters.").max(400),
+});
+
+/** What a visitor posts to get past the gate — one or the other, never both required. */
+export const storefrontUnlockInputSchema = z
+  .object({
+    password: z.string().min(1).max(400).optional(),
+    token: z.string().min(1).max(200).optional(),
+  })
+  .refine((input) => Boolean(input.password) || Boolean(input.token), {
+    message: "A password or a link is required.",
+  });
 
 /**
  * What the "send a test email" button gets back.
@@ -405,6 +462,10 @@ export type ShippingQuoteInput = z.infer<typeof shippingQuoteInputSchema>;
 export type SetupInput = z.infer<typeof setupInputSchema>;
 export type SetupStatus = z.infer<typeof setupStatusSchema>;
 export type EnvironmentStatus = z.infer<typeof environmentStatusSchema>;
+export type StorefrontStatus = z.infer<typeof storefrontStatusSchema>;
+export type StorefrontAccessInput = z.infer<typeof storefrontAccessInputSchema>;
+export type StorefrontPasswordInput = z.infer<typeof storefrontPasswordInputSchema>;
+export type StorefrontUnlockInput = z.infer<typeof storefrontUnlockInputSchema>;
 export type EmailTestResult = z.infer<typeof emailTestResultSchema>;
 export type ProductQuery = z.infer<typeof productQuerySchema>;
 export type SessionResponse = z.infer<typeof sessionResponseSchema>;

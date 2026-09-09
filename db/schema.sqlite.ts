@@ -93,8 +93,29 @@ export const storeSettings = sqliteTable("store_settings", {
   heroImageWidth: integer("hero_image_width"),
   heroImageHeight: integer("hero_image_height"),
   heroImageAlt: text("hero_image_alt"),
+  /*
+   * Who may view the storefront while it is being built — see
+   * docs/tasks/27-storefront-preview-mode.md. Not a test/live switch: the
+   * Stripe secret key is already that (sk_test_ vs sk_live_). This is the one
+   * thing the key cannot express — who is allowed to look.
+   *
+   * The default is "public", and that is load-bearing: every store that
+   * already exists must come through this migration behaving exactly as open
+   * as it was before the column existed.
+   */
+  storefrontAccess: text("storefront_access").notNull().default("public"),
+  /** argon2id, via server/auth.ts. Null while no password has ever been set. */
+  storefrontPasswordHash: text("storefront_password_hash"),
+  /** The reviewer's credential — a share link's token, hashed like any other. */
+  storefrontShareToken: text("storefront_share_token"),
+  /**
+   * Bumped whenever the password is set, cleared, or the share token is
+   * rotated. A session's grant is only honoured while it matches this value,
+   * which is what makes revocation real against a 24-hour rolling cookie.
+   */
+  storefrontAccessVersion: integer("storefront_access_version").notNull().default(0),
   ...timestamps,
-});
+}, (t) => [uniqueIndex("store_settings_share_token_idx").on(t.storefrontShareToken)]);
 
 export const adminUsers = sqliteTable("admin_users", {
   id: text("id").primaryKey(),

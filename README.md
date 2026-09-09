@@ -113,6 +113,10 @@ under `data/` and uploaded imagery, which is written to `ASSETS_DIR`
 (`public/assets` by default). On a platform with an ephemeral filesystem, mount
 a volume and point both there.
 
+Forking this to build your own store? [`docs/building-on-beluga.md`](docs/building-on-beluga.md)
+maps which files are cosmetic, which are a documented seam, and which hold a
+rule that breaks silently when edited like the first kind.
+
 `shared/schema.ts` is the contract between the storefront and its data, validated on both sides of the wire. Swapping Phase 1's fixture for the Phase 2 database changed exactly one client file, `src/lib/store-source.ts` — set `VITE_BELUGA_API=false` to render the fixture again without a database.
 
 ### The admin
@@ -422,6 +426,66 @@ historic orders keep resolving against the archived ones. Nothing republishes
 itself: writing to a live Stripe account is always something the merchant asks
 for, which is the whole point of the publish gate. The overview lists the
 products that are out of date and links to each one.
+
+### Storefront visibility
+
+A deploy is not the same as a launch. Between the two, Stripe gets connected,
+SMTP gets a real sender, shipping zones get argued about — all of which need a
+*deployed* store, since webhooks cannot reach localhost — while the catalogue
+is still three placeholder products and the checkout is a test key. Settings →
+Visibility puts a password on the storefront for exactly that stretch:
+`public` or `password`, stored on `store_settings` and defaulting to
+`public` so every store that already exists comes through the migration
+exactly as open as it was before the column existed.
+
+This is deliberately not a second test/live switch. Beluga already has one —
+the Stripe secret key, `sk_test_` or `sk_live_` — and a database-backed mode
+next to it would just be a second source of truth for the same question, with
+the interesting states being the contradictions (a store set "live" holding a
+test key) that mean nothing and that something would have to interpret. What
+the key cannot express is *who is allowed to look*, which is what this adds.
+
+The gate is positional, not an allow-list, in `server/app.ts`: the Stripe
+webhook, the health check, the admin sign-in and setup APIs, the crawler files
+and the built client bundle are mounted above `requireStorefrontAccess` and so
+are exempt by construction; the storefront API, checkout, shipping, cart and
+uploaded imagery are mounted below it and gated by the same construction. An
+administrator's own session always passes — `adminId` proves more than the
+storefront password does. Locked, `robots.txt` disallows everything with no
+`Sitemap:` line, `sitemap.xml` is 404, and an anonymous `GET /product/<slug>`
+carries no product name, price, image or JSON-LD in its `<head>`, because the
+production HTML handler skips `metaForPath` for that request entirely rather
+than trusting it to omit the sensitive fields.
+
+A shared password is a bad thing to send a client, so what gets sent is a link
+instead: `POST /api/admin/storefront/share-link` mints a token and returns the
+full URL exactly once, the same handling as the webhook signing secret. The
+client posts the token to `POST /api/storefront/unlock` and strips it from
+`location.search` immediately, which keeps it out of every access log between
+here and there. Changing the password or rotating the share link bumps
+`storefront_access_version`; a session's grant is only honoured while it
+matches that value, which is what makes revocation real against a 24-hour
+rolling cookie — every existing viewer is out on their next request, and the
+admin session is unaffected.
+
+Settings → Visibility also carries the checklist behind **Open the store**
+(`src/admin/goLive.ts`): Stripe connected, a live key, webhooks connected, the
+public URL not localhost, shipping rates that cover where the store ships, an
+email provider, and something live to buy. Nothing on it blocks the switch —
+a catalogue-only store with no Stripe at all is a legitimate thing to open —
+but flipping to public with rows still failing asks for confirmation first,
+naming only what is outstanding. The one state that gets more than a
+checklist row is **public and holding a test key**: checkout completes, the
+buyer sees a confirmation, the webhook records a paid order, and no money
+moved, so the Overview carries a persistent `error`-level notice until the key
+or the visibility changes.
+
+There is no launch wizard. Four of the seven things on the checklist are
+environment variables read once at boot, so a wizard step for any of them
+would have nothing to click — it would have to name the variable and then
+survive the restart that applies it, mid-flow, having lost its own state. The
+checklist reports live state instead of marching through it, which is the
+honest version of the same information.
 
 ### Storefront search
 

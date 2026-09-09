@@ -1,5 +1,5 @@
 {
-  "id": "adf2a14f-d040-4d1a-b87b-165e7c6c5b7c",
+  "id": "8bbb484f-7f42-4591-ae21-805936563919",
   "prevId": "de3184d2-d06a-4eab-99d8-f5c55eba5014",
   "version": "7",
   "dialect": "postgresql",
@@ -795,12 +795,6 @@
           "notNull": true,
           "default": "''"
         },
-        "sku": {
-          "name": "sku",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "unit_price_cents": {
           "name": "unit_price_cents",
           "type": "integer",
@@ -1281,12 +1275,6 @@
           "notNull": true,
           "default": "''"
         },
-        "variant_id": {
-          "name": "variant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "position": {
           "name": "position",
           "type": "integer",
@@ -1324,19 +1312,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "product_images_variant_id_variants_id_fk": {
-          "name": "product_images_variant_id_variants_id_fk",
-          "tableFrom": "product_images",
-          "tableTo": "variants",
-          "columnsFrom": [
-            "variant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -2044,6 +2019,32 @@
           "primaryKey": false,
           "notNull": false
         },
+        "storefront_access": {
+          "name": "storefront_access",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'public'"
+        },
+        "storefront_password_hash": {
+          "name": "storefront_password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "storefront_share_token": {
+          "name": "storefront_share_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "storefront_access_version": {
+          "name": "storefront_access_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -2059,7 +2060,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "store_settings_share_token_idx": {
+          "name": "store_settings_share_token_idx",
+          "columns": [
+            {
+              "expression": "storefront_share_token",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -2156,18 +2173,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "sku": {
-          "name": "sku",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "compare_at_price_cents": {
-          "name": "compare_at_price_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "inventory_type": {
           "name": "inventory_type",
           "type": "text",
@@ -2229,22 +2234,6 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "variants_sku_idx": {
-          "name": "variants_sku_idx",
-          "columns": [
-            {
-              "expression": "sku",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"variants\".\"sku\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}

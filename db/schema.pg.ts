@@ -80,8 +80,20 @@ export const storeSettings = pgTable("store_settings", {
   heroImageWidth: integer("hero_image_width"),
   heroImageHeight: integer("hero_image_height"),
   heroImageAlt: text("hero_image_alt"),
+  /**
+   * Who may view the storefront while it is being built. See the note in
+   * db/schema.sqlite.ts — this is not a second test/live switch, and the
+   * "public" default is load-bearing.
+   */
+  storefrontAccess: text("storefront_access").notNull().default("public"),
+  /** argon2id, via server/auth.ts. Null while no password has ever been set. */
+  storefrontPasswordHash: text("storefront_password_hash"),
+  /** The reviewer's credential — a share link's token, hashed like any other. */
+  storefrontShareToken: text("storefront_share_token"),
+  /** Bumped on password set/clear or share-token rotation. See db/schema.sqlite.ts. */
+  storefrontAccessVersion: integer("storefront_access_version").notNull().default(0),
   ...timestamps,
-});
+}, (t) => [uniqueIndex("store_settings_share_token_idx").on(t.storefrontShareToken)]);
 
 export const adminUsers = pgTable("admin_users", {
   id: text("id").primaryKey(),

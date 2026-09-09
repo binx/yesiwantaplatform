@@ -1,15 +1,15 @@
 ---
 task: "22"
 title: Web fonts that load, and a locale for the numbers
-status: in-progress
+status: done
 tier: 1
 size: M
 migration: two columns on store_settings
 blocked_by: []
 blocks: []
 touches: src/admin/ThemeEditor.tsx · server/middleware.ts · index.html · shared/money.ts · shared/schema.ts
-completed:
-shipped_in:
+completed: 2026-09-09
+shipped_in: 19
 summary: >-
   Settings offers a font stack, but the production CSP allows fonts and stylesheets from
   `'self'` only, so a Google Fonts link or a self-hosted `@font-face` fails silently and

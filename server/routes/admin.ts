@@ -14,6 +14,7 @@ import {
   passwordChangeInputSchema,
   settingsInputSchema,
   shippingTableInputSchema,
+  type EmailTestResult,
   type EnvironmentStatus,
 } from "../../shared/api.js";
 import { webhookEndpointInputSchema } from "../../shared/webhooks.js";
@@ -94,7 +95,13 @@ import {
   findDuplicateCombination,
   optionSelectionsAreWellFormed,
 } from "../../shared/product-options.js";
-import { httpError, requireAdmin, verifyCsrf, writeRateLimit } from "../middleware.js";
+import {
+  emailRateLimit,
+  httpError,
+  requireAdmin,
+  verifyCsrf,
+  writeRateLimit,
+} from "../middleware.js";
 import { env, hasStripe, isProduction, isSqlite } from "../env.js";
 import { deleteImageFile, storeImage, uploadMiddleware } from "../uploads.js";
 import { archiveProductInStripe, syncProductToStripe } from "../catalog-sync.js";
@@ -108,7 +115,12 @@ import {
   emitProductPublished,
   generateSigningSecret,
 } from "../webhooks.js";
-import { sendEmail, sendOrderEmail, templateForStatus } from "../email.js";
+import {
+  sendEmail,
+  sendEmailReportingFailure,
+  sendOrderEmail,
+  templateForStatus,
+} from "../email.js";
 import {
   EmailTakenError,
   countOwners,
@@ -174,6 +186,38 @@ adminRouter.get("/environment", (_req, res) => {
     publicUrl: env.PUBLIC_URL,
     production: isProduction,
   } satisfies EnvironmentStatus);
+});
+
+/**
+ * Send one test email to the signed-in administrator.
+ *
+ * `SMTP_URL` being set is not the same as email working, and every other send
+ * in this codebase swallows its failure by design, so a wrong port or a sender
+ * the provider will not accept stays invisible until a customer does not get a
+ * confirmation. This is the one path that reports the transport's own answer.
+ *
+ * The recipient is the session's administrator and nothing else. Taking a `to`
+ * from the body would turn an admin session into a way to send mail to
+ * strangers over the merchant's own SMTP reputation — which is what
+ * `emailRateLimit` exists to bound elsewhere, and it applies here too, because
+ * this is a send.
+ */
+adminRouter.post("/email/test", emailRateLimit, async (req, res) => {
+  const admin = await findAdminById(req.session.adminId!);
+  if (!admin) throw httpError(401, "Sign in again.");
+
+  const settings = await getSettings();
+  const storeName = settings?.name ?? "Beluga";
+
+  const result = await sendEmailReportingFailure(
+    admin.email,
+    `${storeName}: test email`,
+    `<p>This is a test from the ${escapeHtml(storeName)} admin.</p>` +
+      "<p>If you are reading it, order confirmations, password resets and staff " +
+      "invitations will reach their recipients too.</p>",
+  );
+
+  res.json(result satisfies EmailTestResult);
 });
 
 /**

@@ -261,3 +261,41 @@ export function resetMailer(): void {
 export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   return deliver(to, subject, html);
 }
+
+/**
+ * Send one message and report what the transport actually said.
+ *
+ * Every other path here swallows a failure on purpose: an order email must not
+ * fail a payment Stripe has already taken, and an account email must not turn
+ * a reset request into an enumeration channel. That rule makes a misconfigured
+ * `SMTP_URL` invisible — a transport that authenticates but is refused on
+ * `MAIL FROM`, a wrong port, or a provider that drops mail from an unverified
+ * sender all look exactly like success from the merchant's side, and the first
+ * person to notice is a customer with no confirmation.
+ *
+ * So this one reports. It is for the "send a test email" button and nothing
+ * else: the whole point of that button is to surface the error, which means
+ * the message has to survive the call.
+ */
+export async function sendEmailReportingFailure(
+  to: string,
+  subject: string,
+  html: string,
+): Promise<{ ok: boolean; message: string }> {
+  const mailer = getTransporter();
+  if (!mailer) {
+    return {
+      ok: false,
+      message: "SMTP is not configured. Set SMTP_URL and EMAIL_FROM, then restart the API.",
+    };
+  }
+
+  try {
+    await mailer.sendMail({ from: env.EMAIL_FROM, to, subject, html });
+    return { ok: true, message: `Sent to ${to}.` };
+  } catch (error) {
+    // The provider's own words: "535 authentication failed" or "Sender address
+    // rejected" is the whole diagnosis, and paraphrasing it would lose it.
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
+}

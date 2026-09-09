@@ -262,6 +262,10 @@ zone-priced store has to know the destination before then. The session is then
 restricted to that country, so a buyer cannot keep a domestic rate on an
 international address — the same rule as line items, applied to postage.
 
+A store with no rates ships everything free, and nothing at checkout says so —
+so the admin Overview warns when a store has live physical products and no
+rates, and again when a zone covers a country no rate can price.
+
 Live carrier rates are deliberately absent. They need `ui_mode: 'elements'`,
 which means owning the checkout page again; [docs/shipping.md](docs/shipping.md)
 has the evidence and the trade.

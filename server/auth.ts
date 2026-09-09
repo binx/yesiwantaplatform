@@ -148,17 +148,25 @@ export async function listAdmins(currentId: string): Promise<AdminSummary[]> {
   }));
 }
 
-export async function findAdminById(id: string): Promise<{ id: string; role: AdminRole } | null> {
+export async function findAdminById(
+  id: string,
+): Promise<{ id: string; email: string; role: AdminRole } | null> {
   const { drizzle: db, schema } = await getDatabase();
 
   const rows = (await db
-    .select({ id: schema.adminUsers.id, role: schema.adminUsers.role })
+    .select({
+      id: schema.adminUsers.id,
+      email: schema.adminUsers.email,
+      role: schema.adminUsers.role,
+    })
     .from(schema.adminUsers)
     .where(eq(schema.adminUsers.id, id))
-    .limit(1)) as unknown as { id: string; role: string }[];
+    .limit(1)) as unknown as { id: string; email: string; role: string }[];
 
   const row = rows[0];
-  return row ? { id: row.id, role: row.role === "staff" ? "staff" : "owner" } : null;
+  return row
+    ? { id: row.id, email: row.email, role: row.role === "staff" ? "staff" : "owner" }
+    : null;
 }
 
 export async function emailIsTaken(email: string): Promise<boolean> {

@@ -245,6 +245,18 @@ export const environmentStatusSchema = z.object({
 });
 
 /**
+ * What the "send a test email" button gets back.
+ *
+ * `message` carries the transport's own words on failure — "535 authentication
+ * failed", "Sender address rejected" — because that string is the whole
+ * diagnosis and paraphrasing it would lose it.
+ */
+export const emailTestResultSchema = z.object({
+  ok: z.boolean(),
+  message: z.string(),
+});
+
+/**
  * The shipping table, saved as one document.
  *
  * Zones and rates travel together because they are edited together: a rate can
@@ -341,6 +353,7 @@ export type ShippingQuoteInput = z.infer<typeof shippingQuoteInputSchema>;
 export type SetupInput = z.infer<typeof setupInputSchema>;
 export type SetupStatus = z.infer<typeof setupStatusSchema>;
 export type EnvironmentStatus = z.infer<typeof environmentStatusSchema>;
+export type EmailTestResult = z.infer<typeof emailTestResultSchema>;
 export type ProductQuery = z.infer<typeof productQuerySchema>;
 export type SessionResponse = z.infer<typeof sessionResponseSchema>;
 export type ProductPageResponse = z.infer<typeof productPageResponseSchema>;

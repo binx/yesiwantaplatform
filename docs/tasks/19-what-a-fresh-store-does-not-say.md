@@ -1,15 +1,15 @@
 ---
 task: "19"
 title: What a fresh store does not tell its merchant
-status: todo
+status: done
 tier: 0
 size: S
 migration: none
 blocked_by: []
 blocks: []
 touches: src/admin/DashboardPage.tsx · src/admin/SettingsPage.tsx · server/routes/admin.ts · server/email.ts
-completed:
-shipped_in:
+completed: 2026-09-09
+shipped_in: 12
 summary: >-
   The Overview warns about Stripe, webhooks, email and tax, and says nothing about the
   one default that costs money on the first order: a store with no shipping rates ships

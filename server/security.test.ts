@@ -79,6 +79,7 @@ const MUTATIONS = [
   { method: "put", path: "/api/admin/pages/demo-page" },
   { method: "delete", path: "/api/admin/pages/demo-page" },
   { method: "put", path: "/api/admin/settings" },
+  { method: "post", path: "/api/admin/email/test" },
   { method: "put", path: "/api/admin/shipping" },
   { method: "put", path: "/api/admin/orders/demo-order" },
   { method: "post", path: "/api/admin/orders/demo-order/refund" },

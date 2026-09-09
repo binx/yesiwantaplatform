@@ -4,6 +4,7 @@ import type {
   EnvironmentStatus,
   PageInput,
   ProductInput,
+  EmailTestResult,
   SettingsInput,
   ShippingTableInput,
   AdminRole,
@@ -17,7 +18,7 @@ import type {
   WebhookEndpointInput,
   WebhookEndpointSummary,
 } from "@shared/webhooks";
-import type { Collection, Image, PageDraft, Product } from "@shared/schema";
+import type { Collection, Image, PageDraft, Product, ProductKind } from "@shared/schema";
 import type { FulfilmentInput, Order, OrderStatus, RefundInput } from "@shared/orders";
 import { apiGet, csrfDelete, csrfPost, csrfPostText, csrfPut, csrfUpload } from "@/lib/api";
 
@@ -55,6 +56,8 @@ export interface ProductSummary {
   needsPublish: boolean;
   /** Published to Stripe under tax settings the store no longer uses. */
   needsTaxRepublish: boolean;
+  /** Whether this product ships. A download-only store needs no rates. */
+  kind: ProductKind;
 }
 
 export interface OrderPage {
@@ -402,6 +405,19 @@ export function useEnvironment() {
     queryKey: adminKeys.environment,
     queryFn: ({ signal }) => apiGet<EnvironmentStatus>("/admin/environment", signal),
     staleTime: 60_000,
+  });
+}
+
+/**
+ * Send one test email to the signed-in administrator.
+ *
+ * Not a cache write, so nothing is invalidated: the answer is about the SMTP
+ * transport at this moment, and the next press should ask again rather than
+ * read a remembered result.
+ */
+export function useSendTestEmail() {
+  return useMutation({
+    mutationFn: () => csrfPost<EmailTestResult>("/admin/email/test", {}),
   });
 }
 

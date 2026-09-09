@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, isNull, max, ne } from "drizzle-orm";
 import type { CollectionInput, ProductInput, SettingsInput } from "../shared/api.js";
+import type { ProductKind } from "../shared/schema.js";
 import { regenerateLabel } from "../shared/product-options.js";
 import { taxSignature } from "../shared/tax.js";
 import { getDatabase } from "./client.js";
@@ -520,6 +521,12 @@ export interface AdminProductSummary {
    * the combination has to be said out loud somewhere.
    */
   needsPublish: boolean;
+  /**
+   * Physical or digital. The Overview's "no shipping rates" warning turns on
+   * it: a store selling only downloads ships nothing and needs no rates, so
+   * warning it about free postage would be noise it could never act on.
+   */
+  kind: ProductKind;
 }
 
 export async function listAllProductsForAdmin(): Promise<AdminProductSummary[]> {
@@ -532,6 +539,7 @@ export async function listAllProductsForAdmin(): Promise<AdminProductSummary[]> 
       name: schema.products.name,
       slug: schema.products.slug,
       isLive: schema.products.isLive,
+      kind: schema.products.kind,
       taxCode: schema.products.taxCode,
       stripeProductId: schema.products.stripeProductId,
       stripeTaxSignature: schema.products.stripeTaxSignature,
@@ -542,6 +550,7 @@ export async function listAllProductsForAdmin(): Promise<AdminProductSummary[]> 
     name: string;
     slug: string;
     isLive: unknown;
+    kind: string;
     taxCode: string | null;
     stripeProductId: string | null;
     stripeTaxSignature: string | null;
@@ -561,6 +570,7 @@ export async function listAllProductsForAdmin(): Promise<AdminProductSummary[]> 
     name: row.name,
     slug: row.slug,
     isLive: row.isLive === true || row.isLive === 1,
+    kind: row.kind === "digital" ? "digital" : "physical",
     needsPublish: (row.isLive === true || row.isLive === 1) && unpricedProducts.has(row.id),
     needsTaxRepublish:
       settings !== null &&

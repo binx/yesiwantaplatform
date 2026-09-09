@@ -50,6 +50,23 @@ html {
 
 body {
   margin: 0;
+  /*
+   * The "System" typeface preset's stack (FONT_STACKS in
+   * src/admin/ThemeEditor.tsx, and shared/schema.ts's defaultTheme.fontFamily).
+   * `ThemeVars` (src/App.tsx) overrides this once a store's theme loads; the
+   * password gate and the pre-setup welcome page never get that far — their
+   * `/api/store` request answers 401 or 503, not 200 — so without this they
+   * rendered in the browser's default serif.
+   */
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Inter,
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
   background: var(--beluga-page);
   color: var(--beluga-ink);
   font-synthesis-weight: none;

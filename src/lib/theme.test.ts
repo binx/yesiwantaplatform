@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contrastRatio, themeCssVars, toAntdTheme } from "./theme";
+import { contrastRatio, googleFontFamilies, themeCssVars, toAntdTheme } from "./theme";
 import { defaultTheme } from "@shared/schema";
 import type { ColorScheme } from "@shared/schema";
 
@@ -70,6 +70,40 @@ describe("contrastRatio", () => {
 
   it("does not care which way round the pair is given", () => {
     expect(contrastRatio("#18181b", "#fafaf9")).toBeCloseTo(contrastRatio("#fafaf9", "#18181b"), 10);
+  });
+});
+
+describe("googleFontFamilies", () => {
+  it("reads one family, axis spec and all, out of a css2 URL", () => {
+    expect(
+      googleFontFamilies("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz@0,9&display=swap"),
+    ).toEqual(["Fraunces"]);
+  });
+
+  it("reads every family out of a URL that names several", () => {
+    expect(
+      googleFontFamilies(
+        "https://fonts.googleapis.com/css2?family=Fraunces&family=Inter:wght@400;700",
+      ),
+    ).toEqual(["Fraunces", "Inter"]);
+  });
+
+  it("is empty for a host other than Google Fonts", () => {
+    expect(googleFontFamilies("https://example.com/css2?family=Fraunces")).toEqual([]);
+  });
+
+  it("is empty for a self-hosted stylesheet under /assets/", () => {
+    expect(googleFontFamilies("/assets/fonts/fraunces.css")).toEqual([]);
+  });
+
+  it("is empty for a Google Fonts URL that isn't css2 — nothing to read a family out of", () => {
+    expect(googleFontFamilies("https://fonts.googleapis.com/icon?family=Material+Icons")).toEqual(
+      [],
+    );
+  });
+
+  it("is empty for a string that is not a URL at all", () => {
+    expect(googleFontFamilies("not a url")).toEqual([]);
   });
 });
 

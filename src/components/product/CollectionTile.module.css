@@ -1,0 +1,34 @@
+.card {
+  display: block;
+  text-decoration: none;
+}
+
+.name {
+  margin: 0.75rem 0 0;
+  font-size: 1.125rem;
+}
+
+/* A collection with no cover — what a brand-new store shows, before any
+   merchant has uploaded one (task 21 made the cover editable; this is the
+   fallback for a collection that still has none). */
+.fallback {
+  display: grid;
+  place-items: center;
+  min-height: 9rem;
+  padding: 1.5rem;
+  border: 1px solid var(--beluga-line);
+  background: var(--beluga-surface);
+  text-decoration: none;
+  transition: border-color 0.2s;
+}
+
+.fallback:hover {
+  border-color: var(--beluga-primary);
+}
+
+.fallbackName {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}

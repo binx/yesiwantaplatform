@@ -43,7 +43,7 @@ export function ProductCard({
       className={styles.card}
     >
       <div className={styles.frame}>
-        <ProductImage image={image} ratio={3 / 4} {...(sizes ? { sizes } : {})} />
+        <ProductImage image={image} ratio={4 / 5} {...(sizes ? { sizes } : {})} />
         {/* Sold out is the more actionable fact for a buyer, so it wins when both apply. */}
         {soldOut ? (
           <span className={styles.badge}>Sold out</span>

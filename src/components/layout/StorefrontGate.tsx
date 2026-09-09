@@ -91,6 +91,7 @@ export function StorefrontGate({ onUnlocked }: { onUnlocked: () => void }) {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           placeholder="Password"
+          aria-label="Password"
           disabled={submitting}
         />
         <p style={{ marginTop: "1rem" }}>

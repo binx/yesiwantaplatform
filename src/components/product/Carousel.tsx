@@ -107,7 +107,7 @@ export function Carousel({ images, productName }: CarouselProps) {
   };
 
   if (count === 0) {
-    return <ProductImage image={null} ratio={3 / 4} />;
+    return <ProductImage image={null} ratio={4 / 5} />;
   }
 
   if (count === 1) {
@@ -123,6 +123,11 @@ export function Carousel({ images, productName }: CarouselProps) {
           width="100%"
           className={styles.single}
           placeholder={<ProductImage image={only ?? null} />}
+          // antd names this zoomable button from `alt`, which a merchant can
+          // leave blank — an empty accessible name axe flags as
+          // `aria-command-name`. Naming the action instead of relying on it
+          // means the button still says what it does either way.
+          aria-label={`Zoom ${only?.alt || productName}`}
         />
       </Image.PreviewGroup>
     );
@@ -176,6 +181,12 @@ export function Carousel({ images, productName }: CarouselProps) {
                   // `mask` as a node is deprecated in antd 6; `cover` is the
                   // same thing under its new name.
                   preview={{ cover: <ZoomInOutlined aria-hidden /> }}
+                  // antd names this zoomable button from `alt`, which a
+                  // merchant can leave blank — an empty accessible name axe
+                  // flags as `aria-command-name`. Naming the action instead
+                  // of relying on it means the button still says what it
+                  // does either way.
+                  aria-label={`Zoom ${image.alt || productName}`}
                 />
               </div>
             ))}

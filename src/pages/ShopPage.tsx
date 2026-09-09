@@ -1,8 +1,8 @@
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { getLiveProducts, getVisibleCollections } from "@shared/catalog";
 import { PageWrapper } from "@/components/layout/PageWrapper";
-import { ProductImage } from "@/components/ui/ProductImage";
 import { ProductBrowser } from "@/components/product/ProductBrowser";
+import { CollectionTile } from "@/components/product/CollectionTile";
 import { useStore } from "@/lib/useStore";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import styles from "./ShopPage.module.css";
@@ -34,18 +34,10 @@ export function ShopPage() {
           <ul className={styles.grid}>
             {collections.map((collection) => (
               <li key={collection.id}>
-                <Link
-                  to={`/collection/${collection.slug}`}
-                  className={styles.card}
-                >
-                  <ProductImage
-                    image={collection.cover}
-                    ratio={16 / 9}
-                    sizes="(max-width: 700px) 100vw, 50vw"
-                    decorative
-                  />
-                  <h3 className={styles.name}>{collection.name}</h3>
-                </Link>
+                <CollectionTile
+                  collection={collection}
+                  sizes="(max-width: 700px) 100vw, 50vw"
+                />
               </li>
             ))}
           </ul>

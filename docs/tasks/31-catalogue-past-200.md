@@ -1,15 +1,15 @@
 ---
 task: "31"
 title: Checkout, quotes and publish past 200 live products
-status: todo
+status: done
 tier: 0
 size: S
 migration: none
 blocked_by: []
 blocks: []
 touches: server/routes/checkout.ts:52 · server/routes/shipping.ts:63 · server/routes/admin.ts:946 · db/repository.ts:430
-completed:
-shipped_in:
+completed: 2026-09-09
+shipped_in: 30
 summary: >-
   Checkout, the shipping quote and Publish each load the catalogue with
   `listProducts({ limit: 200 })` and look the cart's products up in that page. Product 201

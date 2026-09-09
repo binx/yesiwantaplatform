@@ -1,15 +1,15 @@
 ---
 task: "27"
 title: A store that is deployed but not yet open
-status: todo
+status: done
 tier: 0
 size: M
 migration: four columns on store_settings
 blocked_by: []
 blocks: []
 touches: server/app.ts:75 · server/middleware.ts · server/routes/storefront.ts · db/schema.{sqlite,pg}.ts · src/lib/store-source.ts · src/components/layout/StoreErrorBoundary.tsx · src/admin/SettingsPage.tsx:210 · src/admin/goLive.ts
-completed:
-shipped_in:
+completed: 2026-09-09
+shipped_in: 25
 summary: >-
   Beluga has exactly two states: not set up, and open to the internet. There is no state
   for *deployed, being built, shown to three people for feedback* — so the whole middle of

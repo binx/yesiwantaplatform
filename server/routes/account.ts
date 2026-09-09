@@ -40,9 +40,9 @@ import { sendAccountEmail } from "../email.js";
 import { env } from "../env.js";
 import {
   csrfToken,
+  customerLoginRateLimit,
   emailRateLimit,
   httpError,
-  loginRateLimit,
   requireCustomer,
   sessionOp,
   verifyCsrf,
@@ -98,7 +98,7 @@ accountRouter.post("/register", emailRateLimit, async (req, res) => {
     const id = await createCustomer(parsed.data.email, parsed.data.password, parsed.data.name);
     const token = await createEmailVerificationToken(id);
     const verifyUrl = new URL(`/account/verify?token=${token}`, env.PUBLIC_URL).toString();
-    await sendAccountEmail("VerifyEmail", parsed.data.email, verifyUrl);
+    void sendAccountEmail("VerifyEmail", parsed.data.email, verifyUrl);
   } catch (error) {
     // Not re-thrown: the caller learns nothing different than the success
     // path below. See the enumeration note above.
@@ -117,7 +117,7 @@ accountRouter.post("/register", emailRateLimit, async (req, res) => {
  * for a customer *after* this succeeds. Signs the customer in on success, the
  * same convenience as accepting a staff invitation.
  */
-accountRouter.post("/verify", loginRateLimit, async (req, res) => {
+accountRouter.post("/verify", customerLoginRateLimit, async (req, res) => {
   const parsed = verifyEmailInputSchema.safeParse(req.body);
   if (!parsed.success) throw httpError(400, "That verification link could not be used.");
 
@@ -141,7 +141,7 @@ accountRouter.post("/verify", loginRateLimit, async (req, res) => {
 
 /* ----------------------------------------------------------------- session */
 
-accountRouter.post("/session", loginRateLimit, async (req, res) => {
+accountRouter.post("/session", customerLoginRateLimit, async (req, res) => {
   const parsed = customerLoginInputSchema.safeParse(req.body);
   // Deliberately vague, matching the admin login: do not reveal which field
   // was wrong.
@@ -289,13 +289,13 @@ accountRouter.post("/password/forgot", emailRateLimit, async (req, res) => {
   const token = await createPasswordResetToken(parsed.data.email);
   if (token) {
     const resetUrl = new URL(`/account/reset-password?token=${token}`, env.PUBLIC_URL).toString();
-    await sendAccountEmail("ResetPassword", parsed.data.email, resetUrl);
+    void sendAccountEmail("ResetPassword", parsed.data.email, resetUrl);
   }
 
   res.status(204).end();
 });
 
-accountRouter.post("/password/reset", loginRateLimit, async (req, res) => {
+accountRouter.post("/password/reset", customerLoginRateLimit, async (req, res) => {
   const parsed = resetPasswordInputSchema.safeParse(req.body);
   if (!parsed.success) {
     throw httpError(400, parsed.error.issues[0]?.message ?? "That could not be used.");

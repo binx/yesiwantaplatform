@@ -142,6 +142,36 @@ export function isPrivateAddress(address: string): boolean {
 const allowPrivateTargets = env.WEBHOOK_ALLOW_INSECURE_TARGETS;
 
 /**
+ * Resolve a hostname and refuse anything private or reserved.
+ *
+ * The address-check half of `assertDeliverableUrl`, pulled out with no
+ * `WEBHOOK_ALLOW_INSECURE_TARGETS` opt-out: that escape hatch is for a
+ * self-hoster's own webhook receiver, and has no equivalent reason to apply to
+ * a merchant-supplied font stylesheet URL (see server/fonts.ts, the other
+ * caller). Every answer must be acceptable, not just the first: a hostname
+ * with both a public and a loopback record would otherwise get through on a
+ * coin flip.
+ */
+export async function assertPublicHostname(hostname: string, hint = ""): Promise<void> {
+  const host = hostname.replace(/^\[|\]$/g, "");
+
+  let addresses: { address: string }[];
+  if (isIP(host)) {
+    addresses = [{ address: host }];
+  } else {
+    try {
+      addresses = await lookup(host, { all: true });
+    } catch {
+      throw new EndpointNotAllowedError(`${hostname} does not resolve.`);
+    }
+  }
+
+  if (addresses.length === 0 || addresses.some((entry) => isPrivateAddress(entry.address))) {
+    throw new EndpointNotAllowedError(`${hostname} resolves to a private or reserved address.${hint}`);
+  }
+}
+
+/**
  * Refuse anything that would make this an SSRF primitive against the host.
  *
  * Checked at endpoint creation *and* immediately before every send, because a
@@ -165,27 +195,10 @@ export async function assertDeliverableUrl(raw: string): Promise<URL> {
 
   if (allowPrivateTargets) return url;
 
-  const host = url.hostname.replace(/^\[|\]$/g, "");
-
-  let addresses: { address: string }[];
-  if (isIP(host)) {
-    addresses = [{ address: host }];
-  } else {
-    try {
-      addresses = await lookup(host, { all: true });
-    } catch {
-      throw new EndpointNotAllowedError(`${url.hostname} does not resolve.`);
-    }
-  }
-
-  // Every answer must be acceptable, not just the first: a hostname with both
-  // a public and a loopback record would otherwise get through on a coin flip.
-  if (addresses.length === 0 || addresses.some((entry) => isPrivateAddress(entry.address))) {
-    throw new EndpointNotAllowedError(
-      `${url.hostname} resolves to a private or reserved address. Webhook endpoints must be publicly reachable — ` +
-        "set WEBHOOK_ALLOW_INSECURE_TARGETS=true if this host is deliberately local.",
-    );
-  }
+  await assertPublicHostname(
+    url.hostname,
+    " Webhook endpoints must be publicly reachable — set WEBHOOK_ALLOW_INSECURE_TARGETS=true if this host is deliberately local.",
+  );
 
   return url;
 }

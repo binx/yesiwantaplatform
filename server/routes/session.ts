@@ -21,10 +21,10 @@ import {
 import { sendAccountEmail } from "../email.js";
 import { env } from "../env.js";
 import {
+  adminLoginRateLimit,
   csrfToken,
   emailRateLimit,
   httpError,
-  loginRateLimit,
   sessionOp,
   verifyCsrf,
 } from "../middleware.js";
@@ -47,7 +47,7 @@ sessionRouter.get("/session", async (req, res) => {
   res.json(body);
 });
 
-sessionRouter.post("/session", loginRateLimit, verifyCsrf, async (req, res) => {
+sessionRouter.post("/session", adminLoginRateLimit, verifyCsrf, async (req, res) => {
   const parsed = loginInputSchema.safeParse(req.body);
   // Deliberately vague: do not reveal which field was wrong.
   if (!parsed.success) throw httpError(400, "Email and password are required.");
@@ -90,7 +90,7 @@ sessionRouter.delete("/session", verifyCsrf, async (req, res) => {
  * The token is looked up by its hash, so there is no comparison to time and a
  * tampered token simply finds nothing.
  */
-sessionRouter.post("/invites/accept", loginRateLimit, verifyCsrf, async (req, res) => {
+sessionRouter.post("/invites/accept", adminLoginRateLimit, verifyCsrf, async (req, res) => {
   const parsed = acceptInviteInputSchema.safeParse(req.body);
   if (!parsed.success) {
     throw httpError(400, parsed.error.issues[0]?.message ?? "That invitation could not be used.");
@@ -124,7 +124,7 @@ sessionRouter.post("/invites/accept", loginRateLimit, verifyCsrf, async (req, re
  * who has lost their password cannot sign in to ask for one. Reuses the
  * customer flow's shape from server/routes/account.ts — 204 always, an email
  * sent only when the address belongs to an administrator, and every response
- * counted by `emailRateLimit` rather than `loginRateLimit`, since a request
+ * counted by `emailRateLimit` rather than `adminLoginRateLimit`, since a request
  * that always answers 204 never counts under the limiter that skips
  * successes.
  */
@@ -135,7 +135,7 @@ sessionRouter.post("/session/forgot-password", emailRateLimit, verifyCsrf, async
   const token = await createAdminPasswordResetToken(parsed.data.email);
   if (token) {
     const resetUrl = new URL(`/admin/reset-password?token=${token}`, env.PUBLIC_URL).toString();
-    await sendAccountEmail("ResetPassword", parsed.data.email, resetUrl);
+    void sendAccountEmail("ResetPassword", parsed.data.email, resetUrl);
   }
 
   res.status(204).end();

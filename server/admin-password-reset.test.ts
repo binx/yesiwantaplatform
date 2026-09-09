@@ -1,6 +1,15 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
+import type * as EmailModule from "./email.js";
+
+// Wraps the real implementation by default, so every test but the one below
+// still gets the unconfigured-SMTP no-op it always got. See the timing test
+// in the "password reset" block for why this exists.
+vi.mock("./email.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof EmailModule>();
+  return { ...actual, sendAccountEmail: vi.fn(actual.sendAccountEmail) };
+});
 
 /**
  * An administrator resetting a forgotten password.
@@ -137,6 +146,38 @@ describe("password reset", () => {
     expect(knownResponse.status).toBe(204);
     expect(unknownResponse.status).toBe(204);
     expect(knownResponse.body).toEqual(unknownResponse.body);
+  });
+
+  /**
+   * Task 29, group 1: the send used to be awaited, so a stopwatch on this
+   * route could tell a real admin email from an unknown one by the hundreds
+   * of milliseconds an SMTP round trip takes — exactly the enumeration the
+   * identical 204 was written to prevent. A timing assertion would be flaky;
+   * the property that actually matters is that the response does not wait on
+   * the send at all, which a promise that never resolves proves directly —
+   * if the route ever went back to awaiting it, this test would time out.
+   */
+  it("answers before the reset email finishes sending", async () => {
+    const { sendAccountEmail } = await import("./email.js");
+    let release: (sent: boolean) => void = () => {};
+    vi.mocked(sendAccountEmail).mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        release = resolve;
+      }),
+    );
+
+    const email = "slow-smtp-admin@example.com";
+    const { createAdmin } = await import("./auth.js");
+    await createAdmin(email, PASSWORD, "staff");
+
+    const { agent, csrf } = await bootstrap();
+    await agent
+      .post("/api/session/forgot-password")
+      .set("x-csrf-token", csrf)
+      .send({ email })
+      .expect(204);
+
+    release(true);
   });
 
   it("rejects a password that is too short", async () => {

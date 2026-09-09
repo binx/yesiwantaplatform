@@ -1,7 +1,7 @@
 ---
 task: "29"
 title: Backend hardening from the blank-store review
-status: todo
+status: in-progress
 tier: 0
 size: S
 migration: none

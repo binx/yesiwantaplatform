@@ -228,7 +228,7 @@ export function ProductsPage() {
               },
             },
             {
-              title: "",
+              title: "Actions",
               key: "actions",
               align: "right",
               render: (_value, product) => (

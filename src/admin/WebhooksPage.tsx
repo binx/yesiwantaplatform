@@ -113,6 +113,7 @@ export function WebhooksPage() {
                 expandedRowKeys: openEndpoint ? [openEndpoint] : [],
                 onExpand: (expanded, row) => setOpenEndpoint(expanded ? row.id : null),
                 expandedRowRender: (row) => <DeliveryLog endpointId={row.id} />,
+                columnTitle: "Delivery log",
               }}
               columns={[
                 {
@@ -161,7 +162,7 @@ export function WebhooksPage() {
                     ),
                 },
                 {
-                  title: "",
+                  title: "Actions",
                   key: "actions",
                   align: "right",
                   render: (_value, row) => (
@@ -246,7 +247,11 @@ export function WebhooksPage() {
               name. Compare against the raw body, before any JSON parsing, and reject a timestamp
               older than your own tolerance — that is what makes a replay detectable.
             </p>
-            <pre className={cx(styles.snippet)}>{VERIFY_SNIPPET}</pre>
+            {/* Horizontally scrollable on its own — a keyboard user needs a
+                way to reach that scroll without a mouse. */}
+            <pre className={cx(styles.snippet)} tabIndex={0}>
+              {VERIFY_SNIPPET}
+            </pre>
           </Card>
         </div>
 
@@ -399,7 +404,7 @@ function DeliveryLog({ endpointId }: { endpointId: string }) {
             value ? <span className={cx(styles.muted)}>{value}</span> : null,
         },
         {
-          title: "",
+          title: "Actions",
           key: "actions",
           align: "right",
           render: (_value, row) => (

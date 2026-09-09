@@ -134,12 +134,25 @@ export const emailRateLimit = rateLimit({
   message: { error: "Too many requests. Try again in a few minutes." },
 });
 
-/** A broad ceiling on write traffic, so a loop cannot hammer the database. */
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * A broad ceiling on write traffic, so a loop cannot hammer the database.
+ *
+ * Mounted once on the whole admin router (see `adminRouter.use` in
+ * `routes/admin.ts`) alongside `requireAdmin` and `verifyCsrf`, both of which
+ * are meant to apply to every method — this one is not: a busy admin session
+ * is mostly `GET`s (the dashboard alone fires five on load), and counting
+ * those against the same 120-a-minute budget as writes meant a few page loads
+ * could exhaust it, after which every read silently 429'd. `skip` keeps reads
+ * off the ceiling without having to mount this selectively route by route.
+ */
 export const writeRateLimit = rateLimit({
   windowMs: 60 * 1000,
   limit: 120,
   standardHeaders: "draft-7",
   legacyHeaders: false,
+  skip: (req) => SAFE_METHODS.has(req.method),
 });
 
 /**
@@ -172,8 +185,6 @@ export function requireCustomer(req: Request, res: Response, next: NextFunction)
   }
   next();
 }
-
-const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /** Issue a per-session CSRF token, created on first use. */
 export function csrfToken(req: Request): string {

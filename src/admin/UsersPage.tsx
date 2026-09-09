@@ -94,7 +94,7 @@ export function UsersPage() {
                     ),
                 },
                 {
-                  title: "",
+                  title: "Actions",
                   key: "actions",
                   align: "right",
                   render: (_value, user) =>
@@ -134,7 +134,7 @@ export function UsersPage() {
                 columns={[
                   { title: "Email", dataIndex: "email" },
                   {
-                    title: "",
+                    title: "Actions",
                     key: "actions",
                     align: "right",
                     render: (_value, row: { id: string; email: string }) => (

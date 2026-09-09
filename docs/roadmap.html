@@ -458,8 +458,8 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
 <div class="wrap">
 
   <header class="masthead">
-    <div class="eyebrow">Beluga v2 · Generated from docs/tasks · 2026-09-08</div>
-    <h1>17 things between Beluga and <em>a store someone could actually run</em></h1>
+    <div class="eyebrow">Beluga v2 · Generated from docs/tasks · 2026-09-09</div>
+    <h1>26 things between Beluga and <em>a store someone could actually run</em></h1>
     <p class="standfirst">
       The gap review found the misses. This orders them by what they cost against what a merchant
       assumes on day one. The ranking leans on one fact about this codebase: <strong>a Drizzle schema
@@ -477,9 +477,9 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
   <section class="progress">
     <div class="progress-head">
       <h2 class="progress-title">Progress</h2>
-      <p class="progress-count">17 of 17 shipped.</p>
+      <p class="progress-count">17 of 26 shipped.</p>
     </div>
-    <div class="track" role="img" aria-label="17 of 17 shipped."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--done" title="01 Refund an order from the admin — Shipped"></span><span class="cell cell--done" title="02 Restore stock when an order is refunded — Shipped"></span><span class="cell cell--done" title="03 Discount codes via Stripe — Shipped"></span><span class="cell cell--done" title="04 Export orders as CSV — Shipped"></span><span class="cell cell--done" title="17 Storefront copy and the gaps a UI pass found — Shipped"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--done" title="05 Per-product SEO metadata — Shipped"></span><span class="cell cell--done" title="06 Storefront search and sort — Shipped"></span><span class="cell cell--done" title="07 Staff accounts — Shipped"></span><span class="cell cell--done" title="08 Store pages — Shipped"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--done" title="09 Sales tax and VAT — Shipped"></span><span class="cell cell--done" title="10 Multi-axis variants — Shipped"></span><span class="cell cell--done" title="11 Customer accounts — Shipped"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--done" title="12 Abandoned cart recovery — Shipped"></span><span class="cell cell--done" title="13 Digital and downloadable products — Shipped"></span><span class="cell cell--done" title="14 Outbound webhooks — Shipped"></span><span class="cell cell--done" title="15 Catalogue CSV import and export — Shipped"></span></span></div>
+    <div class="track" role="img" aria-label="17 of 26 shipped."><span class="group" aria-label="Tier 0"><span class="cell cell--done" title="00 Fetch order items by order id — Shipped"></span><span class="cell cell--done" title="01 Refund an order from the admin — Shipped"></span><span class="cell cell--done" title="02 Restore stock when an order is refunded — Shipped"></span><span class="cell cell--done" title="03 Discount codes via Stripe — Shipped"></span><span class="cell cell--done" title="04 Export orders as CSV — Shipped"></span><span class="cell cell--done" title="17 Storefront copy and the gaps a UI pass found — Shipped"></span><span class="cell cell--todo" title="18 Setup asks for the public URL, and the URLs Beluga prints are true — To do"></span><span class="cell cell--todo" title="19 What a fresh store does not tell its merchant — To do"></span><span class="cell cell--todo" title="20 Small fixes a first run turned up — To do"></span><span class="cell cell--todo" title="24 An administrator can reset a forgotten password — To do"></span><span class="cell cell--todo" title="26 Building on Beluga: which files are yours to change — To do"></span></span><span class="group" aria-label="Tier 1"><span class="cell cell--done" title="05 Per-product SEO metadata — Shipped"></span><span class="cell cell--done" title="06 Storefront search and sort — Shipped"></span><span class="cell cell--done" title="07 Staff accounts — Shipped"></span><span class="cell cell--done" title="08 Store pages — Shipped"></span><span class="cell cell--todo" title="21 Landing page and collection copy the admin can edit — To do"></span><span class="cell cell--todo" title="22 Web fonts that load, and a locale for the numbers — To do"></span></span><span class="group" aria-label="Tier 2"><span class="cell cell--done" title="09 Sales tax and VAT — Shipped"></span><span class="cell cell--done" title="10 Multi-axis variants — Shipped"></span><span class="cell cell--done" title="11 Customer accounts — Shipped"></span><span class="cell cell--todo" title="23 SKUs, compare-at prices and per-variant images — To do"></span><span class="cell cell--todo" title="25 Object storage for uploaded images — To do"></span></span><span class="group" aria-label="Tier 3"><span class="cell cell--done" title="12 Abandoned cart recovery — Shipped"></span><span class="cell cell--done" title="13 Digital and downloadable products — Shipped"></span><span class="cell cell--done" title="14 Outbound webhooks — Shipped"></span><span class="cell cell--done" title="15 Catalogue CSV import and export — Shipped"></span></span></div>
     <div class="track-key">
       <span><i class="cell cell--done"></i> Shipped</span>
       <span><i class="cell cell--in-progress"></i> In progress</span>
@@ -643,7 +643,7 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
 
   <section class="tier tier--now">
     <div class="tier-head">
-      <div class="tier-tag">Tier 0 · No migration · Days <span class="tier-done">All 6 shipped</span></div>
+      <div class="tier-tag">Tier 0 · No migration · Days <span class="tier-done">6 of 11 shipped</span></div>
       <h2>Money is currently leaking</h2>
       <p class="tier-verdict">Gaps a merchant hits in their first week of real orders. None needs a schema reshape, and three of them are closer to correctness bugs than features.</p>
     </div>
@@ -735,12 +735,77 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
           <span><b>Shipped in</b> 6</span>
           <span><b>Brief</b> docs/tasks/17-copy-and-structural-gaps.md</span></div>
       </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">18</span>
+          <h3>Setup asks for the public URL, and the URLs Beluga prints are true</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--s">Small</span>
+        </div>
+        <p>Neither setup path asks for <code>PUBLIC_URL</code>, so a store deployed straight from setup publishes a <code>sitemap.xml</code> and <code>robots.txt</code> full of <code>http://localhost:5173</code> links and sends Stripe buyers back to localhost after paying. The banners setup and the API print also say 5173 whether or not Vite got that port. Ask the question once, warn on the Overview when production is still pointing at localhost, and validate the admin email in the terminal the way the browser already does.</p>
+        <div class="meta"><span><b>Migration</b> none</span>
+          <span><b>Touches</b> scripts/setup.ts · server/routes/setup.ts · shared/api.ts · src/admin/SetupPage.tsx · src/admin/DashboardPage.tsx</span>
+          <span><b>Brief</b> docs/tasks/18-public-url-and-first-run.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">19</span>
+          <h3>What a fresh store does not tell its merchant</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--s">Small</span>
+        </div>
+        <p>The Overview warns about Stripe, webhooks, email and tax, and says nothing about the one default that costs money on the first order: a store with no shipping rates ships free. Add that card, one for a shipping table with a coverage gap, a <strong>Send a test email</strong> button so a broken <code>SMTP_URL</code> is found by the merchant rather than a customer, and a pointer from the admin to where discount codes actually live.</p>
+        <div class="meta"><span><b>Migration</b> none</span>
+          <span><b>Touches</b> src/admin/DashboardPage.tsx · src/admin/SettingsPage.tsx · server/routes/admin.ts · server/email.ts</span>
+          <span><b>Brief</b> docs/tasks/19-what-a-fresh-store-does-not-say.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">20</span>
+          <h3>Small fixes a first run turned up</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--s">Small</span>
+        </div>
+        <p>Five things a developer meets in the first ten minutes, none of them large. The production HTML sends <code>Canvas Tote · Store</code> and the client overwrites it with the store name; a draft product URL answers 200 with the generic shell; every storefront page logs a 401 to the console and fetches the store twice; a brand-new product opens with three red errors before anything is typed. Independent groups, land them in any order.</p>
+        <div class="meta"><span><b>Migration</b> none</span>
+          <span><b>Touches</b> src/App.tsx · src/pages/ProductPage.tsx · server/app.ts · server/seo.ts · src/lib/account.ts · src/admin/ProductEditorPage.tsx</span>
+          <span><b>Brief</b> docs/tasks/20-small-fixes-from-a-first-run.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">24</span>
+          <h3>An administrator can reset a forgotten password</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--s">Small</span>
+        </div>
+        <p>Customers have a forgot-password flow; administrators do not. A solo merchant who loses their password has no route back except the database. Reuse the customer flow's shape — hashed single-use token, one-hour expiry, identical response for known and unknown emails — on <code>admin_users</code>, with the same session revocation the change-password route already does.</p>
+        <div class="meta"><span><b>Migration</b> two columns on admin_users</span>
+          <span><b>Touches</b> server/routes/session.ts · server/auth.ts · db/admin-repository.ts · src/admin/LoginPage.tsx · emails/ResetPassword</span>
+          <span><b>Brief</b> docs/tasks/24-admin-password-reset.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">26</span>
+          <h3>Building on Beluga: which files are yours to change</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--s">Small</span>
+        </div>
+        <p>The README invites a developer to fork and replace components, and the task briefs hold the invariants, but nothing connects the two: no page says which files are cosmetic and which hold a rule that breaks silently when edited. Write the map — what is safe to replace, what to extend through a seam, what not to touch — as one document that the site plan's &quot;Building on Beluga&quot; section can later absorb.</p>
+        <div class="meta"><span><b>Migration</b> none</span>
+          <span><b>Touches</b> docs/building-on-beluga.md · README.md · src/pages/LandingPage.tsx</span>
+          <span><b>Brief</b> docs/tasks/26-building-on-beluga.md</span></div>
+      </article>
     </div>
   </section>
 
   <section class="tier">
     <div class="tier-head">
-      <div class="tier-tag">Tier 1 · Light migrations · Weeks <span class="tier-done">All 4 shipped</span></div>
+      <div class="tier-tag">Tier 1 · Light migrations · Weeks <span class="tier-done">4 of 6 shipped</span></div>
       <h2>The quarter's real work</h2>
       <p class="tier-verdict">Tier 0 fixes stores that already have customers. This tier is about getting them.</p>
     </div>
@@ -799,12 +864,38 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
           <span><b>Touches</b> db/schema.*.ts · src/router.tsx · src/admin/useAutosave.ts</span>
           <span><b>Brief</b> docs/tasks/08-store-pages.md</span></div>
       </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">21</span>
+          <h3>Landing page and collection copy the admin can edit</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--m">Medium</span>
+        </div>
+        <p>The landing page's hero says &quot;Edit it in the admin&quot; and cannot be; the only things a merchant controls on the front page are the store name and which collection is featured. Collections have a name and a cover and nothing to say. Give the hero a heading, a line of text, a button label and target, and an optional image; give a collection a description. Both are plain text and Markdown respectively, rendered through the existing sanitiser, so this adds no new HTML surface.</p>
+        <div class="meta"><span><b>Migration</b> columns on store_settings and collections</span>
+          <span><b>Touches</b> shared/schema.ts · shared/api.ts · db/schema.sqlite.ts · db/schema.pg.ts · src/admin/SettingsPage.tsx · src/admin/CollectionsPage.tsx · src/pages/LandingPage.tsx</span>
+          <span><b>Brief</b> docs/tasks/21-landing-and-collection-copy.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">22</span>
+          <h3>Web fonts that load, and a locale for the numbers</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--m">Medium</span>
+        </div>
+        <p>Settings offers a font stack, but the production CSP allows fonts and stylesheets from <code>'self'</code> only, so a Google Fonts link or a self-hosted <code>@font-face</code> fails silently and nothing tells the merchant why. And every price is formatted <code>en-US</code> regardless of currency, so a EUR store prints <code>€1,234.56</code>. Add a font source the theme can load and the CSP allows, and a store locale that money, dates and country names all read.</p>
+        <div class="meta"><span><b>Migration</b> two columns on store_settings</span>
+          <span><b>Touches</b> src/admin/ThemeEditor.tsx · server/middleware.ts · index.html · shared/money.ts · shared/schema.ts</span>
+          <span><b>Brief</b> docs/tasks/22-typeface-and-locale.md</span></div>
+      </article>
     </div>
   </section>
 
   <section class="tier">
     <div class="tier-head">
-      <div class="tier-tag">Tier 2 · Schema reshape · Plan them <span class="tier-done">All 3 shipped</span></div>
+      <div class="tier-tag">Tier 2 · Schema reshape · Plan them <span class="tier-done">3 of 5 shipped</span></div>
       <h2>Don't squeeze these in</h2>
       <p class="tier-verdict">Each one changes the shape of the data or the shape of the merchant's obligations. They're worth doing and they're worth scheduling.</p>
     </div>
@@ -848,6 +939,32 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
           <span><b>Touches</b> db/schema.*.ts · server/auth.ts · src/router.tsx</span>
           <span><b>Blocks</b> 12</span>
           <span><b>Brief</b> docs/tasks/11-customer-accounts.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">23</span>
+          <h3>SKUs, compare-at prices and per-variant images</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--l">Large</span>
+        </div>
+        <p>Three fields every platform a merchant is migrating from has, and Beluga's variant does not: a SKU, a compare-at price for showing a markdown, and an image per variant so picking &quot;Blue&quot; shows the blue one. Each is a column and a piece of the editor; together they touch the CSV contract, the price matrix, the product page and the order line, which is why this is one planned change rather than three squeezed-in ones.</p>
+        <div class="meta"><span><b>Migration</b> three columns on variants, one on product_images</span>
+          <span><b>Touches</b> shared/schema.ts · db/schema.sqlite.ts · db/schema.pg.ts · src/admin/ProductEditorPage.tsx · shared/catalogue-csv.ts · server/routes/checkout.ts</span>
+          <span><b>Brief</b> docs/tasks/23-product-model-gaps.md</span></div>
+      </article>
+
+      <article class="item item--todo">
+        <div class="item-head">
+          <span class="seq">25</span>
+          <h3>Object storage for uploaded images</h3>
+          <span class="chip chip--status chip--todo">To do</span>
+          <span class="chip chip--l">Large</span>
+        </div>
+        <p><code>ASSETS_DIR</code> (PR 9) lets one volume hold the database and the images, which is enough for a Droplet or Fly. It is not enough for any platform without a persistent disk, and it is the one thing forcing a volume onto a Postgres deployment that otherwise needs none. Put a storage interface behind <code>storeImage</code> and <code>deleteImageFile</code>, keep the filesystem driver as the default, and add an S3-compatible one. The URL contract <code>/assets/&lt;path&gt;</code> does not change.</p>
+        <div class="meta"><span><b>Migration</b> none</span>
+          <span><b>Touches</b> server/uploads.ts · server/app.ts · server/env.ts · shared/images.ts · src/lib/store-source.ts</span>
+          <span><b>Brief</b> docs/tasks/25-object-storage-for-images.md</span></div>
       </article>
     </div>
   </section>

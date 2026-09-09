@@ -95,7 +95,7 @@ import {
   optionSelectionsAreWellFormed,
 } from "../../shared/product-options.js";
 import { httpError, requireAdmin, verifyCsrf, writeRateLimit } from "../middleware.js";
-import { env, hasStripe, isSqlite } from "../env.js";
+import { env, hasStripe, isProduction, isSqlite } from "../env.js";
 import { deleteImageFile, storeImage, uploadMiddleware } from "../uploads.js";
 import { archiveProductInStripe, syncProductToStripe } from "../catalog-sync.js";
 import { StripeNotConfiguredError, requireStripe } from "../stripe.js";
@@ -172,6 +172,7 @@ adminRouter.get("/environment", (_req, res) => {
     hasEmail: Boolean(env.SMTP_URL),
     database: isSqlite ? "sqlite" : "postgres",
     publicUrl: env.PUBLIC_URL,
+    production: isProduction,
   } satisfies EnvironmentStatus);
 });
 

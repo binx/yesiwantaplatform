@@ -22,6 +22,7 @@ import { csrfPost, setCsrfToken } from "@/lib/api";
 import { sessionQueryKey, setupStatusQueryKey, useSetupStatus } from "@/lib/session";
 import { ThemeEditor } from "./ThemeEditor";
 import { cx } from "@/lib/cx";
+import { isLocalOrigin } from "@/lib/publicUrl";
 import styles from "./SetupPage.module.css";
 
 /**
@@ -102,6 +103,9 @@ export function SetupPage() {
   const [publishableKey, setPublishableKey] = useState(saved?.publishableKey ?? "");
   const [theme, setTheme] = useState<Theme>(saved?.theme ?? defaultTheme);
   const [seedDemo, setSeedDemo] = useState(saved?.seedDemo ?? true);
+
+  // Reported by the server, never editable here — see the note on the last step.
+  const publicUrl = status.data?.publicUrl ?? null;
 
   useEffect(() => {
     saveWizardState({ step, identity, publishableKey, theme, seedDemo });
@@ -245,6 +249,33 @@ export function SetupPage() {
             >
               Load the demo catalogue, so the storefront has something to render
             </Checkbox>
+
+            {/*
+              * Said, not fixed.
+              *
+              * This wizard writes no `.env` — the server reads PUBLIC_URL
+              * before it boots, and a value a browser could change would be a
+              * value anyone with an admin session could change. So the last
+              * step tells the truth about what the server will actually put in
+              * Stripe redirects and emailed links, and leaves the setting to
+              * the environment.
+              */}
+            {publicUrl && isLocalOrigin(publicUrl) ? (
+              <Alert
+                className={cx(styles.alert)}
+                type="info"
+                showIcon
+                icon={<InfoCircleOutlined />}
+                message="This server's public URL is still localhost"
+                description={
+                  <p className={cx(styles.alertText)}>
+                    <code>PUBLIC_URL</code> is <code>{publicUrl}</code>. Stripe sends buyers
+                    back there after paying and every emailed link starts with it, so set it
+                    in the environment before this store is public.
+                  </p>
+                }
+              />
+            ) : null}
 
             <div className={cx(styles.actions)}>
               <Button onClick={() => setStep(1)} disabled={submit.isPending}>

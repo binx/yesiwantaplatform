@@ -52,7 +52,9 @@ npm run dev:all     # storefront on :5173, API on :4000
 
 `npm run setup` asks a handful of questions, writes `.env` once, and never touches it
 again. If you give it a Stripe secret key it validates the key against Stripe before
-storing it, and says plainly whether you handed it a live one.
+storing it, and says plainly whether you handed it a live one. One of the questions is
+the store's public address — Stripe returns buyers there after paying and every emailed
+link starts with it, so leave the default while developing and set it before you deploy.
 
 Prefer a browser? Skip setup and run `npm run dev:all` — the server starts unconfigured
 on purpose, and <http://localhost:5173/setup> walks the same three steps. (v1 threw an

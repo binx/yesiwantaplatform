@@ -90,6 +90,9 @@ setupRouter.get("/setup", async (_req, res) => {
     hasStripeSecret: hasStripe,
     stripeMode: stripeMode(),
     requiresToken: activeSetupToken() !== null,
+    // The wizard writes no `.env`, so it cannot set this — but it can warn
+    // that a store about to go public is still pointing at localhost.
+    publicUrl: env.PUBLIC_URL,
   } satisfies SetupStatus);
 });
 

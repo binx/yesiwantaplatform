@@ -57,6 +57,15 @@ describe("before setup", () => {
     expect(body).toHaveProperty("hasStripeSecret");
   });
 
+  it("tells the wizard which origin the server will actually use", async () => {
+    const { body } = await request(app).get("/api/setup").expect(200);
+
+    // The wizard cannot set PUBLIC_URL — it writes no `.env` — so its only
+    // useful move is warning that a store about to go public still points at
+    // localhost. It needs the value to do that.
+    expect(body.publicUrl).toBe("http://localhost:5173");
+  });
+
   it("rejects a submission with no CSRF token", async () => {
     await request(app).post("/api/setup").send(VALID).expect(403);
   });
@@ -135,6 +144,7 @@ describe("after setup", () => {
     expect(body).toEqual({ needsSetup: false });
     // A configured store must not advertise its own wiring to the public.
     expect(body).not.toHaveProperty("hasStripeSecret");
+    expect(body).not.toHaveProperty("publicUrl");
   });
 
   it("refuses a further submission, so the route cannot mint a second admin", async () => {
@@ -168,5 +178,10 @@ describe("after setup", () => {
 
     expect(body).toMatchObject({ hasStripeSecret: true, stripeMode: "test", database: "sqlite" });
     expect(JSON.stringify(body)).not.toMatch(/sk_(test|live)_/);
+
+    // The Overview's localhost warning turns on this rather than on the
+    // browser's own origin, so the server has to say which mode it is in.
+    expect(body.production).toBe(false);
+    expect(body.publicUrl).toBe("http://localhost:5173");
   });
 });

@@ -159,8 +159,18 @@ export const settingsInputSchema = z.object({
   theme: themeSchema,
 });
 
+/**
+ * An administrator's email address.
+ *
+ * Exported on its own so the browser wizard and `npm run setup` refuse exactly
+ * the same strings. The terminal path used to accept any text at all, which
+ * turned a typo into an account nobody could sign into and nothing would ever
+ * email.
+ */
+export const adminEmailSchema = z.string().email().max(320);
+
 export const loginInputSchema = z.object({
-  email: z.string().email().max(320),
+  email: adminEmailSchema,
   password: z.string().min(1).max(400),
 });
 
@@ -175,7 +185,7 @@ export const loginInputSchema = z.object({
 export const setupInputSchema = z.object({
   storeName: z.string().min(1).max(120),
   currency: z.string().length(3).default("USD"),
-  email: z.string().email().max(320),
+  email: adminEmailSchema,
   password: z.string().min(12, "Use at least 12 characters.").max(400),
   stripePublishableKey: z
     .string()
@@ -208,6 +218,13 @@ export const setupStatusSchema = z.object({
   stripeMode: z.enum(["test", "live"]).nullable().optional(),
   /** Whether `POST /setup` needs the token the server printed when it started. */
   requiresToken: z.boolean().optional(),
+  /**
+   * The origin the server will put in Stripe redirects, emailed links and the
+   * sitemap. The wizard cannot change it — it is an environment value, read
+   * before the API boots — but it can say what it is, so a deploy set up
+   * through the browser does not go public still pointing at localhost.
+   */
+  publicUrl: z.string().optional(),
 });
 
 /** Server-side wiring, shown on the admin dashboard. Booleans, never values. */
@@ -218,6 +235,13 @@ export const environmentStatusSchema = z.object({
   hasEmail: z.boolean(),
   database: z.enum(["sqlite", "postgres"]),
   publicUrl: z.string(),
+  /**
+   * Whether the API is running in production. Reported rather than inferred
+   * from the browser's own origin: an admin viewing a production store over an
+   * SSH tunnel is on localhost and the server is not, and the warning that
+   * depends on this is about the server's configuration, not the viewer's.
+   */
+  production: z.boolean(),
 });
 
 /**

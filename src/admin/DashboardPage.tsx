@@ -8,6 +8,7 @@ import { PageHeader } from "./RequireAdmin";
 import { OrderStatusTag } from "./OrderStatusTag";
 import { formatOrderDate } from "./orderPresentation";
 import { cx } from "@/lib/cx";
+import { isLocalOrigin } from "@/lib/publicUrl";
 import styles from "./DashboardPage.module.css";
 
 /**
@@ -248,11 +249,34 @@ interface WiringProps {
     hasWebhookSecret: boolean;
     hasEmail: boolean;
     database: "sqlite" | "postgres";
+    publicUrl: string;
+    production: boolean;
   };
 }
 
-function Wiring({ environment }: WiringProps) {
+/** Exported for its own test: the production/localhost rule below is a
+ *  four-way truth table, and reaching it through the whole dashboard would
+ *  mean mocking four unrelated queries to assert one alert. */
+export function Wiring({ environment }: WiringProps) {
   const notices = [];
+
+  /*
+   * First, because it breaks the most at once and shows no symptom.
+   *
+   * A production deploy that never set PUBLIC_URL still renders, still reaches
+   * Stripe, and still takes the money — it just returns the buyer to an
+   * address that exists on nobody's machine but the developer's, and sends
+   * every confirmation, reset and invitation link to the same place. Only the
+   * server knows whether it is in production; see `production` on
+   * `environmentStatusSchema`.
+   */
+  if (environment.production && isLocalOrigin(environment.publicUrl)) {
+    notices.push({
+      type: "warning" as const,
+      title: "Public URL is localhost",
+      description: `Stripe will send buyers back to ${environment.publicUrl} after paying, and emailed links will not open. Set PUBLIC_URL to this store's real address and restart the API.`,
+    });
+  }
 
   if (!environment.hasStripeSecret) {
     notices.push({

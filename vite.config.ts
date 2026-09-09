@@ -35,6 +35,16 @@ export default defineConfig({
   },
   server: {
     port: Number(process.env.PORT) || 5173,
+    /*
+     * A taken port is an error, not a quiet move to the next one.
+     *
+     * Without this Vite slides to 5174 and says so in one line that scrolls
+     * away, while the README, the `npm run setup` banner and the default
+     * PUBLIC_URL all keep promising 5173 — three wrong answers at once, and
+     * Stripe redirects that land nowhere. Failing names the problem instead:
+     * stop the other server, or set PORT.
+     */
+    strictPort: true,
     proxy: {
       "/api": {
         target: `http://localhost:${process.env.API_PORT ?? 4000}`,

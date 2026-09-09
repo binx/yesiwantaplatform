@@ -72,7 +72,15 @@ function ThemedShell() {
   );
 }
 
-function ShellFallback() {
+/**
+ * The shell while the store config is still in flight.
+ *
+ * Exported because the router uses it as `HydrateFallback` too: react-router
+ * warns on every development load when a route tree with `lazy` children has
+ * none, and the honest fallback is the one the app already shows while it is
+ * waiting — not a second, different skeleton.
+ */
+export function ShellFallback() {
   return (
     <PageWrapper>
       <Skeleton active paragraph={{ rows: 6 }} />

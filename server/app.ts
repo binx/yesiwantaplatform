@@ -119,7 +119,10 @@ export function createApp(): Express {
      */
     app.get(/^(?!\/api\/).*/, async (req, res) => {
       const meta = await metaForPath(req.path);
-      res.type("html").send(injectMeta(shell, meta));
+      // The body is the shell either way — React boots and renders its own
+      // not-found page — but the status has to be the truth, or a crawler
+      // indexes a product that does not exist as a live page.
+      res.status(meta.status).type("html").send(injectMeta(shell, meta));
     });
   }
 

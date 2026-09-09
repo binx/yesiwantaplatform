@@ -4,6 +4,7 @@ import { PageWrapper } from "@/components/layout/PageWrapper";
 import { Carousel } from "@/components/product/Carousel";
 import { ProductDetails } from "@/components/product/ProductDetails";
 import { useStore } from "@/lib/useStore";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { NotFoundPage } from "./NotFoundPage";
 import styles from "./ProductPage.module.css";
 
@@ -17,6 +18,12 @@ export function ProductPage() {
   const location = useLocation();
 
   const product = findProduct(store, slug);
+
+  // Before the early return: hooks cannot be called conditionally, and a miss
+  // leaves the shell's default title rather than naming a page that is not
+  // being shown.
+  useDocumentTitle(product?.isLive ? product.name : null);
+
   if (!product || !product.isLive) return <NotFoundPage />;
 
   const state = location.state as BreadcrumbState | null;

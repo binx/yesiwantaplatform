@@ -6,30 +6,29 @@ import type {
   CustomerProfile,
   CustomerProfileUpdateInput,
   CustomerRegisterInput,
+  CustomerSession,
   ForgotPasswordInput,
   ResetPasswordInput,
 } from "@shared/account";
 import type { Order } from "@shared/orders";
-import { ApiError, apiGet, clearCsrfToken, csrfDelete, csrfPost, csrfPut, setCsrfToken } from "./api";
+import { apiGet, clearCsrfToken, csrfDelete, csrfPost, csrfPut, setCsrfToken } from "./api";
 
 /**
  * The storefront customer, mirroring `@/lib/session`'s admin equivalent.
  *
- * `GET /api/account` answers 401 when nobody is signed in — unlike the admin
- * `/api/session`, which always answers 200 — so that is treated as "signed
- * out", not as a query error a page should render a failure state for.
+ * `GET /api/account` answers 200 with a null customer when nobody is signed
+ * in, like the admin `/api/session`. It used to answer 401, which this file
+ * caught and turned into `null` — right, but it also meant every page load on
+ * a working store printed a red failed request in the console. Every other
+ * `/api/account/*` route still answers 401, because there it is a refusal.
  */
 export const customerQueryKey = ["account"] as const;
 const ordersQueryKey = ["account", "orders"] as const;
 const addressesQueryKey = ["account", "addresses"] as const;
 
 async function fetchCustomer(signal?: AbortSignal): Promise<CustomerProfile | null> {
-  try {
-    return await apiGet<CustomerProfile>("/account", signal);
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) return null;
-    throw error;
-  }
+  const session = await apiGet<CustomerSession>("/account", signal);
+  return session.customer;
 }
 
 export function useCustomer(): UseQueryResult<CustomerProfile | null> {

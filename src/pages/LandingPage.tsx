@@ -16,9 +16,17 @@ export function LandingPage() {
       <section className={styles.hero}>
         <div className={styles.heroInner}>
           <h1 className={styles.heroTitle}>{store.name}</h1>
+          {/*
+            * Says what is true today.
+            *
+            * The previous copy promised "edit it in the admin", and there is
+            * no admin field for it — a first-run merchant goes looking and
+            * finds nothing. Task 21 adds the field; until it lands, this
+            * points at the file that actually holds the text.
+            */}
           <p className={styles.heroText}>
-            This is your storefront's hero. Edit it in the admin, or replace this component
-            entirely — it is plain JSX.
+            Replace this text in <code>src/pages/LandingPage.tsx</code>, or wait for the
+            admin field — it is plain JSX either way.
           </p>
           <Link to="/shop">
             <Button type="primary" size="large">

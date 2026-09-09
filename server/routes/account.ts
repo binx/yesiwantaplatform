@@ -8,6 +8,7 @@ import {
   resetPasswordInputSchema,
   verifyEmailInputSchema,
   type CustomerProfile,
+  type CustomerSession,
 } from "../../shared/account.js";
 import {
   claimOrdersForCustomer,
@@ -175,21 +176,37 @@ accountRouter.delete("/session", async (req, res) => {
 
 /* ----------------------------------------------------------------- profile */
 
-meRouter.get("/", async (req, res) => {
-  const customer = await findCustomerById(req.session.customerId!);
-  // The account was removed after the session was issued. Rare, but a stale
-  // session must not keep answering for a customer who no longer exists.
-  if (!customer) throw httpError(401, "Sign in required.");
+/**
+ * Who is signed in, if anyone.
+ *
+ * Deliberately *not* on `meRouter`: this is the probe every storefront page
+ * makes on first paint, and for a signed-out shopper "nobody" is the ordinary
+ * answer, not a refusal. Behind `requireCustomer` it answered 401, which the
+ * client correctly read as `null` — and which the browser logged as a failed
+ * request in the console of every page load, on a store where nothing was
+ * wrong. Every other route below keeps `requireCustomer`.
+ *
+ * Registered ahead of `accountRouter.use(meRouter)` at the foot of this file,
+ * so it is this handler that answers `GET /api/account`.
+ */
+accountRouter.get("/", async (req, res) => {
+  const id = req.session.customerId;
+  const customer = id ? await findCustomerById(id) : null;
 
-  const profile: CustomerProfile = {
-    id: customer.id,
-    email: customer.email,
-    name: customer.name,
-    emailVerified: customer.emailVerifiedAt !== null && customer.emailVerifiedAt !== undefined,
-    createdAt: toEpochMs(customer.createdAt),
-  };
+  // A null customer covers both "signed out" and "the account was removed
+  // after the session was issued" — the second is rare, and from the client's
+  // side there is nothing to tell apart: neither is signed in.
+  const profile: CustomerProfile | null = customer
+    ? {
+        id: customer.id,
+        email: customer.email,
+        name: customer.name,
+        emailVerified: customer.emailVerifiedAt !== null && customer.emailVerifiedAt !== undefined,
+        createdAt: toEpochMs(customer.createdAt),
+      }
+    : null;
 
-  res.json(profile);
+  res.json({ customer: profile } satisfies CustomerSession);
 });
 
 meRouter.put("/", async (req, res) => {

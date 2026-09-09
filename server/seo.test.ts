@@ -173,6 +173,64 @@ describe("metaForPath", () => {
       expect(meta.jsonLd).toBeNull();
     }
   });
+
+  /*
+   * The status the shell is sent with.
+   *
+   * Falling back to the store's generic head for a slug that does not exist is
+   * right — the SPA still has to boot and render its own not-found page — but
+   * sending it as 200 told every crawler the URL was a real page. The body is
+   * unchanged; only the status is.
+   */
+  it("calls a missing product or collection a 404, and a real one a 200", async () => {
+    const { metaForPath } = await import("./seo.js");
+
+    expect((await metaForPath("/product/canvas-tote")).status).toBe(200);
+    expect((await metaForPath("/product/nope")).status).toBe(404);
+    expect((await metaForPath("/collection/nope")).status).toBe(404);
+  });
+
+  it("keeps the routes that always exist at 200", async () => {
+    const { metaForPath } = await import("./seo.js");
+
+    // Client routes with no catalogue behind them must not be turned into
+    // 404s by this: the SPA owns them, and only product and collection slugs
+    // are resolved here at all.
+    for (const path of ["/", "/shop", "/about", "/cart", "/account"]) {
+      expect((await metaForPath(path)).status).toBe(200);
+    }
+  });
+
+  it("treats a draft product as missing, and keeps its copy out of the head", async () => {
+    const { createProduct } = await import("../db/admin-repository.js");
+    const { metaForPath } = await import("./seo.js");
+
+    await createProduct({
+      slug: "secret-draft",
+      name: "Secret Draft",
+      kind: "physical",
+      description: "Copy the merchant has not published yet.",
+      bulletPoints: [],
+      seoTitle: null,
+      seoDescription: null,
+      taxCode: null,
+      variants: [
+        { label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0, optionValues: [] },
+      ],
+      options: [],
+      optionGroups: [],
+      isLive: false,
+    });
+
+    const meta = await metaForPath("/product/secret-draft");
+
+    expect(meta.status).toBe(404);
+    expect(meta.title).toBe("Beluga Demo");
+    expect(meta.description).not.toContain("has not published");
+    // The same rule /sitemap.xml follows, so the two cannot disagree about
+    // what exists.
+    expect(meta.jsonLd).toBeNull();
+  });
 });
 
 describe("crawler files", () => {

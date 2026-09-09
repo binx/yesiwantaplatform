@@ -17,7 +17,7 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { CheckCircleTwoTone, InfoCircleOutlined } from "@ant-design/icons";
+import { CheckCircleTwoTone, CloseCircleTwoTone, InfoCircleOutlined } from "@ant-design/icons";
 import { defaultTheme, type Theme } from "@shared/schema";
 import type { SessionResponse, SetupInput } from "@shared/api";
 import { csrfPost, setCsrfToken } from "@/lib/api";
@@ -287,6 +287,7 @@ function SetupWizard() {
           <PaymentsStep
             hasSecret={status.data?.hasStripeSecret ?? false}
             mode={status.data?.stripeMode ?? null}
+            keyStatus={status.data?.stripeKeyStatus ?? "unchecked"}
             value={publishableKey}
             onChange={setPublishableKey}
             onBack={() => setStep(0)}
@@ -508,6 +509,7 @@ function IdentityStep({
 function PaymentsStep({
   hasSecret,
   mode,
+  keyStatus,
   value,
   onChange,
   onBack,
@@ -515,6 +517,7 @@ function PaymentsStep({
 }: {
   hasSecret: boolean;
   mode: "test" | "live" | null;
+  keyStatus: "valid" | "invalid" | "unchecked";
   value: string;
   onChange: (next: string) => void;
   onBack: () => void;
@@ -529,7 +532,16 @@ function PaymentsStep({
         skip this and add it later — the catalogue works without it, it just cannot take money.
       </p>
 
-      {hasSecret ? (
+      {hasSecret && keyStatus === "invalid" ? (
+        <Alert
+          className={cx(styles.alert)}
+          type="error"
+          showIcon
+          icon={<CloseCircleTwoTone twoToneColor="#ff4d4f" />}
+          title="The Stripe key on the server was rejected"
+          description="Replace STRIPE_SECRET_KEY and restart the API. Until then, publishing a product or taking payment will fail."
+        />
+      ) : hasSecret ? (
         <Alert
           className={cx(styles.alert)}
           type="success"

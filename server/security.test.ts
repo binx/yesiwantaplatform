@@ -514,6 +514,24 @@ describe("input validation", () => {
     expect(response.body.error).toMatch(/secret key/i);
   });
 
+  it("rejects a malformed reorder body with a 400, not a 500", async () => {
+    const { agent, csrf } = await signIn();
+
+    for (const path of [
+      "/api/admin/products/reorder",
+      "/api/admin/collections/reorder",
+      "/api/admin/pages/reorder",
+    ]) {
+      const response = await agent
+        .post(path)
+        .set("x-csrf-token", csrf)
+        .send({ ids: "nope" })
+        .expect(400);
+
+      expect(response.body.error).toBeTruthy();
+    }
+  });
+
   it("rejects a product with no variants, which would have no price", async () => {
     const { agent, csrf } = await signIn();
 

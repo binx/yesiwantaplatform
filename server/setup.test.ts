@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 
@@ -55,6 +55,14 @@ describe("before setup", () => {
     // The wizard needs to know whether the *server* holds a secret key, since
     // that one cannot be set from a browser.
     expect(body).toHaveProperty("hasStripeSecret");
+  });
+
+  it("reports the key as unchecked until the boot probe has run", async () => {
+    // `createApp()` never calls `probeStripeKey` — that only happens at real
+    // process boot (see server/index.ts) — so a fresh app always starts here.
+    const { body } = await request(app).get("/api/setup").expect(200);
+
+    expect(body.stripeKeyStatus).toBe("unchecked");
   });
 
   it("tells the wizard which origin the server will actually use", async () => {
@@ -183,5 +191,54 @@ describe("after setup", () => {
     // browser's own origin, so the server has to say which mode it is in.
     expect(body.production).toBe(false);
     expect(body.publicUrl).toBe("http://localhost:5173");
+  });
+
+  it("reports a probed key as valid, once the boot probe has run", async () => {
+    const { requireStripe, probeStripeKey, resetStripe } = await import("./stripe.js");
+
+    const stripe = requireStripe();
+    vi.spyOn(stripe.balance, "retrieve").mockResolvedValue({
+      livemode: false,
+    } as Awaited<ReturnType<typeof stripe.balance.retrieve>>);
+
+    await probeStripeKey();
+
+    const { agent, csrf } = await visitor();
+    await agent
+      .post("/api/session")
+      .set("x-csrf-token", csrf)
+      .send({ email: VALID.email, password: VALID.password })
+      .expect(200);
+
+    const { body } = await agent.get("/api/admin/environment").expect(200);
+    expect(body.stripeKeyStatus).toBe("valid");
+
+    vi.restoreAllMocks();
+    resetStripe();
+  });
+
+  it("reports a probe Stripe rejected as invalid, not merely unchecked", async () => {
+    const { default: Stripe } = await import("stripe");
+    const { requireStripe, probeStripeKey, resetStripe } = await import("./stripe.js");
+
+    const stripe = requireStripe();
+    vi.spyOn(stripe.balance, "retrieve").mockRejectedValue(
+      Stripe.errors.StripeError.generate({ statusCode: 401, message: "Expired API Key provided" }),
+    );
+
+    await probeStripeKey();
+
+    const { agent, csrf } = await visitor();
+    await agent
+      .post("/api/session")
+      .set("x-csrf-token", csrf)
+      .send({ email: VALID.email, password: VALID.password })
+      .expect(200);
+
+    const { body } = await agent.get("/api/admin/environment").expect(200);
+    expect(body.stripeKeyStatus).toBe("invalid");
+
+    vi.restoreAllMocks();
+    resetStripe();
   });
 });

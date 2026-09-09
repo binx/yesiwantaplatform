@@ -258,6 +258,30 @@ describe("the refund route", () => {
     expect(params.amount).toBe(totalCents);
     expect(options.idempotencyKey).toBe(`refund-${orderId}-full`);
   });
+
+  it("reports a rejected secret key instead of a generic 500", async () => {
+    // A real SDK error, built the way stripe-node itself builds one from a 401
+    // response — not a plain Error, so this proves the classification in
+    // server/stripe.ts actually matches on the SDK's own class.
+    const { default: Stripe } = await import("stripe");
+    createRefund.mockImplementation(() => {
+      throw Stripe.errors.StripeError.generate({
+        statusCode: 401,
+        message: "Expired API Key provided",
+      });
+    });
+
+    const { agent, csrf } = await signIn();
+    const { orderId } = await paidOrder();
+
+    const response = await agent
+      .post(`/api/admin/orders/${orderId}/refund`)
+      .set("x-csrf-token", csrf)
+      .send({})
+      .expect(502);
+
+    expect(response.body.error).toMatch(/rejected the secret key/i);
+  });
 });
 
 describe("the charge.refunded webhook", () => {

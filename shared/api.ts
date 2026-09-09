@@ -279,6 +279,13 @@ export const setupStatusSchema = z.object({
   /** Whether the *server* has a secret key. The key itself never leaves it. */
   hasStripeSecret: z.boolean().optional(),
   stripeMode: z.enum(["test", "live"]).nullable().optional(),
+  /**
+   * Whether the key actually works, checked once at boot against Stripe
+   * itself — see `probeStripeKey` in server/stripe.ts. `"unchecked"` covers
+   * both no key and a probe that has not resolved yet; only `"invalid"` means
+   * Stripe rejected it.
+   */
+  stripeKeyStatus: z.enum(["valid", "invalid", "unchecked"]).optional(),
   /** Whether `POST /setup` needs the token the server printed when it started. */
   requiresToken: z.boolean().optional(),
   /**
@@ -294,6 +301,8 @@ export const setupStatusSchema = z.object({
 export const environmentStatusSchema = z.object({
   hasStripeSecret: z.boolean(),
   stripeMode: z.enum(["test", "live"]).nullable(),
+  /** See the matching field on `setupStatusSchema`. */
+  stripeKeyStatus: z.enum(["valid", "invalid", "unchecked"]),
   hasWebhookSecret: z.boolean(),
   hasEmail: z.boolean(),
   database: z.enum(["sqlite", "postgres"]),

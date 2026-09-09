@@ -12,12 +12,27 @@ import { env } from "./env.js";
  * just arrives with the right tags already in the document.
  */
 
+/** What goes into the `<head>`. All `injectMeta` needs, and all it is given. */
 export interface PageMeta {
   title: string;
   description: string;
   canonical: string;
   image: string | null;
   jsonLd: object | null;
+}
+
+/**
+ * A head, plus the status the shell carrying it should be sent with.
+ *
+ * 200 for everything that resolves; 404 for a product or collection slug that
+ * does not — otherwise a crawler indexes the URL as a real page wearing the
+ * store's generic title. The body is the same shell either way: React still
+ * boots and renders its own not-found page, so this is a status correction and
+ * not server-side rendering. It is the rule `/sitemap.xml` already follows,
+ * which is what keeps the two from disagreeing about what exists.
+ */
+export interface ResolvedMeta extends PageMeta {
+  status: 200 | 404;
 }
 
 /** Google truncates a description here, so there is no point sending more. */
@@ -86,12 +101,12 @@ function productJsonLd(
  * included, so nothing in here may throw: a miss falls back to the store
  * defaults and the SPA still boots.
  */
-export async function metaForPath(pathname: string): Promise<PageMeta> {
+export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
   const settings = await getSettings().catch(() => null);
   const storeName = settings?.name ?? "Beluga";
   const currency = settings?.currency ?? "USD";
 
-  const fallback: PageMeta = {
+  const fallback: ResolvedMeta = {
     title: storeName,
     description: settings?.aboutText
       ? truncate(settings.aboutText)
@@ -99,7 +114,11 @@ export async function metaForPath(pathname: string): Promise<PageMeta> {
     canonical: absolute(pathname),
     image: null,
     jsonLd: null,
+    status: 200,
   };
+
+  /** The same generic head, but told to the client and to crawlers as a miss. */
+  const missing: ResolvedMeta = { ...fallback, status: 404 };
 
   try {
     const path = pathname.split("?")[0]!.replace(/\/+$/, "") || "/";
@@ -121,7 +140,7 @@ export async function metaForPath(pathname: string): Promise<PageMeta> {
     const collection = /^\/collection\/([^/]+)$/.exec(path);
     if (collection) {
       const found = await findCollectionBySlug(decodeURIComponent(collection[1]!));
-      if (!found) return fallback;
+      if (!found) return missing;
 
       return {
         ...fallback,
@@ -133,8 +152,12 @@ export async function metaForPath(pathname: string): Promise<PageMeta> {
 
     const product = /^\/product\/([^/]+)$/.exec(path);
     if (product) {
-      const found = await findProductBySlug(decodeURIComponent(product[1]!));
-      if (!found) return fallback;
+      // `liveOnly` passed explicitly, though it is the default: a draft must
+      // be a miss here, not a page whose head is built from copy the merchant
+      // has not published. The storefront refuses to render one anyway, so
+      // answering 200 would leave the two disagreeing.
+      const found = await findProductBySlug(decodeURIComponent(product[1]!), true);
+      if (!found) return missing;
 
       const image = found.images[0] ? absolute(found.images[0].path) : null;
       const description = found.seoDescription ?? truncate(found.description || `${found.name} from ${storeName}.`);
@@ -145,6 +168,7 @@ export async function metaForPath(pathname: string): Promise<PageMeta> {
         canonical: absolute(`/product/${found.slug}`),
         image,
         jsonLd: productJsonLd(found, description, image, currency),
+        status: 200,
       };
     }
 

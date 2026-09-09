@@ -3,6 +3,7 @@ import { findCollection, getCollectionProducts, getLiveProducts } from "@shared/
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { ProductBrowser } from "@/components/product/ProductBrowser";
 import { useStore } from "@/lib/useStore";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { NotFoundPage } from "./NotFoundPage";
 
 export function CollectionPage() {
@@ -11,7 +12,17 @@ export function CollectionPage() {
   const [params] = useSearchParams();
   const query = (params.get("q") ?? "").trim();
 
-  if (slug === "all-products") {
+  const isAllProducts = slug === "all-products";
+  const collection = isAllProducts ? null : findCollection(store, slug);
+
+  /*
+   * Resolved before the early returns below, because hooks cannot be called
+   * conditionally. The tab is named for the collection rather than the search
+   * inside it: a bookmark of "Home Goods?q=mug" should still say Home Goods.
+   */
+  useDocumentTitle(isAllProducts ? "All products" : (collection?.name ?? null));
+
+  if (isAllProducts) {
     return (
       <PageWrapper width="wide">
         {/* The heading names what is under it, so a filtered list is not
@@ -28,7 +39,6 @@ export function CollectionPage() {
     );
   }
 
-  const collection = findCollection(store, slug);
   if (!collection) return <NotFoundPage />;
 
   return (

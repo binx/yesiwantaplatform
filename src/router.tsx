@@ -1,5 +1,5 @@
 import { createBrowserRouter } from "react-router-dom";
-import { App } from "./App";
+import { App, ShellFallback } from "./App";
 import { LandingPage } from "./pages/LandingPage";
 import { ShopPage } from "./pages/ShopPage";
 import { CollectionPage } from "./pages/CollectionPage";
@@ -21,13 +21,26 @@ import { NotFoundPage } from "./pages/NotFoundPage";
  * second application — forms, tables, a colour picker — and no shopper should
  * download any of it to look at a product.
  */
+/*
+ * Every top-level route names one.
+ *
+ * react-router warns once per load in development when a tree containing
+ * `lazy` routes has no `HydrateFallback` — noise on a working app, and the
+ * kind a developer learns to scroll past, which is how the next warning gets
+ * missed too. The shell's own waiting skeleton is the honest answer; a second,
+ * different one would only be a different flash.
+ */
+const HydrateFallback = ShellFallback;
+
 export const router = createBrowserRouter([
   {
     path: "/setup",
+    HydrateFallback,
     lazy: async () => ({ Component: (await import("./admin/SetupPage")).SetupPage }),
   },
   {
     path: "/admin",
+    HydrateFallback,
     lazy: async () => ({ Component: (await import("./admin/AdminRoot")).AdminRoot }),
     children: [
       {
@@ -134,6 +147,7 @@ export const router = createBrowserRouter([
   {
     path: "/",
     element: <App />,
+    HydrateFallback,
     children: [
       { index: true, element: <LandingPage /> },
       { path: "shop", element: <ShopPage /> },

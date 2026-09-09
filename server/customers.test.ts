@@ -53,6 +53,53 @@ beforeAll(async () => {
   app = createApp();
 });
 
+/**
+ * The session probe.
+ *
+ * `GET /api/account` is what every storefront page asks on first paint, so for
+ * a signed-out shopper "nobody" is the ordinary answer rather than a refusal.
+ * It used to answer 401, which the client read correctly as `null` and the
+ * browser logged as a red failed request on every page load of a working
+ * store. Everything else under `/api/account/*` keeps its 401, and that is the
+ * half worth pinning down: the probe opening up must not open anything else.
+ */
+describe("the account probe", () => {
+  it("answers 200 with a null customer when nobody is signed in", async () => {
+    const response = await request(app).get("/api/account").expect(200);
+
+    expect(response.body).toEqual({ customer: null });
+  });
+
+  it("still refuses every other account route without a session", async () => {
+    await request(app).get("/api/account/orders").expect(401);
+    await request(app).get("/api/account/addresses").expect(401);
+    await request(app).get("/api/account/orders/anything").expect(401);
+  });
+
+  it("returns the customer once one is signed in", async () => {
+    const email = "prober@example.com";
+    const { agent, csrf } = await bootstrap();
+
+    await agent
+      .post("/api/account/register")
+      .set("x-csrf-token", csrf)
+      .send({ email, password: PASSWORD })
+      .expect(204);
+
+    const { createEmailVerificationToken } = await import("./auth.js");
+    const token = await createEmailVerificationToken(await customerIdForEmail(email));
+
+    // Verifying signs the customer in.
+    await agent.post("/api/account/verify").set("x-csrf-token", csrf).send({ token }).expect(200);
+
+    const response = await agent.get("/api/account").expect(200);
+
+    expect(response.body.customer).toMatchObject({ email, emailVerified: true });
+    // Never the columns that make an account an account.
+    expect(JSON.stringify(response.body)).not.toContain("passwordHash");
+  });
+});
+
 describe("registration and verification", () => {
   it("does not link orders until the email is verified, then links them", async () => {
     const email = "claiming@example.com";
@@ -236,7 +283,8 @@ describe("password reset", () => {
       .set("x-csrf-token", intruder.csrf)
       .send({ email, password: PASSWORD })
       .expect(200);
-    await intruder.agent.get("/api/account").expect(200);
+    const signedIn = await intruder.agent.get("/api/account").expect(200);
+    expect(signedIn.body.customer).toMatchObject({ email });
 
     const token = await createPasswordResetToken(email);
     const { agent, csrf } = await bootstrap();
@@ -246,8 +294,19 @@ describe("password reset", () => {
       .send({ token, password: "a-brand-new-long-password" })
       .expect(204);
 
-    // The reset is what the owner does when they suspect exactly this.
-    await intruder.agent.get("/api/account").expect(401);
+    /*
+     * The reset is what the owner does when they suspect exactly this.
+     *
+     * The probe answers 200 for everyone now, so the assertion is on the body:
+     * the intruder's cookie no longer resolves to a customer. Asserting a
+     * status here would test the probe rather than the session destruction.
+     * The routes that carry data still refuse them outright.
+     */
+    const after = await intruder.agent.get("/api/account").expect(200);
+    expect(after.body.customer).toBeNull();
+
+    await intruder.agent.get("/api/account/orders").expect(401);
+    await intruder.agent.get("/api/account/addresses").expect(401);
   });
 
   it("expires after its window", async () => {

@@ -81,6 +81,21 @@ export const customerProfileSchema = z.object({
   createdAt: z.number().int(),
 });
 
+/**
+ * Who is signed in, if anyone.
+ *
+ * A probe, so it answers 200 either way: "nobody is signed in" is the normal
+ * state of a storefront visitor, not an error. It used to be a 401, which
+ * `fetchCustomer` caught and turned into `null` — correct behaviour that still
+ * printed a red failed request in the console of every page load, on a store
+ * where nothing was wrong. Every other `/api/account/*` route keeps
+ * `requireCustomer`'s 401, because there a missing session really is a refusal.
+ */
+export const customerSessionSchema = z.object({
+  customer: customerProfileSchema.nullable(),
+});
+
+export type CustomerSession = z.infer<typeof customerSessionSchema>;
 export type CustomerRegisterInput = z.infer<typeof customerRegisterInputSchema>;
 export type CustomerLoginInput = z.infer<typeof customerLoginInputSchema>;
 export type CustomerProfileUpdateInput = z.infer<typeof customerProfileUpdateInputSchema>;

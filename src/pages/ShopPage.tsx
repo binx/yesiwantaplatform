@@ -4,6 +4,7 @@ import { PageWrapper } from "@/components/layout/PageWrapper";
 import { ProductImage } from "@/components/ui/ProductImage";
 import { ProductBrowser } from "@/components/product/ProductBrowser";
 import { useStore } from "@/lib/useStore";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import styles from "./ShopPage.module.css";
 
 export function ShopPage() {
@@ -12,6 +13,8 @@ export function ShopPage() {
   const collections = getVisibleCollections(store);
 
   const query = (params.get("q") ?? "").trim();
+
+  useDocumentTitle("Shop");
 
   // The catalogue is the page. Collections used to replace it whenever the
   // store had any, which made "Shop everything" on the landing page a link to

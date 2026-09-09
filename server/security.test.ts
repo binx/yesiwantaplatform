@@ -124,8 +124,18 @@ const CUSTOMER_MUTATIONS = [
   { method: "post", path: "/api/cart/sync" },
 ] as const;
 
+/*
+ * `GET /api/account` is deliberately absent.
+ *
+ * It is the probe every storefront page makes on first paint, so it answers
+ * 200 to anyone — "nobody is signed in" is the ordinary state of a visitor,
+ * not a refusal, and 401-ing it painted a red error in the console of every
+ * page load. What has to stay true is that it hands out no customer to anyone
+ * who is not that customer, which is asserted explicitly below rather than by
+ * membership here. `PUT /api/account` is a write and stays in
+ * CUSTOMER_MUTATIONS.
+ */
 const CUSTOMER_READS = [
-  "/api/account",
   "/api/account/orders",
   "/api/account/orders/some-order",
   "/api/account/addresses",
@@ -294,6 +304,27 @@ describe("customer routes", () => {
   it.each(CUSTOMER_READS)("does not answer an admin session on GET %s", async (path) => {
     const { agent } = await signIn();
     await agent.get(path).expect(401);
+  });
+
+  /*
+   * The probe, held to the property that actually matters.
+   *
+   * It is public, so the assertion is on the body, not the status: no session
+   * that is not a customer's may come back carrying a customer. An admin
+   * session is the sharp case — `requireCustomer` reads `customerId`, which an
+   * administrator's session does not carry, and this handler reads the same
+   * field rather than trusting that any session will do.
+   */
+  it("answers the account probe to anyone, with nobody in it", async () => {
+    const response = await request(app).get("/api/account").expect(200);
+    expect(response.body).toEqual({ customer: null });
+  });
+
+  it("does not turn an admin session into a customer on the account probe", async () => {
+    const { agent } = await signIn();
+
+    const response = await agent.get("/api/account").expect(200);
+    expect(response.body).toEqual({ customer: null });
   });
 
   it("refuses an unknown recovery token rather than returning a cart", async () => {

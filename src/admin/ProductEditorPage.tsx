@@ -357,7 +357,24 @@ export function ProductEditorPage() {
   const update = useUpdateProduct();
   const publish = usePublishProduct();
 
-  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  const [draft, hydrateDraft] = useState<Draft>(EMPTY_DRAFT);
+  /*
+   * Whether anyone has edited this form yet.
+   *
+   * `problems(draft)` is right that an untouched new product is invalid — it
+   * has no name, no address and no price — but listing that in red before the
+   * merchant has typed a character reads as a broken page rather than as
+   * guidance. Every user edit goes through `setDraft` below; the load effect
+   * uses `hydrateDraft` directly, so opening an existing product does not
+   * count as touching it.
+   */
+  const [touched, setTouched] = useState(false);
+
+  const setDraft: typeof hydrateDraft = (value) => {
+    setTouched(true);
+    hydrateDraft(value);
+  };
+
   const [productId, setProductId] = useState<string | null>(null);
   const [images, setImages] = useState<Image[]>([]);
   const [slugTouched, setSlugTouched] = useState(!isNew);
@@ -387,7 +404,7 @@ export function ProductEditorPage() {
 
     setProductId(product.id);
     setImages(product.images);
-    setDraft({
+    hydrateDraft({
       slug: product.slug,
       name: product.name,
       kind: product.kind,
@@ -681,7 +698,13 @@ export function ProductEditorPage() {
         />
       ) : null}
 
-      {issues.length > 0 ? (
+      {/*
+        * Only once the form has been touched, or a save has been attempted.
+        * The same rule the autosave indicator already follows — it says
+        * "Saves automatically" until there is something to save, not
+        * "Waiting for the details below" at a form nobody has filled in.
+        */}
+      {issues.length > 0 && (touched || autosave.state === "error") ? (
         <Alert
           className={cx(styles.alert)}
           type="warning"

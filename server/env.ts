@@ -83,6 +83,25 @@ const schema = z.object({
   ASSETS_DIR: z.string().min(1).default("public/assets"),
 
   /**
+   * Object storage for uploaded imagery, instead of ASSETS_DIR.
+   *
+   * Setting ASSETS_S3_BUCKET selects the bucket driver (server/image-store.ts)
+   * and makes the rest of the group required — checked in `objectStorageFrom`
+   * below, at boot, rather than as a 500 on the first upload. Any S3-compatible
+   * provider works, which is why there is one group and not one per vendor.
+   * ASSETS_PUBLIC_URL is where browsers are sent: the bucket's public address
+   * or a CDN in front of it. Stored paths stay relative, so switching drivers
+   * is configuration, not a data migration.
+   */
+  ASSETS_S3_BUCKET: z.string().optional(),
+  ASSETS_S3_ENDPOINT: z.string().optional(),
+  ASSETS_S3_REGION: z.string().optional(),
+  ASSETS_S3_ACCESS_KEY_ID: z.string().optional(),
+  ASSETS_S3_SECRET_ACCESS_KEY: z.string().optional(),
+  ASSETS_S3_ACL: z.string().optional(),
+  ASSETS_PUBLIC_URL: z.string().optional(),
+
+  /**
    * Max upload size in bytes. 20 MB: room for a camera-original product photo,
    * which is re-encoded and capped at 2400px on the way in regardless. This is
    * a ceiling for imagery only; digital product files are not uploaded here.
@@ -156,6 +175,82 @@ function load(): Env {
 }
 
 export const env = load();
+
+/** The bucket driver's settings, present only when the whole group is. */
+export interface ObjectStorage {
+  bucket: string;
+  region: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  endpoint: string | undefined;
+  publicUrl: string;
+  acl: string | undefined;
+}
+
+const S3_REQUIRED = [
+  "ASSETS_S3_REGION",
+  "ASSETS_S3_ACCESS_KEY_ID",
+  "ASSETS_S3_SECRET_ACCESS_KEY",
+  "ASSETS_PUBLIC_URL",
+] as const;
+const S3_OPTIONAL = ["ASSETS_S3_ENDPOINT", "ASSETS_S3_ACL"] as const;
+
+/**
+ * Validate the bucket settings as a group.
+ *
+ * Half a configuration is the failure worth catching: a bucket with no key
+ * would be a 500 on the first upload, and a key with no bucket would quietly
+ * write to disk on a platform that loses it at the next deploy. Both are
+ * refused at boot with the variable names, next to the rest of this file's
+ * errors. A blank value counts as unset, since that is what a commented-out
+ * `.env` line becomes once someone uncomments it to fill in later.
+ */
+function objectStorageFrom(values: Env): ObjectStorage | null {
+  const set = (name: (typeof S3_REQUIRED | typeof S3_OPTIONAL)[number] | "ASSETS_S3_BUCKET") =>
+    Boolean(values[name]);
+
+  if (!values.ASSETS_S3_BUCKET) {
+    const stray = [...S3_REQUIRED, ...S3_OPTIONAL].filter(set);
+    if (stray.length > 0) {
+      throw new Error(
+        `${stray.join(", ")} ${stray.length === 1 ? "is" : "are"} set but ASSETS_S3_BUCKET is not, ` +
+          "so uploads would go to disk. Set ASSETS_S3_BUCKET to use the bucket, or unset the rest. " +
+          "See .env.example.",
+      );
+    }
+    return null;
+  }
+
+  const missing = S3_REQUIRED.filter((name) => !set(name));
+  if (missing.length > 0) {
+    throw new Error(
+      `ASSETS_S3_BUCKET is set, so uploads go to a bucket, but ${missing.join(", ")} ` +
+        `${missing.length === 1 ? "is" : "are"} not. Set ${missing.length === 1 ? "it" : "them"}, ` +
+        "or unset ASSETS_S3_BUCKET to keep images on disk. See .env.example.",
+    );
+  }
+
+  const url = (name: "ASSETS_PUBLIC_URL" | "ASSETS_S3_ENDPOINT", value: string): string => {
+    try {
+      new URL(value);
+      return value;
+    } catch {
+      throw new Error(`${name} must be an absolute URL, got "${value}". See .env.example.`);
+    }
+  };
+
+  return {
+    bucket: values.ASSETS_S3_BUCKET,
+    region: values.ASSETS_S3_REGION!,
+    accessKeyId: values.ASSETS_S3_ACCESS_KEY_ID!,
+    secretAccessKey: values.ASSETS_S3_SECRET_ACCESS_KEY!,
+    endpoint: values.ASSETS_S3_ENDPOINT ? url("ASSETS_S3_ENDPOINT", values.ASSETS_S3_ENDPOINT) : undefined,
+    publicUrl: url("ASSETS_PUBLIC_URL", values.ASSETS_PUBLIC_URL!),
+    acl: values.ASSETS_S3_ACL || undefined,
+  };
+}
+
+export const objectStorage = objectStorageFrom(env);
 
 export const isProduction = env.NODE_ENV === "production";
 export const isSqlite = env.DATABASE_URL.startsWith("file:");

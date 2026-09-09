@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert, App, Button, Card, Input, InputNumber, Select, Skeleton, Switch, Tooltip } from "antd";
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import type { ShippingRate, ShippingZone } from "@shared/shipping";
-import { countryName, findCoverageGaps, hasCatchAllZone } from "@shared/shipping";
+import {
+  countryCodeFromName,
+  countryName,
+  findCoverageGaps,
+  hasCatchAllZone,
+} from "@shared/shipping";
 import { formatMoney, parseCents } from "@shared/money";
 import { cx } from "@/lib/cx";
 import { Field } from "./Field";
@@ -26,6 +31,8 @@ import styles from "./ShippingPage.module.css";
 /** Local drafts carry a stable key so a row survives being reordered. */
 interface ZoneDraft extends ShippingZone {
   key: string;
+  /** The most recent token that didn't resolve to a country. Cleared on the next change. */
+  badToken: string | null;
 }
 interface RateDraft extends Omit<ShippingRate, "priceCents"> {
   key: string;
@@ -53,7 +60,7 @@ export function ShippingPage() {
   useEffect(() => {
     if (!shipping.data || zones !== null) return;
 
-    setZones(shipping.data.zones.map((zone) => ({ ...zone, key: nextKey() })));
+    setZones(shipping.data.zones.map((zone) => ({ ...zone, key: nextKey(), badToken: null })));
     setRates(
       shipping.data.rates.map((rate) => ({
         ...rate,
@@ -193,6 +200,7 @@ export function ShippingPage() {
                   name: "",
                   countryCodes: [],
                   position: zones.length,
+                  badToken: null,
                 },
               ])
             }
@@ -228,9 +236,11 @@ export function ShippingPage() {
                 <Field
                   label="Countries"
                   help={
-                    zone.countryCodes.length === 0
-                      ? "Empty — this is the catch-all for everywhere else."
-                      : `${zone.countryCodes.length} listed`
+                    zone.badToken
+                      ? `"${zone.badToken}" is not a country. Use the two-letter code, like CA for Canada.`
+                      : zone.countryCodes.length === 0
+                        ? "Empty — this is the catch-all for everywhere else."
+                        : `${zone.countryCodes.length} listed`
                   }
                 >
                   {(control) => (
@@ -239,21 +249,36 @@ export function ShippingPage() {
                       mode="tags"
                       className={cx(styles.grow)}
                       value={zone.countryCodes}
-                      placeholder="US, GB, DE…"
+                      placeholder="US, GB, DE, or a name like Canada…"
                       tokenSeparators={[",", " "]}
-                      onChange={(codes: string[]) =>
-                        setZone(zone.key, {
-                          // Typed freely, so normalise and drop anything that
-                          // is not a plausible ISO code rather than storing it.
-                          countryCodes: [
-                            ...new Set(
-                              codes
-                                .map((code) => code.trim().toUpperCase())
-                                .filter((code) => /^[A-Z]{2}$/.test(code)),
-                            ),
-                          ],
-                        })
-                      }
+                      onChange={(tokens: string[]) => {
+                        // Typed freely, so normalise each token: a plausible
+                        // ISO code first, then a country name matched against
+                        // the same list the cart's own country select offers.
+                        // Anything left over is dropped, and named in `help`
+                        // rather than silently vanishing.
+                        const codes: string[] = [];
+                        let badToken: string | null = null;
+
+                        for (const raw of tokens) {
+                          const token = raw.trim();
+                          const upper = token.toUpperCase();
+
+                          if (/^[A-Z]{2}$/.test(upper)) {
+                            codes.push(upper);
+                            continue;
+                          }
+
+                          const named = countryCodeFromName(token, locale);
+                          if (named) {
+                            codes.push(named);
+                          } else if (token !== "") {
+                            badToken = token;
+                          }
+                        }
+
+                        setZone(zone.key, { countryCodes: [...new Set(codes)], badToken });
+                      }}
                       options={zone.countryCodes.map((code) => ({
                         label: `${code} — ${countryName(code, locale)}`,
                         value: code,
@@ -363,10 +388,16 @@ export function ShippingPage() {
                     <Select
                       {...control}
                       className={cx(styles.grow)}
-                      value={rate.zoneId}
-                      onChange={(zoneId: string | null) => setRate(rate.key, { zoneId })}
+                      // antd warns on a `null` option value, so `null` is
+                      // represented as "" here and translated back at the
+                      // edges — the saved shape (`zoneId: string | null`)
+                      // does not change.
+                      value={rate.zoneId ?? ""}
+                      onChange={(zoneId: string) =>
+                        setRate(rate.key, { zoneId: zoneId === "" ? null : zoneId })
+                      }
                       options={[
-                        { label: "Everywhere", value: null },
+                        { label: "Everywhere", value: "" },
                         ...zones.map((zone) => ({
                           label: zone.name || "(unnamed)",
                           value: zone.id,

@@ -295,7 +295,7 @@ export function PageEditorPage() {
       <Alert
         type="error"
         showIcon
-        message="That page does not exist."
+        title="That page does not exist."
         action={
           <Link to="/admin/pages">
             <Button size="small">Back to pages</Button>
@@ -329,7 +329,7 @@ export function PageEditorPage() {
           className={cx(styles.alert)}
           type="error"
           showIcon
-          message="This page has not been saved."
+          title="This page has not been saved."
           description={autosave.error.message}
         />
       ) : null}

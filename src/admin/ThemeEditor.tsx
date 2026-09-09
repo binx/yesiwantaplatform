@@ -132,7 +132,7 @@ export function ThemeEditor({ value, onChange, storeName, savedFontUrl }: ThemeE
               <Alert
                 type="warning"
                 showIcon
-                message="Your primary colour is hard to see"
+                title="Your primary colour is hard to see"
                 description={`Buttons sit at ${primaryContrast.toFixed(1)}:1 against the page background. Below ${MIN_CONTRAST}:1 they start to disappear — a near-black primary on a dark scheme is the usual cause.`}
               />
             </Form.Item>
@@ -306,7 +306,7 @@ export function ThemeEditor({ value, onChange, storeName, savedFontUrl }: ThemeE
             type="info"
             showIcon
             className={cx(styles.previewNote)}
-            message="Save to see this typeface"
+            title="Save to see this typeface"
             description="The store only allows fonts from an address it has saved, so the preview keeps the fallback until you do."
           />
         ) : null}

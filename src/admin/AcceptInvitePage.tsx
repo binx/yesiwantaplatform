@@ -52,7 +52,7 @@ export function AcceptInvitePage() {
             className={cx(styles.alert)}
             type="error"
             showIcon
-            message={
+            title={
               accept.error instanceof Error
                 ? accept.error.message
                 : "That invitation could not be used."

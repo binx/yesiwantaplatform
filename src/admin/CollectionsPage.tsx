@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { App, Button, Card, Empty, Input, Modal, Select, Skeleton, Space, Tooltip, Upload } from "antd";
 import {
   ArrowDownOutlined,
@@ -7,6 +7,7 @@ import {
   PlusOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
+import type { CollectionInput } from "@shared/api";
 import { FEATURED_SLUG, type CollectionDraft } from "@shared/schema";
 import { assetUrl } from "@/lib/store-source";
 import { cx } from "@/lib/cx";
@@ -19,9 +20,11 @@ import {
   useUpdateCollection,
   useUploadCollectionCover,
 } from "./queries";
-import { Field, type ControlProps } from "./Field";
+import { Field } from "./Field";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { PageHeader } from "./RequireAdmin";
+import { SaveIndicator } from "./SaveIndicator";
+import { useAutosave } from "./useAutosave";
 import styles from "./CollectionsPage.module.css";
 
 /**
@@ -93,35 +96,42 @@ export function CollectionsPage() {
   /**
    * Every save sends the whole collection.
    *
-   * The three callers below each used to build their own payload from the
-   * fields they cared about, which is how `cover` came to be silently dropped
-   * on every rename and every product change — a merchant could not have set
-   * one anyway, but the shape was already wrong. One place to add a field to
-   * now, and `CollectionInput` makes leaving one out a type error.
+   * The callers below each used to build their own payload from the fields
+   * they cared about, which is how `cover` came to be silently dropped on
+   * every rename and every product change — a merchant could not have set one
+   * anyway, but the shape was already wrong. One place to add a field to now,
+   * and `CollectionInput` makes leaving one out a type error.
    */
+  const buildInput = (
+    collection: CollectionDraft,
+    patch: Partial<Pick<CollectionDraft, "name" | "cover" | "description" | "productIds">>,
+  ): CollectionInput => ({
+    slug: collection.slug,
+    name: patch.name ?? collection.name,
+    cover: patch.cover !== undefined ? patch.cover : collection.cover,
+    description: patch.description !== undefined ? patch.description : collection.description,
+    productIds: patch.productIds ?? collection.productIds,
+  });
+
   const save = (
     collection: CollectionDraft,
     patch: Partial<Pick<CollectionDraft, "name" | "cover" | "description" | "productIds">>,
     failure: string,
   ) => {
     update.mutate(
-      {
-        id: collection.id,
-        input: {
-          slug: collection.slug,
-          name: patch.name ?? collection.name,
-          cover: patch.cover !== undefined ? patch.cover : collection.cover,
-          description:
-            patch.description !== undefined ? patch.description : collection.description,
-          productIds: patch.productIds ?? collection.productIds,
-        },
-      },
+      { id: collection.id, input: buildInput(collection, patch) },
       {
         onError: (error: unknown) =>
           void message.error(error instanceof Error ? error.message : failure),
       },
     );
   };
+
+  // Used by the introduction's autosave, which needs the promise to reject so
+  // `useAutosave` can put the field into its own "Not saved" state — a toast
+  // here would just say the same thing twice.
+  const saveDescription = (collection: CollectionDraft, description: string | null) =>
+    update.mutateAsync({ id: collection.id, input: buildInput(collection, { description }) });
 
   const rename = (collection: CollectionDraft, name: string) => {
     if (name.trim() === "" || name === collection.name) return;
@@ -156,157 +166,20 @@ export function CollectionsPage() {
       ) : (
         <div className={cx(styles.list)}>
           {all.map((collection, index) => (
-            <Card
+            <CollectionCard
               key={collection.id}
-              className={cx(styles.card)}
-              title={
-                <Input
-                  className={cx(styles.name)}
-                  defaultValue={collection.name}
-                  aria-label={`Name of ${collection.name}`}
-                  variant="borderless"
-                  onBlur={(event) => rename(collection, event.target.value)}
-                  onPressEnter={(event) => event.currentTarget.blur()}
-                />
-              }
-              extra={
-                <Space>
-                  <Space.Compact>
-                    <Tooltip title="Move up">
-                      <Button
-                        icon={<ArrowUpOutlined />}
-                        aria-label={`Move ${collection.name} up`}
-                        disabled={index === 0 || reorder.isPending}
-                        onClick={() => move(index, -1)}
-                      />
-                    </Tooltip>
-                    <Tooltip title="Move down">
-                      <Button
-                        icon={<ArrowDownOutlined />}
-                        aria-label={`Move ${collection.name} down`}
-                        disabled={index === all.length - 1 || reorder.isPending}
-                        onClick={() => move(index, 1)}
-                      />
-                    </Tooltip>
-                  </Space.Compact>
-                  <Button
-                    icon={<DeleteOutlined />}
-                    aria-label={`Delete ${collection.name}`}
-                    danger
-                    type="text"
-                    onClick={() => confirmDelete(collection)}
-                  />
-                </Space>
-              }
-            >
-              <p className={cx(styles.meta)}>
-                <code>/collection/{collection.slug}</code>
-                {collection.slug === FEATURED_SLUG ? (
-                  <span className={cx(styles.badge)}>Shown on the landing page</span>
-                ) : null}
-              </p>
-
-              <Field
-                label="Cover image"
-                help="Shown on /shop at 16:9. Without one the tile renders a placeholder."
-              >
-                {() => (
-                  <div className={cx(styles.cover)}>
-                    {collection.cover ? (
-                      <img
-                        className={cx(styles.coverImage)}
-                        src={assetUrl(collection.cover.path)}
-                        alt={collection.cover.alt}
-                        width={collection.cover.width}
-                        height={collection.cover.height}
-                      />
-                    ) : null}
-
-                    <Space>
-                      <Upload
-                        accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
-                        showUploadList={false}
-                        // Uploaded here rather than by antd, so the request
-                        // carries the session's CSRF token — and so the row is
-                        // only saved once the file is really on disk.
-                        beforeUpload={(file) => {
-                          uploadCover.mutate(
-                            { id: collection.id, file, alt: `${collection.name} collection` },
-                            {
-                              onSuccess: (cover) =>
-                                save(collection, { cover }, "Could not save the cover."),
-                              onError: (error: unknown) =>
-                                void message.error(
-                                  error instanceof Error
-                                    ? error.message
-                                    : "That image could not be uploaded.",
-                                ),
-                            },
-                          );
-                          return Upload.LIST_IGNORE;
-                        }}
-                      >
-                        <Button
-                          icon={<UploadOutlined />}
-                          loading={uploadCover.isPending}
-                          aria-label={`${collection.cover ? "Replace" : "Upload"} the cover for ${collection.name}`}
-                        >
-                          {collection.cover ? "Replace" : "Upload"}
-                        </Button>
-                      </Upload>
-
-                      {collection.cover ? (
-                        <Button
-                          type="link"
-                          size="small"
-                          onClick={() =>
-                            save(collection, { cover: null }, "Could not remove the cover.")
-                          }
-                        >
-                          Remove
-                        </Button>
-                      ) : null}
-                    </Space>
-                  </div>
-                )}
-              </Field>
-
-              {/*
-                * Saved on blur, not on every keystroke: `save` is a mutation
-                * per call, and a debounce here would be a second autosave
-                * implementation living next to the one the product editor
-                * already has.
-                */}
-              <Field
-                label="Introduction"
-                help="Markdown, shown under the heading on the collection page. Optional."
-              >
-                {(control) => (
-                  <CollectionDescription
-                    control={control}
-                    collection={collection}
-                    onSave={(description) =>
-                      save(collection, { description }, "Could not save the introduction.")
-                    }
-                  />
-                )}
-              </Field>
-
-              <Field label="Products, in the order they appear">
-                {(control) => (
-                  <Select
-                    {...control}
-                    mode="multiple"
-                    className={cx(styles.select)}
-                    value={collection.productIds}
-                    options={productOptions}
-                    placeholder="Choose products"
-                    optionFilterProp="label"
-                    onChange={(ids: string[]) => save(collection, { productIds: ids }, "Could not save.")}
-                  />
-                )}
-              </Field>
-            </Card>
+              collection={collection}
+              index={index}
+              total={all.length}
+              reorderPending={reorder.isPending}
+              productOptions={productOptions}
+              uploadCover={uploadCover}
+              onMove={move}
+              onDelete={confirmDelete}
+              onRename={rename}
+              onSave={save}
+              onSaveDescription={saveDescription}
+            />
           ))}
         </div>
       )}
@@ -371,24 +244,48 @@ function slugify(value: string): string {
     .slice(0, 80);
 }
 
-/**
- * The description editor for one collection card.
- *
- * Local state, saved on blur. Everything else on these cards saves
- * immediately — a name, a cover, a product list are each one gesture — but a
- * paragraph is typed, and a mutation per keystroke would be both a flood of
- * requests and a cursor that jumps every time the refetched list re-renders.
- * Blur is the moment the merchant has finished the thought.
- */
-function CollectionDescription({
-  collection,
-  onSave,
-  control,
-}: {
+interface CollectionCardProps {
   collection: CollectionDraft;
-  onSave: (description: string | null) => void;
-  control: ControlProps;
-}) {
+  index: number;
+  total: number;
+  reorderPending: boolean;
+  productOptions: { label: string; value: string }[];
+  uploadCover: ReturnType<typeof useUploadCollectionCover>;
+  onMove: (index: number, direction: -1 | 1) => void;
+  onDelete: (collection: CollectionDraft) => void;
+  onRename: (collection: CollectionDraft, name: string) => void;
+  onSave: (
+    collection: CollectionDraft,
+    patch: Partial<Pick<CollectionDraft, "name" | "cover" | "description" | "productIds">>,
+    failure: string,
+  ) => void;
+  onSaveDescription: (collection: CollectionDraft, description: string | null) => Promise<void>;
+}
+
+/**
+ * One collection: its name, cover, introduction and product list.
+ *
+ * The introduction is the only field here driven through `useAutosave` — the
+ * others (name, cover, product list) are each one gesture and already save
+ * immediately. The `SaveIndicator` in the header reports on the
+ * introduction specifically, the one field a merchant can lose by typing and
+ * navigating away without ever blurring it.
+ */
+function CollectionCard({
+  collection,
+  index,
+  total,
+  reorderPending,
+  productOptions,
+  uploadCover,
+  onMove,
+  onDelete,
+  onRename,
+  onSave,
+  onSaveDescription,
+}: CollectionCardProps) {
+  const { message } = App.useApp();
+
   const saved = collection.description ?? "";
   const [text, setText] = useState(saved);
 
@@ -396,20 +293,160 @@ function CollectionDescription({
   // rather than holding a stale draft over it.
   useEffect(() => setText(saved), [saved]);
 
+  const saveDescription = useCallback(
+    (value: string) => onSaveDescription(collection, value.trim() === "" ? null : value),
+    [collection, onSaveDescription],
+  );
+
+  const autosave = useAutosave({ value: text, enabled: true, save: saveDescription });
+  const { flush } = autosave;
+
   return (
-    <div
-      onBlur={() => {
-        if (text === saved) return;
-        onSave(text.trim() === "" ? null : text);
-      }}
+    <Card
+      className={cx(styles.card)}
+      title={
+        <Input
+          className={cx(styles.name)}
+          defaultValue={collection.name}
+          aria-label={`Name of ${collection.name}`}
+          variant="borderless"
+          onBlur={(event) => onRename(collection, event.target.value)}
+          onPressEnter={(event) => event.currentTarget.blur()}
+        />
+      }
+      extra={
+        <Space>
+          <SaveIndicator autosave={autosave} valid />
+          <Space.Compact>
+            <Tooltip title="Move up">
+              <Button
+                icon={<ArrowUpOutlined />}
+                aria-label={`Move ${collection.name} up`}
+                disabled={index === 0 || reorderPending}
+                onClick={() => onMove(index, -1)}
+              />
+            </Tooltip>
+            <Tooltip title="Move down">
+              <Button
+                icon={<ArrowDownOutlined />}
+                aria-label={`Move ${collection.name} down`}
+                disabled={index === total - 1 || reorderPending}
+                onClick={() => onMove(index, 1)}
+              />
+            </Tooltip>
+          </Space.Compact>
+          <Button
+            icon={<DeleteOutlined />}
+            aria-label={`Delete ${collection.name}`}
+            danger
+            type="text"
+            onClick={() => onDelete(collection)}
+          />
+        </Space>
+      }
     >
-      <MarkdownEditor
-        control={control}
-        value={text}
-        onChange={setText}
-        minRows={4}
-        placeholder="Things for the table and the shelf, made in small runs."
-      />
-    </div>
+      <p className={cx(styles.meta)}>
+        <code>/collection/{collection.slug}</code>
+        {collection.slug === FEATURED_SLUG ? (
+          <span className={cx(styles.badge)}>Shown on the landing page</span>
+        ) : null}
+      </p>
+
+      <Field
+        label="Cover image"
+        help="Shown on /shop at 16:9. Without one the tile renders a placeholder."
+      >
+        {() => (
+          <div className={cx(styles.cover)}>
+            {collection.cover ? (
+              <img
+                className={cx(styles.coverImage)}
+                src={assetUrl(collection.cover.path)}
+                alt={collection.cover.alt}
+                width={collection.cover.width}
+                height={collection.cover.height}
+              />
+            ) : null}
+
+            <Space>
+              <Upload
+                accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
+                showUploadList={false}
+                // Uploaded here rather than by antd, so the request
+                // carries the session's CSRF token — and so the row is
+                // only saved once the file is really on disk.
+                beforeUpload={(file) => {
+                  uploadCover.mutate(
+                    { id: collection.id, file, alt: `${collection.name} collection` },
+                    {
+                      onSuccess: (cover) =>
+                        onSave(collection, { cover }, "Could not save the cover."),
+                      onError: (error: unknown) =>
+                        void message.error(
+                          error instanceof Error
+                            ? error.message
+                            : "That image could not be uploaded.",
+                        ),
+                    },
+                  );
+                  return Upload.LIST_IGNORE;
+                }}
+              >
+                <Button
+                  icon={<UploadOutlined />}
+                  loading={uploadCover.isPending}
+                  aria-label={`${collection.cover ? "Replace" : "Upload"} the cover for ${collection.name}`}
+                >
+                  {collection.cover ? "Replace" : "Upload"}
+                </Button>
+              </Upload>
+
+              {collection.cover ? (
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => onSave(collection, { cover: null }, "Could not remove the cover.")}
+                >
+                  Remove
+                </Button>
+              ) : null}
+            </Space>
+          </div>
+        )}
+      </Field>
+
+      <Field
+        label="Introduction"
+        help="Markdown, shown under the heading on the collection page. Optional."
+        error={autosave.state === "error" ? autosave.error?.message : undefined}
+      >
+        {(control) => (
+          <div onBlur={() => void flush()}>
+            <MarkdownEditor
+              control={control}
+              value={text}
+              onChange={setText}
+              minRows={4}
+              placeholder="Things for the table and the shelf, made in small runs."
+            />
+          </div>
+        )}
+      </Field>
+
+      <Field label="Products, in the order they appear">
+        {(control) => (
+          <Select
+            {...control}
+            mode="multiple"
+            className={cx(styles.select)}
+            value={collection.productIds}
+            options={productOptions}
+            placeholder="Choose products"
+            optionFilterProp="label"
+            onChange={(ids: string[]) => onSave(collection, { productIds: ids }, "Could not save.")}
+          />
+        )}
+      </Field>
+    </Card>
   );
 }

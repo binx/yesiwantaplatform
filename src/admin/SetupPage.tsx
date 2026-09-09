@@ -363,7 +363,7 @@ function SetupWizard() {
                 type="info"
                 showIcon
                 icon={<InfoCircleOutlined />}
-                message="This server's public URL is still localhost"
+                title="This server's public URL is still localhost"
                 description={
                   <p className={cx(styles.alertText)}>
                     <code>PUBLIC_URL</code> is <code>{publicUrl}</code>. Stripe sends buyers
@@ -535,7 +535,7 @@ function PaymentsStep({
           type="success"
           showIcon
           icon={<CheckCircleTwoTone twoToneColor="#52c41a" />}
-          message={
+          title={
             <>
               A Stripe secret key is configured on the server{" "}
               {mode ? <Tag color={mode === "live" ? "red" : "blue"}>{mode} mode</Tag> : null}
@@ -553,7 +553,7 @@ function PaymentsStep({
           type="info"
           showIcon
           icon={<InfoCircleOutlined />}
-          message="No Stripe secret key on the server yet"
+          title="No Stripe secret key on the server yet"
           description={
             <>
               <p className={cx(styles.alertText)}>
@@ -612,7 +612,7 @@ function PaymentsStep({
         className={cx(styles.alert)}
         type="info"
         showIcon
-        message="This store will not collect tax yet"
+        title="This store will not collect tax yet"
         description={
           <p className={cx(styles.alertText)}>
             Tax is calculated by{" "}

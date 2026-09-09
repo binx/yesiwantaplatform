@@ -1,15 +1,15 @@
 ---
 task: "25"
 title: Object storage for uploaded images
-status: in-progress
+status: done
 tier: 2
 size: M
 migration: none
 blocked_by: []
 blocks: ["28"]
 touches: server/image-store.ts · server/uploads.ts · server/env.ts · server/app.ts · server/index.ts · server/middleware.ts
-completed:
-shipped_in:
+completed: 2026-09-09
+shipped_in: 27
 summary: >-
   `ASSETS_DIR` (PR 9) lets one volume hold the database and the images, which is enough
   for a Droplet or Fly. It is not enough for any platform without a persistent disk, and

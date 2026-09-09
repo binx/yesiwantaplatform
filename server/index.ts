@@ -7,6 +7,7 @@ import { imageStore } from "./image-store.js";
 import { runMigrations } from "../db/migrate.js";
 import { isConfigured } from "../db/repository.js";
 import { activeSetupToken } from "./routes/setup.js";
+import { probeStripeKey } from "./stripe.js";
 
 /**
  * Boot.
@@ -18,6 +19,11 @@ import { activeSetupToken } from "./routes/setup.js";
 async function main(): Promise<void> {
   await runMigrations();
   if (imageStore.driver === "local") await ensureAssetsDirectory();
+
+  // Not awaited: a slow or unreachable Stripe should not delay the API
+  // binding its port. Until this resolves, `stripeKeyStatus` reads
+  // "unchecked" — see server/stripe.ts.
+  void probeStripeKey();
 
   const app = createApp();
 

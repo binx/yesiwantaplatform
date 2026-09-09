@@ -276,4 +276,22 @@ describe("a collection's cover", () => {
       .attach("file", await png(400, 225), "cover.png")
       .expect(404);
   });
+
+  it("names the size limit instead of failing as a generic 500", async () => {
+    const { agent, csrf } = await signIn();
+    const { env } = await import("./env.js");
+
+    // Bytes, not a real image: multer's own fileSize limit rejects the part
+    // as it streams in, before sharp — or even fileFilter's mimetype check —
+    // ever sees the content.
+    const oversized = Buffer.alloc(env.MAX_UPLOAD_BYTES + 1, 1);
+
+    const response = await agent
+      .post(`/api/admin/collections/${COLLECTION}/cover`)
+      .set("x-csrf-token", csrf)
+      .attach("file", oversized, { filename: "big.png", contentType: "image/png" })
+      .expect(413);
+
+    expect(response.body.error).toMatch(/larger than.*MB/i);
+  });
 });

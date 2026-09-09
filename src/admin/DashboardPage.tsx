@@ -285,6 +285,7 @@ interface WiringProps {
   environment: {
     hasStripeSecret: boolean;
     stripeMode: "test" | "live" | null;
+    stripeKeyStatus: "valid" | "invalid" | "unchecked";
     hasWebhookSecret: boolean;
     hasEmail: boolean;
     database: "sqlite" | "postgres";
@@ -298,7 +299,7 @@ interface WiringProps {
 }
 
 interface Notice {
-  type: "info" | "warning";
+  type: "info" | "warning" | "error";
   title: string;
   description: ReactNode;
 }
@@ -348,6 +349,15 @@ export function Wiring({ environment, shipping, products }: WiringProps) {
       title: "Stripe is not connected",
       description:
         "The catalogue works, but nothing can be sold. Set STRIPE_SECRET_KEY in .env and restart the API.",
+    });
+  } else if (environment.stripeKeyStatus === "invalid") {
+    // Presence and validity are different claims — a key can be set and still
+    // be expired or revoked, which is otherwise invisible until a merchant
+    // hits Publish and gets a 500 for an "expired API key" they never see.
+    notices.push({
+      type: "error" as const,
+      title: "The Stripe key on the server was rejected",
+      description: "Replace STRIPE_SECRET_KEY and restart the API.",
     });
   } else if (!environment.hasWebhookSecret) {
     notices.push({

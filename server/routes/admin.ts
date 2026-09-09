@@ -117,9 +117,14 @@ import {
   writeRateLimit,
 } from "../middleware.js";
 import { env, hasStripe, isProduction, isSqlite } from "../env.js";
-import { deleteImageFile, storeImage, uploadMiddleware } from "../uploads.js";
+import { deleteImageFile, mapUploadError, storeImage, uploadMiddleware } from "../uploads.js";
 import { archiveProductInStripe, syncProductToStripe } from "../catalog-sync.js";
-import { StripeNotConfiguredError, requireStripe } from "../stripe.js";
+import {
+  StripeNotConfiguredError,
+  classifyStripeError,
+  getStripeKeyCheck,
+  requireStripe,
+} from "../stripe.js";
 import { renderMarkdown } from "../markdown.js";
 import { escapeHtml } from "../html.js";
 import {
@@ -169,6 +174,8 @@ function toHttp(error: unknown): never {
   if (error instanceof SkuTakenError) throw httpError(409, error.message);
   if (error instanceof EmailTakenError) throw httpError(409, error.message);
   if (error instanceof StripeNotConfiguredError) throw httpError(503, error.message);
+  const stripeError = classifyStripeError(error);
+  if (stripeError) throw httpError(stripeError.status, stripeError.message);
   if (error instanceof EndpointNotAllowedError) throw httpError(422, error.message);
   if (error instanceof VariantOwnershipError) throw httpError(400, error.message);
   // The file's shape is wrong rather than its contents, so there is no row to
@@ -198,6 +205,7 @@ adminRouter.get("/environment", (_req, res) => {
         ? "live"
         : "test"
       : null,
+    stripeKeyStatus: getStripeKeyCheck().status,
     hasWebhookSecret: Boolean(env.STRIPE_WEBHOOK_SECRET),
     hasEmail: Boolean(env.SMTP_URL),
     database: isSqlite ? "sqlite" : "postgres",
@@ -536,7 +544,12 @@ adminRouter.delete("/products/:id", async (req, res) => {
 });
 
 adminRouter.post("/products/reorder", async (req, res) => {
-  const { ids } = reorderInputSchema.parse(req.body);
+  let ids;
+  try {
+    ({ ids } = reorderInputSchema.parse(req.body));
+  } catch (error) {
+    toHttp(error);
+  }
   await reorderProducts(ids);
   res.status(204).end();
 });
@@ -547,7 +560,7 @@ adminRouter.post("/products/:id/images", (req, res, next) => {
   uploadMiddleware(req, res, (uploadError: unknown) => {
     void (async () => {
       try {
-        if (uploadError) return next(uploadError);
+        if (uploadError) return next(mapUploadError(uploadError));
         if (!req.file) throw httpError(400, "No file was uploaded.");
         if (!(await productExists(req.params.id))) throw httpError(404, "Product not found.");
 
@@ -648,7 +661,7 @@ adminRouter.post("/collections/:id/cover", (req, res, next) => {
   uploadMiddleware(req, res, (uploadError: unknown) => {
     void (async () => {
       try {
-        if (uploadError) return next(uploadError);
+        if (uploadError) return next(mapUploadError(uploadError));
         if (!req.file) throw httpError(400, "No file was uploaded.");
         if (!(await collectionExists(req.params.id))) throw httpError(404, "Collection not found.");
 
@@ -664,7 +677,12 @@ adminRouter.post("/collections/:id/cover", (req, res, next) => {
 });
 
 adminRouter.post("/collections/reorder", async (req, res) => {
-  const { ids } = reorderInputSchema.parse(req.body);
+  let ids;
+  try {
+    ({ ids } = reorderInputSchema.parse(req.body));
+  } catch (error) {
+    toHttp(error);
+  }
   await reorderCollections(ids);
   res.status(204).end();
 });
@@ -712,7 +730,12 @@ adminRouter.post("/pages/preview", (req, res) => {
  * page ids — the same ordering trap as `/orders.csv` above.
  */
 adminRouter.post("/pages/reorder", async (req, res) => {
-  const { ids } = reorderInputSchema.parse(req.body);
+  let ids;
+  try {
+    ({ ids } = reorderInputSchema.parse(req.body));
+  } catch (error) {
+    toHttp(error);
+  }
   await reorderPages(ids);
   res.status(204).end();
 });
@@ -780,7 +803,7 @@ adminRouter.post("/settings/logo", (req, res, next) => {
   uploadMiddleware(req, res, (uploadError: unknown) => {
     void (async () => {
       try {
-        if (uploadError) return next(uploadError);
+        if (uploadError) return next(mapUploadError(uploadError));
         if (!req.file) throw httpError(400, "No file was uploaded.");
 
         const { alt } = imageInputSchema.parse(req.body ?? {});
@@ -806,7 +829,7 @@ adminRouter.post("/settings/hero-image", (req, res, next) => {
   uploadMiddleware(req, res, (uploadError: unknown) => {
     void (async () => {
       try {
-        if (uploadError) return next(uploadError);
+        if (uploadError) return next(mapUploadError(uploadError));
         if (!req.file) throw httpError(400, "No file was uploaded.");
 
         const { alt } = imageInputSchema.parse(req.body ?? {});

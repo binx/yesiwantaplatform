@@ -15,6 +15,7 @@ import { refreshFontOrigins, verifyFontUrl } from "../fonts.js";
 import { seedIfEmpty } from "../../db/seed.js";
 import { env, hasStripe, isProduction } from "../env.js";
 import { csrfToken, httpError, verifyCsrf } from "../middleware.js";
+import { getStripeKeyCheck } from "../stripe.js";
 
 /**
  * First-run setup.
@@ -90,6 +91,7 @@ setupRouter.get("/setup", async (_req, res) => {
     hasSettings: settings !== null,
     hasStripeSecret: hasStripe,
     stripeMode: stripeMode(),
+    stripeKeyStatus: getStripeKeyCheck().status,
     requiresToken: activeSetupToken() !== null,
     // The wizard writes no `.env`, so it cannot set this — but it can warn
     // that a store about to go public is still pointing at localhost.

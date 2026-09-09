@@ -35,6 +35,25 @@ function resumeOnLastStep() {
   );
 }
 
+/** Open the wizard on the Payments step, past the identity step it follows. */
+function resumeOnPaymentsStep() {
+  sessionStorage.setItem(
+    WIZARD_STORAGE_KEY,
+    JSON.stringify({
+      step: 1,
+      identity: {
+        storeName: "Blue Whale Goods",
+        currency: "USD",
+        email: "owner@example.com",
+        password: "a-sufficiently-long-passphrase",
+      },
+      publishableKey: "",
+      theme: defaultTheme,
+      seedDemo: false,
+    }),
+  );
+}
+
 function mockSetupStatus(status: Partial<SetupStatus>) {
   const json = (body: unknown) =>
     Promise.resolve(
@@ -108,5 +127,26 @@ describe("the setup wizard's last step", () => {
       expect(screen.getByRole("button", { name: /create my store/i })).toBeInTheDocument();
     });
     expect(screen.queryByText(note)).not.toBeInTheDocument();
+  });
+});
+
+describe("the setup wizard's payments step", () => {
+  it("says a configured key was rejected, not just that one is missing", async () => {
+    resumeOnPaymentsStep();
+    mockSetupStatus({ hasStripeSecret: true, stripeMode: "test", stripeKeyStatus: "invalid" });
+
+    renderWithProviders(<SetupPage />);
+
+    expect(await screen.findByText(/Stripe key on the server was rejected/i)).toBeInTheDocument();
+  });
+
+  it("shows the ordinary connected message for a key that checks out", async () => {
+    resumeOnPaymentsStep();
+    mockSetupStatus({ hasStripeSecret: true, stripeMode: "test", stripeKeyStatus: "valid" });
+
+    renderWithProviders(<SetupPage />);
+
+    expect(await screen.findByText(/A Stripe secret key is configured/i)).toBeInTheDocument();
+    expect(screen.queryByText(/was rejected/i)).not.toBeInTheDocument();
   });
 });

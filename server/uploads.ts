@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import multer from "multer";
 import sharp from "sharp";
 import { env } from "./env.js";
-import { httpError } from "./middleware.js";
+import { httpError, type ApiError } from "./middleware.js";
 import { imageStore, isSafeRelativePath } from "./image-store.js";
 import { DERIVATIVE_WIDTHS, derivativePath, derivativeWidthsFor } from "../shared/images.js";
 
@@ -47,6 +47,27 @@ export const uploadMiddleware = multer({
 }).single("file");
 
 /**
+ * Multer's own errors carry a `code` but no `status`, so left unmapped they
+ * reach `errorHandler` as a plain `Error` and become a 500 — the merchant sees
+ * "Something went wrong" for an ordinary 22 MB photo. `LIMIT_FILE_SIZE` is the
+ * one worth naming; everything else from multer still gets a real status
+ * rather than a stack trace. Anything that is not a `MulterError` — notably
+ * the 415 `fileFilter` already throws above — is passed through unchanged.
+ */
+export function mapUploadError(error: unknown): ApiError {
+  if (!(error instanceof multer.MulterError)) {
+    return error instanceof Error ? error : httpError(400, "Upload failed.");
+  }
+
+  if (error.code === "LIMIT_FILE_SIZE") {
+    const maxMb = Math.round(env.MAX_UPLOAD_BYTES / (1024 * 1024));
+    return httpError(413, `That image is larger than ${maxMb} MB. Export it smaller and try again.`);
+  }
+
+  return httpError(400, error.message);
+}
+
+/**
  * Owner directories are named by product or collection id. Ids we generate are
  * UUIDs or short slugs; anything else is refused rather than sanitised, so
  * there is no encoding trick to smuggle a traversal through.
@@ -76,7 +97,16 @@ export async function storeImage(ownerId: string, buffer: Buffer): Promise<Store
 
   try {
     metadata = await image.metadata();
-  } catch {
+  } catch (error) {
+    // sharp refuses to decode past MAX_INPUT_PIXELS by throwing from
+    // metadata() rather than returning a size — the file is perfectly
+    // readable, just too large to safely decode.
+    if (error instanceof Error && error.message.includes("exceeds pixel limit")) {
+      throw httpError(
+        415,
+        "That image is over 50 megapixels. Resize it to 7000 px or smaller on its longest side.",
+      );
+    }
     throw httpError(415, "That file is not a readable image.");
   }
 

@@ -2,6 +2,7 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
+import multer from "multer";
 import { derivativePath } from "../shared/images.js";
 
 /**
@@ -93,6 +94,51 @@ describe("storeImage", () => {
 
     await deleteImageFile(stored.path);
   });
+});
+
+describe("mapUploadError", () => {
+  it("turns multer's size limit into a 413 naming the actual cap", async () => {
+    const { mapUploadError } = await import("./uploads.js");
+    const { env } = await import("./env.js");
+
+    const mapped = mapUploadError(new multer.MulterError("LIMIT_FILE_SIZE"));
+
+    expect(mapped.status).toBe(413);
+    const maxMb = Math.round(env.MAX_UPLOAD_BYTES / (1024 * 1024));
+    expect(mapped.message).toContain(`${maxMb} MB`);
+  });
+
+  it("gives every other multer error a real status instead of a 500", async () => {
+    const { mapUploadError } = await import("./uploads.js");
+
+    const mapped = mapUploadError(new multer.MulterError("LIMIT_UNEXPECTED_FILE"));
+
+    expect(mapped.status).toBe(400);
+  });
+
+  it("passes through an error that is not from multer unchanged", async () => {
+    const { mapUploadError } = await import("./uploads.js");
+    const { httpError } = await import("./middleware.js");
+
+    const original = httpError(415, "Only image uploads are accepted.");
+    expect(mapUploadError(original)).toBe(original);
+  });
+});
+
+describe("storeImage, the pixel cap", () => {
+  it("says the image is too large, not that it is unreadable", async () => {
+    const { storeImage } = await import("./uploads.js");
+
+    // 7100 × 7100 = 50,410,000 pixels, just past the 50-megapixel limit —
+    // large enough to trip `limitInputPixels`, not so large the test is slow.
+    const oversized = await sharp({
+      create: { width: 7100, height: 7100, channels: 3, background: "#4477aa" },
+    })
+      .png()
+      .toBuffer();
+
+    await expect(storeImage(OWNER, oversized)).rejects.toThrow(/50 megapixels/i);
+  }, 20_000);
 });
 
 describe("deleteImageFile", () => {

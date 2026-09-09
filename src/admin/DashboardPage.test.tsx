@@ -19,6 +19,7 @@ import type { ProductSummary, ShippingTable } from "./queries";
 const wired = {
   hasStripeSecret: true,
   stripeMode: "test" as const,
+  stripeKeyStatus: "valid" as const,
   hasWebhookSecret: true,
   hasEmail: true,
   database: "sqlite" as const,
@@ -51,6 +52,20 @@ describe("Wiring", () => {
     renderWithProviders(<Wiring environment={wired} />);
 
     expect(screen.queryByText(warning)).not.toBeInTheDocument();
+    expect(screen.getByText(/Everything is wired up/i)).toBeInTheDocument();
+  });
+
+  it("flags a Stripe key that Stripe itself rejected, not just a missing one", () => {
+    renderWithProviders(<Wiring environment={{ ...wired, stripeKeyStatus: "invalid" }} />);
+
+    expect(screen.getByText(/Stripe key on the server was rejected/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Everything is wired up/i)).not.toBeInTheDocument();
+  });
+
+  it("stays quiet about the key while its probe has not resolved yet", () => {
+    renderWithProviders(<Wiring environment={{ ...wired, stripeKeyStatus: "unchecked" }} />);
+
+    expect(screen.queryByText(/Stripe key on the server was rejected/i)).not.toBeInTheDocument();
     expect(screen.getByText(/Everything is wired up/i)).toBeInTheDocument();
   });
 

@@ -653,8 +653,9 @@ export function ProductEditorPage() {
                 ? `Published — ${result.pricesCreated} price${result.pricesCreated === 1 ? "" : "s"} created in Stripe.`
                 : "Published — Stripe was already up to date.",
             ),
-          onError: (error: unknown) =>
-            void message.error(error instanceof Error ? error.message : "Could not publish."),
+          // A publish failure is consequential enough that a three-second toast
+          // is the wrong register — see the Alert under the header below, which
+          // stays on screen until the next attempt.
         }),
       );
 
@@ -722,6 +723,18 @@ export function ProductEditorPage() {
           </>
         }
       />
+
+      {publish.isError ? (
+        <Alert
+          className={cx(styles.alert)}
+          type="error"
+          showIcon
+          title="Could not publish to Stripe"
+          description={
+            publish.error instanceof Error ? publish.error.message : "Something went wrong."
+          }
+        />
+      ) : null}
 
       {autosave.state === "error" ? (
         <Alert

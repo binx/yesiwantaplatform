@@ -87,7 +87,7 @@ export function MarkdownEditor({
           onChange={(event) => onChange(event.target.value)}
         />
       ) : error ? (
-        <Alert type="error" showIcon message={error} />
+        <Alert type="error" showIcon title={error} />
       ) : (
         <div
           className={cx(styles.preview)}

@@ -52,7 +52,7 @@ export function ResetPasswordPage() {
                 className={cx(styles.alert)}
                 type="error"
                 showIcon
-                message={
+                title={
                   reset.error instanceof Error
                     ? reset.error.message
                     : "That reset link could not be used."

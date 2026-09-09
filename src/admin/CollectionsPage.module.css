@@ -67,6 +67,7 @@
    approves here is what a shopper sees. */
 .coverImage {
   width: 100%;
+  height: auto;
   max-width: 20rem;
   aspect-ratio: 16 / 9;
   object-fit: cover;

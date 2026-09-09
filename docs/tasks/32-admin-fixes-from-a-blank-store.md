@@ -1,15 +1,15 @@
 ---
 task: "32"
 title: Admin fixes from a blank-store run
-status: todo
+status: done
 tier: 0
 size: S
 migration: none
 blocked_by: []
 blocks: []
 touches: src/admin/CollectionsPage.module.css:68 · src/admin/CollectionsPage.tsx:383 · src/admin/ShippingPage.tsx:239 · src/admin/ShippingPage.tsx:369 · vite.config.ts:49 · src/admin/*.tsx (Alert)
-completed:
-shipped_in:
+completed: 2026-09-09
+shipped_in: 32
 summary: >-
   Five small things a merchant meets while filling an empty store. The collection cover
   preview renders 320 px wide and 1200 px tall; a collection introduction is lost unless

@@ -265,3 +265,30 @@ export function countryName(code: string, locale?: string): string {
     return code;
   }
 }
+
+/**
+ * The reverse of `countryName`, built once per locale rather than on every
+ * lookup: `Intl.DisplayNames` is not free, and the shipping zone editor calls
+ * this on every keystroke.
+ */
+const countryCodesByName = new Map<string, ReadonlyMap<string, string>>();
+
+function countryNamesFor(locale: string): ReadonlyMap<string, string> {
+  const cached = countryCodesByName.get(locale);
+  if (cached) return cached;
+
+  const names = new Map(
+    SHIPPABLE_COUNTRIES.map((code) => [countryName(code, locale).toLowerCase(), code]),
+  );
+  countryCodesByName.set(locale, names);
+  return names;
+}
+
+/**
+ * "canada" → "CA", matched case-insensitively against the same list the cart's
+ * own country select offers. Returns `null` for anything that isn't a
+ * recognised name, so the caller can tell "not a country" from "a country".
+ */
+export function countryCodeFromName(name: string, locale?: string): string | null {
+  return countryNamesFor(locale ?? "en").get(name.trim().toLowerCase()) ?? null;
+}

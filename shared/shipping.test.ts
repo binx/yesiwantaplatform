@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   SHIPPABLE_COUNTRIES,
   countriesCovered,
+  countryCodeFromName,
   findCoverageGaps,
   hasCatchAllZone,
   parcelFor,
@@ -323,5 +324,23 @@ describe("SHIPPABLE_COUNTRIES", () => {
 
   it("is sorted and free of duplicates", () => {
     expect([...SHIPPABLE_COUNTRIES]).toEqual([...new Set(SHIPPABLE_COUNTRIES)].sort());
+  });
+});
+
+describe("countryCodeFromName", () => {
+  it("matches a country name case-insensitively", () => {
+    expect(countryCodeFromName("canada")).toBe("CA");
+    expect(countryCodeFromName("Canada")).toBe("CA");
+    expect(countryCodeFromName("CANADA")).toBe("CA");
+  });
+
+  it("tolerates surrounding whitespace", () => {
+    expect(countryCodeFromName("  Germany  ")).toBe("DE");
+  });
+
+  it("returns null for anything that isn't a shippable country's name", () => {
+    expect(countryCodeFromName("Narnia")).toBeNull();
+    expect(countryCodeFromName("US")).toBeNull();
+    expect(countryCodeFromName("")).toBeNull();
   });
 });

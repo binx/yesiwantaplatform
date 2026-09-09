@@ -137,7 +137,7 @@ export function ImportProductsModal({ open, onClose }: { open: boolean; onClose:
             className={cx(styles.summary)}
             type={errors.length > 0 ? "warning" : "success"}
             showIcon
-            message={
+            title={
               `${preview.rows} row${preview.rows === 1 ? "" : "s"} read: ` +
               `${preview.creates} to create, ${preview.updates} to update` +
               (errors.length > 0 ? `, ${errors.length} problem${errors.length === 1 ? "" : "s"}.` : ".")

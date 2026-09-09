@@ -1,13 +1,13 @@
 ---
 task: "26"
 title: "Building on Beluga: which files are yours to change"
-status: todo
+status: in-progress
 tier: 0
 size: S
 migration: none
 blocked_by: []
 blocks: []
-touches: docs/building-on-beluga.md · README.md · src/pages/LandingPage.tsx
+touches: docs/building-on-beluga.md · README.md
 completed:
 shipped_in:
 summary: >-

@@ -525,7 +525,7 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <span class="log-date">2026-09-09</span>
         <span class="log-task">23</span>
         <span class="log-title">SKUs, compare-at prices and per-variant images</span>
-        <span class="log-ref"></span>
+        <span class="log-ref">24</span>
       </li>
       <li>
         <span class="log-date">2026-09-09</span>
@@ -1012,6 +1012,7 @@ a:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
         <p>Three fields every platform a merchant is migrating from has, and Beluga's variant does not: a SKU, a compare-at price for showing a markdown, and an image per variant so picking &quot;Blue&quot; shows the blue one. Each is a column and a piece of the editor; together they touch the CSV contract, the price matrix, the product page and the order line, which is why this is one planned change rather than three squeezed-in ones.</p>
         <div class="meta"><span><b>Migration</b> two columns on variants, one on product_images, one on order_items</span>
           <span><b>Touches</b> shared/schema.ts · db/schema.sqlite.ts · db/schema.pg.ts · src/admin/ProductEditorPage.tsx · shared/catalogue-csv.ts · server/routes/checkout.ts</span>
+          <span><b>Shipped in</b> 24</span>
           <span><b>Brief</b> docs/tasks/23-product-model-gaps.md</span></div>
       </article>
 

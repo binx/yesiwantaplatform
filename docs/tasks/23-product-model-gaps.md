@@ -9,7 +9,7 @@ blocked_by: []
 blocks: []
 touches: shared/schema.ts · db/schema.sqlite.ts · db/schema.pg.ts · src/admin/ProductEditorPage.tsx · shared/catalogue-csv.ts · server/routes/checkout.ts
 completed: 2026-09-09
-shipped_in:
+shipped_in: 24
 summary: >-
   Three fields every platform a merchant is migrating from has, and Beluga's variant does
   not: a SKU, a compare-at price for showing a markdown, and an image per variant so

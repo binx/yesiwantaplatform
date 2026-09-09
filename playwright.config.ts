@@ -18,8 +18,35 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile", use: { ...devices["Pixel 7"] } },
+    /*
+     * Locks the one shared store for the run of e2e/storefront-lock.spec.ts,
+     * then restores it — see the comment at the top of that file. It has to
+     * run with nothing else touching the storefront at the same time, and
+     * `fullyParallel` schedules every other spec file onto its own worker
+     * regardless of what any one file's own `describe.configure({ mode:
+     * "serial" })` says, so file-local serialisation cannot provide that by
+     * itself. `dependencies` is Playwright's project-level ordering — normally
+     * used for an auth setup project — repurposed here to guarantee this
+     * project starts, finishes, and unlocks the store before `chromium` or
+     * `mobile` runs anything that assumes a public one.
+     */
+    {
+      name: "storefront-lock",
+      testMatch: /storefront-lock\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "chromium",
+      testIgnore: /storefront-lock\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+      dependencies: ["storefront-lock"],
+    },
+    {
+      name: "mobile",
+      testIgnore: /storefront-lock\.spec\.ts/,
+      use: { ...devices["Pixel 7"] },
+      dependencies: ["storefront-lock"],
+    },
   ],
   // The storefront reads from the API, so both have to be up.
   webServer: {

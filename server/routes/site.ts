@@ -1,6 +1,20 @@
-import { Router } from "express";
-import { getSettings, listSitemapEntries } from "../../db/repository.js";
+import { Router, type Request } from "express";
+import { getSettings, getStorefrontState, listSitemapEntries } from "../../db/repository.js";
 import { env } from "../env.js";
+
+/**
+ * Whether *this request* should be told the store is locked.
+ *
+ * An administrator's own browser still gets the real files — there is no
+ * reason to hide the sitemap from the person who can see the whole catalogue
+ * in the admin anyway — but every other caller, crawlers included, sees the
+ * locked answer for as long as the store is locked.
+ */
+async function isLocked(req: Request): Promise<boolean> {
+  if (req.session.adminId) return false;
+  const state = await getStorefrontState();
+  return state !== null && state.access !== "public";
+}
 
 /**
  * Files crawlers look for at the site root.
@@ -29,7 +43,14 @@ function url(pathname: string, lastModified?: number): string {
   return `  <url><loc>${loc}</loc>${lastmod}</url>`;
 }
 
-siteRouter.get("/sitemap.xml", async (_req, res) => {
+siteRouter.get("/sitemap.xml", async (req, res) => {
+  // The whole catalogue in one unauthenticated request is exactly what a
+  // locked store must not answer with — see docs/tasks/27-storefront-preview-mode.md §4.
+  if (await isLocked(req)) {
+    res.status(404).type("text/plain").send("Not found.");
+    return;
+  }
+
   const [settings, entries] = await Promise.all([getSettings(), listSitemapEntries()]);
 
   const lines = [
@@ -49,7 +70,15 @@ ${lines.join("\n")}
   );
 });
 
-siteRouter.get("/robots.txt", (_req, res) => {
+siteRouter.get("/robots.txt", async (req, res) => {
+  if (await isLocked(req)) {
+    // No Sitemap: line — one does not exist to crawl while the store is
+    // locked, and naming it would just be a second way to notice this store
+    // is here before anyone means it to be found.
+    res.type("text/plain").send("User-agent: *\nDisallow: /\n");
+    return;
+  }
+
   const sitemap = new URL("/sitemap.xml", env.PUBLIC_URL).toString();
 
   res.type("text/plain").send(

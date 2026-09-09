@@ -120,6 +120,12 @@ export const taxCodeSchema = z
  */
 export const productKindSchema = z.enum(["physical", "digital"]);
 
+/**
+ * Who may view the storefront — see docs/tasks/27-storefront-preview-mode.md.
+ * Deliberately not a test/live switch: the Stripe secret key is already that.
+ */
+export const storefrontAccessSchema = z.enum(["public", "password"]);
+
 export const productSchema = z.object({
   id: z.string().min(1),
   slug: slugSchema,
@@ -462,6 +468,7 @@ export type Theme = z.infer<typeof themeSchema>;
 export type ColorScheme = z.infer<typeof colorSchemeSchema>;
 export type Locale = z.infer<typeof localeSchema>;
 export type TaxBehavior = z.infer<typeof taxBehaviorSchema>;
+export type StorefrontAccess = z.infer<typeof storefrontAccessSchema>;
 export type Store = z.infer<typeof storeSchema>;
 export type Hero = z.infer<typeof heroSchema>;
 export type CollectionDraft = z.infer<typeof collectionDraftSchema>;

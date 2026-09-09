@@ -16,6 +16,19 @@ export class StoreNotSetUpError extends Error {
   }
 }
 
+/**
+ * The store exists but is locked behind a storefront password — see
+ * docs/tasks/27-storefront-preview-mode.md. Distinct from
+ * `StoreNotSetUpError`: this store is finished being wired up on the server
+ * side, it just is not open to this visitor yet.
+ */
+export class StorefrontLockedError extends Error {
+  constructor() {
+    super("This store is not open yet.");
+    this.name = "StorefrontLockedError";
+  }
+}
+
 export async function loadStore(signal?: AbortSignal): Promise<Store> {
   if (import.meta.env.VITE_BELUGA_API !== "false") {
     const response = await fetch("/api/store", {
@@ -24,6 +37,9 @@ export async function loadStore(signal?: AbortSignal): Promise<Store> {
     });
     // 503 means "no store yet", which the setup wizard handles in Phase 5.
     if (response.status === 503) throw new StoreNotSetUpError();
+    // 401 here specifically means the storefront gate, not an expired admin
+    // session — this fetch carries no admin credentials to expire.
+    if (response.status === 401) throw new StorefrontLockedError();
     if (!response.ok) {
       throw new Error(`Could not load the store (HTTP ${response.status}).`);
     }

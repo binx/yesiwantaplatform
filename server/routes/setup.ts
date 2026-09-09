@@ -8,9 +8,9 @@ import {
   type SessionResponse,
 } from "../../shared/api.js";
 import { DEFAULT_TAX_CODE, defaultHero } from "../../shared/schema.js";
-import { countAdmins, createAdmin, safeEqual } from "../auth.js";
+import { countAdmins, createAdmin, hashPassword, safeEqual } from "../auth.js";
 import { getSettings, isConfigured } from "../../db/repository.js";
-import { updateSettings } from "../../db/admin-repository.js";
+import { setStorefrontAccess, setStorefrontPassword, updateSettings } from "../../db/admin-repository.js";
 import { refreshFontOrigins, verifyFontUrl } from "../fonts.js";
 import { seedIfEmpty } from "../../db/seed.js";
 import { env, hasStripe, isProduction } from "../env.js";
@@ -177,6 +177,15 @@ setupRouter.post("/setup", setupRateLimit, verifyCsrf, async (req, res) => {
     });
 
     await refreshFontOrigins();
+
+    // Set before the account, so a store that fails partway through never
+    // ends up admin-less and password-locked at once — see the acceptance
+    // note that migrating (and, by the same reasoning, first-run setup that
+    // asks for nothing) always leaves a store an administrator can reach.
+    if (input.lockStorefront && input.storefrontPassword) {
+      await setStorefrontPassword(await hashPassword(input.storefrontPassword));
+      await setStorefrontAccess("password");
+    }
 
     // An account may already exist from `npm run setup` or a seeded
     // ADMIN_PASSWORD; adding a second one from an unauthenticated route would

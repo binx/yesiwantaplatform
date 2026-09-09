@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 import sharp from "sharp";
@@ -97,6 +97,11 @@ const MUTATIONS = [
   { method: "delete", path: "/api/admin/webhooks/some-endpoint" },
   { method: "post", path: "/api/admin/webhooks/some-endpoint/secret" },
   { method: "post", path: "/api/admin/webhooks/deliveries/some-delivery/redeliver" },
+  { method: "put", path: "/api/admin/storefront" },
+  { method: "put", path: "/api/admin/storefront/password" },
+  { method: "delete", path: "/api/admin/storefront/password" },
+  { method: "post", path: "/api/admin/storefront/share-link" },
+  { method: "delete", path: "/api/admin/storefront/share-link" },
 ] as const;
 
 const READS = [
@@ -111,6 +116,7 @@ const READS = [
   "/api/admin/users",
   "/api/admin/webhooks",
   "/api/admin/webhooks/some-endpoint/deliveries",
+  "/api/admin/storefront",
 ] as const;
 
 /**
@@ -549,5 +555,124 @@ describe("public API", () => {
   it("does not leak a secret key in the store payload", async () => {
     const response = await request(app).get("/api/store").expect(200);
     expect(JSON.stringify(response.body)).not.toMatch(/sk_(test|live)_/);
+  });
+});
+
+/**
+ * The storefront password gate — see docs/tasks/27-storefront-preview-mode.md.
+ *
+ * Runs last and cleans up after itself in `afterAll`: every describe block
+ * above assumes a public storefront, and vitest runs a file's tests in
+ * declaration order rather than concurrently, so locking here does not race
+ * them as long as nothing below reopens the store early.
+ */
+describe("storefront lock", () => {
+  const STOREFRONT_PASSWORD = "a-sufficiently-long-storefront-password";
+
+  const LOCKED = [
+    "/api/store",
+    "/api/products",
+    "/api/products/canvas-tote",
+    "/api/collections",
+    "/api/pages",
+    "/api/account",
+  ] as const;
+
+  beforeAll(async () => {
+    const { agent, csrf } = await signIn();
+
+    await agent
+      .put("/api/admin/storefront/password")
+      .set("x-csrf-token", csrf)
+      .send({ password: STOREFRONT_PASSWORD })
+      .expect(204);
+
+    await agent
+      .put("/api/admin/storefront")
+      .set("x-csrf-token", csrf)
+      .send({ access: "password" })
+      .expect(204);
+  });
+
+  afterAll(async () => {
+    const { agent, csrf } = await signIn();
+    // Clearing the password also resets access to "public" — see
+    // `clearStorefrontPassword` in db/admin-repository.ts.
+    await agent.delete("/api/admin/storefront/password").set("x-csrf-token", csrf).expect(204);
+  });
+
+  it.each(LOCKED)("rejects an anonymous GET %s with 401", async (path) => {
+    const response = await request(app).get(path);
+    expect(response.status).toBe(401);
+    expect(response.body.needsStorefrontPassword).toBe(true);
+  });
+
+  it("still answers the webhook and the health check while locked", async () => {
+    await request(app).get("/api/health").expect(200);
+    // No valid Stripe signature is sent, so this fails verification rather
+    // than succeeding — the point is that it is not the *gate* refusing it.
+    const response = await request(app).post("/api/webhooks/stripe").send({});
+    expect(response.status).not.toBe(401);
+  });
+
+  it("still lets an administrator reach the admin API with no storefront password", async () => {
+    const { agent } = await signIn();
+    await agent.get("/api/admin/products").expect(200);
+  });
+
+  it("refuses the wrong password", async () => {
+    const agent = request.agent(app);
+    await agent.get("/api/session").expect(200);
+    await agent.post("/api/storefront/unlock").send({ password: "not-it" }).expect(401);
+  });
+
+  it.each(LOCKED)("answers GET %s once unlocked with the password", async (path) => {
+    const agent = request.agent(app);
+    await agent.get("/api/session").expect(200);
+    await agent.post("/api/storefront/unlock").send({ password: STOREFRONT_PASSWORD }).expect(204);
+
+    await agent.get(path).expect(200);
+  });
+
+  it("unlocks with a share link and strips it from nothing the server needs to see", async () => {
+    const { agent: admin, csrf } = await signIn();
+    const { body } = await admin
+      .post("/api/admin/storefront/share-link")
+      .set("x-csrf-token", csrf)
+      .send({})
+      .expect(201);
+
+    const token = new URL(body.url as string).searchParams.get("preview");
+    expect(token).toBeTruthy();
+
+    const visitor = request.agent(app);
+    await visitor.get("/api/session").expect(200);
+    await visitor.post("/api/storefront/unlock").send({ token }).expect(204);
+    await visitor.get("/api/store").expect(200);
+  });
+
+  it("ends every existing viewer session when the password changes, but not the admin's", async () => {
+    const agent = request.agent(app);
+    await agent.get("/api/session").expect(200);
+    await agent.post("/api/storefront/unlock").send({ password: STOREFRONT_PASSWORD }).expect(204);
+    await agent.get("/api/store").expect(200);
+
+    const { agent: admin, csrf } = await signIn();
+    await admin
+      .put("/api/admin/storefront/password")
+      .set("x-csrf-token", csrf)
+      .send({ password: "a-different-storefront-password" })
+      .expect(204);
+
+    await agent.get("/api/store").expect(401);
+    await admin.get("/api/admin/products").expect(200);
+
+    // Restore the fixture password so the rest of this file's assertions
+    // (and this describe block's own `afterAll`) still hold.
+    await admin
+      .put("/api/admin/storefront/password")
+      .set("x-csrf-token", csrf)
+      .send({ password: STOREFRONT_PASSWORD })
+      .expect(204);
   });
 });

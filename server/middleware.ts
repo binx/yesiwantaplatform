@@ -16,6 +16,14 @@ declare module "express-session" {
      */
     customerId?: string;
     csrfToken?: string;
+    /**
+     * The `storefront_access_version` this session was granted under, by
+     * `POST /api/storefront/unlock`. Compared against the live value on every
+     * request — see `requireStorefrontAccess` in server/storefront-gate.ts —
+     * so changing the password or rotating the share link ends every session
+     * that does not match, without touching `adminId`.
+     */
+    storefrontAccess?: number;
   }
 }
 
@@ -132,6 +140,22 @@ export const emailRateLimit = rateLimit({
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { error: "Too many requests. Try again in a few minutes." },
+});
+
+/**
+ * The storefront password gate.
+ *
+ * Shaped like `loginRateLimit` but deliberately without `skipSuccessfulRequests`:
+ * a login only ever needs to be tried by its one owner, but a shared storefront
+ * password has no account to lock and no owner to notice repeated guessing, so
+ * a *valid* guess still has to count towards the ceiling.
+ */
+export const storefrontUnlockRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Try again in a few minutes." },
 });
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);

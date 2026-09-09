@@ -235,6 +235,24 @@ describe("metaForPath", () => {
   });
 
   /*
+   * The stored path is `demo/tote-front.svg`; the URL a crawler can fetch is
+   * `/assets/demo/tote-front.svg`. This used to be built without the prefix,
+   * which every preview test missed because each passed an image that was
+   * already absolute.
+   */
+  it("points og:image at the served /assets/ URL, not the stored path", async () => {
+    const { metaForPath } = await import("./seo.js");
+    const { env } = await import("./env.js");
+
+    const product = await metaForPath("/product/canvas-tote");
+    expect(product.image).toBe(new URL("/assets/demo/tote-front.svg", env.PUBLIC_URL).toString());
+    expect((product.jsonLd as { image: string }).image).toBe(product.image);
+
+    const collection = await metaForPath("/collection/home-goods");
+    expect(collection.image).toBe(new URL("/assets/demo/cover-home.svg", env.PUBLIC_URL).toString());
+  });
+
+  /*
    * The reason a description belongs on the collection rather than in a Page:
    * the link preview for /collection/home-goods gets better for free.
    */

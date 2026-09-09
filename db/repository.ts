@@ -79,6 +79,8 @@ interface VariantRow {
   productId: string;
   label: string;
   priceCents: number;
+  sku: string | null;
+  compareAtPriceCents: number | null;
   inventoryType: string;
   inventoryQuantity: number;
   weightGrams: number;
@@ -108,6 +110,7 @@ interface ImageRow {
   width: number;
   height: number;
   alt: string;
+  variantId: string | null;
   widths: unknown;
 }
 
@@ -149,6 +152,7 @@ function buildProduct(
       width: i.width,
       height: i.height,
       alt: i.alt,
+      variantId: i.variantId,
       widths: parseJson<number[]>(i.widths, []),
     })),
     variantName: row.variantName,
@@ -156,6 +160,8 @@ function buildProduct(
       id: v.id,
       label: v.label,
       priceCents: v.priceCents,
+      sku: v.sku,
+      compareAtPriceCents: v.compareAtPriceCents,
       inventory:
         v.inventoryType === "finite"
           ? { type: "finite" as const, quantity: v.inventoryQuantity }
@@ -605,6 +611,7 @@ export async function getSettings(): Promise<{
               height: row.heroImageHeight,
               alt: row.heroImageAlt ?? "",
               widths: [],
+              variantId: null,
             }
           : null,
     },

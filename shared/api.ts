@@ -10,6 +10,7 @@ import {
   productKindSchema,
   productSchema,
   RESERVED_PAGE_SLUGS,
+  skuSchema,
   slugSchema,
   storeSchema,
   taxBehaviorSchema,
@@ -36,6 +37,9 @@ export const variantInputSchema = z.object({
    */
   label: z.string().default(""),
   priceCents: centsSchema,
+  sku: skuSchema.nullable().default(null),
+  /** The pre-markdown price, struck through beside `priceCents`. Never charged. */
+  compareAtPriceCents: centsSchema.nullable().default(null),
   inventory: inventorySchema,
   /** Grams. Only consulted by weight-banded shipping rates. */
   weightGrams: z.number().int().min(0).max(1_000_000).default(0),
@@ -77,16 +81,32 @@ export const productInputSchema = z
    * is the only place that stops it before it reaches an order.
    */
   .superRefine((product, ctx) => {
-    if (product.kind !== "digital") return;
+    if (product.kind === "digital") {
+      product.variants.forEach((variant, index) => {
+        if (variant.inventory.type !== "finite") return;
 
+        ctx.addIssue({
+          code: "custom",
+          path: ["variants", index, "inventory", "type"],
+          message:
+            "A digital product has unlimited stock. Set this variant's inventory to unlimited, or make the product physical.",
+        });
+      });
+    }
+
+    /*
+     * A compare-at price that is not strictly greater than the real price is
+     * not a markdown, it is a mistake — refused here rather than clamped, so
+     * the merchant notices instead of silently getting no badge.
+     */
     product.variants.forEach((variant, index) => {
-      if (variant.inventory.type !== "finite") return;
+      if (variant.compareAtPriceCents === null) return;
+      if (variant.compareAtPriceCents > variant.priceCents) return;
 
       ctx.addIssue({
         code: "custom",
-        path: ["variants", index, "inventory", "type"],
-        message:
-          "A digital product has unlimited stock. Set this variant's inventory to unlimited, or make the product physical.",
+        path: ["variants", index, "compareAtPriceCents"],
+        message: "The compare-at price must be higher than the price, or it is not a markdown.",
       });
     });
   });
@@ -317,11 +337,19 @@ export const imagePathInputSchema = z.object({
   path: z.string().min(1).max(512),
 });
 
-/** Alt text is editable after upload: a11y should not depend on getting it
- * right in the moment a file is dropped. */
+/**
+ * Alt text and variant assignment are both editable after upload: a11y should
+ * not depend on getting it right in the moment a file is dropped, and an
+ * image cannot be assigned to a variant that does not exist yet.
+ *
+ * Both fields are optional so either can be changed without resending the
+ * other — absent means "leave alone", matching the `keep()` convention used
+ * on catalogue CSV imports. `variantId: null` means "all variants."
+ */
 export const imageAltInputSchema = z.object({
   path: z.string().min(1).max(512),
-  alt: z.string().max(300),
+  alt: z.string().max(300).optional(),
+  variantId: z.string().min(1).nullable().optional(),
 });
 
 export const imageReorderInputSchema = z.object({

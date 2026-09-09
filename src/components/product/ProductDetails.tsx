@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { App as AntApp, Button, InputNumber, Select } from "antd";
 import type { Product } from "@shared/schema";
@@ -12,6 +12,14 @@ interface ProductDetailsProps {
   currency: string;
   /** BCP 47, from the store. Decides where the separators in a price go. */
   locale: string;
+  /**
+   * Told about the resolved variant, including on mount — so the page can
+   * reorder the carousel to lead with that variant's own pictures. A visitor
+   * who never touches a selector still has a resolved variant from the first
+   * render, and the carousel should already reflect it rather than only
+   * reacting once something is clicked.
+   */
+  onVariantChange?: (variantId: string | null) => void;
 }
 
 /** The variant holding `value` on axis `axisIndex`, given the other axes already chosen. */
@@ -37,7 +45,7 @@ function resolveVariant(product: Product, selections: Record<string, string>) {
   );
 }
 
-export function ProductDetails({ product, currency, locale }: ProductDetailsProps) {
+export function ProductDetails({ product, currency, locale, onVariantChange }: ProductDetailsProps) {
   const navigate = useNavigate();
   const { message } = AntApp.useApp();
   const add = useCart((s) => s.add);
@@ -55,6 +63,13 @@ export function ProductDetails({ product, currency, locale }: ProductDetailsProp
     [product, selections],
   );
 
+  // Fires on mount too, via the dependency on variant?.id — a visitor who
+  // never touches a selector should still see the carousel led by whichever
+  // variant resolved first, not the unordered default.
+  useEffect(() => {
+    onVariantChange?.(variant?.id ?? null);
+  }, [variant?.id, onVariantChange]);
+
   if (!variant) return null;
 
   const stock = variant.inventory.type === "finite" ? variant.inventory.quantity : null;
@@ -71,7 +86,14 @@ export function ProductDetails({ product, currency, locale }: ProductDetailsProp
     <div className={styles.details}>
       <h1 className={styles.name}>{product.name}</h1>
 
-      <p className={styles.price}>{formatMoney(variant.priceCents, currency, locale)}</p>
+      <p className={styles.price}>
+        {variant.compareAtPriceCents !== null && (
+          <s className={styles.compareAtPrice}>
+            {formatMoney(variant.compareAtPriceCents, currency, locale)}
+          </s>
+        )}
+        {formatMoney(variant.priceCents, currency, locale)}
+      </p>
 
       {product.description && <p className={styles.description}>{product.description}</p>}
 

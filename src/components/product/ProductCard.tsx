@@ -18,6 +18,8 @@ interface ProductCardProps {
   /** Preformatted — callers own currency and range formatting. */
   price: string | null;
   soldOut?: boolean;
+  /** Some variant has a compare-at price. Ignored when `soldOut` is also true. */
+  onSale?: boolean;
   image?: Image | null;
   sizes?: string | undefined;
   /** Carried into the product page for its breadcrumb. */
@@ -29,6 +31,7 @@ export function ProductCard({
   name,
   price,
   soldOut = false,
+  onSale = false,
   image = null,
   sizes,
   collection,
@@ -41,7 +44,12 @@ export function ProductCard({
     >
       <div className={styles.frame}>
         <ProductImage image={image} ratio={3 / 4} {...(sizes ? { sizes } : {})} />
-        {soldOut && <span className={styles.badge}>Sold out</span>}
+        {/* Sold out is the more actionable fact for a buyer, so it wins when both apply. */}
+        {soldOut ? (
+          <span className={styles.badge}>Sold out</span>
+        ) : onSale ? (
+          <span className={styles.badge}>Sale</span>
+        ) : null}
       </div>
       <span className={styles.name}>{name}</span>
       {price && <span className={styles.price}>{price}</span>}

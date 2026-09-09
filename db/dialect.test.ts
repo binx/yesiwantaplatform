@@ -185,7 +185,7 @@ for (const { name, context } of dialects) {
           text: "Made in batches of forty.",
           buttonLabel: "Browse",
           buttonHref: "/collection/home-goods",
-          image: { path: "hero/one.png", width: 2400, height: 1200, alt: "", widths: [] },
+          image: { path: "hero/one.png", width: 2400, height: 1200, alt: "", widths: [], variantId: null },
         },
       });
 
@@ -348,7 +348,15 @@ for (const { name, context } of dialects) {
         seoDescription: null,
         taxCode: null,
         variants: [
-          { label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0, optionValues: [] },
+          {
+            label: "",
+            priceCents: 100,
+            sku: null,
+            compareAtPriceCents: null,
+            inventory: { type: "infinite" },
+            weightGrams: 0,
+            optionValues: [],
+          },
         ],
         options: [],
         optionGroups: [],
@@ -372,7 +380,15 @@ for (const { name, context } of dialects) {
         seoDescription: null,
         taxCode: null,
         variants: [
-          { label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0, optionValues: [] },
+          {
+            label: "",
+            priceCents: 100,
+            sku: null,
+            compareAtPriceCents: null,
+            inventory: { type: "infinite" },
+            weightGrams: 0,
+            optionValues: [],
+          },
         ],
         options: [],
         optionGroups: [],
@@ -396,6 +412,7 @@ for (const { name, context } of dialects) {
         variantId: variant.id,
         productName: "Canvas Tote",
         variantLabel: variant.label,
+        sku: variant.sku,
         unitPriceCents: variant.priceCents,
         quantity,
         options: {},
@@ -445,6 +462,7 @@ for (const { name, context } of dialects) {
           variantId: variant.id,
           productName: "Canvas Tote",
           variantLabel: variant.label,
+          sku: variant.sku,
           unitPriceCents: variant.priceCents,
           quantity,
           options: {},
@@ -485,6 +503,7 @@ for (const { name, context } of dialects) {
             variantId: variant.id,
             productName: product.name,
             variantLabel: variant.label,
+            sku: variant.sku,
             unitPriceCents: variant.priceCents,
             quantity: 2,
             options: {},
@@ -521,6 +540,7 @@ for (const { name, context } of dialects) {
             variantId: infinite.id,
             productName: product.name,
             variantLabel: infinite.label,
+            sku: infinite.sku,
             unitPriceCents: infinite.priceCents,
             quantity: 1,
             options: {},
@@ -549,6 +569,7 @@ for (const { name, context } of dialects) {
             variantId: variant.id,
             productName: product.name,
             variantLabel: variant.label,
+            sku: variant.sku,
             unitPriceCents: variant.priceCents,
             quantity: 1,
             options: {},
@@ -559,6 +580,7 @@ for (const { name, context } of dialects) {
             variantId: "deleted-variant",
             productName: "Deleted",
             variantLabel: "",
+            sku: null,
             unitPriceCents: variant.priceCents,
             quantity: 1,
             options: {},
@@ -617,13 +639,207 @@ for (const { name, context } of dialects) {
           seoDescription: null,
           taxCode: null,
           variants: [
-            { label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0, optionValues: [] },
+            {
+            label: "",
+            priceCents: 100,
+            sku: null,
+            compareAtPriceCents: null,
+            inventory: { type: "infinite" },
+            weightGrams: 0,
+            optionValues: [],
+          },
           ],
           options: [],
           optionGroups: [],
           isLive: true,
         }),
       ).rejects.toThrow(/already in use/i);
+    });
+
+    it("rejects a duplicate SKU and names the other product", async () => {
+      await db.admin.createProduct({
+        slug: "sku-owner",
+        name: "SKU Owner",
+        kind: "physical",
+        description: "",
+        bulletPoints: [],
+        seoTitle: null,
+        seoDescription: null,
+        taxCode: null,
+        variants: [
+          {
+            label: "",
+            priceCents: 100,
+            sku: "DUP-SKU",
+            compareAtPriceCents: null,
+            inventory: { type: "infinite" },
+            weightGrams: 0,
+            optionValues: [],
+          },
+        ],
+        options: [],
+        optionGroups: [],
+        isLive: true,
+      });
+
+      await expect(
+        db.admin.createProduct({
+          slug: "sku-clash",
+          name: "SKU Clash",
+          kind: "physical",
+          description: "",
+          bulletPoints: [],
+          seoTitle: null,
+          seoDescription: null,
+          taxCode: null,
+          variants: [
+            {
+              label: "",
+              priceCents: 200,
+              sku: "DUP-SKU",
+              compareAtPriceCents: null,
+              inventory: { type: "infinite" },
+              weightGrams: 0,
+              optionValues: [],
+            },
+          ],
+          options: [],
+          optionGroups: [],
+          isLive: true,
+        }),
+      ).rejects.toThrow(/SKU Owner/);
+    });
+
+    // The partial unique index is the part invariant 6 flags as most likely
+    // to differ between engines — this proves it is genuinely partial on
+    // both, not merely permissive by accident.
+    it("keeps two variants with no SKU, on either engine", async () => {
+      const id = await db.admin.createProduct({
+        slug: "no-sku-pair",
+        name: "No SKU Pair",
+        kind: "physical",
+        description: "",
+        bulletPoints: [],
+        seoTitle: null,
+        seoDescription: null,
+        taxCode: null,
+        variants: [
+          {
+            label: "A",
+            priceCents: 100,
+            sku: null,
+            compareAtPriceCents: null,
+            inventory: { type: "infinite" },
+            weightGrams: 0,
+            optionValues: ["A"],
+          },
+          {
+            label: "B",
+            priceCents: 150,
+            sku: null,
+            compareAtPriceCents: null,
+            inventory: { type: "infinite" },
+            weightGrams: 0,
+            optionValues: ["B"],
+          },
+        ],
+        options: [{ name: "Label", values: ["A", "B"] }],
+        optionGroups: [],
+        isLive: true,
+      });
+
+      const product = await db.findProductBySlug("no-sku-pair");
+      expect(product?.variants).toHaveLength(2);
+      expect(product?.variants.every((v) => v.sku === null)).toBe(true);
+
+      await db.admin.deleteProduct(id);
+    });
+
+    it("sets an image back to the whole product when its variant is deleted", async () => {
+      const id = await db.admin.createProduct({
+        slug: "image-orphan-test",
+        name: "Image Orphan Test",
+        kind: "physical",
+        description: "",
+        bulletPoints: [],
+        seoTitle: null,
+        seoDescription: null,
+        taxCode: null,
+        variants: [
+          {
+            label: "Keep",
+            priceCents: 100,
+            sku: null,
+            compareAtPriceCents: null,
+            inventory: { type: "infinite" },
+            weightGrams: 0,
+            optionValues: ["Keep"],
+          },
+          {
+            label: "Drop",
+            priceCents: 100,
+            sku: null,
+            compareAtPriceCents: null,
+            inventory: { type: "infinite" },
+            weightGrams: 0,
+            optionValues: ["Drop"],
+          },
+        ],
+        options: [{ name: "Choice", values: ["Keep", "Drop"] }],
+        optionGroups: [],
+        isLive: true,
+      });
+
+      const before = (await db.findProductBySlug("image-orphan-test"))!;
+      const keep = before.variants.find((v) => v.label === "Keep")!;
+      const drop = before.variants.find((v) => v.label === "Drop")!;
+
+      await db.admin.addProductImage(id, {
+        path: "orphan-test.png",
+        width: 10,
+        height: 10,
+        alt: "",
+      });
+      await db.admin.updateProductImage(id, "orphan-test.png", { variantId: drop.id });
+
+      await db.admin.updateProduct(id, {
+        slug: "image-orphan-test",
+        name: "Image Orphan Test",
+        kind: "physical",
+        description: "",
+        bulletPoints: [],
+        seoTitle: null,
+        seoDescription: null,
+        taxCode: null,
+        // Only "Keep" survives — "Drop" is removed, the way trimming an
+        // option's values in the editor removes the variant behind it.
+        variants: [
+          {
+            id: keep.id,
+            label: "Keep",
+            priceCents: 100,
+            sku: null,
+            compareAtPriceCents: null,
+            inventory: { type: "infinite" },
+            weightGrams: 0,
+            optionValues: ["Keep"],
+          },
+        ],
+        options: [{ name: "Choice", values: ["Keep"] }],
+        optionGroups: [],
+        isLive: true,
+      });
+
+      const after = (await db.findProductBySlug("image-orphan-test"))!;
+      expect(after.variants.map((v) => v.id)).toEqual([keep.id]);
+
+      // The image survives, unassigned, rather than being deleted along with
+      // the variant it pointed at.
+      const image = after.images.find((i) => i.path === "orphan-test.png");
+      expect(image).toBeDefined();
+      expect(image?.variantId).toBeNull();
+
+      await db.admin.deleteProduct(id);
     });
 
     /*

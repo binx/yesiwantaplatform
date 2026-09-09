@@ -1,14 +1,14 @@
 ---
 task: "23"
 title: SKUs, compare-at prices and per-variant images
-status: todo
+status: done
 tier: 2
 size: L
-migration: three columns on variants, one on product_images
+migration: two columns on variants, one on product_images, one on order_items
 blocked_by: []
 blocks: []
 touches: shared/schema.ts · db/schema.sqlite.ts · db/schema.pg.ts · src/admin/ProductEditorPage.tsx · shared/catalogue-csv.ts · server/routes/checkout.ts
-completed:
+completed: 2026-09-09
 shipped_in:
 summary: >-
   Three fields every platform a merchant is migrating from has, and Beluga's variant does

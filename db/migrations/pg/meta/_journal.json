@@ -141,6 +141,13 @@
       "when": 1788973841795,
       "tag": "0019_flat_gargoyle",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788973841796,
+      "tag": "0020_safe_ezekiel_stane",
+      "breakpoints": true
     }
   ]
 }

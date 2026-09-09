@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { findProduct } from "@shared/catalog";
+import { findProduct, orderImagesForVariant } from "@shared/catalog";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { Carousel } from "@/components/product/Carousel";
 import { ProductDetails } from "@/components/product/ProductDetails";
@@ -23,6 +24,7 @@ export function ProductPage() {
   // leaves the shell's default title rather than naming a page that is not
   // being shown.
   useDocumentTitle(product?.isLive ? product.name : null);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
 
   if (!product || !product.isLive) return <NotFoundPage />;
 
@@ -45,8 +47,16 @@ export function ProductPage() {
       </nav>
 
       <div className={styles.layout}>
-        <Carousel images={product.images} productName={product.name} />
-        <ProductDetails product={product} currency={store.currency} locale={store.locale} />
+        <Carousel
+          images={orderImagesForVariant(product.images, selectedVariantId)}
+          productName={product.name}
+        />
+        <ProductDetails
+          product={product}
+          currency={store.currency}
+          locale={store.locale}
+          onVariantChange={setSelectedVariantId}
+        />
       </div>
     </PageWrapper>
   );

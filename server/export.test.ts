@@ -44,6 +44,7 @@ async function seedOrder(id: string, createdAtMs?: number) {
         variantId: "demo-tote-s",
         productName: "=1+1",
         variantLabel: 'The "big", one',
+        sku: "DEMO-TOTE-S",
         unitPriceCents: 1700,
         quantity: 2,
         options: { Gift: "Yes" },
@@ -53,6 +54,7 @@ async function seedOrder(id: string, createdAtMs?: number) {
         variantId: "demo-mug-default",
         productName: "Café — größe",
         variantLabel: "",
+        sku: null,
         unitPriceCents: 2200,
         quantity: 1,
         options: {},
@@ -101,7 +103,7 @@ describe("GET /api/admin/orders.csv", () => {
 
     expect(body.startsWith("﻿")).toBe(true);
     expect(body.slice(1).split("\r\n")[0]).toBe(
-      "order_reference,order_id,placed_at,status,email,product_name,variant_label,options," +
+      "order_reference,order_id,placed_at,status,email,product_name,variant_label,sku,options," +
         "quantity,unit_price_cents,line_total_cents,order_subtotal_cents,order_shipping_cents," +
         "order_tax_cents,order_discount_cents,order_total_cents,order_refunded_cents,currency," +
         "shipping_name,shipping_line1,shipping_line2,shipping_city,shipping_state," +
@@ -146,6 +148,19 @@ describe("GET /api/admin/orders.csv", () => {
 
     const body = (await agent.get("/api/admin/orders.csv").expect(200)).text;
     expect(body).toContain("Café — größe");
+  });
+
+  it("writes the sku, blank when the line has none", async () => {
+    const agent = await signIn();
+    await seedOrder("csv-order-sku");
+
+    const body = (await agent.get("/api/admin/orders.csv").expect(200)).text;
+    const rows = body.split("\r\n").filter((line) => line.includes("csv-order-sku"));
+    expect(rows).toHaveLength(2);
+
+    expect(rows.some((row) => row.includes("DEMO-TOTE-S"))).toBe(true);
+    // The mug line has no sku: an empty cell, not the literal word "null".
+    expect(rows.join("\n")).not.toContain("null");
   });
 
   it("bounds the export by date", async () => {

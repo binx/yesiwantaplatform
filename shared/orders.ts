@@ -30,6 +30,8 @@ export const orderItemSchema = z.object({
    */
   productName: z.string(),
   variantLabel: z.string(),
+  /** Null for any order placed before this field existed. */
+  sku: z.string().nullable(),
   unitPriceCents: centsSchema,
   quantity: z.number().int().positive(),
   options: z.record(z.string(), z.string()),

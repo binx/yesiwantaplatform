@@ -82,6 +82,7 @@ async function pendingOrder(): Promise<{ orderId: string; sessionId: string }> {
         variantId: "demo-tote-s",
         productName: "Demo Tote",
         variantLabel: "Small",
+        sku: "DEMO-TOTE-S",
         unitPriceCents: 3400,
         quantity: 1,
         options: {},

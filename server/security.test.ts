@@ -517,6 +517,42 @@ describe("input validation", () => {
 
     expect(response.body.error).toMatch(/already in use/i);
   });
+
+  it("rejects a duplicate SKU and names the other product", async () => {
+    const { agent, csrf } = await signIn();
+
+    const response = await agent
+      .post("/api/admin/products")
+      .set("x-csrf-token", csrf)
+      .send({
+        slug: "sku-duplicate",
+        name: "SKU Duplicate",
+        // Seeded on the demo tote's small variant.
+        variants: [{ priceCents: 100, sku: "CANVAS-TOTE-S", inventory: { type: "infinite" } }],
+      })
+      .expect(409);
+
+    expect(response.body.error).toMatch(/already.*use/i);
+    expect(response.body.error).toContain("Canvas Tote");
+  });
+
+  it("rejects a compare-at price that is not strictly greater than the price", async () => {
+    const { agent, csrf } = await signIn();
+
+    const response = await agent
+      .post("/api/admin/products")
+      .set("x-csrf-token", csrf)
+      .send({
+        slug: "compare-at-not-a-markdown",
+        name: "Compare-at Not a Markdown",
+        variants: [
+          { priceCents: 1000, compareAtPriceCents: 1000, inventory: { type: "infinite" } },
+        ],
+      })
+      .expect(400);
+
+    expect(response.body.error).toMatch(/compareAtPriceCents/);
+  });
 });
 
 describe("public API", () => {

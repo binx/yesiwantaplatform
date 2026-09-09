@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test-utils";
 import { useCart } from "@/store/cart";
 import type { Product } from "@shared/schema";
@@ -20,6 +20,8 @@ const baseProduct: Product = {
       id: "v-small",
       label: "Small",
       priceCents: 3400,
+      sku: null,
+      compareAtPriceCents: null,
       inventory: { type: "finite", quantity: 12 },
       weightGrams: 0,
       stripePriceId: null,
@@ -29,6 +31,10 @@ const baseProduct: Product = {
       id: "v-large",
       label: "Large",
       priceCents: 4200,
+      sku: null,
+      // On sale, so a test can assert the struck-through price shows for the
+      // selected variant only.
+      compareAtPriceCents: 4800,
       inventory: { type: "finite", quantity: 2 },
       weightGrams: 0,
       stripePriceId: null,
@@ -79,6 +85,44 @@ describe("ProductDetails", () => {
     await user.click(await screen.findByTitle("Large"));
 
     await waitFor(() => expect(screen.getByText("$42.00")).toBeInTheDocument());
+  });
+
+  it("shows a struck-through compare-at price only for a variant on sale", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ProductDetails product={baseProduct} currency="USD" locale="en-US" />);
+
+    // Small has no compare-at price.
+    expect(screen.queryByText("$48.00")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByTitle("Large"));
+
+    // Large is marked down from $48.00 to $42.00.
+    await waitFor(() => expect(screen.getByText("$42.00")).toBeInTheDocument());
+    expect(screen.getByText("$48.00")).toBeInTheDocument();
+  });
+
+  it("tells the caller which variant resolved, including on first render", async () => {
+    const user = userEvent.setup();
+    const onVariantChange = vi.fn();
+    renderWithProviders(
+      <ProductDetails
+        product={baseProduct}
+        currency="USD"
+        locale="en-US"
+        onVariantChange={onVariantChange}
+      />,
+    );
+
+    // Fires for the default selection without anyone touching a control —
+    // otherwise a visitor who never picks a variant sees an unordered
+    // carousel, since nothing ever told the page which variant is shown.
+    await waitFor(() => expect(onVariantChange).toHaveBeenCalledWith("v-small"));
+
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByTitle("Large"));
+
+    await waitFor(() => expect(onVariantChange).toHaveBeenCalledWith("v-large"));
   });
 
   it("prices in the store's language, not always the American one", () => {
@@ -141,6 +185,8 @@ describe("ProductDetails", () => {
           id: "v-only",
           label: "",
           priceCents: 6500,
+          sku: null,
+          compareAtPriceCents: null,
           inventory: { type: "finite", quantity: 0 },
           weightGrams: 0,
           stripePriceId: null,
@@ -168,6 +214,8 @@ describe("ProductDetails", () => {
         id: "v-s-black",
         label: "Small / Black",
         priceCents: 5000,
+        sku: null,
+        compareAtPriceCents: null,
         inventory: { type: "finite", quantity: 5 },
         weightGrams: 0,
         stripePriceId: null,
@@ -177,6 +225,8 @@ describe("ProductDetails", () => {
         id: "v-s-blue",
         label: "Small / Blue",
         priceCents: 5000,
+        sku: null,
+        compareAtPriceCents: null,
         // Sold out — offered but disabled, not silently missing.
         inventory: { type: "finite", quantity: 0 },
         weightGrams: 0,
@@ -187,6 +237,8 @@ describe("ProductDetails", () => {
         id: "v-l-black",
         label: "Large / Black",
         priceCents: 5500,
+        sku: null,
+        compareAtPriceCents: null,
         inventory: { type: "finite", quantity: 3 },
         weightGrams: 0,
         stripePriceId: null,
@@ -196,6 +248,8 @@ describe("ProductDetails", () => {
         id: "v-l-blue",
         label: "Large / Blue",
         priceCents: 5500,
+        sku: null,
+        compareAtPriceCents: null,
         inventory: { type: "infinite" },
         weightGrams: 0,
         stripePriceId: null,

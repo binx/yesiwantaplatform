@@ -254,6 +254,10 @@ export const variants = sqliteTable(
       .references(() => products.id, { onDelete: "cascade" }),
     label: text("label").notNull().default(""),
     priceCents: integer("price_cents").notNull(),
+    /** Shown to a warehouse or accounting import; never used to look up the row. */
+    sku: text("sku"),
+    /** The pre-markdown price, for a struck-through "was $42" display. Never charged. */
+    compareAtPriceCents: integer("compare_at_price_cents"),
     /** "infinite" | "finite" */
     inventoryType: text("inventory_type").notNull().default("infinite"),
     inventoryQuantity: integer("inventory_quantity").notNull().default(0),
@@ -263,7 +267,12 @@ export const variants = sqliteTable(
     position: integer("position").notNull().default(0),
     ...timestamps,
   },
-  (t) => [index("variants_product_idx").on(t.productId)],
+  (t) => [
+    index("variants_product_idx").on(t.productId),
+    uniqueIndex("variants_sku_idx")
+      .on(t.sku)
+      .where(sql`${t.sku} is not null`),
+  ],
 );
 
 /** A named axis: "Size". Up to 3 per product. */
@@ -322,6 +331,8 @@ export const productImages = sqliteTable(
     widths: text("widths").notNull().default("[]"),
     /** Required, so imagery is never unlabelled for screen readers. */
     alt: text("alt").notNull().default(""),
+    /** Null belongs to the whole product; set, it's shown first for that variant. */
+    variantId: text("variant_id").references(() => variants.id, { onDelete: "set null" }),
     position: integer("position").notNull().default(0),
   },
   (t) => [index("product_images_product_idx").on(t.productId)],
@@ -515,6 +526,8 @@ export const orderItems = sqliteTable(
     /** Snapshots, so an order always renders as it was bought. */
     productName: text("product_name").notNull(),
     variantLabel: text("variant_label").notNull().default(""),
+    /** Null for any order placed before this column existed. */
+    sku: text("sku"),
     unitPriceCents: integer("unit_price_cents").notNull(),
     quantity: integer("quantity").notNull(),
     /** JSON object of non-priced selections. */

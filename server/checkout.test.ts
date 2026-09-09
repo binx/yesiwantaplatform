@@ -174,6 +174,30 @@ describe("checkout", () => {
     expect(order?.items[0]?.unitPriceCents).toBe(3400);
   });
 
+  it("charges the real price for a variant on sale, never the compare-at price", async () => {
+    await publishVariant("demo-tote-l", "price_test_tote_large");
+
+    const response = await request(app)
+      .post("/api/checkout")
+      .send({
+        lines: [{ productId: "demo-tote", variantId: "demo-tote-l", quantity: 1, options: {} }],
+      })
+      .expect(200);
+
+    expect(response.body.url).toContain("checkout.stripe.com");
+
+    // demo-tote-l is seeded with priceCents 4200 and compareAtPriceCents
+    // 4800 — the 4800 must appear nowhere in what Stripe or the order see.
+    const params = createSession.mock.calls[0]?.[0] as Stripe.Checkout.SessionCreateParams;
+    expect(JSON.stringify(params)).not.toContain("4800");
+
+    const { findOrderByCheckoutSession } = await import("../db/orders-repository.js");
+    const session = createSession.mock.results[0]?.value as { id: string };
+    const order = await findOrderByCheckoutSession(session.id);
+    expect(order?.items[0]?.unitPriceCents).toBe(4200);
+    expect(order?.subtotalCents).toBe(4200);
+  });
+
   it("lets Stripe host the promotion-code field", async () => {
     await request(app)
       .post("/api/checkout")

@@ -335,6 +335,21 @@ count on one. That is not tidiness: `decrementInventoryForOrder` would count the
 variant down, it would reach zero, and paid orders would start being flagged
 `oversold` for a file that cannot run out.
 
+Each variant carries three optional fields beyond price and stock:
+
+- **SKU** — a merchant-set identifier, unique across the catalogue when set.
+  It never governs a lookup inside Beluga itself; it exists for a warehouse or
+  accounting system to key on, and shows up on order lines, the order CSV, the
+  outbound `order.paid` webhook, and in `metadata.sku` on the variant's Stripe
+  Price.
+- **Compare-at price** — display only, and never sent to Stripe. Set higher
+  than the price, it shows struck through beside it with a Sale badge; it is
+  never what checkout actually charges.
+- **A per-variant image** — an image can be pinned to one variant instead of
+  the whole product, so picking a colour shows that colour's picture first.
+  Removing the variant it was assigned to does not delete the image; it just
+  falls back to the whole product.
+
 ### Payments
 
 Checkout uses Stripe **Checkout Sessions** — Stripe's hosted page owns the card fields, 3-D Secure, wallets, and address collection, which keeps this project at PCI SAQ-A.
@@ -434,7 +449,7 @@ Every money column is named `*_cents` and holds an integer, because a column of 
 
 `GET /api/admin/products.csv` writes the whole catalogue, drafts included, **one row per variant** with the product's own fields repeated across its rows — the shape Shopify exports, so the two files can be diffed. The **Export CSV** and **Import CSV** buttons on the Products screen are the same thing with a preview attached.
 
-Columns: `slug`, `name`, `kind`, `description`, `bullet_points`, `seo_title`, `seo_description`, `tax_code`, `option1_name`/`option1_value` through `option3_*`, `variant_price_cents`, `variant_inventory_type`, `variant_inventory_quantity`, `variant_weight_grams`, `is_live`, `image_paths`. Lists inside one cell — bullet points, image paths — are `|`-separated, because the comma is taken. Prices are integer cents, and a decimal in a `*_cents` column is refused by name rather than rounded.
+Columns: `slug`, `name`, `kind`, `description`, `bullet_points`, `seo_title`, `seo_description`, `tax_code`, `option1_name`/`option1_value` through `option3_*`, `variant_sku`, `variant_price_cents`, `variant_compare_at_price_cents`, `variant_inventory_type`, `variant_inventory_quantity`, `variant_weight_grams`, `is_live`, `image_paths`, `variant_image_paths`. Lists inside one cell — bullet points, image paths — are `|`-separated, because the comma is taken. Prices are integer cents, and a decimal in a `*_cents` column is refused by name rather than rounded.
 
 Importing is **two requests, and the split is the feature**:
 
@@ -449,9 +464,9 @@ Things worth knowing before importing over a live catalogue:
 
 - **Products are matched by `slug`** — present is an update, absent is a create.
 - **A column the file omits leaves the stored value alone.** A three-column price list will not blank every description in the catalogue. A column that is present but empty *does* clear the field, so there is still a way to.
-- **A variant keeps its id** when its combination of option values still matches, so an update does not orphan the Stripe Price behind it. For the same reason an import will refuse to collapse a product's options by leaving their columns out, rather than deleting the variants that would fall off.
+- **A variant keeps its id** when its SKU matches an existing variant's, or — for a variant with no SKU — when its combination of option values still matches, so an update does not orphan the Stripe Price behind it. For the same reason an import will refuse to collapse a product's options by leaving their columns out, rather than deleting the variants that would fall off.
 - **An import never writes to Stripe.** Invariant 7 holds here: imported products land as drafts unless `is_live` says otherwise, and even a live one is not published until someone publishes it.
-- **Images and non-priced option groups are not managed by the file.** `image_paths` is written on export and ignored on import; both are edited in the product editor.
+- **Images and non-priced option groups are not managed by the file.** `image_paths` and `variant_image_paths` are written on export and ignored on import; both are edited in the product editor.
 
 ### Outbound webhooks
 

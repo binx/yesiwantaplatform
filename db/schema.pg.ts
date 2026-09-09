@@ -223,6 +223,10 @@ export const variants = pgTable(
       .references(() => products.id, { onDelete: "cascade" }),
     label: text("label").notNull().default(""),
     priceCents: integer("price_cents").notNull(),
+    /** Shown to a warehouse or accounting import; never used to look up the row. */
+    sku: text("sku"),
+    /** The pre-markdown price, for a struck-through "was $42" display. Never charged. */
+    compareAtPriceCents: integer("compare_at_price_cents"),
     inventoryType: text("inventory_type").notNull().default("infinite"),
     inventoryQuantity: integer("inventory_quantity").notNull().default(0),
     /** Shipping weight. Zero means the store has not recorded one. */
@@ -231,7 +235,12 @@ export const variants = pgTable(
     position: integer("position").notNull().default(0),
     ...timestamps,
   },
-  (t) => [index("variants_product_idx").on(t.productId)],
+  (t) => [
+    index("variants_product_idx").on(t.productId),
+    uniqueIndex("variants_sku_idx")
+      .on(t.sku)
+      .where(sql`${t.sku} is not null`),
+  ],
 );
 
 /** A named axis: "Size". Up to 3 per product. */
@@ -289,6 +298,8 @@ export const productImages = pgTable(
     /** JSON array of the derivative widths generated for this image. */
     widths: jsonb("widths").notNull().default(sql`'[]'::jsonb`),
     alt: text("alt").notNull().default(""),
+    /** Null belongs to the whole product; set, it's shown first for that variant. */
+    variantId: text("variant_id").references(() => variants.id, { onDelete: "set null" }),
     position: integer("position").notNull().default(0),
   },
   (t) => [index("product_images_product_idx").on(t.productId)],
@@ -453,6 +464,8 @@ export const orderItems = pgTable(
     variantId: text("variant_id"),
     productName: text("product_name").notNull(),
     variantLabel: text("variant_label").notNull().default(""),
+    /** Null for any order placed before this column existed. */
+    sku: text("sku"),
     unitPriceCents: integer("unit_price_cents").notNull(),
     quantity: integer("quantity").notNull(),
     options: jsonb("options").notNull().default(sql`'{}'::jsonb`),

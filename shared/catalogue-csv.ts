@@ -39,12 +39,15 @@ export const CATALOGUE_CSV_COLUMNS = [
   "option2_value",
   "option3_name",
   "option3_value",
+  "variant_sku",
   "variant_price_cents",
+  "variant_compare_at_price_cents",
   "variant_inventory_type",
   "variant_inventory_quantity",
   "variant_weight_grams",
   "is_live",
   "image_paths",
+  "variant_image_paths",
 ] as const;
 
 export type CatalogueCsvColumn = (typeof CATALOGUE_CSV_COLUMNS)[number];
@@ -85,7 +88,11 @@ export function productCsvRows(product: Product): CsvValue[][] {
       ...axis(0),
       ...axis(1),
       ...axis(2),
+      variant.sku ?? "",
       variant.priceCents,
+      // Blank rather than 0: 0 would read as a real markdown to zero, not "no
+      // compare-at price at all" — the same reason inventory does this below.
+      variant.compareAtPriceCents ?? "",
       variant.inventory.type,
       // Blank rather than 0 for an unlimited variant: 0 reads as "out of
       // stock", which is the opposite of what it means here.
@@ -93,6 +100,10 @@ export function productCsvRows(product: Product): CsvValue[][] {
       variant.weightGrams,
       product.isLive,
       imagePaths,
+      product.images
+        .filter((image) => image.variantId === variant.id)
+        .map((image) => image.path)
+        .join(LIST_SEPARATOR),
     ];
   });
 }
@@ -382,6 +393,20 @@ function readVariant(
     else priceCents = parsed;
   }
 
+  const skuRaw = cell(row, header, "variant_sku") ?? "";
+  const sku = skuRaw === "" ? null : skuRaw;
+  if (sku !== null && /\s/.test(sku)) {
+    log.add(row.line, "variant_sku", "A SKU must not contain whitespace.");
+  }
+
+  const compareAtRaw = cell(row, header, "variant_compare_at_price_cents") ?? "";
+  let compareAtPriceCents: number | null = null;
+  if (compareAtRaw !== "") {
+    const parsed = parseCents(compareAtRaw);
+    if (typeof parsed === "string") log.add(row.line, "variant_compare_at_price_cents", parsed);
+    else compareAtPriceCents = parsed;
+  }
+
   const typeRaw = (cell(row, header, "variant_inventory_type") ?? "").toLowerCase();
   const quantityRaw = cell(row, header, "variant_inventory_quantity") ?? "";
 
@@ -431,6 +456,8 @@ function readVariant(
   return {
     label: "",
     priceCents,
+    sku,
+    compareAtPriceCents,
     inventory:
       inventoryType === "finite"
         ? { type: "finite" as const, quantity }
@@ -459,15 +486,24 @@ function adoptVariantIds(
 ): ProductInput["variants"] {
   if (!existing) return variants;
 
+  const bySku = new Map(
+    existing.variants
+      .filter((variant): variant is typeof variant & { sku: string } => variant.sku !== null)
+      .map((variant) => [variant.sku, variant.id]),
+  );
   const byCombination = new Map(
     existing.variants.map((variant) => [variant.optionValues.join(" "), variant.id]),
   );
 
   return variants.map((variant) => {
+    // A SKU is a deliberate merchant identifier; an option combination is
+    // only inferred. When a row's SKU matches an existing variant, that
+    // match wins even if the combination also happens to match another.
     const id =
-      existing.options.length === 0 && variants.length === 1
+      (variant.sku !== null ? bySku.get(variant.sku) : undefined) ??
+      (existing.options.length === 0 && variants.length === 1
         ? existing.variants[0]?.id
-        : byCombination.get(variant.optionValues.join(" "));
+        : byCombination.get(variant.optionValues.join(" ")));
 
     return id ? { ...variant, id } : variant;
   });
@@ -493,11 +529,15 @@ function locateIssue(
     const column =
       field === "priceCents"
         ? "variant_price_cents"
-        : field === "inventory"
-          ? "variant_inventory_quantity"
-          : field === "weightGrams"
-            ? "variant_weight_grams"
-            : "variant_price_cents";
+        : field === "sku"
+          ? "variant_sku"
+          : field === "compareAtPriceCents"
+            ? "variant_compare_at_price_cents"
+            : field === "inventory"
+              ? "variant_inventory_quantity"
+              : field === "weightGrams"
+                ? "variant_weight_grams"
+                : "variant_price_cents";
     return { row: line, column };
   }
 
@@ -691,6 +731,24 @@ export function buildImportPlan(options: {
               ? `Two rows are both “${duplicate.join(" / ")}.” Combinations must be unique.`
               : "A product with no options can only have one price.",
           );
+        }
+
+        // Cross-product duplicates can only be caught once the product is
+        // actually written — this file's own rows are the one place a
+        // duplicate SKU can be caught for free, before anything is saved.
+        const seenSkus = new Set<string>();
+        for (const [rowIndex, variant] of parsed.data.variants.entries()) {
+          if (variant.sku === null) continue;
+
+          if (seenSkus.has(variant.sku)) {
+            groupLog.add(
+              rows[rowIndex]?.line ?? rows[0]!.line,
+              "variant_sku",
+              `Two rows in this file are both “${variant.sku}.” SKUs must be unique.`,
+            );
+          }
+
+          seenSkus.add(variant.sku);
         }
 
         if (groupLog.empty) {

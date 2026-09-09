@@ -129,6 +129,18 @@ export async function syncProductToStripe(product: Product): Promise<SyncResult>
       existing.currency === currency &&
       existing.tax_behavior === (taxBehavior ?? "unspecified")
     ) {
+      /*
+       * Unlike `unit_amount`, Price metadata is mutable — so a SKU added
+       * after first publish still reaches Stripe on a later one, without
+       * this reuse branch minting a new Price (and archiving a perfectly
+       * good one) just because a metadata field changed.
+       */
+      if (existing.metadata?.sku !== (variant.sku ?? undefined)) {
+        await stripe.prices.update(existing.id, {
+          metadata: { ...existing.metadata, sku: variant.sku ?? "" },
+        });
+      }
+
       pricesReused += 1;
       continue;
     }
@@ -145,7 +157,9 @@ export async function syncProductToStripe(product: Product): Promise<SyncResult>
       currency,
       ...(taxBehavior ? { tax_behavior: taxBehavior } : {}),
       ...(variant.label ? { nickname: variant.label } : {}),
-      metadata: { beluga_variant_id: variant.id },
+      // Stripe's Price has no first-class SKU field, so a merchant reading the
+      // Stripe dashboard can still tell which Price is which.
+      metadata: { beluga_variant_id: variant.id, sku: variant.sku ?? "" },
     });
 
     await setStripePriceId(variant.id, price.id);

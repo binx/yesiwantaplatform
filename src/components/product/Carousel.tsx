@@ -45,6 +45,17 @@ export function Carousel({ images, productName }: CarouselProps) {
   const labelId = useId();
 
   const count = images.length;
+  // Identity of the sequence, not just its length: selecting a different
+  // variant can reorder the same images without changing how many there are,
+  // which `count` alone would miss.
+  const orderKey = images.map((image) => image.path).join("|");
+
+  // A reorder means a different variant was just selected — lead with its
+  // picture rather than wherever a previous swipe or selection left off.
+  useEffect(() => {
+    setActive(0);
+    trackRef.current?.scrollTo?.({ left: 0 });
+  }, [orderKey]);
 
   // Follow a manual swipe so the thumbnails stay in step.
   useEffect(() => {
@@ -68,7 +79,7 @@ export function Carousel({ images, productName }: CarouselProps) {
       if (slide) observer.observe(slide);
     }
     return () => observer.disconnect();
-  }, [count]);
+  }, [orderKey, count]);
 
   const goTo = useCallback((index: number) => {
     const slide = slideRefs.current[index];

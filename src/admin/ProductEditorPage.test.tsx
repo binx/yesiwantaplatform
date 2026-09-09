@@ -88,3 +88,37 @@ describe("a brand-new product", () => {
     await waitFor(() => expect(screen.getByText(issues)).toBeInTheDocument());
   });
 });
+
+describe("SKU and compare-at price", () => {
+  it("keeps a variant's SKU when adding an option regenerates the matrix", async () => {
+    renderNewProduct();
+
+    await userEvent.type(await screen.findByLabelText("Name"), "Test Product");
+    await userEvent.type(await screen.findByLabelText("SKU"), "MY-SKU");
+
+    // Exact match fails here: antd's icon renders as `role="img"
+    // aria-label="plus"`, which is folded into the button's accessible name
+    // alongside its own text.
+    await userEvent.click(await screen.findByRole("button", { name: /Add an option/ }));
+    await userEvent.type(await screen.findByLabelText("Option name"), "Size");
+    await userEvent.type(await screen.findByLabelText("Size value 1"), "Small");
+
+    // Still one combination (one value on the new axis), so the single
+    // pre-existing row should be matched and keep its SKU rather than being
+    // replaced with a blank one.
+    await waitFor(() => expect(screen.getByLabelText("SKU")).toHaveValue("MY-SKU"));
+  });
+
+  it("flags a compare-at price that is not higher than the price", async () => {
+    renderNewProduct();
+
+    await userEvent.type(await screen.findByLabelText("Name"), "Test Product");
+    await userEvent.type(await screen.findByLabelText("Price"), "10.00");
+    await userEvent.type(await screen.findByLabelText("Compare-at price"), "10.00");
+
+    // Once in the summary alert and once as the field's own inline error.
+    await waitFor(() =>
+      expect(screen.getAllByText(/must be higher than the price/i)).toHaveLength(2),
+    );
+  });
+});

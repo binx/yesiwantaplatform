@@ -328,7 +328,7 @@ export function ThemeEditor({ value, onChange, storeName, savedFontUrl }: ThemeE
               <p className={cx(styles.previewStore)}>{storeName || "Your store"}</p>
             )}
 
-            <ProductCard href="#" name="Canvas Tote" price="$42.00" soldOut />
+            <ProductCard href="#" name="Canvas Tote" price="$42.00" onSale />
 
             <div className={cx(styles.previewAction)}>
               <Button type="primary" block>

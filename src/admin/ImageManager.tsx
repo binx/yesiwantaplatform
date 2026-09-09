@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { App, Alert, Button, Input, Space, Tooltip, Upload } from "antd";
+import { App, Alert, Button, Input, Select, Space, Tooltip, Upload } from "antd";
 import {
   ArrowDownOutlined,
   ArrowUpOutlined,
@@ -31,9 +31,11 @@ interface ImageManagerProps {
   productId: string | null;
   images: Image[];
   onChange: (images: Image[]) => void;
+  /** Only variants that have been saved — an unsaved one has no id to assign to. */
+  variants: { id: string; label: string }[];
 }
 
-export function ImageManager({ productId, images, onChange }: ImageManagerProps) {
+export function ImageManager({ productId, images, onChange, variants }: ImageManagerProps) {
   const { message } = App.useApp();
   const upload = useUploadImage();
   const remove = useDeleteImage();
@@ -86,6 +88,22 @@ export function ImageManager({ productId, images, onChange }: ImageManagerProps)
       {
         onError: (error: unknown) =>
           void message.error(error instanceof Error ? error.message : "Could not save the alt text."),
+      },
+    );
+  };
+
+  // A select commits the moment it changes — unlike alt text, there is no
+  // per-keystroke cost to guard against, so this skips the drafts/blur dance.
+  const commitVariant = (image: Image, variantId: string | null) => {
+    onChange(images.map((item) => (item.path === image.path ? { ...item, variantId } : item)));
+
+    updateAlt.mutate(
+      { productId, path: image.path, variantId },
+      {
+        onError: (error: unknown) => {
+          message.error(error instanceof Error ? error.message : "Could not assign the variant.");
+          onChange(images);
+        },
       },
     );
   };
@@ -156,6 +174,25 @@ export function ImageManager({ productId, images, onChange }: ImageManagerProps)
                 <p className={cx(styles.meta)}>
                   {image.width} × {image.height}
                 </p>
+                {variants.length > 1 ? (
+                  <>
+                    <label className={cx(styles.altLabel)} htmlFor={`variant-${image.path}`}>
+                      Shown for
+                    </label>
+                    <Select
+                      id={`variant-${image.path}`}
+                      value={image.variantId ?? ""}
+                      onChange={(value) => commitVariant(image, value === "" ? null : value)}
+                      options={[
+                        { value: "", label: "All variants" },
+                        ...variants.map((variant) => ({
+                          value: variant.id,
+                          label: variant.label || "Unnamed",
+                        })),
+                      ]}
+                    />
+                  </>
+                ) : null}
               </div>
 
               <Space.Compact className={cx(styles.controls)}>

@@ -219,6 +219,73 @@ describe("changing the tax behaviour", () => {
   });
 });
 
+describe("publishing a SKU", () => {
+  it("updates Price metadata for a SKU added after first publish, without minting a new Price", async () => {
+    await setTax({ enabled: false });
+    // Single-variant, so the loop below has exactly one Price to reason
+    // about — canvas-tote's second variant would otherwise take the create
+    // branch on its own and confuse what this test is checking.
+    const product = await loadProduct("enamel-mug");
+    const variant = product.variants[0]!;
+
+    // Everything immutable about the Price still matches, so a naive
+    // publish would take the reuse branch and never reach Stripe with the
+    // new SKU at all.
+    existingPrice = {
+      id: "price_old",
+      active: true,
+      unit_amount: variant.priceCents,
+      currency: "usd",
+      tax_behavior: "unspecified",
+      metadata: {},
+    };
+
+    const alreadyPublished = {
+      ...product,
+      stripeProductId: "prod_test_123",
+      variants: product.variants.map((v) =>
+        v.id === variant.id ? { ...v, stripePriceId: "price_old" } : v,
+      ),
+    };
+
+    await sync(alreadyPublished);
+
+    expect(pricesCreate).not.toHaveBeenCalled();
+    expect(pricesUpdate).toHaveBeenCalledWith(
+      "price_old",
+      expect.objectContaining({ metadata: expect.objectContaining({ sku: variant.sku }) }),
+    );
+  });
+
+  it("does not re-update Price metadata once the SKU already matches", async () => {
+    await setTax({ enabled: false });
+    const product = await loadProduct("enamel-mug");
+    const variant = product.variants[0]!;
+
+    existingPrice = {
+      id: "price_old",
+      active: true,
+      unit_amount: variant.priceCents,
+      currency: "usd",
+      tax_behavior: "unspecified",
+      metadata: { sku: variant.sku ?? "" },
+    };
+
+    const alreadyPublished = {
+      ...product,
+      stripeProductId: "prod_test_123",
+      variants: product.variants.map((v) =>
+        v.id === variant.id ? { ...v, stripePriceId: "price_old" } : v,
+      ),
+    };
+
+    await sync(alreadyPublished);
+
+    expect(pricesCreate).not.toHaveBeenCalled();
+    expect(pricesUpdate).not.toHaveBeenCalled();
+  });
+});
+
 describe("what the admin is told", () => {
   it("names published products that predate the current tax settings", async () => {
     const { listAllProductsForAdmin } = await import("../db/admin-repository.js");

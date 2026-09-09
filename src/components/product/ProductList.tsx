@@ -1,5 +1,5 @@
 import type { Product } from "@shared/schema";
-import { getProductPrices, isSoldOut } from "@shared/catalog";
+import { getProductPrices, hasCompareAt, isSoldOut } from "@shared/catalog";
 import { formatPriceRange } from "@shared/money";
 import { ProductCard } from "./ProductCard";
 import styles from "./ProductList.module.css";
@@ -28,6 +28,7 @@ export function ProductList({
       {products.map((product) => {
         const price = formatPriceRange(getProductPrices(product), currency, locale);
         const soldOut = isSoldOut(product);
+        const onSale = hasCompareAt(product);
 
         return (
           <li key={product.id}>
@@ -36,6 +37,7 @@ export function ProductList({
               name={product.name}
               price={price}
               soldOut={soldOut}
+              onSale={onSale}
               image={product.images[0] ?? null}
               sizes="(max-width: 650px) 100vw, (max-width: 1100px) 50vw, 33vw"
               collection={collection}

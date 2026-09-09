@@ -11,6 +11,7 @@ import { DEFAULT_TAX_CODE, defaultHero } from "../../shared/schema.js";
 import { countAdmins, createAdmin, safeEqual } from "../auth.js";
 import { getSettings, isConfigured } from "../../db/repository.js";
 import { updateSettings } from "../../db/admin-repository.js";
+import { refreshFontOrigins, verifyFontUrl } from "../fonts.js";
 import { seedIfEmpty } from "../../db/seed.js";
 import { env, hasStripe, isProduction } from "../env.js";
 import { csrfToken, httpError, verifyCsrf } from "../middleware.js";
@@ -145,9 +146,19 @@ setupRouter.post("/setup", setupRateLimit, verifyCsrf, async (req, res) => {
     // to create that row itself.
     if (input.seedDemo) await seedIfEmpty();
 
+    // Same rule as the settings route: a font URL the browser will not be able
+    // to load is refused while the wizard can still say so.
+    await verifyFontUrl(input.theme.fontUrl);
+
     await updateSettings({
       name: input.storeName,
       currency: input.currency.toUpperCase(),
+      // The wizard asks for a currency but not a language: `en-US` is what
+      // every store formatted as before locales existed, and Settings →
+      // Identity is where a shop that is not American changes it. Adding a
+      // second dropdown to first-run for a value most stores keep would buy
+      // nothing the merchant cannot do in the next minute.
+      locale: "en-US",
       stripePublishableKey: input.stripePublishableKey,
       aboutText: null,
       // Off until the merchant activates Stripe Tax and registers. The wizard
@@ -164,6 +175,8 @@ setupRouter.post("/setup", setupRateLimit, verifyCsrf, async (req, res) => {
       hero: defaultHero,
       theme: input.theme,
     });
+
+    await refreshFontOrigins();
 
     // An account may already exist from `npm run setup` or a seeded
     // ADMIN_PASSWORD; adding a second one from an unauthenticated route would

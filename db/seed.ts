@@ -25,11 +25,15 @@ export async function seedStore(store: Store = demoStore): Promise<void> {
     id: 1,
     name: store.name,
     currency: store.currency,
+    locale: store.locale,
     stripePublishableKey: store.stripePublishableKey,
     aboutText: store.aboutText,
     themeColorPrimary: store.theme.colorPrimary,
     themeColorAccent: store.theme.colorAccent,
     themeFontFamily: store.theme.fontFamily,
+    // Null in the fixture: the demo's stack is all system faces, so a fresh
+    // clone renders without reaching out to anyone.
+    themeFontUrl: store.theme.fontUrl,
     themeBorderRadius: store.theme.borderRadius,
     // The fixture's landing copy, or the demo would advertise a feature its
     // own front page does not use.

@@ -5,6 +5,7 @@ import {
   collectionSchema,
   imageSchema,
   inventorySchema,
+  localeSchema,
   optionGroupSchema,
   productKindSchema,
   productSchema,
@@ -144,6 +145,12 @@ export const pagePreviewInputSchema = z.object({
 export const settingsInputSchema = z.object({
   name: z.string().min(1).max(120),
   currency: z.string().length(3),
+  /**
+   * The store's language tag. Defaulted rather than required, so a client that
+   * predates the field — or a scripted PUT built from an older payload — saves
+   * the value every store already had instead of failing validation.
+   */
+  locale: localeSchema.default("en-US"),
   /** Publishable key only; a secret key here is rejected outright. */
   stripePublishableKey: z
     .string()

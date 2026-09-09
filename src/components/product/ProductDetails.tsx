@@ -10,6 +10,8 @@ import styles from "./ProductDetails.module.css";
 interface ProductDetailsProps {
   product: Product;
   currency: string;
+  /** BCP 47, from the store. Decides where the separators in a price go. */
+  locale: string;
 }
 
 /** The variant holding `value` on axis `axisIndex`, given the other axes already chosen. */
@@ -35,7 +37,7 @@ function resolveVariant(product: Product, selections: Record<string, string>) {
   );
 }
 
-export function ProductDetails({ product, currency }: ProductDetailsProps) {
+export function ProductDetails({ product, currency, locale }: ProductDetailsProps) {
   const navigate = useNavigate();
   const { message } = AntApp.useApp();
   const add = useCart((s) => s.add);
@@ -69,7 +71,7 @@ export function ProductDetails({ product, currency }: ProductDetailsProps) {
     <div className={styles.details}>
       <h1 className={styles.name}>{product.name}</h1>
 
-      <p className={styles.price}>{formatMoney(variant.priceCents, currency)}</p>
+      <p className={styles.price}>{formatMoney(variant.priceCents, currency, locale)}</p>
 
       {product.description && <p className={styles.description}>{product.description}</p>}
 

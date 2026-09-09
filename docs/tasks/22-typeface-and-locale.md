@@ -1,7 +1,7 @@
 ---
 task: "22"
 title: Web fonts that load, and a locale for the numbers
-status: todo
+status: in-progress
 tier: 1
 size: M
 migration: two columns on store_settings

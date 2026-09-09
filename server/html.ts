@@ -1,3 +1,4 @@
+import { FONT_LINK_ID } from "../shared/locale.js";
 import type { PageMeta } from "./seo.js";
 
 /**
@@ -36,6 +37,42 @@ function jsonLdScript(data: object): string {
 }
 
 /**
+ * The theme font's `<link>`s, or nothing at all.
+ *
+ * `preconnect` first, and only for a cross-origin stylesheet: the DNS lookup,
+ * TCP handshake and TLS negotiation for a third-party font host cost more than
+ * the stylesheet itself, and starting them a beat early is most of what makes
+ * a web font arrive before first paint rather than after it. A same-origin
+ * `/assets/` sheet is on a connection the browser already has, so preconnecting
+ * to it would be a wasted line.
+ *
+ * The id matches what `ThemeVars` looks for, so the client adopts this element
+ * instead of appending a second one. See shared/locale.ts.
+ */
+function fontTags(fontUrl: string | null): string[] {
+  if (!fontUrl) return [];
+
+  const href = escapeHtml(fontUrl);
+  const tags: string[] = [];
+
+  if (!fontUrl.startsWith("/")) {
+    try {
+      // crossorigin, because font files are fetched in CORS mode whatever the
+      // stylesheet was — a preconnect without it opens a connection the font
+      // request cannot reuse, which is the common way this hint does nothing.
+      const origin = escapeHtml(new URL(fontUrl).origin);
+      tags.push(`<link rel="preconnect" href="${origin}" crossorigin />`);
+    } catch {
+      // Not a URL this can preconnect to. The stylesheet link below still
+      // works, and a bad address was already refused at save time.
+    }
+  }
+
+  tags.push(`<link id="${FONT_LINK_ID}" rel="stylesheet" href="${href}" />`);
+  return tags;
+}
+
+/**
  * Rewrite the shell's `<head>` for one page.
  *
  * The existing `<title>` and description are replaced rather than appended to:
@@ -55,9 +92,12 @@ export function injectMeta(html: string, meta: PageMeta): string {
     `<meta name="twitter:card" content="summary_large_image" />`,
     ...(meta.image ? [`<meta property="og:image" content="${escapeHtml(meta.image)}" />`] : []),
     ...(meta.jsonLd ? [jsonLdScript(meta.jsonLd)] : []),
+    ...fontTags(meta.fontUrl),
   ].join("\n    ");
 
   return html
+    .replace(/<html([^>]*)\slang="[^"]*"/i, "<html$1")
+    .replace(/<html\b/i, `<html lang="${escapeHtml(meta.lang)}"`)
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${title}</title>`)
     .replace(
       /<meta\s+name="description"[^>]*>/i,

@@ -27,6 +27,7 @@ import {
   useUpdateWebhookEndpoint,
   useWebhookDeliveries,
   useWebhookEndpoints,
+  useStoreLocale,
 } from "./queries";
 import { Field } from "./Field";
 import { PageHeader } from "./RequireAdmin";
@@ -60,6 +61,7 @@ function deliveryState(delivery: WebhookDeliverySummary) {
 }
 
 export function WebhooksPage() {
+  const locale = useStoreLocale();
   const { message } = App.useApp();
   const endpoints = useWebhookEndpoints();
   const create = useCreateWebhookEndpoint();
@@ -153,7 +155,7 @@ export function WebhooksPage() {
                   key: "last",
                   render: (_value, row) =>
                     row.lastSuccessAt ? (
-                      formatOrderDate(row.lastSuccessAt, true)
+                      formatOrderDate(row.lastSuccessAt, true, locale)
                     ) : (
                       <span className={cx(styles.muted)}>Never</span>
                     ),
@@ -350,6 +352,7 @@ export function WebhooksPage() {
  */
 function DeliveryLog({ endpointId }: { endpointId: string }) {
   const { message } = App.useApp();
+  const locale = useStoreLocale();
   const deliveries = useWebhookDeliveries(endpointId);
   const redeliver = useRedeliverWebhook();
 
@@ -373,7 +376,7 @@ function DeliveryLog({ endpointId }: { endpointId: string }) {
         {
           title: "When",
           dataIndex: "createdAt",
-          render: (value: number) => formatOrderDate(value, true),
+          render: (value: number) => formatOrderDate(value, true, locale),
         },
         {
           title: "Status",

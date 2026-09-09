@@ -262,7 +262,7 @@ export function CartPage() {
                         ) : null}
                       </td>
                       <td className={styles.lineTotal}>
-                        {formatMoney(lineTotalCents, store.currency)}
+                        {formatMoney(lineTotalCents, store.currency, store.locale)}
                       </td>
                       <td>
                         {/* A real button: v1 used a bare <span>, so removing an
@@ -284,7 +284,7 @@ export function CartPage() {
           <div className={styles.summary}>
             <div className={styles.subtotal}>
               <span>Subtotal</span>
-              <strong>{formatMoney(subtotalCents, store.currency)}</strong>
+              <strong>{formatMoney(subtotalCents, store.currency, store.locale)}</strong>
             </div>
 
             {/*
@@ -306,7 +306,7 @@ export function CartPage() {
                   optionFilterProp="label"
                   onChange={(code: string) => setShipToCountry(code)}
                   options={destinations.map((code) => ({
-                    label: countryName(code),
+                    label: countryName(code, store.locale),
                     value: code,
                   }))}
                 />
@@ -330,7 +330,7 @@ export function CartPage() {
                         <span className={styles.ratePrice}>
                           {rate.priceCents === 0
                             ? "Free"
-                            : formatMoney(rate.priceCents, store.currency)}
+                            : formatMoney(rate.priceCents, store.currency, store.locale)}
                         </span>
                       </Radio>
                     ))}
@@ -338,7 +338,7 @@ export function CartPage() {
                 </fieldset>
               ) : (
                 <p className={styles.note}>
-                  No shipping option is configured for {countryName(shipToCountry)}. You can still
+                  No shipping option is configured for {countryName(shipToCountry, store.locale)}. You can still
                   order; nothing will be charged for postage.
                 </p>
               )
@@ -347,7 +347,7 @@ export function CartPage() {
             {shippingCents !== null ? (
               <div className={styles.subtotal}>
                 <span>Total</span>
-                <strong>{formatMoney(subtotalCents + shippingCents, store.currency)}</strong>
+                <strong>{formatMoney(subtotalCents + shippingCents, store.currency, store.locale)}</strong>
               </div>
             ) : null}
 

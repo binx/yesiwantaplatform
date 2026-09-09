@@ -51,7 +51,7 @@ describe("ProductDetails", () => {
   it("shows the variant picker for a product with a single variant axis", () => {
     // v1 required more than one variant *group* to render this, so a product
     // whose only axis was size showed no picker and silently shipped "Small".
-    renderWithProviders(<ProductDetails product={baseProduct} currency="USD" />);
+    renderWithProviders(<ProductDetails product={baseProduct} currency="USD" locale="en-US" />);
 
     expect(screen.getByText("size")).toBeInTheDocument();
     expect(screen.getByText("Small")).toBeInTheDocument();
@@ -64,14 +64,14 @@ describe("ProductDetails", () => {
       options: [],
       variants: [{ ...baseProduct.variants[0]!, optionValues: [] }],
     };
-    renderWithProviders(<ProductDetails product={single} currency="USD" />);
+    renderWithProviders(<ProductDetails product={single} currency="USD" locale="en-US" />);
 
     expect(screen.queryByText("size")).not.toBeInTheDocument();
   });
 
   it("prices from the selected variant", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ProductDetails product={baseProduct} currency="USD" />);
+    renderWithProviders(<ProductDetails product={baseProduct} currency="USD" locale="en-US" />);
 
     expect(screen.getByText("$34.00")).toBeInTheDocument();
 
@@ -81,9 +81,30 @@ describe("ProductDetails", () => {
     await waitFor(() => expect(screen.getByText("$42.00")).toBeInTheDocument());
   });
 
+  it("prices in the store's language, not always the American one", () => {
+    /*
+     * The bug: `formatMoney` defaulted to `en-US` and all seventeen callers
+     * took the default, so a German shop selling in euros put its decimal
+     * separator in the thousands position — `€34,00` became `€34.00`, which
+     * reads as thirty-four euros in Berlin only by accident.
+     *
+     * Asserted on the separator rather than the whole string because `Intl`
+     * puts a non-breaking space before the €, and which space it uses has
+     * changed between ICU releases.
+     */
+    renderWithProviders(<ProductDetails product={baseProduct} currency="EUR" locale="de-DE" />);
+
+    const price = screen.getByText(/34,00/);
+
+    expect(price).toBeInTheDocument();
+    expect(price.textContent).toContain("€");
+    // The one that would still be wrong if the locale were ignored.
+    expect(screen.queryByText(/34\.00/)).not.toBeInTheDocument();
+  });
+
   it("clamps quantity to the variant's stock", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ProductDetails product={baseProduct} currency="USD" />);
+    renderWithProviders(<ProductDetails product={baseProduct} currency="USD" locale="en-US" />);
 
     // Switch to Large, which holds 2 units.
     await user.click(screen.getByRole("combobox"));
@@ -99,7 +120,7 @@ describe("ProductDetails", () => {
 
   it("adds identifiers to the cart, never a price", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ProductDetails product={baseProduct} currency="USD" />);
+    renderWithProviders(<ProductDetails product={baseProduct} currency="USD" locale="en-US" />);
 
     await user.click(screen.getByRole("button", { name: /add to cart/i }));
 
@@ -127,7 +148,7 @@ describe("ProductDetails", () => {
         },
       ],
     };
-    renderWithProviders(<ProductDetails product={soldOut} currency="USD" />);
+    renderWithProviders(<ProductDetails product={soldOut} currency="USD" locale="en-US" />);
 
     expect(screen.getByRole("button", { name: /sold out/i })).toBeDisabled();
   });
@@ -185,7 +206,7 @@ describe("ProductDetails", () => {
 
   it("renders one selector per axis and resolves the right variant", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ProductDetails product={twoAxisProduct} currency="USD" />);
+    renderWithProviders(<ProductDetails product={twoAxisProduct} currency="USD" locale="en-US" />);
 
     expect(screen.getByText("size")).toBeInTheDocument();
     expect(screen.getByText("colour")).toBeInTheDocument();
@@ -207,7 +228,7 @@ describe("ProductDetails", () => {
 
   it("marks a sold-out combination rather than allowing a dead selection", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ProductDetails product={twoAxisProduct} currency="USD" />);
+    renderWithProviders(<ProductDetails product={twoAxisProduct} currency="USD" locale="en-US" />);
 
     const [, colourSelect] = screen.getAllByRole("combobox");
     await user.click(colourSelect!);

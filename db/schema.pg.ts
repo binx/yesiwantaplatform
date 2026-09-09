@@ -28,6 +28,12 @@ export const storeSettings = pgTable("store_settings", {
   id: integer("id").primaryKey().default(1),
   name: text("name").notNull().default("My Store"),
   currency: text("currency").notNull().default("USD"),
+  /**
+   * BCP 47. Decides how money, dates and country names are written — see
+   * `formatMoney`. Defaults to the tag every store formatted as before the
+   * column existed, so a backfilled row renders exactly as it did.
+   */
+  locale: text("locale").notNull().default("en-US"),
   stripePublishableKey: text("stripe_publishable_key"),
   /** @deprecated Superseded by the `pages` table. See db/schema.sqlite.ts. */
   aboutText: text("about_text"),
@@ -44,6 +50,12 @@ export const storeSettings = pgTable("store_settings", {
   themeColorPrimary: text("theme_color_primary").notNull().default("#18181b"),
   themeColorAccent: text("theme_color_accent").notNull().default("#e07a5f"),
   themeFontFamily: text("theme_font_family").notNull().default("system-ui, sans-serif"),
+  /**
+   * Stylesheet defining the faces named in `theme_font_family`. Null means a
+   * system font — and, because its origin is what widens the CSP, null also
+   * means the store's security headers are unchanged. See server/fonts.ts.
+   */
+  themeFontUrl: text("theme_font_url"),
   themeBorderRadius: integer("theme_border_radius").notNull().default(2),
   themeColorScheme: text("theme_color_scheme").notNull().default("light"),
   /** Null means "follow the scheme". */

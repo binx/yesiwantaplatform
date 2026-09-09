@@ -9,6 +9,7 @@ import { StoreErrorBoundary } from "@/components/layout/StoreErrorBoundary";
 import { useStore } from "@/lib/useStore";
 import { themeCssVars, toAntdTheme } from "@/lib/theme";
 import { useCartRecoverySync } from "@/lib/useCartRecoverySync";
+import { FONT_LINK_ID, languageOf } from "@shared/locale";
 
 function DocumentTitle() {
   const store = useStore();
@@ -26,9 +27,13 @@ function DocumentTitle() {
  * antd's ConfigProvider only reaches antd's own components; every CSS Module in
  * the storefront reads `--beluga-*`. Without this the two halves disagreed, and
  * the stylesheet half always won.
+ *
+ * It also loads the theme's font and sets the document language, for the same
+ * reason: neither can be written into `index.html` at build time, because both
+ * are values the merchant picks long after the bundle was built.
  */
 function ThemeVars() {
-  const { theme } = useStore();
+  const { theme, locale } = useStore();
 
   useEffect(() => {
     const root = document.documentElement;
@@ -38,6 +43,38 @@ function ThemeVars() {
     }
     root.dataset.colorScheme = theme.colorScheme;
   }, [theme]);
+
+  useEffect(() => {
+    /*
+     * Found by id rather than created unconditionally: in production the HTML
+     * handler has already put this link in the head, so the font starts
+     * downloading before React boots. Creating a second one would fetch the
+     * same stylesheet twice and leave the server's copy behind on a change.
+     */
+    const existing = document.head.querySelector<HTMLLinkElement>(`#${FONT_LINK_ID}`);
+
+    if (!theme.fontUrl) {
+      // Removed, not blanked: a `<link>` with an empty href resolves to the
+      // current page, which asks the server for the HTML document as CSS.
+      existing?.remove();
+      return;
+    }
+
+    const link = existing ?? document.createElement("link");
+    link.id = FONT_LINK_ID;
+    link.rel = "stylesheet";
+    // Compared before assigning: setting `href` to what it already is re-fetches
+    // the stylesheet and flashes the fallback face while it lands.
+    if (link.getAttribute("href") !== theme.fontUrl) link.href = theme.fontUrl;
+    if (!existing) document.head.append(link);
+  }, [theme.fontUrl]);
+
+  useEffect(() => {
+    // `lang` drives screen-reader pronunciation and the browser's offer to
+    // translate. The built shell ships `en`, which is a guess about something
+    // the store has now been asked directly.
+    document.documentElement.lang = languageOf(locale);
+  }, [locale]);
 
   return null;
 }

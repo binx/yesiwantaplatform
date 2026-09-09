@@ -46,7 +46,7 @@ export function ProductPage() {
 
       <div className={styles.layout}>
         <Carousel images={product.images} productName={product.name} />
-        <ProductDetails product={product} currency={store.currency} />
+        <ProductDetails product={product} currency={store.currency} locale={store.locale} />
       </div>
     </PageWrapper>
   );

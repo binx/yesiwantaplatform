@@ -4,7 +4,9 @@ import { Button, Empty, Segmented, Skeleton, Table } from "antd";
 import type { Order, OrderStatus } from "@shared/orders";
 import { formatMoney } from "@shared/money";
 import { cx } from "@/lib/cx";
-import { ORDER_PAGE_SIZE, useOrders } from "./queries";
+import { ORDER_PAGE_SIZE, useOrders,
+  useStoreLocale,
+} from "./queries";
 import { PageHeader } from "./RequireAdmin";
 import { OrderStatusTag } from "./OrderStatusTag";
 import { ORDER_STATUSES, formatOrderDate, statusLabel } from "./orderPresentation";
@@ -18,6 +20,7 @@ import styles from "./OrdersPage.module.css";
  * filter changes, because page 3 of "all" is not page 3 of "shipped".
  */
 export function OrdersPage() {
+  const locale = useStoreLocale();
   const [status, setStatus] = useState<OrderStatus | "all">("all");
   const [offset, setOffset] = useState(0);
 
@@ -92,7 +95,7 @@ export function OrdersPage() {
               {
                 title: "Status",
                 dataIndex: "status",
-                render: (_value, order) => <OrderStatusTag order={order} />,
+                render: (_value, order) => <OrderStatusTag order={order} locale={locale} />,
               },
               {
                 title: "Items",
@@ -105,12 +108,12 @@ export function OrdersPage() {
                 title: "Total",
                 dataIndex: "totalCents",
                 align: "right",
-                render: (cents: number, order) => formatMoney(cents, order.currency),
+                render: (cents: number, order) => formatMoney(cents, order.currency, locale),
               },
               {
                 title: "Placed",
                 dataIndex: "createdAt",
-                render: (value: number) => formatOrderDate(value),
+                render: (value: number) => formatOrderDate(value, false, locale),
               },
             ]}
           />

@@ -32,15 +32,20 @@ export function statusLabel(status: string): string {
 }
 
 /**
- * Epoch milliseconds to a readable local date.
+ * Epoch milliseconds to a readable date, in the store's language.
  *
  * Formatted through Intl rather than assembled from `getMonth()` and friends,
  * which is where v1's off-by-one month came from.
+ *
+ * `locale` used to be `undefined`, meaning the browser's — so the same order
+ * showed a different date to a merchant in Berlin than to their colleague in
+ * Boston, and neither matched the emailed confirmation. The store picks one,
+ * the way it picks one currency.
  */
-export function formatOrderDate(epochMs: number, withTime = false): string {
+export function formatOrderDate(epochMs: number, withTime = false, locale = "en-US"): string {
   if (!Number.isFinite(epochMs)) return "—";
 
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     ...(withTime ? { timeStyle: "short" } : {}),
   }).format(new Date(epochMs));

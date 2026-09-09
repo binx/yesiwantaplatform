@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useEffect, useId } from "react";
 import {
   Alert,
   App,
@@ -14,7 +14,7 @@ import {
   Upload,
 } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
-import type { Theme } from "@shared/schema";
+import { fontUrlSchema, type Theme } from "@shared/schema";
 import { contrastRatio, effectivePageColor, themeCssVars, toAntdTheme } from "@/lib/theme";
 import { assetUrl } from "@/lib/store-source";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -58,9 +58,15 @@ interface ThemeEditorProps {
   onChange: (theme: Theme) => void;
   /** Shown in the preview so a shop sees its own name in place. */
   storeName: string;
+  /**
+   * The font URL the store is currently serving, which is the only one its CSP
+   * allows. Compared against the edited value to tell the merchant when the
+   * preview cannot yet show what they typed — see the note beside it.
+   */
+  savedFontUrl: string | null;
 }
 
-export function ThemeEditor({ value, onChange, storeName }: ThemeEditorProps) {
+export function ThemeEditor({ value, onChange, storeName, savedFontUrl }: ThemeEditorProps) {
   const { message } = App.useApp();
   const uploadLogo = useUploadLogo();
   const typefaceId = useId();
@@ -70,6 +76,29 @@ export function ThemeEditor({ value, onChange, storeName }: ThemeEditorProps) {
 
   const pageColor = effectivePageColor(value);
   const primaryContrast = contrastRatio(value.colorPrimary, pageColor);
+
+  // Checked against the shared schema rather than a second rule here, for the
+  // reason `heroHrefSchema` is: the browser and the server must refuse exactly
+  // the same strings, and the CSP is built from this value's origin.
+  const fontUrlWrong = value.fontUrl !== null && !fontUrlSchema.safeParse(value.fontUrl).success;
+
+  /*
+   * Load the face into the admin document so the preview below renders in it.
+   *
+   * A separate element from the storefront's — see `FONT_LINK_ID` — because
+   * this one tracks an unsaved value and must not be mistaken for the one the
+   * shop is actually serving.
+   */
+  useEffect(() => {
+    if (fontUrlWrong || !value.fontUrl) return;
+
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = value.fontUrl;
+    document.head.append(link);
+
+    return () => link.remove();
+  }, [value.fontUrl, fontUrlWrong]);
 
   return (
     <div className={cx(styles.layout)}>
@@ -201,6 +230,38 @@ export function ThemeEditor({ value, onChange, storeName }: ThemeEditorProps) {
             </Form.Item>
           )}
 
+          {/*
+            * Always shown, preset or not: the four presets above are system
+            * stacks, and a merchant who picks one and then wants a real face
+            * would otherwise have to switch to Custom to find the field that
+            * makes any of it load.
+            */}
+          <Form.Item
+            label="Font stylesheet URL"
+            help="Where the browser loads the typeface from. For Google Fonts, paste the <link href>. Leave empty for a system font."
+            // The server refuses the same strings — see `fontUrlSchema` — but
+            // it also has to fetch the stylesheet to check it, so saying the
+            // obvious half here costs the merchant no round trip.
+            {...(fontUrlWrong
+              ? {
+                  validateStatus: "error" as const,
+                  extra: "Use an https:// address or a path under /assets/.",
+                }
+              : {})}
+          >
+            <Input
+              value={value.fontUrl ?? ""}
+              placeholder="https://fonts.googleapis.com/css2?family=Fraunces&display=swap"
+              onChange={(event) => {
+                const next = event.target.value.trim();
+                // Empty means "system font", which is null and not "": the
+                // column is nullable and a blank string would be a URL the
+                // browser resolves against the current page.
+                set("fontUrl", next === "" ? null : next);
+              }}
+            />
+          </Form.Item>
+
           <Form.Item
             label={`Corner radius — ${value.borderRadius}px`}
             help="0 reads as editorial and hard-edged; 4 is as soft as the storefront goes."
@@ -229,6 +290,26 @@ export function ThemeEditor({ value, onChange, storeName }: ThemeEditorProps) {
         <p className={cx(styles.previewLabel)} id="theme-preview-label">
           Preview
         </p>
+
+        {/*
+          * The one thing the preview cannot show honestly.
+          *
+          * A store's Content-Security-Policy names the font host it has saved,
+          * and nothing else — that is what stops any other page from loading
+          * fonts, and it applies to this page too. So a URL that has not been
+          * saved yet is refused by the browser and the preview keeps the
+          * fallback face. Said out loud here, because a preview that silently
+          * ignores the field is worse than one that explains itself.
+          */}
+        {value.fontUrl && value.fontUrl !== savedFontUrl ? (
+          <Alert
+            type="info"
+            showIcon
+            className={cx(styles.previewNote)}
+            message="Save to see this typeface"
+            description="The store only allows fonts from an address it has saved, so the preview keeps the fallback until you do."
+          />
+        ) : null}
 
         {/* The storefront's own card and variables, not a mock-up of them. */}
         <ConfigProvider theme={toAntdTheme(value)}>

@@ -8,6 +8,8 @@ import {
   taxBehaviorSchema,
   themeSchema,
   heroHrefSchema,
+  fontUrlSchema,
+  localeSchema,
   type Collection,
   type Hero,
   type Product,
@@ -494,6 +496,7 @@ export async function findCollectionBySlug(slug: string): Promise<Collection | n
 interface SettingsRow {
   name: string;
   currency: string;
+  locale: string;
   stripePublishableKey: string | null;
   aboutText: string | null;
   taxEnabled: unknown;
@@ -504,6 +507,7 @@ interface SettingsRow {
   themeColorPrimary: string;
   themeColorAccent: string;
   themeFontFamily: string;
+  themeFontUrl: string | null;
   themeBorderRadius: number;
   themeColorScheme: string;
   themeColorPage: string | null;
@@ -524,6 +528,7 @@ interface SettingsRow {
 export async function getSettings(): Promise<{
   name: string;
   currency: string;
+  locale: string;
   stripePublishableKey: string | null;
   aboutText: string | null;
   taxEnabled: boolean;
@@ -543,6 +548,10 @@ export async function getSettings(): Promise<{
   return {
     name: row.name,
     currency: row.currency,
+    // Parsed with a fallback for the same reason the theme is: a tag typed
+    // straight into the column by hand would otherwise throw inside every
+    // `Intl` constructor downstream and take the storefront with it.
+    locale: localeSchema.catch("en-US").parse(row.locale),
     stripePublishableKey: row.stripePublishableKey,
     aboutText: row.aboutText,
     taxEnabled: toBool(row.taxEnabled),
@@ -556,6 +565,10 @@ export async function getSettings(): Promise<{
       colorPrimary: row.themeColorPrimary,
       colorAccent: row.themeColorAccent,
       fontFamily: row.themeFontFamily,
+      // Dropped rather than rendered if it no longer passes: the value goes
+      // into a <link href> on every page and widens the CSP by its origin, so
+      // a row written before `fontUrlSchema` tightened must not be trusted.
+      fontUrl: fontUrlSchema.nullable().catch(null).parse(row.themeFontUrl),
       // Clamped, not parsed strictly: the cap used to be 24, so rows written
       // before it dropped to 4 are still out there. A stale cosmetic value must
       // not 500 the storefront.
@@ -623,6 +636,7 @@ export async function getStoreSnapshot(): Promise<Store | null> {
     // Publishable key only. The secret key never leaves the environment.
     stripePublishableKey: settings.stripePublishableKey,
     currency: settings.currency,
+    locale: settings.locale,
     theme: settings.theme,
     hero: settings.hero,
     aboutText: settings.aboutText,

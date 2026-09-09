@@ -15,11 +15,13 @@ import {
 } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import type { SettingsInput } from "@shared/api";
+import { formatMoney } from "@shared/money";
 import {
   DEFAULT_TAX_CODE,
   defaultHero,
   defaultTheme,
   heroHrefSchema,
+  localeSchema,
   type Hero,
   type TaxBehavior,
   type Theme,
@@ -38,6 +40,48 @@ import { ThemeEditor } from "./ThemeEditor";
 import styles from "./SettingsPage.module.css";
 
 const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "JPY", "SEK", "NZD", "CHF", "DKK"];
+
+/**
+ * The tags a store is most likely to want, named rather than coded.
+ *
+ * A short list with a free-text fallback, not an exhaustive one: `Intl`
+ * accepts hundreds of tags and a merchant who needs `pt-BR` can type it, while
+ * a dropdown of hundreds helps nobody find `de-DE`. The select is `showSearch`
+ * with a free-text entry for exactly that reason.
+ */
+const LOCALES = [
+  { value: "en-US", label: "English (United States) — en-US" },
+  { value: "en-GB", label: "English (United Kingdom) — en-GB" },
+  { value: "en-CA", label: "English (Canada) — en-CA" },
+  { value: "en-AU", label: "English (Australia) — en-AU" },
+  { value: "de-DE", label: "German (Germany) — de-DE" },
+  { value: "fr-FR", label: "French (France) — fr-FR" },
+  { value: "es-ES", label: "Spanish (Spain) — es-ES" },
+  { value: "it-IT", label: "Italian (Italy) — it-IT" },
+  { value: "nl-NL", label: "Dutch (Netherlands) — nl-NL" },
+  { value: "pt-BR", label: "Portuguese (Brazil) — pt-BR" },
+  { value: "sv-SE", label: "Swedish (Sweden) — sv-SE" },
+  { value: "da-DK", label: "Danish (Denmark) — da-DK" },
+  { value: "ja-JP", label: "Japanese (Japan) — ja-JP" },
+];
+
+/**
+ * What this language actually does to a price, in that language.
+ *
+ * A tag is an abstraction — `de-DE` tells a merchant nothing about where the
+ * comma goes. Showing the formatted result is the whole explanation, and it is
+ * the same call the storefront makes, so it cannot promise something the shop
+ * does not then render.
+ */
+function localeExample(locale: string, currency: string): string {
+  try {
+    return `Prices read ${formatMoney(123456, currency, locale)}.`;
+  } catch {
+    // An unusable pair should not take the settings form down with it; the
+    // field is already flagged by `localeWrong` above.
+    return "";
+  }
+}
 
 /**
  * Store settings.
@@ -77,6 +121,7 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
 
   const [name, setName] = useState(initial.name);
   const [currency, setCurrency] = useState(initial.currency);
+  const [locale, setLocale] = useState(initial.locale);
   const [publishableKey, setPublishableKey] = useState(initial.stripePublishableKey ?? "");
   const [aboutText, setAboutText] = useState(initial.aboutText ?? "");
   const [taxEnabled, setTaxEnabled] = useState(initial.taxEnabled);
@@ -94,6 +139,7 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
   const dirty =
     name !== saved.current.name ||
     currency !== saved.current.currency ||
+    locale !== saved.current.locale ||
     publishableKey !== (saved.current.stripePublishableKey ?? "") ||
     aboutText !== (saved.current.aboutText ?? "") ||
     taxEnabled !== saved.current.taxEnabled ||
@@ -117,6 +163,9 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
     (hero.buttonHref ?? "").trim() !== "" &&
     !heroHrefSchema.safeParse((hero.buttonHref ?? "").trim()).success;
   const currencyChanged = currency !== initial.currency;
+  // Validated against the shared schema, which is the same check the server
+  // runs — the select's own options always pass, but the field takes free text.
+  const localeWrong = !localeSchema.safeParse(locale).success;
   const taxCodeLooksWrong =
     defaultTaxCode.trim() !== "" && !/^txcd_[0-9]+$/.test(defaultTaxCode.trim());
   // Immutable on a Stripe Price, so this is not a setting that quietly applies
@@ -127,6 +176,7 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
     const input: SettingsInput = {
       name: name.trim(),
       currency,
+      locale,
       stripePublishableKey: publishableKey.trim() || null,
       // Empty means "no About page", which is a real choice — but it can only
       // be reached by clearing the field, never by the form never having been
@@ -160,7 +210,12 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
           <Button
             type="primary"
             disabled={
-            !dirty || keyLooksSecret || taxCodeLooksWrong || heroHrefWrong || name.trim() === ""
+            !dirty ||
+            keyLooksSecret ||
+            taxCodeLooksWrong ||
+            heroHrefWrong ||
+            localeWrong ||
+            name.trim() === ""
           }
             loading={update.isPending}
             onClick={submit}
@@ -201,6 +256,33 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
             description={`Every price stays the number it is: 1999 was ${initial.currency} 19.99 and becomes ${currency} 19.99. Products already published to Stripe keep their existing Prices until you publish them again.`}
           />
         ) : null}
+
+        <Field
+          label="Language"
+          help={
+            localeWrong
+              ? "Use a language tag like en-US, de-DE or fr-CA."
+              : `How the store writes numbers and dates. ${localeExample(locale, currency)}`
+          }
+        >
+          {(control) => (
+            <Select
+              {...control}
+              className={cx(styles.currency)}
+              value={locale}
+              onChange={setLocale}
+              showSearch
+              /*
+               * Free text as well as the list: `Intl` accepts far more tags
+               * than belong in a dropdown, and a shop in a place this list
+               * forgot should not be stuck with American separators. What it
+               * types is validated the same way the server validates it.
+               */
+              options={LOCALES}
+              {...(localeWrong ? { status: "error" as const } : {})}
+            />
+          )}
+        </Field>
       </Card>
 
       <Card title="Stripe" className={cx(styles.card)}>
@@ -435,7 +517,12 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
       </Card>
 
       <Card title="Look" className={cx(styles.card)}>
-        <ThemeEditor value={theme} onChange={setTheme} storeName={name} />
+        <ThemeEditor
+          value={theme}
+          onChange={setTheme}
+          storeName={name}
+          savedFontUrl={saved.current.theme.fontUrl}
+        />
       </Card>
 
       <div className={cx(styles.footer)}>

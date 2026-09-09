@@ -1,5 +1,6 @@
 import { findCollectionBySlug, findProductBySlug, getSettings } from "../db/repository.js";
 import type { Product } from "../shared/schema.js";
+import { languageOf } from "../shared/locale.js";
 import { env } from "./env.js";
 
 /**
@@ -19,6 +20,17 @@ export interface PageMeta {
   canonical: string;
   image: string | null;
   jsonLd: object | null;
+  /**
+   * The theme's font stylesheet, or null for a system font.
+   *
+   * Injected here rather than left to `ThemeVars` alone so the download starts
+   * with the HTML instead of after the bundle has parsed, the store config has
+   * been fetched and React has committed — three round trips during which the
+   * page renders in a fallback face and then reflows.
+   */
+  fontUrl: string | null;
+  /** `<html lang>`, from the store's locale. See shared/locale.ts. */
+  lang: string;
 }
 
 /**
@@ -131,6 +143,10 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
   const settings = await getSettings().catch(() => null);
   const storeName = settings?.name ?? "Beluga";
   const currency = settings?.currency ?? "USD";
+  // Store-wide, so they are the same on every branch below and are spread into
+  // each one rather than repeated in it.
+  const fontUrl = settings?.theme.fontUrl ?? null;
+  const lang = languageOf(settings?.locale ?? "en-US");
 
   const fallback: ResolvedMeta = {
     title: storeName,
@@ -140,6 +156,8 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
     canonical: absolute(pathname),
     image: null,
     jsonLd: null,
+    fontUrl,
+    lang,
     status: 200,
   };
 
@@ -205,6 +223,8 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
         canonical: absolute(`/product/${found.slug}`),
         image,
         jsonLd: productJsonLd(found, description, image, currency),
+        fontUrl,
+        lang,
         status: 200,
       };
     }

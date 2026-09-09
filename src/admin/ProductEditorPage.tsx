@@ -29,6 +29,7 @@ import {
   useSettings,
   useShipping,
   useUpdateProduct,
+  useStoreLocale,
 } from "./queries";
 import { PageHeader } from "./RequireAdmin";
 import { Field } from "./Field";
@@ -382,6 +383,7 @@ export function ProductEditorPage() {
   const hydrated = useRef(false);
 
   const currency = settings.data?.currency ?? "USD";
+  const locale = useStoreLocale();
   // Only nag about weights when some rate would actually read them.
   const weighted =
     shipping.data?.rates.some((r) => r.minWeightGrams !== null || r.maxWeightGrams !== null) ??
@@ -967,7 +969,7 @@ export function ProductEditorPage() {
                               help:
                                 cents === null
                                   ? "Whole units and cents, like 19.99."
-                                  : `${formatMoney(cents, currency)} — stored as ${cents} cents`,
+                                  : `${formatMoney(cents, currency, locale)} — stored as ${cents} cents`,
                             })}
                       >
                         {(control) => (

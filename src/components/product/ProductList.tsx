@@ -9,9 +9,16 @@ interface ProductListProps {
   /** Collection name, carried into the product page for its breadcrumb. */
   collection?: string;
   currency?: string;
+  /** BCP 47, from the store. Decides where the separators in a price go. */
+  locale?: string;
 }
 
-export function ProductList({ products, collection, currency = "USD" }: ProductListProps) {
+export function ProductList({
+  products,
+  collection,
+  currency = "USD",
+  locale = "en-US",
+}: ProductListProps) {
   if (products.length === 0) {
     return <p className={styles.empty}>Nothing here yet.</p>;
   }
@@ -19,7 +26,7 @@ export function ProductList({ products, collection, currency = "USD" }: ProductL
   return (
     <ul className={styles.grid}>
       {products.map((product) => {
-        const price = formatPriceRange(getProductPrices(product), currency);
+        const price = formatPriceRange(getProductPrices(product), currency, locale);
         const soldOut = isSoldOut(product);
 
         return (

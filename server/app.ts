@@ -20,6 +20,7 @@ import { metaForPath } from "./seo.js";
 import { startCartRecoveryScheduler } from "./cart-recovery.js";
 import { startWebhookDispatcher } from "./webhooks.js";
 import { ASSETS_ROOT } from "./uploads.js";
+import { refreshFontOrigins } from "./fonts.js";
 
 export function createApp(): Express {
   const app = express();
@@ -41,6 +42,16 @@ export function createApp(): Express {
   // a second scheduling mechanism — see server/webhooks.ts. This is what keeps
   // sending out of the Stripe webhook's request path.
   startWebhookDispatcher();
+
+  /*
+   * Widen the CSP to the store's font before the first request, if it has one.
+   *
+   * Not awaited, because `createApp` is synchronous and a font is not worth
+   * delaying the listen for. The cost of losing that race is one page served
+   * with the pre-font policy — the face falls back for that load and is right
+   * on the next. `refreshFontOrigins` never rejects; see server/fonts.ts.
+   */
+  void refreshFontOrigins();
 
   // Stripe signs the raw request body, so the webhook must be mounted before
   // any body parser rewrites it — and before sessions, which it does not use.

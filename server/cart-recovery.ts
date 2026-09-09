@@ -77,6 +77,9 @@ export async function markCheckoutRecovered(customerId: string): Promise<void> {
  * work, so a lost race costs one UPDATE, not a wasted email render.
  */
 async function sendReminder(cart: CartRow): Promise<void> {
+  // The store's language, so the reminder's prices match the shop the buyer
+  // left — the cart page they are being sent back to formats them the same way.
+  const locale = (await getSettings())?.locale ?? "en-US";
   const recoveryToken = randomBytes(32).toString("base64url");
   const unsubscribeToken = randomBytes(32).toString("base64url");
 
@@ -109,7 +112,7 @@ async function sendReminder(cart: CartRow): Promise<void> {
         .map(([key, value]) => `${key}: ${value}`)
         .join(", "),
       quantity: line.quantity,
-      lineTotal: formatMoney(variant.priceCents * line.quantity, cart.currency),
+      lineTotal: formatMoney(variant.priceCents * line.quantity, cart.currency, locale),
     });
   }
 
@@ -122,7 +125,7 @@ async function sendReminder(cart: CartRow): Promise<void> {
 
   await sendCartRecoveryEmail(cart.email, {
     items,
-    subtotal: formatMoney(subtotalCents, cart.currency),
+    subtotal: formatMoney(subtotalCents, cart.currency, locale),
     droppedCount,
     recoverUrl,
     unsubscribeUrl,

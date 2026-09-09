@@ -22,6 +22,10 @@
   color: #71717a;
 }
 
+.previewNote {
+  margin-bottom: 0.75rem;
+}
+
 /*
  * Paints the theme being edited, not the admin's own.
  *

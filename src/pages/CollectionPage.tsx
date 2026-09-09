@@ -1,5 +1,9 @@
 import { useParams, useSearchParams } from "react-router-dom";
-import { findCollection, getCollectionProducts, getLiveProducts } from "@shared/catalog";
+import {
+  findCollection,
+  getCollectionProducts,
+  getLiveProducts,
+} from "@shared/catalog";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { ProductBrowser } from "@/components/product/ProductBrowser";
 import { useStore } from "@/lib/useStore";
@@ -36,6 +40,7 @@ export function CollectionPage() {
           products={getLiveProducts(store)}
           collection="All products"
           currency={store.currency}
+          locale={store.locale}
         />
       </PageWrapper>
     );
@@ -48,14 +53,14 @@ export function CollectionPage() {
       <h1>{collection.name}</h1>
 
       {/*
-        * Server-rendered and server-sanitised — see server/markdown.ts. The
-        * storefront ships no Markdown parser and does not have to trust what
-        * it is handed; the allow-list is applied on the way out, so tightening
-        * it reaches every collection already written.
-        *
-        * Above the search and sort controls: it introduces the collection, and
-        * a shopper who has typed a query is past being introduced to it.
-        */}
+       * Server-rendered and server-sanitised — see server/markdown.ts. The
+       * storefront ships no Markdown parser and does not have to trust what
+       * it is handed; the allow-list is applied on the way out, so tightening
+       * it reaches every collection already written.
+       *
+       * Above the search and sort controls: it introduces the collection, and
+       * a shopper who has typed a query is past being introduced to it.
+       */}
       {collection.descriptionHtml ? (
         <div
           className={cx(styles.description)}
@@ -69,6 +74,7 @@ export function CollectionPage() {
         products={getCollectionProducts(store, slug)}
         collection={collection.name}
         currency={store.currency}
+        locale={store.locale}
       />
     </PageWrapper>
   );

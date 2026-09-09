@@ -9,6 +9,7 @@ import {
   useRemoveStaff,
   useRevokeInvite,
   useStaff,
+  useStoreLocale,
 } from "./queries";
 import { Field } from "./Field";
 import { PageHeader } from "./RequireAdmin";
@@ -24,6 +25,7 @@ import styles from "./UsersPage.module.css";
  * removing someone signs them out rather than waiting for a cookie to expire.
  */
 export function UsersPage() {
+  const locale = useStoreLocale();
   const { message } = App.useApp();
   const staff = useStaff();
   const environment = useEnvironment();
@@ -86,7 +88,7 @@ export function UsersPage() {
                   dataIndex: "lastLoginAt",
                   render: (value: number | null) =>
                     value ? (
-                      formatOrderDate(value, true)
+                      formatOrderDate(value, true, locale)
                     ) : (
                       <span className={cx(styles.muted)}>Never</span>
                     ),

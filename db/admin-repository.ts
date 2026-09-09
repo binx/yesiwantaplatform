@@ -532,6 +532,7 @@ export async function updateSettings(input: SettingsInput): Promise<void> {
   const values = {
     name: input.name,
     currency: input.currency,
+    locale: input.locale,
     stripePublishableKey: input.stripePublishableKey,
     aboutText: input.aboutText,
     taxEnabled: input.taxEnabled,
@@ -542,6 +543,7 @@ export async function updateSettings(input: SettingsInput): Promise<void> {
     themeColorPrimary: input.theme.colorPrimary,
     themeColorAccent: input.theme.colorAccent,
     themeFontFamily: input.theme.fontFamily,
+    themeFontUrl: input.theme.fontUrl,
     themeBorderRadius: input.theme.borderRadius,
     themeColorScheme: input.theme.colorScheme,
     themeColorPage: input.theme.colorPage,

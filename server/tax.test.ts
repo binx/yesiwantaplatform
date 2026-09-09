@@ -256,6 +256,7 @@ describe("the settings round-trip", () => {
     await updateSettings({
       name: "Tax Test Store",
       currency: "EUR",
+      locale: "en-US",
       stripePublishableKey: null,
       aboutText: null,
       taxEnabled: true,

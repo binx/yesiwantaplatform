@@ -238,10 +238,61 @@ export const pageDraftSchema = pageSummarySchema.extend({
 
 export const colorSchemeSchema = z.enum(["light", "dark"]);
 
+/**
+ * Where a theme may load a font stylesheet from.
+ *
+ * The value widens the store's Content-Security-Policy by exactly one origin,
+ * so the set of things it may be is small and stated here rather than at the
+ * point the header is built: an absolute `https://` URL, or a same-origin path
+ * under `/assets/` for a self-hosted face. Plain `http://` is refused for the
+ * reason `heroHrefSchema` refuses it — a shop on https must not fetch a
+ * subresource over a channel anyone can rewrite — and `//host/x` is refused
+ * because it leaves the origin while looking like it does not.
+ */
+export const fontUrlSchema = z
+  .string()
+  .max(2000)
+  .refine(
+    (value) => value.startsWith("https://") || value.startsWith("/assets/"),
+    "Use an https:// address or a path under /assets/.",
+  )
+  .refine((value) => !value.startsWith("//"), "Use an https:// address or a path under /assets/.");
+
+/**
+ * The store's language and formatting conventions, as a BCP 47 tag.
+ *
+ * One per store, like the currency and the colour scheme: a shop's prices and
+ * dates read the same in every screenshot of it, rather than changing shape
+ * with whoever is looking. `Intl.getCanonicalLocales` is the check because it
+ * is the same one every `Intl` constructor downstream applies — a tag that
+ * passes here cannot throw in `formatMoney`.
+ */
+export const localeSchema = z
+  .string()
+  .min(2)
+  .max(35)
+  .refine((value) => {
+    try {
+      return Intl.getCanonicalLocales(value).length === 1;
+    } catch {
+      return false;
+    }
+  }, "Use a language tag like en-US, de-DE or fr-CA.");
+
 export const themeSchema = z.object({
   colorPrimary: z.string(),
   colorAccent: z.string(),
   fontFamily: z.string(),
+  /**
+   * Where the browser fetches the faces named in `fontFamily`.
+   *
+   * A font stack alone renders only on a machine that already has the font
+   * installed, which is why this exists: it is the stylesheet that defines the
+   * `@font-face` rules — the Google Fonts `css2?family=…` href, or a
+   * self-hosted stylesheet under `/assets/`. Null means a system font, and
+   * leaves the CSP byte-for-byte what it was before this field.
+   */
+  fontUrl: fontUrlSchema.nullable().default(null),
   /**
    * Corner radius in px. Capped at 4: past that the storefront stops reading as
    * a shop and starts reading as a dashboard, and the range 4–24 was almost
@@ -330,6 +381,12 @@ export const storeSchema = z.object({
   /** Publishable key only. The secret key must never reach the client. */
   stripePublishableKey: z.string().nullable().default(null),
   currency: z.string().length(3).default("USD"),
+  /**
+   * What language the store is in, and how it writes its numbers and dates.
+   * Defaults to `en-US`, which is what every store formatted as before this
+   * existed — so an install that never touches it renders identically.
+   */
+  locale: localeSchema.default("en-US"),
   theme: themeSchema,
   /** The landing page's opening block. Every field falls back — see heroSchema. */
   hero: heroSchema.default(defaultHero),
@@ -383,6 +440,7 @@ export const defaultTheme: Theme = {
   colorScheme: "light",
   colorPage: null,
   logo: null,
+  fontUrl: null,
 };
 
 /** Featured products are a normal collection at this reserved slug. */
@@ -402,6 +460,7 @@ export type Page = z.infer<typeof pageSchema>;
 export type PageDraft = z.infer<typeof pageDraftSchema>;
 export type Theme = z.infer<typeof themeSchema>;
 export type ColorScheme = z.infer<typeof colorSchemeSchema>;
+export type Locale = z.infer<typeof localeSchema>;
 export type TaxBehavior = z.infer<typeof taxBehaviorSchema>;
 export type Store = z.infer<typeof storeSchema>;
 export type Hero = z.infer<typeof heroSchema>;

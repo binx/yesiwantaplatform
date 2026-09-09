@@ -19,6 +19,7 @@ import { injectMeta } from "./html.js";
 import { metaForPath } from "./seo.js";
 import { startCartRecoveryScheduler } from "./cart-recovery.js";
 import { startWebhookDispatcher } from "./webhooks.js";
+import { ASSETS_ROOT } from "./uploads.js";
 
 export function createApp(): Express {
   const app = express();
@@ -85,10 +86,11 @@ export function createApp(): Express {
   app.use("/api/cart", cartRouter);
   app.use("/api/admin", adminRouter);
 
-  // Uploaded product imagery.
+  // Uploaded product imagery, from wherever ASSETS_DIR says — the one path the
+  // upload code writes to, so serving and storing cannot disagree.
   app.use(
     "/assets",
-    express.static(path.resolve("public/assets"), {
+    express.static(ASSETS_ROOT, {
       maxAge: isProduction ? "30d" : 0,
       // Never execute anything out of the upload directory.
       index: false,

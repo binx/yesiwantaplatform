@@ -19,7 +19,19 @@ import { DERIVATIVE_WIDTHS, derivativePath, derivativeWidthsFor } from "../share
  * really be an image), and the re-encode strips EXIF and any appended payload.
  */
 
-export const ASSETS_ROOT = path.resolve("public/assets");
+/**
+ * Absolute, always: every traversal guard below is a prefix check against this
+ * value, and `path.resolve` is what turns a relative ASSETS_DIR into something
+ * a prefix check means anything against. The filesystem root is refused
+ * outright — `${root}${sep}` would be `//`, no resolved path starts with that,
+ * and every upload would fail with a message about traversal that is not the
+ * real problem.
+ */
+export const ASSETS_ROOT = path.resolve(env.ASSETS_DIR);
+
+if (ASSETS_ROOT === path.parse(ASSETS_ROOT).root) {
+  throw new Error(`ASSETS_DIR must be a directory, not the filesystem root (${ASSETS_ROOT}).`);
+}
 
 const ALLOWED_FORMATS = new Set(["jpeg", "png", "webp", "avif", "gif"]);
 

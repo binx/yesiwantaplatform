@@ -3,9 +3,13 @@
 Working document, kept alongside `roadmap.html`. Not a spec: the point is to
 argue about the shape before anyone writes pages.
 
-**Revision 4** — the §7.2 build blocker is fixed in code (server compiles to
+**Revision 5** — `ASSETS_DIR` landed (§7.3, §7.6 step 3): the image directory
+is an environment variable, so a volume mounts at one path for both the
+database and the uploads. The guides are the next step.
+
+*Revision 4 — the §7.2 build blocker is fixed in code (server compiles to
 JS), `engines` reconciled, and DigitalOcean assessed: Droplet in, App Platform
-out. Task 13's scope question is closed.
+out. Task 13's scope question is closed.*
 
 *Revision 3 — deploying promoted to section 2 and investigated against the
 source (§7).*
@@ -494,10 +498,11 @@ runtime stage still needs `db/migrations/` and the built `dist/` present, and
 must start from the repo root — see 7.3.
 
 ### 7.3 Things that constrain the platform choice
-- **Images have no object-storage adapter.** `ASSETS_ROOT` is hardcoded to
-  `path.resolve("public/assets")` (`server/uploads.ts:22`) with no env override.
-  So uploaded images *must* live on a persistent filesystem today. This is what
-  actually rules platforms in and out, more than the database does.
+- **Images have no object-storage adapter.** Uploads are written to and served
+  from `ASSETS_DIR` (`public/assets` by default; `server/uploads.ts`), which a
+  deployment points at a mounted volume. So uploaded images *must* live on a
+  persistent filesystem today. This is what actually rules platforms in and
+  out, more than the database does.
 - **Paths are resolved from the working directory** — `public/assets`, `dist`,
   and `./db/migrations/*` are all relative. The process must start from the repo
   root, and **the migrations folder must be present in the deployed image**; a
@@ -574,13 +579,13 @@ everything *looks* fine.
 ### 7.6 Order of work
 1. ~~Decide 7.2.~~ Done — the server compiles to JS.
 2. ~~Reconcile the `engines` / `.nvmrc` mismatch.~~ Done — `engines` says `>=22`.
-3. **Next:** an `ASSETS_DIR` env override, so the image directory can be pointed
-   at a mounted volume without a symlink. Small, and the prerequisite for object
-   storage later. Not done — it changes upload path handling, which is
-   security-sensitive (the traversal guards in `server/uploads.ts` are written
-   against `ASSETS_ROOT`), so it wants its own change and its own test rather
-   than being folded into a build fix.
-4. Then write the two guides against deploys that have actually been run.
+3. ~~An `ASSETS_DIR` env override.~~ Done — `server/env.ts` reads it,
+   `server/uploads.ts` resolves it to an absolute `ASSETS_ROOT` that every
+   traversal guard still checks against, and `server/app.ts` serves from the
+   same value. The server creates the directory at boot and warns if it cannot
+   write there, so a mis-mounted volume shows up in the deploy log rather than
+   as a 500 on the first upload. `server/assets-dir.test.ts` covers it.
+4. **Next:** write the two guides against deploys that have actually been run.
 
 ---
 
@@ -603,18 +608,18 @@ build out. *Deploying* is now section 2 and *Building on Beluga* third.
 mismatch (fixed), digital products scope (§4, split into task 16), and the
 platform shortlist (§7.4 — Fly.io and a DigitalOcean Droplet).
 
+**Also resolved:** the `ASSETS_DIR` override (§7.6 step 3), so both guides can
+mount one volume.
+
 **Still open:**
-1. **`ASSETS_DIR` env override** — §7.6 step 3. The next code change, and the one
-   that makes both deploy guides cleaner. Security-sensitive, so it wants its own
-   change rather than riding along with a build fix.
-2. **Where the site lives** — same repo and generated alongside `roadmap.html`,
+1. **Where the site lives** — same repo and generated alongside `roadmap.html`,
    or separate? Generating from this repo is the only way `all.md` and the
    invariants page stay honest, which argues for same-repo.
-3. **Object storage for images.** Not needed for either guide, but its absence is
+2. **Object storage for images.** Not needed for either guide, but its absence is
    what forces a volume onto every deployment including Postgres ones — and it is
    the single thing standing between Beluga and the whole class of managed
    platforms (App Platform, Heroku, Render's free tier). Worth its own task brief.
-4. **Whether the guides get built and run before they are written.** I'd argue
+3. **Whether the guides get built and run before they are written.** I'd argue
    yes — §7 was a source read that turned up a blocker no amount of reading the
    docs would have found, and a deploy guide written from inference will have the
    same class of error.

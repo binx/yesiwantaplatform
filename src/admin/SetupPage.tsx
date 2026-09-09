@@ -538,7 +538,7 @@ function PaymentsStep({
           type="error"
           showIcon
           icon={<CloseCircleTwoTone twoToneColor="#ff4d4f" />}
-          message="The Stripe key on the server was rejected"
+          title="The Stripe key on the server was rejected"
           description="Replace STRIPE_SECRET_KEY and restart the API. Until then, publishing a product or taking payment will fail."
         />
       ) : hasSecret ? (

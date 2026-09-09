@@ -10,6 +10,7 @@ import {
   useProducts,
   useSettings,
   useShipping,
+  useStorefrontStatus,
   type ProductSummary,
   type ShippingTable,
   useStoreLocale,
@@ -35,6 +36,7 @@ export function DashboardPage() {
   const orders = useOrders("all", 0);
   const environment = useEnvironment();
   const shipping = useShipping();
+  const storefront = useStorefrontStatus();
 
   useEffect(() => {
     document.title = "Overview · Beluga";
@@ -59,6 +61,25 @@ export function DashboardPage() {
           </Link>
         }
       />
+
+      {environment.data?.hasStripeSecret &&
+      environment.data.stripeMode === "test" &&
+      storefront.data?.access === "public" ? (
+        <Alert
+          className={cx(styles.wiring)}
+          type="error"
+          showIcon
+          title="This store is open to everyone and holding a test key"
+          description={
+            <>
+              Checkout will complete, the buyer will see a confirmation, and the webhook will
+              record a paid order — but no money moves, because the Stripe key is a test key.
+              Swap in a live key, or require a password under{" "}
+              <Link to="/admin/settings">Settings → Visibility</Link> until you do.
+            </>
+          }
+        />
+      ) : null}
 
       {environment.data ? (
         <Wiring

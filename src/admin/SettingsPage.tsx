@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Alert,
   App,
@@ -28,12 +29,21 @@ import {
 } from "@shared/schema";
 import { cx } from "@/lib/cx";
 import {
+  useClearStorefrontPassword,
+  useCreateShareLink,
   useEnvironment,
+  useProducts,
+  useRevokeShareLink,
   useSendTestEmail,
+  useSetStorefrontPassword,
   useSettings,
+  useShipping,
+  useStorefrontStatus,
   useUpdateSettings,
+  useUpdateStorefrontAccess,
   useUploadHeroImage,
 } from "./queries";
+import { computeGoLiveRows } from "./goLive";
 import { Field } from "./Field";
 import { PageHeader } from "./RequireAdmin";
 import { ThemeEditor } from "./ThemeEditor";
@@ -224,6 +234,8 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
           </Button>
         }
       />
+
+      <VisibilityCard />
 
       <Card title="Identity" className={cx(styles.card)}>
         <Field label="Store name" help="Shown in the banner, the page title, and order emails.">
@@ -539,6 +551,304 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
         {dirty ? <span className={cx(styles.help)}>You have unsaved changes.</span> : null}
       </div>
     </>
+  );
+}
+
+/**
+ * Who can see the storefront — see docs/tasks/27-storefront-preview-mode.md.
+ *
+ * Built in the shape of the Tax card above: a paragraph saying what the
+ * feature does and does not do, an always-visible checklist of what should be
+ * true before flipping the switch, and a toggle row whose label states the
+ * current state as a fact rather than naming the action.
+ *
+ * Its own card rather than folded into the identity form: none of this goes
+ * through `settingsInputSchema`, on purpose — see the security note in the
+ * brief. Nothing here participates in the page's `dirty`/Save machinery.
+ */
+function VisibilityCard() {
+  const { message, modal } = App.useApp();
+  const status = useStorefrontStatus();
+  const environment = useEnvironment();
+  const products = useProducts();
+  const shipping = useShipping();
+
+  const updateAccess = useUpdateStorefrontAccess();
+  const setPassword = useSetStorefrontPassword();
+  const clearPassword = useClearStorefrontPassword();
+  const createLink = useCreateShareLink();
+  const revokeLink = useRevokeShareLink();
+
+  const [passwordDraft, setPasswordDraft] = useState("");
+  const [showPasswordField, setShowPasswordField] = useState(false);
+  const [shareLinkUrl, setShareLinkUrl] = useState<string | null>(null);
+
+  if (status.isPending || !status.data) {
+    return (
+      <Card title="Visibility" className={cx(styles.card)}>
+        <Skeleton active paragraph={{ rows: 4 }} />
+      </Card>
+    );
+  }
+
+  const data = status.data;
+  const isPublic = data.access === "public";
+
+  const rows = computeGoLiveRows({
+    environment: {
+      hasStripeSecret: environment.data?.hasStripeSecret ?? false,
+      stripeMode: environment.data?.stripeMode ?? null,
+      hasWebhookSecret: environment.data?.hasWebhookSecret ?? false,
+      hasEmail: environment.data?.hasEmail ?? false,
+      publicUrl: environment.data?.publicUrl ?? "",
+    },
+    shipping: shipping.data,
+    products: products.data,
+  });
+  const failing = rows.filter((row) => !row.ok);
+
+  const fail = (fallback: string) => (error: unknown) =>
+    void message.error(error instanceof Error ? error.message : fallback);
+
+  const goPublic = () => {
+    updateAccess.mutate(
+      { access: "public" },
+      {
+        onSuccess: () => void message.success("This store is open."),
+        onError: fail("Could not open the store."),
+      },
+    );
+  };
+
+  /**
+   * Nothing on the checklist blocks this — a merchant does not get told they
+   * are not ready to open their own shop. The confirmation lists only what is
+   * failing, collapsed to a count for the rest: a merchant who has read this
+   * card all week does not need the passing rows read back to them.
+   */
+  const requestOpen = () => {
+    if (failing.length === 0) {
+      goPublic();
+      return;
+    }
+
+    modal.confirm({
+      title: "Open the store?",
+      okText: "Open anyway",
+      content: (
+        <>
+          <p>
+            {failing.length} of {rows.length} things on the checklist{" "}
+            {failing.length === 1 ? "is not" : "are not"} done yet:
+          </p>
+          <ul>
+            {failing.map((row) => (
+              <li key={row.key}>{row.label}</li>
+            ))}
+          </ul>
+        </>
+      ),
+      onOk: goPublic,
+    });
+  };
+
+  const requirePassword = () => {
+    if (data.hasPassword) {
+      updateAccess.mutate(
+        { access: "password" },
+        {
+          onSuccess: () => void message.success("A password is now required."),
+          onError: fail("Could not lock the store."),
+        },
+      );
+      return;
+    }
+    // access: "password" with no password set means nothing — the server
+    // refuses it with a 409, so a password is collected first here instead.
+    setShowPasswordField(true);
+  };
+
+  const savePassword = () => {
+    if (passwordDraft.length < 8) {
+      void message.error("Use at least 8 characters.");
+      return;
+    }
+
+    setPassword.mutate(passwordDraft, {
+      onSuccess: () => {
+        setPasswordDraft("");
+        setShowPasswordField(false);
+        message.success(isPublic ? "Password set." : "Password changed. Every existing viewer is signed out.");
+        if (isPublic) {
+          updateAccess.mutate({ access: "password" }, { onError: fail("Could not lock the store.") });
+        }
+      },
+      onError: fail("Could not set that password."),
+    });
+  };
+
+  return (
+    <Card title="Visibility" className={cx(styles.card)}>
+      <p className={cx(styles.wiring)}>
+        Who can see the storefront. This does not touch Stripe, email or the catalogue — it only
+        decides who is allowed to look while the rest of it is being built.
+      </p>
+
+      <Alert
+        className={cx(styles.notice)}
+        type="info"
+        showIcon
+        title="Before opening to everyone"
+        description={
+          <ul className={cx(styles.checklist)}>
+            {rows.map((row) => (
+              <li key={row.key}>
+                {row.label}
+                {!row.ok ? (
+                  <>
+                    {" — "}
+                    {row.href ? <Link to={row.href}>{row.hint}</Link> : row.hint}
+                  </>
+                ) : (
+                  " — done"
+                )}
+              </li>
+            ))}
+          </ul>
+        }
+      />
+
+      <div className={cx(styles.toggleRow)}>
+        <Switch
+          checked={isPublic}
+          onChange={(checked) => (checked ? requestOpen() : requirePassword())}
+          aria-label="Open to everyone"
+        />
+        <div>
+          <p className={cx(styles.toggleLabel)}>
+            {isPublic ? "Open to everyone" : "Password required"}
+          </p>
+          <p className={cx(styles.help)}>
+            {isPublic
+              ? "Anyone with the address can browse and buy."
+              : "A visitor has to enter the password below, or use a share link, before they see anything."}
+          </p>
+        </div>
+      </div>
+
+      {!isPublic || showPasswordField ? (
+        <Field
+          label={data.hasPassword ? "Change the password" : "Set a password"}
+          help="At least 8 characters. Give it to whoever should be able to preview the store."
+        >
+          {(control) => (
+            <Space.Compact style={{ width: "100%" }}>
+              <Input.Password
+                {...control}
+                value={passwordDraft}
+                onChange={(event) => setPasswordDraft(event.target.value)}
+                placeholder="Storefront password"
+                onPressEnter={savePassword}
+              />
+              <Button type="primary" loading={setPassword.isPending} onClick={savePassword}>
+                Save
+              </Button>
+            </Space.Compact>
+          )}
+        </Field>
+      ) : null}
+
+      {data.hasPassword ? (
+        <Button
+          size="small"
+          onClick={() => {
+            modal.confirm({
+              title: "Remove the storefront password?",
+              content: "The store becomes open to everyone immediately.",
+              okText: "Remove password",
+              okButtonProps: { danger: true },
+              onOk: () => {
+                clearPassword.mutate(undefined, {
+                  onSuccess: () =>
+                    void message.success("Password removed. The store is open to everyone."),
+                  onError: fail("Could not remove the password."),
+                });
+              },
+            });
+          }}
+        >
+          Remove password
+        </Button>
+      ) : null}
+
+      <Field
+        label="Share link"
+        help="Unlocks the store for one recipient without the password — a client or a collaborator. Minting a new one replaces the old."
+      >
+        {() => (
+          <Space>
+            <Button
+              loading={createLink.isPending}
+              onClick={() =>
+                createLink.mutate(undefined, {
+                  onSuccess: (result) => {
+                    setShareLinkUrl(result.url);
+                    message.success("Share link created. Copy it now.");
+                  },
+                  onError: fail("Could not create a share link."),
+                })
+              }
+            >
+              {data.hasShareLink ? "Create a new link" : "Create a share link"}
+            </Button>
+
+            {data.hasShareLink ? (
+              <Button
+                size="small"
+                loading={revokeLink.isPending}
+                onClick={() => {
+                  modal.confirm({
+                    title: "Revoke the share link?",
+                    content: "Anyone using it will need the password, or a new link, to get back in.",
+                    okText: "Revoke",
+                    okButtonProps: { danger: true },
+                    onOk: () => {
+                      revokeLink.mutate(undefined, {
+                        onSuccess: () => {
+                          setShareLinkUrl(null);
+                          message.success("Share link revoked.");
+                        },
+                        onError: fail("Could not revoke that link."),
+                      });
+                    },
+                  });
+                }}
+              >
+                Revoke
+              </Button>
+            ) : null}
+          </Space>
+        )}
+      </Field>
+
+      {shareLinkUrl ? (
+        <Alert
+          className={cx(styles.notice)}
+          type="info"
+          showIcon
+          title="Share link"
+          description={
+            <>
+              <p style={{ marginTop: 0 }}>
+                Shown once. It is not stored anywhere you can read it back — send it now; minting
+                a new one later replaces it.
+              </p>
+              <code>{shareLinkUrl}</code>
+            </>
+          }
+        />
+      ) : null}
+    </Card>
   );
 }
 

@@ -1,7 +1,8 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Alert, Button, Typography } from "antd";
-import { StoreNotSetUpError } from "@/lib/store-source";
+import { StoreNotSetUpError, StorefrontLockedError } from "@/lib/store-source";
 import { PageWrapper } from "./PageWrapper";
+import { StorefrontGate } from "./StorefrontGate";
 
 interface Props {
   children: ReactNode;
@@ -33,6 +34,14 @@ export class StoreErrorBoundary extends Component<Props, State> {
   override render(): ReactNode {
     const { error } = this.state;
     if (!error) return this.props.children;
+
+    if (error instanceof StorefrontLockedError || error.name === "StorefrontLockedError") {
+      // Not a second implementation of the gate: the check that matters lives
+      // entirely on the server, and this only ever runs after the server has
+      // already refused the request once. Resetting local state is enough to
+      // let the boundary's children mount normally the moment it succeeds.
+      return <StorefrontGate onUnlocked={() => this.setState({ error: null })} />;
+    }
 
     if (error instanceof StoreNotSetUpError || error.name === "StoreNotSetUpError") {
       return (

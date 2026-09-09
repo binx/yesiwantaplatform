@@ -6,6 +6,7 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { adminEmailSchema } from "../shared/api.js";
+import { isLocalOrigin } from "../src/lib/publicUrl.js";
 
 /**
  * `npm run setup` — the first-run path.
@@ -373,6 +374,35 @@ async function main(): Promise<void> {
   }
   lines = setEnvValue(lines, "PUBLIC_URL", publicUrl);
 
+  /* --- 5. storefront visibility -------------------------------------------- */
+
+  heading("5. Storefront visibility");
+  console.log(
+    dim(
+      "Deploying is not the same as being ready to show customers. A fresh\n" +
+        "public address is port-scanned within minutes, so this defaults to\n" +
+        "locked once the address above is not localhost.\n",
+    ),
+  );
+
+  let storefrontPassword: string | null = null;
+
+  if (
+    await confirm(
+      "Put a password on the storefront until you're ready to launch?",
+      !isLocalOrigin(publicUrl),
+    )
+  ) {
+    for (;;) {
+      const value = await askSecret("Storefront password (8+ characters, input hidden)");
+      if (value.length >= 8) {
+        storefrontPassword = value;
+        break;
+      }
+      console.log(red("  Too short — use at least 8 characters."));
+    }
+  }
+
   /* --- write .env before anything reads it -------------------------------- */
 
   writeEnv(lines);
@@ -386,17 +416,28 @@ async function main(): Promise<void> {
   const stripeSecret = currentValue(lines, "STRIPE_SECRET_KEY");
   if (stripeSecret) process.env.STRIPE_SECRET_KEY = stripeSecret;
 
-  /* --- 5. migrations ------------------------------------------------------ */
+  /* --- 6. migrations ------------------------------------------------------ */
 
-  heading("5. Database schema");
+  heading("6. Database schema");
 
   const { runMigrations } = await import("../db/migrate.js");
   await runMigrations();
   console.log(`${green("✓")} Migrations applied.`);
 
-  /* --- 6. admin account --------------------------------------------------- */
+  if (storefrontPassword) {
+    const { setStorefrontAccess, setStorefrontPassword: writeStorefrontPassword } = await import(
+      "../db/admin-repository.js"
+    );
+    const { hashPassword } = await import("../server/auth.js");
 
-  heading("6. Administrator");
+    await writeStorefrontPassword(await hashPassword(storefrontPassword));
+    await setStorefrontAccess("password");
+    console.log(`${green("✓")} The storefront requires a password.`);
+  }
+
+  /* --- 7. admin account --------------------------------------------------- */
+
+  heading("7. Administrator");
 
   const { countAdmins, createAdmin } = await import("../server/auth.js");
 
@@ -441,9 +482,9 @@ async function main(): Promise<void> {
     console.log(`${green("✓")} Created ${email}. The hash is argon2id, stored in the database.`);
   }
 
-  /* --- 7. store + demo data ----------------------------------------------- */
+  /* --- 8. store + demo data ----------------------------------------------- */
 
-  heading("7. Your store");
+  heading("8. Your store");
 
   const { getSettings } = await import("../db/repository.js");
   const settings = await getSettings();
@@ -496,7 +537,13 @@ async function main(): Promise<void> {
   // PUBLIC_URL, not a literal: it is what Stripe and every emailed link will
   // use, so printing anything else here would be printing a second answer.
   console.log(`  Storefront:     ${publicUrl}`);
-  console.log(`  Admin:          ${publicUrl}/admin\n`);
+  console.log(`  Admin:          ${publicUrl}/admin`);
+  if (storefrontPassword) {
+    console.log(
+      dim("  The storefront is locked. Change or remove the password under Settings → Visibility."),
+    );
+  }
+  console.log();
 }
 
 /**

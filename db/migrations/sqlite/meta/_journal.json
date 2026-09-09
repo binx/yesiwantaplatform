@@ -141,6 +141,13 @@
       "when": 1788973841456,
       "tag": "0019_typical_bromley",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1788977209602,
+      "tag": "0020_misty_squadron_supreme",
+      "breakpoints": true
     }
   ]
 }

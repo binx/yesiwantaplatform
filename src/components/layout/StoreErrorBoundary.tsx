@@ -40,50 +40,60 @@ export class StoreErrorBoundary extends Component<Props, State> {
       // entirely on the server, and this only ever runs after the server has
       // already refused the request once. Resetting local state is enough to
       // let the boundary's children mount normally the moment it succeeds.
-      return <StorefrontGate onUnlocked={() => this.setState({ error: null })} />;
+      return (
+        <main id="main">
+          <StorefrontGate onUnlocked={() => this.setState({ error: null })} />
+        </main>
+      );
     }
 
     if (error instanceof StoreNotSetUpError || error.name === "StoreNotSetUpError") {
       return (
-        <PageWrapper width="prose">
-          <h1>Welcome to Beluga</h1>
-          <p>
-            This store has not been set up yet. The wizard takes three steps and ends with you
-            signed in to the admin.
-          </p>
-          <p>
-            <Button type="primary" href="/setup">
-              Set up this store
-            </Button>
-          </p>
-          <Typography.Paragraph type="secondary">
-            Prefer a terminal? <code>npm run setup</code> does the same thing, and can also validate
-            a Stripe secret key before writing it to <code>.env</code>.
-          </Typography.Paragraph>
-        </PageWrapper>
+        // `ThemedShell`'s own `<main>` never mounts on this path — the boundary
+        // catches before it does — so this fallback needs its own landmark.
+        <main id="main">
+          <PageWrapper width="prose">
+            <h1>Welcome to Beluga</h1>
+            <p>
+              This store has not been set up yet. The wizard takes three steps and ends with you
+              signed in to the admin.
+            </p>
+            <p>
+              <Button type="primary" href="/setup">
+                Set up this store
+              </Button>
+            </p>
+            <Typography.Paragraph type="secondary">
+              Prefer a terminal? <code>npm run setup</code> does the same thing, and can also
+              validate a Stripe secret key before writing it to <code>.env</code>.
+            </Typography.Paragraph>
+          </PageWrapper>
+        </main>
       );
     }
 
     return (
-      <PageWrapper width="prose">
-        <Alert
-          type="error"
-          showIcon
-          title="Couldn't load this store"
-          description={
-            <>
-              <p style={{ marginTop: 0 }}>
-                The storefront could not reach its API. If you are developing locally, check that
-                the API is running:
-              </p>
-              <pre style={{ margin: 0 }}>npm run dev:all</pre>
-            </>
-          }
-        />
-        <p style={{ marginTop: "1.5rem" }}>
-          <Button onClick={() => window.location.reload()}>Try again</Button>
-        </p>
-      </PageWrapper>
+      <main id="main">
+        <PageWrapper width="prose">
+          <Alert
+            type="error"
+            showIcon
+            title="Couldn't load this store"
+            description={
+              <>
+                <p style={{ marginTop: 0 }}>
+                  The storefront could not reach its API. If you are developing locally, check
+                  that the API is running:
+                </p>
+                <pre style={{ margin: 0 }}>npm run dev:all</pre>
+              </>
+            }
+          />
+          <p style={{ marginTop: "1.5rem" }}>
+            <Button onClick={() => window.location.reload()}>Try again</Button>
+          </p>
+        </PageWrapper>
+      </main>
     );
   }
 }

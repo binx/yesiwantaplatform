@@ -15,7 +15,13 @@ import {
 } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import { fontUrlSchema, type Theme } from "@shared/schema";
-import { contrastRatio, effectivePageColor, themeCssVars, toAntdTheme } from "@/lib/theme";
+import {
+  contrastRatio,
+  effectivePageColor,
+  googleFontFamilies,
+  themeCssVars,
+  toAntdTheme,
+} from "@/lib/theme";
 import { assetUrl } from "@/lib/store-source";
 import { ProductCard } from "@/components/product/ProductCard";
 import { cx } from "@/lib/cx";
@@ -50,6 +56,13 @@ const FONT_STACKS = [
 
 const CUSTOM = "__custom__";
 
+/** `["Fraunces"]` → `"Fraunces"`; `["Fraunces", "Inter"]` → `"Fraunces and Inter"`. */
+function listFamilies(families: string[]): string {
+  return families.length === 1
+    ? families[0]!
+    : `${families.slice(0, -1).join(", ")} and ${families[families.length - 1]}`;
+}
+
 /** Below this, a filled button starts to disappear into the page behind it. */
 const MIN_CONTRAST = 3;
 
@@ -70,6 +83,7 @@ export function ThemeEditor({ value, onChange, storeName, savedFontUrl }: ThemeE
   const { message } = App.useApp();
   const uploadLogo = useUploadLogo();
   const typefaceId = useId();
+  const fontUrlId = useId();
 
   const preset = FONT_STACKS.find((stack) => stack.value === value.fontFamily);
   const set = <K extends keyof Theme>(key: K, next: Theme[K]) => onChange({ ...value, [key]: next });
@@ -81,6 +95,20 @@ export function ThemeEditor({ value, onChange, storeName, savedFontUrl }: ThemeE
   // reason `heroHrefSchema` is: the browser and the server must refuse exactly
   // the same strings, and the CSP is built from this value's origin.
   const fontUrlWrong = value.fontUrl !== null && !fontUrlSchema.safeParse(value.fontUrl).success;
+
+  /*
+   * A Google Fonts URL names the face it loads; the font stack says which
+   * faces the storefront will actually ask for. Neither field knows about the
+   * other, so a merchant can paste one and leave the other unchanged — this is
+   * the one case where that is provably a mistake: none of the URL's own
+   * families appear anywhere in the stack.
+   */
+  const urlFontFamilies = value.fontUrl ? googleFontFamilies(value.fontUrl) : [];
+  const stackLower = value.fontFamily.toLowerCase();
+  const unusedFontFamilies =
+    urlFontFamilies.length > 0 && urlFontFamilies.every((family) => !stackLower.includes(family.toLowerCase()))
+      ? urlFontFamilies
+      : [];
 
   /*
    * Load the face into the admin document so the preview below renders in it.
@@ -238,6 +266,7 @@ export function ThemeEditor({ value, onChange, storeName, savedFontUrl }: ThemeE
             */}
           <Form.Item
             label="Font stylesheet URL"
+            htmlFor={fontUrlId}
             help="Where the browser loads the typeface from. For Google Fonts, paste the <link href>. Leave empty for a system font."
             // The server refuses the same strings — see `fontUrlSchema` — but
             // it also has to fetch the stylesheet to check it, so saying the
@@ -247,9 +276,33 @@ export function ThemeEditor({ value, onChange, storeName, savedFontUrl }: ThemeE
                   validateStatus: "error" as const,
                   extra: "Use an https:// address or a path under /assets/.",
                 }
-              : {})}
+              : unusedFontFamilies.length > 0
+                ? {
+                    extra: (
+                      <Space direction="vertical" size="small">
+                        <span>
+                          This stylesheet defines {listFamilies(unusedFontFamilies)}, which the
+                          typeface above does not use.
+                        </span>
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            const custom = [
+                              ...unusedFontFamilies.map((family) => `"${family}"`),
+                              value.fontFamily,
+                            ].join(", ");
+                            set("fontFamily", custom);
+                          }}
+                        >
+                          Switch Typeface to Custom…
+                        </Button>
+                      </Space>
+                    ),
+                  }
+                : {})}
           >
             <Input
+              id={fontUrlId}
               value={value.fontUrl ?? ""}
               placeholder="https://fonts.googleapis.com/css2?family=Fraunces&display=swap"
               onChange={(event) => {

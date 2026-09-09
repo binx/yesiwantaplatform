@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderWithProviders, screen } from "@/test-utils";
 import type { Image } from "@shared/schema";
 import { Carousel } from "./Carousel";
+import styles from "./Carousel.module.css";
 
 function image(path: string, alt: string): Image {
   return { path, width: 900, height: 1200, alt, widths: [], variantId: null };
@@ -44,5 +45,18 @@ describe("Carousel", () => {
     // whatever index a previous swipe or selection left it at.
     expect(tabs[0]).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Image 1 of 3")).toBeInTheDocument();
+  });
+
+  // jsdom does no layout, so this can't see the grey void a mismatched image
+  // pair left below a shorter slide — only that every slide carries the class
+  // that gives all of them the same fixed frame regardless of what's in it.
+  it("gives every slide the same frame class, whatever shape its image is", () => {
+    renderWithProviders(<Carousel images={[front, side, detail]} productName="Tote" />);
+
+    const slides = screen.getAllByRole("group", { name: /^\d+ of \d+$/ });
+    expect(slides).toHaveLength(3);
+    for (const slide of slides) {
+      expect(slide).toHaveClass(styles.slide!);
+    }
   });
 });

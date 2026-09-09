@@ -139,8 +139,13 @@ export const demoStore: Store = {
           variantId: null,
         },
         {
+          // Deliberately a different shape from the first image — a portrait
+          // photo next to a landscape one is what showed the gallery frame
+          // bug (docs/tasks/33-storefront-fixes-from-a-blank-store.md §1),
+          // and "product without variants" in e2e/accessibility.spec.ts
+          // already scans this product's page.
           path: "demo/mug-alt.svg",
-          width: 1000,
+          width: 750,
           height: 1000,
           alt: "Enamel mug filled with coffee",
           widths: [],

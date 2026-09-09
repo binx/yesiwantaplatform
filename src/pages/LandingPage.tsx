@@ -4,6 +4,7 @@ import { Button } from "antd";
 import { getFeaturedProducts, getVisibleCollections } from "@shared/catalog";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { ProductList } from "@/components/product/ProductList";
+import { CollectionTile } from "@/components/product/CollectionTile";
 import { useStore } from "@/lib/useStore";
 import { assetUrl } from "@/lib/store-source";
 import { cx } from "@/lib/cx";
@@ -90,9 +91,7 @@ export function LandingPage() {
             <ul className={styles.collections}>
               {collections.map((collection) => (
                 <li key={collection.id}>
-                  <Link to={`/collection/${collection.slug}`} className={styles.collectionCard}>
-                    <span className={styles.collectionName}>{collection.name}</span>
-                  </Link>
+                  <CollectionTile collection={collection} sizes="(max-width: 700px) 100vw, 33vw" />
                 </li>
               ))}
             </ul>

@@ -1,5 +1,6 @@
 import { devices, expect, test } from "@playwright/test";
 import { ADMIN_STORAGE_STATE } from "./fixtures/admin";
+import { report, scan } from "./axe";
 
 /**
  * The storefront password gate — see docs/tasks/27-storefront-preview-mode.md.
@@ -79,6 +80,18 @@ test.describe("storefront lock", () => {
 
       await context.close();
     }
+  });
+
+  // The gate is the first thing a merchant's client sees when sent a preview
+  // link, and it never shows under `accessibility.spec.ts`'s own sweep — it
+  // only renders on a store that is locked, which is exactly the state this
+  // whole file already puts the shared store in.
+  test("the gate has no accessibility violations", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "This store is not open yet" })).toBeVisible();
+
+    const found = report(await scan(page));
+    expect(found, found).toBe("");
   });
 
   test("rejects the wrong password", async ({ page }) => {

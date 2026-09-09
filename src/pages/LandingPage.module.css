@@ -70,26 +70,6 @@
   list-style: none;
 }
 
-.collectionCard {
-  display: grid;
-  place-items: center;
-  min-height: 9rem;
-  padding: 1.5rem;
-  border: 1px solid var(--beluga-line);
-  background: var(--beluga-surface);
-  text-decoration: none;
-  transition: border-color 0.2s;
-}
-
-.collectionCard:hover {
-  border-color: var(--beluga-primary);
-}
-
-.collectionName {
-  font-size: 1.0625rem;
-  letter-spacing: 0.02em;
-}
-
 /*
  * A hero carrying an image.
  *

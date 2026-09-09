@@ -197,3 +197,32 @@ export function toAntdTheme(theme: Theme): ThemeConfig {
     },
   };
 }
+
+/**
+ * The `family=` names out of a Google Fonts `css2` URL, order preserved.
+ *
+ * `ThemeEditor` uses this to warn when the stylesheet a merchant pasted
+ * defines a face the selected font stack never names — the URL and the stack
+ * are otherwise two fields with no relationship between them. Only `css2`
+ * URLs are parsed: it is the one shape whose `family=` value is reliably a
+ * font name, and a self-hosted `@font-face` sheet gives no such hint to read
+ * without fetching and parsing the stylesheet itself, which is what the
+ * server does at save time — not worth repeating here just to draw a hint.
+ *
+ * A family can carry an axis spec after a colon, e.g. `Fraunces:ital,opsz@…`;
+ * everything from the first `:` on is dropped.
+ */
+export function googleFontFamilies(url: string): string[] {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return [];
+  }
+
+  if (parsed.hostname !== "fonts.googleapis.com" || !parsed.pathname.startsWith("/css2")) {
+    return [];
+  }
+
+  return parsed.searchParams.getAll("family").map((family) => family.split(":")[0]!.trim());
+}

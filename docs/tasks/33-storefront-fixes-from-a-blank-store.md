@@ -1,15 +1,15 @@
 ---
 task: "33"
 title: Storefront fixes from a blank-store run
-status: todo
+status: done
 tier: 0
 size: M
 migration: none
 blocked_by: []
 blocks: []
 touches: src/components/product/Carousel.module.css:10 · src/components/product/Carousel.tsx:23 · src/index.css · src/components/layout/StorefrontGate.tsx:76 · src/pages/LandingPage.tsx:93 · src/admin/ThemeEditor.tsx:240 · e2e/accessibility.spec.ts
-completed:
-shipped_in:
+completed: 2026-09-09
+shipped_in: 34
 summary: >-
   What a shopper sees on a store whose images were not all the same shape. The product
   gallery takes the height of its tallest image, so a landscape photo next to a portrait

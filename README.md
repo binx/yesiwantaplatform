@@ -111,7 +111,8 @@ legacy/    v1 code, kept for reference — not built
 Two things live on disk and must persist across a redeploy: the SQLite file
 under `data/` and uploaded imagery, which is written to `ASSETS_DIR`
 (`public/assets` by default). On a platform with an ephemeral filesystem, mount
-a volume and point both there.
+a volume and point both there — or put the images in a bucket instead, see
+[Images](#images), and then only the database needs a home.
 
 Forking this to build your own store? [`docs/building-on-beluga.md`](docs/building-on-beluga.md)
 maps which files are cosmetic, which are a documented seam, and which hold a
@@ -289,6 +290,21 @@ so a drift would be a 404 per image rather than a compile error.
 
 The effect is worth stating plainly: a product thumbnail rendered 70px wide now
 downloads 2.3 kB instead of the 17 kB original.
+
+Uploads go to `ASSETS_DIR` on disk by default, or to any S3-compatible bucket
+— AWS, DigitalOcean Spaces, Cloudflare R2, Backblaze, MinIO — when
+`ASSETS_S3_BUCKET` and its group are set (`.env.example` lists them). The
+two drivers sit behind one interface in [`server/image-store.ts`](server/image-store.ts),
+and the database stores the same relative path under both, so switching is a
+configuration change rather than a migration. The URL does not change either:
+the storefront, the SEO tags and the emails keep building `/assets/<path>`,
+and under the bucket driver the server answers that with a redirect to
+`ASSETS_PUBLIC_URL/<path>` — one extra request per image per browser, cached
+for a month — rather than every URL builder learning a second base. The
+bundled demo images stay on disk and are served as before. A half-configured
+group is refused at boot with the missing variable named, and the boot log
+says which driver is active next to the port. Moving an existing directory
+into a bucket is task 28.
 
 ### Shipping
 

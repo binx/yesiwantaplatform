@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
-import path from "node:path";
 import multer from "multer";
 import sharp from "sharp";
 import { env } from "./env.js";
 import { httpError } from "./middleware.js";
+import { imageStore, isSafeRelativePath } from "./image-store.js";
 import { DERIVATIVE_WIDTHS, derivativePath, derivativeWidthsFor } from "../shared/images.js";
+
+// Where the local driver writes. Re-exported because the static handler in
+// server/app.ts and the boot check in server/index.ts read it from here.
+export { ASSETS_ROOT } from "./image-store.js";
 
 /**
  * Image uploads.
@@ -18,20 +21,6 @@ import { DERIVATIVE_WIDTHS, derivativePath, derivativeWidthsFor } from "../share
  * are decoded by sharp before anything is written (so the magic bytes must
  * really be an image), and the re-encode strips EXIF and any appended payload.
  */
-
-/**
- * Absolute, always: every traversal guard below is a prefix check against this
- * value, and `path.resolve` is what turns a relative ASSETS_DIR into something
- * a prefix check means anything against. The filesystem root is refused
- * outright — `${root}${sep}` would be `//`, no resolved path starts with that,
- * and every upload would fail with a message about traversal that is not the
- * real problem.
- */
-export const ASSETS_ROOT = path.resolve(env.ASSETS_DIR);
-
-if (ASSETS_ROOT === path.parse(ASSETS_ROOT).root) {
-  throw new Error(`ASSETS_DIR must be a directory, not the filesystem root (${ASSETS_ROOT}).`);
-}
 
 const ALLOWED_FORMATS = new Set(["jpeg", "png", "webp", "avif", "gif"]);
 
@@ -118,19 +107,11 @@ export async function storeImage(ownerId: string, buffer: Buffer): Promise<Store
         .toBuffer({ resolveWithObject: true });
 
   const extension = isAnimated ? "gif" : "webp";
-  const filename = `${randomUUID()}.${extension}`;
-  const directory = path.join(ASSETS_ROOT, ownerId);
+  const relativePath = `${ownerId}/${randomUUID()}.${extension}`;
 
-  // Belt and braces: confirm the resolved path is still inside the tree.
-  const destination = path.join(directory, filename);
-  if (!destination.startsWith(ASSETS_ROOT + path.sep)) {
-    throw httpError(400, "Invalid upload target.");
-  }
-
-  await mkdir(directory, { recursive: true });
-  await writeFile(destination, output.data);
-
-  const relativePath = `${ownerId}/${filename}`;
+  // The store — disk or bucket — is what holds the bytes; see server/image-store.ts.
+  // Its own traversal check is the second line behind `assertSafeOwnerId`.
+  await imageStore.put(relativePath, output.data, isAnimated ? "image/gif" : "image/webp");
 
   /*
    * Resized copies for `srcset`.
@@ -151,7 +132,7 @@ export async function storeImage(ownerId: string, buffer: Buffer): Promise<Store
         .webp({ quality: 82 })
         .toBuffer();
 
-      await writeFile(path.join(directory, derivativePath(filename, width)), resized);
+      await imageStore.put(derivativePath(relativePath, width), resized, "image/webp");
       widths.push(width);
     }
   }
@@ -167,29 +148,21 @@ export async function storeImage(ownerId: string, buffer: Buffer): Promise<Store
 /**
  * Delete a stored image.
  *
- * The stored path is re-validated the same way, so a tampered database row
- * cannot be used to unlink something outside the assets tree.
+ * The stored path is re-validated first, so a tampered database row cannot be
+ * used to unlink something outside the assets tree, or to name a bucket key
+ * the store never wrote.
  */
 export async function deleteImageFile(relativePath: string): Promise<void> {
-  const resolved = path.resolve(ASSETS_ROOT, relativePath);
-
-  if (!resolved.startsWith(ASSETS_ROOT + path.sep)) {
+  if (!isSafeRelativePath(relativePath)) {
     throw httpError(400, "Invalid image path.");
   }
 
-  const remove = async (target: string) => {
-    await unlink(target).catch((error: NodeJS.ErrnoException) => {
-      // Already gone is a success for our purposes.
-      if (error.code !== "ENOENT") throw error;
-    });
-  };
-
-  await remove(resolved);
+  await imageStore.delete(relativePath);
 
   // The derivatives are not in the database individually, so they are removed
-  // by the same naming rule that created them. Every candidate is resolved
-  // from the validated full-size path, so none can point outside the tree.
+  // by the same naming rule that created them. Every candidate is derived from
+  // the validated full-size path, so none can point outside the tree.
   await Promise.all(
-    DERIVATIVE_WIDTHS.map((width) => remove(derivativePath(resolved, width))),
+    DERIVATIVE_WIDTHS.map((width) => imageStore.delete(derivativePath(relativePath, width))),
   );
 }

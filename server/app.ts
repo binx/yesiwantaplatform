@@ -22,6 +22,7 @@ import { metaForPath, type ResolvedMeta } from "./seo.js";
 import { startCartRecoveryScheduler } from "./cart-recovery.js";
 import { startWebhookDispatcher } from "./webhooks.js";
 import { ASSETS_ROOT } from "./uploads.js";
+import { imageStore, redirectToImageStore } from "./image-store.js";
 import { refreshFontOrigins } from "./fonts.js";
 
 export function createApp(): Express {
@@ -140,6 +141,14 @@ export function createApp(): Express {
       dotfiles: "ignore",
     }),
   );
+
+  // Under the bucket driver, whatever is not on disk is in the bucket: the
+  // URL contract stays `/assets/<path>` and this answers it with a redirect.
+  // Behind the static handler, so the bundled demo images are served as
+  // before; behind the gate, for the same reason the static handler is.
+  if (imageStore.driver === "s3") {
+    app.use("/assets", redirectToImageStore);
+  }
 
   if (isProduction && dist && shell) {
     const builtShell = shell;

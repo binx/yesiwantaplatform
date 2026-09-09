@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
-import { isProduction } from "./env.js";
+import { isProduction, objectStorage } from "./env.js";
 import { safeEqual } from "./auth.js";
 
 declare module "express-session" {
@@ -46,6 +46,19 @@ export function setCspFontOrigins(origins: readonly string[]): void {
 }
 
 /**
+ * Where images may come from besides `'self'`.
+ *
+ * Under the bucket driver `/assets/<path>` answers with a redirect, and a CSP
+ * is checked against every hop of a redirect, not only the first — so the
+ * bucket's origin has to be listed or every product image is blocked, with a
+ * console error and no request in the network log to explain it. Derived
+ * from ASSETS_PUBLIC_URL once at boot, the same way `fonts.ts` derives a
+ * font origin; empty under the local driver, which keeps that header
+ * byte-for-byte what it was.
+ */
+const imageOrigins: readonly string[] = objectStorage ? [new URL(objectStorage.publicUrl).origin] : [];
+
+/**
  * Content Security Policy.
  *
  * Stripe.js must be loadable and framed for 3-D Secure; everything else is
@@ -66,7 +79,7 @@ function policyFor(extraOrigins: readonly string[]) {
         scriptSrc: ["'self'", "https://js.stripe.com"],
         frameSrc: ["https://js.stripe.com", "https://hooks.stripe.com"],
         connectSrc: ["'self'", "https://api.stripe.com"],
-        imgSrc: ["'self'", "data:", "blob:"],
+        imgSrc: ["'self'", "data:", "blob:", ...imageOrigins],
         // antd injects component styles at runtime.
         styleSrc: ["'self'", "'unsafe-inline'", ...extraOrigins],
         fontSrc: ["'self'", "data:", ...extraOrigins],

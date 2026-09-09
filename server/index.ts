@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import { createApp } from "./app.js";
 import { env } from "./env.js";
 import { ASSETS_ROOT } from "./uploads.js";
+import { imageStore } from "./image-store.js";
 import { runMigrations } from "../db/migrate.js";
 import { isConfigured } from "../db/repository.js";
 import { activeSetupToken } from "./routes/setup.js";
@@ -16,12 +17,15 @@ import { activeSetupToken } from "./routes/setup.js";
  */
 async function main(): Promise<void> {
   await runMigrations();
-  await ensureAssetsDirectory();
+  if (imageStore.driver === "local") await ensureAssetsDirectory();
 
   const app = createApp();
 
   const server = app.listen(env.API_PORT, env.API_HOST, () => {
     console.log(`Beluga API listening on http://${env.API_HOST}:${env.API_PORT}`);
+    // Where uploads go, in the deploy log, next to where the API is: the two
+    // things an operator checks first when a deploy looks wrong.
+    console.log(imageStore.describe());
   });
 
   if (!(await isConfigured())) {

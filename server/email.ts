@@ -169,19 +169,30 @@ export async function sendOrderEmail(template: EmailTemplate, order: Order): Pro
 export type AccountEmailTemplate = "VerifyEmail" | "ResetPassword";
 
 /**
- * A customer-account email: verification or a password reset.
+ * An account email: verification or a password reset.
  *
  * Not order-shaped, so it does not go through `toLocals` — but it renders
  * into the same layout, with the same store name and accent colour, and fails
- * the same way: logged and swallowed, never thrown. The register and
- * forgot-password routes must respond identically whether this succeeds, so a
- * throw here would be a second enumeration channel.
+ * the same way: logged and swallowed, never thrown. Registration, both
+ * forgot-password routes (customer and admin), and account-email sending in
+ * general must respond identically whether this succeeds, so a throw here
+ * would be a second enumeration channel.
+ *
+ * Without SMTP configured this logs the link itself rather than the generic
+ * "would have sent" line `deliver` falls back to elsewhere — both the
+ * customer and admin forgot-password pages tell a self-hosted merchant to
+ * look here, so the log has to actually carry the link that promise refers to.
  */
 export async function sendAccountEmail(
   template: AccountEmailTemplate,
   to: string,
   actionUrl: string,
 ): Promise<boolean> {
+  if (!isEmailConfigured()) {
+    console.log(`[email] SMTP is not configured; the ${template} link for ${to} is ${actionUrl}`);
+    return false;
+  }
+
   const settings = await getSettings();
   const locals = {
     store: { name: settings?.name ?? "Beluga", colorAccent: settings?.theme.colorAccent ?? "#e07a5f" },

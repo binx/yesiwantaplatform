@@ -107,6 +107,9 @@ export const adminUsers = sqliteTable("admin_users", {
    */
   role: text("role").notNull().default("owner"),
   lastLoginAt: integer("last_login_at"),
+  /** Hash only, same reasoning as the customer and invite tokens. */
+  passwordResetTokenHash: text("password_reset_token_hash"),
+  passwordResetExpiresAt: integer("password_reset_expires_at"),
   ...timestamps,
 });
 

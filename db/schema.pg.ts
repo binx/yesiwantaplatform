@@ -93,6 +93,9 @@ export const adminUsers = pgTable("admin_users", {
    */
   role: text("role").notNull().default("owner"),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  /** Hash only, same reasoning as the customer and invite tokens. */
+  passwordResetTokenHash: text("password_reset_token_hash"),
+  passwordResetExpiresAt: timestamp("password_reset_expires_at", { withTimezone: true }),
   ...timestamps,
 });
 

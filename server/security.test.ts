@@ -155,6 +155,17 @@ const CUSTOMER_READS = [
  */
 const PUBLIC_CART_TOKEN_ROUTES = ["/api/cart/recover", "/api/cart/unsubscribe"] as const;
 
+/**
+ * Deliberately anonymous, for the same reason as the cart token routes above:
+ * an administrator who has lost their password cannot sign in to request a
+ * reset. Listed here rather than in MUTATIONS so their absence from that
+ * array reads as a decision, and asserted below to still enforce CSRF.
+ */
+const ADMIN_PASSWORD_RESET_ROUTES = [
+  "/api/session/forgot-password",
+  "/api/session/reset-password",
+] as const;
+
 describe("anonymous access", () => {
   it.each(MUTATIONS)("rejects $method $path with 401", async ({ method, path }) => {
     const response = await request(app)[method](path).send({});
@@ -357,6 +368,46 @@ describe("customer routes", () => {
 
   it.each(PUBLIC_CART_TOKEN_ROUTES)("still requires a CSRF token on %s", async (path) => {
     await request(app).post(path).send({ token: "not-a-real-token" }).expect(403);
+  });
+});
+
+describe("admin password reset", () => {
+  /** An agent with a valid CSRF token but no session behind it. */
+  async function anonymous() {
+    const agent = request.agent(app);
+    const { body } = await agent.get("/api/session").expect(200);
+    return { agent, csrf: body.csrfToken as string };
+  }
+
+  it.each(ADMIN_PASSWORD_RESET_ROUTES)("still requires a CSRF token on %s", async (path) => {
+    await request(app).post(path).send({}).expect(403);
+  });
+
+  it("is reachable while signed out — that is the point of the route", async () => {
+    const { agent, csrf } = await anonymous();
+    await agent
+      .post("/api/session/forgot-password")
+      .set("x-csrf-token", csrf)
+      .send({ email: "not-an-admin@example.com" })
+      .expect(204);
+  });
+
+  it("does not disclose whether the email belongs to an administrator", async () => {
+    const known = await anonymous();
+    const knownResponse = await known.agent
+      .post("/api/session/forgot-password")
+      .set("x-csrf-token", known.csrf)
+      .send({ email: "admin@example.com" });
+
+    const unknown = await anonymous();
+    const unknownResponse = await unknown.agent
+      .post("/api/session/forgot-password")
+      .set("x-csrf-token", unknown.csrf)
+      .send({ email: "no-such-admin@example.com" });
+
+    expect(knownResponse.status).toBe(204);
+    expect(unknownResponse.status).toBe(204);
+    expect(knownResponse.body).toEqual(unknownResponse.body);
   });
 });
 

@@ -182,6 +182,8 @@ Access is granted by a **single-use invitation**. Only a hash of the token is st
 
 Removing someone **destroys their sessions immediately** rather than waiting for a cookie to expire, which is most of the point. You cannot remove your own account, and you cannot remove the last owner — a store with no owner has nobody who can add one back.
 
+An administrator who forgets their password can **reset it by email** from `/admin/login`, the same single-use, hour-long token as the customer flow below, on `admin_users` instead of `customers`. A reset destroys every session the account had, exactly like removing someone above. When SMTP is not configured the link is logged rather than sent, so a self-hosted store can still recover an account by reading the API's log.
+
 `role` is recorded but does not gate anything: every administrator can do everything, and the UI says so. Gating it would multiply the permission surface across every route and needs its own security-test matrix, which is a separate decision — the column exists now so that decision is not also a migration.
 
 ### Customer accounts

@@ -134,6 +134,13 @@
       "when": 1788970093875,
       "tag": "0018_wise_psynapse",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1788973841456,
+      "tag": "0019_typical_bromley",
+      "breakpoints": true
     }
   ]
 }

@@ -3,7 +3,7 @@ import { Alert, App, Button, Card, Input, InputNumber, Select, Skeleton, Switch,
 import type { SettingsInput } from "@shared/api";
 import { DEFAULT_TAX_CODE, defaultTheme, type TaxBehavior, type Theme } from "@shared/schema";
 import { cx } from "@/lib/cx";
-import { useEnvironment, useSettings, useUpdateSettings } from "./queries";
+import { useEnvironment, useSendTestEmail, useSettings, useUpdateSettings } from "./queries";
 import { Field } from "./Field";
 import { PageHeader } from "./RequireAdmin";
 import { ThemeEditor } from "./ThemeEditor";
@@ -203,6 +203,10 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
         </Field>
       </Card>
 
+      <Card title="Email" className={cx(styles.card)}>
+        <EmailCheck hasEmail={environment.data?.hasEmail ?? false} />
+      </Card>
+
       <Card title="Tax" className={cx(styles.card)}>
         <p className={cx(styles.wiring)}>
           Tax is calculated by <strong>Stripe Tax</strong>. Beluga does no tax arithmetic of
@@ -386,6 +390,61 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
         </Button>
         {dirty ? <span className={cx(styles.help)}>You have unsaved changes.</span> : null}
       </div>
+    </>
+  );
+}
+
+/**
+ * Prove the SMTP transport works, before a customer does it for you.
+ *
+ * `SMTP_URL` being set is not the same as email working, and every send in
+ * this codebase swallows its failure on purpose — an order email must not fail
+ * a payment Stripe has already taken. So a wrong port, a sender the provider
+ * will not accept, or an authentication failure all look exactly like success
+ * from here until someone does not receive their confirmation. One button that
+ * reports the transport's own answer closes that gap.
+ *
+ * It always sends to the signed-in administrator: the server takes no address
+ * from the request, so this cannot become a way to mail strangers over the
+ * merchant's own SMTP reputation.
+ *
+ * Exported for its own test: reaching it through the whole Settings page would
+ * mean mocking every query that page loads to assert one button.
+ */
+export function EmailCheck({ hasEmail }: { hasEmail: boolean }) {
+  const send = useSendTestEmail();
+
+  return (
+    <>
+      <p className={cx(styles.wiring)}>
+        {hasEmail
+          ? "Order confirmations, password resets and staff invitations are sent over SMTP."
+          : "No SMTP_URL on the server, so mail is written to the log instead of sent. Set SMTP_URL and EMAIL_FROM, then restart the API."}
+      </p>
+
+      <Button disabled={!hasEmail} loading={send.isPending} onClick={() => send.mutate()}>
+        Send a test email
+      </Button>
+
+      {send.data ? (
+        <Alert
+          className={cx(styles.notice)}
+          type={send.data.ok ? "success" : "error"}
+          showIcon
+          title={send.data.ok ? "Sent" : "The transport refused it"}
+          description={send.data.message}
+        />
+      ) : null}
+
+      {send.isError ? (
+        <Alert
+          className={cx(styles.notice)}
+          type="error"
+          showIcon
+          title="Could not reach the server"
+          description={send.error instanceof Error ? send.error.message : "Unknown error."}
+        />
+      ) : null}
     </>
   );
 }

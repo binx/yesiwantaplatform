@@ -1,9 +1,18 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Alert, Button, Card, Empty, Skeleton, Statistic, Table, Tag } from "antd";
 import type { Order } from "@shared/orders";
 import { formatMoney } from "@shared/money";
-import { useEnvironment, useOrders, useProducts, useSettings } from "./queries";
+import { countryName, findCoverageGaps } from "@shared/shipping";
+import {
+  useEnvironment,
+  useOrders,
+  useProducts,
+  useSettings,
+  useShipping,
+  type ProductSummary,
+  type ShippingTable,
+} from "./queries";
 import { PageHeader } from "./RequireAdmin";
 import { OrderStatusTag } from "./OrderStatusTag";
 import { formatOrderDate } from "./orderPresentation";
@@ -24,6 +33,7 @@ export function DashboardPage() {
   const products = useProducts();
   const orders = useOrders("all", 0);
   const environment = useEnvironment();
+  const shipping = useShipping();
 
   useEffect(() => {
     document.title = "Overview · Beluga";
@@ -48,7 +58,13 @@ export function DashboardPage() {
         }
       />
 
-      {environment.data ? <Wiring environment={environment.data} /> : null}
+      {environment.data ? (
+        <Wiring
+          environment={environment.data}
+          shipping={shipping.data}
+          products={products.data}
+        />
+      ) : null}
 
       <Unpublished live={products.data?.filter((product) => product.needsPublish) ?? []} />
 
@@ -252,13 +268,37 @@ interface WiringProps {
     publicUrl: string;
     production: boolean;
   };
+  /** The shipping table, or undefined while it loads. */
+  shipping?: ShippingTable | undefined;
+  /** Every product, so a download-only store can be told apart from a shop. */
+  products?: ProductSummary[] | undefined;
 }
 
-/** Exported for its own test: the production/localhost rule below is a
- *  four-way truth table, and reaching it through the whole dashboard would
- *  mean mocking four unrelated queries to assert one alert. */
-export function Wiring({ environment }: WiringProps) {
-  const notices = [];
+interface Notice {
+  type: "info" | "warning";
+  title: string;
+  description: ReactNode;
+}
+
+/**
+ * The cart a coverage gap is probed with.
+ *
+ * Small and light, which is the case most likely to fall outside a weight
+ * band's lower bound — the same probe the Shipping page uses, so the two
+ * screens cannot disagree about whether a table has a hole in it.
+ */
+const GAP_PROBE = { weightGrams: 100, subtotalCents: 1000 };
+
+/** Exported for its own test: the rules below are a truth table over
+ *  production, shipping rates and product kind, and reaching them through the
+ *  whole dashboard would mean mocking four queries to assert one alert. */
+export function Wiring({ environment, shipping, products }: WiringProps) {
+  const gaps = useMemo(
+    () => (shipping ? findCoverageGaps(shipping.rates, shipping.zones, GAP_PROBE) : []),
+    [shipping],
+  );
+
+  const notices: Notice[] = [];
 
   /*
    * First, because it breaks the most at once and shows no symptom.
@@ -302,6 +342,48 @@ export function Wiring({ environment }: WiringProps) {
     });
   }
 
+  /*
+   * The default that costs money on the very first order.
+   *
+   * The Shipping page says this plainly, but only to someone who thought to
+   * visit it; every session starts here. Gated on there being something to
+   * ship: a store selling only downloads needs no rates, and warning it about
+   * free postage would be noise it could never act on. See docs/shipping.md
+   * §3.3, which calls this the silent failure.
+   */
+  const shipsSomething = (products ?? []).some(
+    (product) => product.isLive && product.kind === "physical",
+  );
+
+  if (shipping && shipping.rates.length === 0 && shipsSomething) {
+    notices.push({
+      type: "warning" as const,
+      title: "No shipping rates",
+      description: (
+        <>
+          Checkout offers no shipping and charges nothing for postage. Add a rate under{" "}
+          <Link to="/admin/shipping">Shipping</Link>, or every order ships free.
+        </>
+      ),
+    });
+  }
+
+  // The other silent case from the same section: the buyer is offered nothing
+  // and pays nothing, and only the arriving order says so.
+  if (gaps.length > 0) {
+    notices.push({
+      type: "warning" as const,
+      title: "Some destinations have no rate",
+      description: (
+        <>
+          A cart going to {countryName(gaps[0]!.countryCode)}
+          {gaps.length > 1 ? ` and ${gaps.length - 1} more` : ""} matches no rate, so the buyer
+          pays nothing for postage. Fix it under <Link to="/admin/shipping">Shipping</Link>.
+        </>
+      ),
+    });
+  }
+
   if (!environment.hasEmail) {
     notices.push({
       type: "info" as const,
@@ -313,20 +395,23 @@ export function Wiring({ environment }: WiringProps) {
 
   if (notices.length === 0) {
     return (
-      <Alert
-        className={cx(styles.wiring)}
-        type="success"
-        showIcon
-        title={
-          <>
-            Everything is wired up{" "}
-            <Tag color={environment.stripeMode === "live" ? "red" : "blue"}>
-              Stripe {environment.stripeMode}
-            </Tag>
-            <Tag>{environment.database}</Tag>
-          </>
-        }
-      />
+      <div className={cx(styles.wiring)}>
+        <Alert
+          className={cx(styles.notice)}
+          type="success"
+          showIcon
+          title={
+            <>
+              Everything is wired up{" "}
+              <Tag color={environment.stripeMode === "live" ? "red" : "blue"}>
+                Stripe {environment.stripeMode}
+              </Tag>
+              <Tag>{environment.database}</Tag>
+            </>
+          }
+        />
+        <DiscountCodes environment={environment} />
+      </div>
     );
   }
 
@@ -342,6 +427,47 @@ export function Wiring({ environment }: WiringProps) {
           description={notice.description}
         />
       ))}
+      <DiscountCodes environment={environment} />
     </div>
+  );
+}
+
+/**
+ * Where discount codes live, said once on the first screen.
+ *
+ * Deliberately outside the `notices` list: everything in there is something
+ * not wired up, and its emptiness is what earns the "Everything is wired up"
+ * summary. This is a pointer, not a gap — a store with codes waiting in Stripe
+ * is perfectly configured — so putting it in that list would mean no connected
+ * store ever saw the summary again.
+ *
+ * Codes live in Stripe by design (task 03), and the word "discount" appears
+ * nowhere else in this UI, so a merchant who has not read the README looks for
+ * the feature, does not find it, and concludes it is missing.
+ */
+function DiscountCodes({ environment }: { environment: WiringProps["environment"] }) {
+  if (!environment.hasStripeSecret) return null;
+
+  const coupons =
+    environment.stripeMode === "live"
+      ? "https://dashboard.stripe.com/coupons"
+      : "https://dashboard.stripe.com/test/coupons";
+
+  return (
+    <Alert
+      className={cx(styles.notice)}
+      type="info"
+      showIcon
+      title="Discount codes"
+      description={
+        <>
+          Codes are created and managed in Stripe, and the checkout page accepts them.{" "}
+          <a href={coupons} target="_blank" rel="noreferrer">
+            Open the coupons dashboard
+          </a>
+          .
+        </>
+      }
+    />
   );
 }

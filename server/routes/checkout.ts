@@ -102,7 +102,10 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
       variantId: variant.id,
       productName: product.name,
       variantLabel: variant.label,
-      // From the database, not the request.
+      sku: variant.sku,
+      // From the database, not the request. compareAtPriceCents never enters
+      // this line, or subtotalCents below — it is display-only, and it is
+      // never what a shopper is actually charged.
       unitPriceCents: variant.priceCents,
       quantity: line.quantity,
       options: line.options,

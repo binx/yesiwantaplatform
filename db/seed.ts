@@ -89,6 +89,8 @@ export async function seedStore(store: Store = demoStore): Promise<void> {
         productId: product.id,
         label: variant.label,
         priceCents: variant.priceCents,
+        sku: variant.sku,
+        compareAtPriceCents: variant.compareAtPriceCents,
         inventoryType: variant.inventory.type,
         inventoryQuantity: variant.inventory.type === "finite" ? variant.inventory.quantity : 0,
         weightGrams: variant.weightGrams,
@@ -118,6 +120,7 @@ export async function seedStore(store: Store = demoStore): Promise<void> {
         width: image.width,
         height: image.height,
         alt: image.alt,
+        variantId: image.variantId,
         widths: json(image.widths),
         position: iIndex,
       });

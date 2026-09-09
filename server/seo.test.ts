@@ -323,7 +323,15 @@ describe("metaForPath", () => {
       seoDescription: null,
       taxCode: null,
       variants: [
-        { label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0, optionValues: [] },
+        {
+          label: "",
+          priceCents: 100,
+          sku: null,
+          compareAtPriceCents: null,
+          inventory: { type: "infinite" },
+          weightGrams: 0,
+          optionValues: [],
+        },
       ],
       options: [],
       optionGroups: [],
@@ -354,7 +362,15 @@ describe("crawler files", () => {
       seoDescription: null,
       taxCode: null,
       variants: [
-        { label: "", priceCents: 100, inventory: { type: "infinite" }, weightGrams: 0, optionValues: [] },
+        {
+          label: "",
+          priceCents: 100,
+          sku: null,
+          compareAtPriceCents: null,
+          inventory: { type: "infinite" },
+          weightGrams: 0,
+          optionValues: [],
+        },
       ],
       options: [],
       optionGroups: [],

@@ -1,4 +1,4 @@
-import { FEATURED_SLUG, type Collection, type Product, type Store } from "./schema.js";
+import { FEATURED_SLUG, type Collection, type Image, type Product, type Store } from "./schema.js";
 import type { Cents } from "./money.js";
 
 /**
@@ -57,6 +57,27 @@ export function isSoldOut(product: Product): boolean {
   return product.variants.every(
     (v) => v.inventory.type === "finite" && v.inventory.quantity === 0,
   );
+}
+
+/** True when any variant is marked down — what the storefront's Sale badge shows. */
+export function hasCompareAt(product: Product): boolean {
+  return product.variants.some((v) => v.compareAtPriceCents !== null);
+}
+
+/**
+ * A product's images, with the selected variant's own pictures moved to the
+ * front — everything else keeps its existing order. Stable, so switching
+ * variants and switching back returns the same order rather than reshuffling
+ * on every render.
+ */
+export function orderImagesForVariant(images: Image[], variantId: string | null): Image[] {
+  if (variantId === null) return images;
+
+  const forVariant = images.filter((image) => image.variantId === variantId);
+  if (forVariant.length === 0) return images;
+
+  const rest = images.filter((image) => image.variantId !== variantId);
+  return [...forVariant, ...rest];
 }
 
 export type SortOrder = "featured" | "price-asc" | "price-desc" | "name";

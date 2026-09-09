@@ -45,6 +45,7 @@ export interface PendingOrderLine {
   variantId: string;
   productName: string;
   variantLabel: string;
+  sku: string | null;
   /** Read from the database, never from the client. */
   unitPriceCents: number;
   quantity: number;
@@ -88,6 +89,7 @@ export async function createPendingOrder(input: CreatePendingOrderInput): Promis
       variantId: line.variantId,
       productName: line.productName,
       variantLabel: line.variantLabel,
+      sku: line.sku,
       unitPriceCents: line.unitPriceCents,
       quantity: line.quantity,
       options: json(line.options),
@@ -128,6 +130,7 @@ interface OrderItemRow {
   variantId: string | null;
   productName: string;
   variantLabel: string;
+  sku: string | null;
   unitPriceCents: number;
   quantity: number;
   options: unknown;
@@ -165,6 +168,7 @@ function buildOrder(row: OrderRow, items: OrderItemRow[]): Order {
       variantId: i.variantId,
       productName: i.productName,
       variantLabel: i.variantLabel,
+      sku: i.sku,
       unitPriceCents: i.unitPriceCents,
       quantity: i.quantity,
       options: parseJson<Record<string, string>>(i.options, {}),

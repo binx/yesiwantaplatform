@@ -11,6 +11,19 @@ import { z } from "zod";
 /** Integer minor units. See shared/money.ts — never a float. */
 export const centsSchema = z.number().int().min(0);
 
+/**
+ * What a warehouse or accounting import keys on — never used by Beluga itself
+ * to look a variant up. Trimmed, then required to contain no whitespace at
+ * all, since a SKU with a space in it usually means two fields got pasted
+ * into one cell.
+ */
+export const skuSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(/^\S+$/, "must not contain whitespace");
+
 export const slugSchema = z
   .string()
   .min(1)
@@ -32,6 +45,12 @@ export const imageSchema = z.object({
    * did before this field.
    */
   widths: z.array(z.number().int().positive()).default([]),
+  /**
+   * Which variant this belongs to. Null means the whole product — every image
+   * before this field existed, and a collection cover or the store logo,
+   * which share this schema but have no notion of a variant.
+   */
+  variantId: z.string().min(1).nullable().default(null),
 });
 
 /**
@@ -53,6 +72,9 @@ export const variantSchema = z.object({
    */
   label: z.string(),
   priceCents: centsSchema,
+  sku: skuSchema.nullable().default(null),
+  /** The pre-markdown price, struck through beside `priceCents`. Never charged. */
+  compareAtPriceCents: centsSchema.nullable().default(null),
   inventory: inventorySchema,
   /**
    * Shipping weight in grams. Zero means the store has not recorded one, which

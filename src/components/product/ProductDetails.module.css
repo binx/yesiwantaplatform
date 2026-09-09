@@ -13,6 +13,13 @@
   font-size: 1.125rem;
 }
 
+.compareAtPrice {
+  margin-right: 0.5em;
+  color: var(--beluga-muted);
+  font-size: 1em;
+  font-weight: normal;
+}
+
 .description {
   margin: 0;
   color: var(--beluga-muted);

@@ -29,6 +29,7 @@ export type Row = Record<string, unknown>;
  */
 export interface SelectBuilder extends PromiseLike<Row[]> {
   from(table: unknown): SelectBuilder;
+  innerJoin(table: unknown, condition: unknown): SelectBuilder;
   where(condition?: unknown): SelectBuilder;
   orderBy(...columns: unknown[]): SelectBuilder;
   limit(count: number): SelectBuilder;

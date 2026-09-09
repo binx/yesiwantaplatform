@@ -101,8 +101,8 @@ describe("GET /api/admin/products.csv", () => {
     expect(response.text.slice(1).split("\r\n")[0]).toBe(
       "slug,name,kind,description,bullet_points,seo_title,seo_description,tax_code," +
         "option1_name,option1_value,option2_name,option2_value,option3_name,option3_value," +
-        "variant_price_cents,variant_inventory_type,variant_inventory_quantity," +
-        "variant_weight_grams,is_live,image_paths",
+        "variant_sku,variant_price_cents,variant_compare_at_price_cents,variant_inventory_type," +
+        "variant_inventory_quantity,variant_weight_grams,is_live,image_paths,variant_image_paths",
     );
   });
 

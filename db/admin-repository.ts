@@ -33,6 +33,48 @@ export class SlugTakenError extends Error {
   }
 }
 
+export class SkuTakenError extends Error {
+  constructor(sku: string, otherProductName: string) {
+    super(`The SKU "${sku}" is already used by "${otherProductName}".`);
+    this.name = "SkuTakenError";
+  }
+}
+
+/**
+ * Checked before any write, not left to the partial unique index alone:
+ * `writeVariants` inserts and updates row by row with no transaction, so a
+ * violation partway through would leave a half-written product. Two passes —
+ * within the incoming variants first (the index can't see a duplicate until
+ * both rows exist), then against every other product's variants.
+ */
+async function assertSkuFree(input: ProductInput, excludeProductId?: string): Promise<void> {
+  const skus = input.variants.map((v) => v.sku).filter((sku): sku is string => sku !== null);
+  if (skus.length === 0) return;
+
+  const seen = new Set<string>();
+  for (const sku of skus) {
+    if (seen.has(sku)) {
+      throw new SkuTakenError(sku, "another variant of this same product");
+    }
+    seen.add(sku);
+  }
+
+  const { drizzle: db, schema } = await getDatabase();
+
+  const filters = [inArray(schema.variants.sku, skus)];
+  if (excludeProductId) filters.push(ne(schema.variants.productId, excludeProductId));
+
+  const rows = (await db
+    .select({ sku: schema.variants.sku, productName: schema.products.name })
+    .from(schema.variants)
+    .innerJoin(schema.products, eq(schema.variants.productId, schema.products.id))
+    .where(and(...filters))
+    .limit(1)) as unknown as { sku: string; productName: string }[];
+
+  const row = rows[0];
+  if (row) throw new SkuTakenError(row.sku, row.productName);
+}
+
 async function assertSlugFree(
   kind: "product" | "collection",
   slug: string,
@@ -58,6 +100,7 @@ export async function createProduct(input: ProductInput): Promise<string> {
   const json = (v: unknown) => jsonFor(dialect === "pg", v);
 
   await assertSlugFree("product", input.slug);
+  await assertSkuFree(input);
 
   const id = randomUUID();
   await db.insert(schema.products).values({
@@ -89,6 +132,7 @@ export async function updateProduct(id: string, input: ProductInput): Promise<vo
   const json = (v: unknown) => jsonFor(dialect === "pg", v);
 
   await assertSlugFree("product", input.slug, id);
+  await assertSkuFree(input, id);
 
   await db
     .update(schema.products)
@@ -194,6 +238,8 @@ async function writeVariants(
       productId,
       label: input.options.length > 0 ? regenerateLabel(variant.optionValues) : variant.label,
       priceCents: variant.priceCents,
+      sku: variant.sku,
+      compareAtPriceCents: variant.compareAtPriceCents,
       inventoryType: variant.inventory.type,
       inventoryQuantity: variant.inventory.type === "finite" ? variant.inventory.quantity : 0,
       weightGrams: variant.weightGrams,
@@ -325,10 +371,22 @@ export async function removeProductImage(
   return row.path;
 }
 
-export async function updateProductImageAlt(
+export class VariantOwnershipError extends Error {
+  constructor() {
+    super("That variant does not belong to this product.");
+    this.name = "VariantOwnershipError";
+  }
+}
+
+/**
+ * Alt text and variant assignment, patched independently: an absent key is
+ * left alone rather than cleared, so one can change without resending the
+ * other.
+ */
+export async function updateProductImage(
   productId: string,
   imagePath: string,
-  alt: string,
+  patch: { alt?: string; variantId?: string | null },
 ): Promise<boolean> {
   const { drizzle: db, schema } = await getDatabase();
 
@@ -343,7 +401,28 @@ export async function updateProductImageAlt(
   const row = rows[0];
   if (!row) return false;
 
-  await db.update(schema.productImages).set({ alt }).where(eq(schema.productImages.id, row.id));
+  // The foreign key alone would let an image point at another product's
+  // variant, where it could never be selected on the storefront.
+  if (patch.variantId) {
+    const owned = (await db
+      .select({ id: schema.variants.id })
+      .from(schema.variants)
+      .where(
+        and(eq(schema.variants.id, patch.variantId), eq(schema.variants.productId, productId)),
+      )
+      .limit(1)) as unknown as { id: string }[];
+
+    if (owned.length === 0) throw new VariantOwnershipError();
+  }
+
+  const values: { alt?: string; variantId?: string | null } = {};
+  if (patch.alt !== undefined) values.alt = patch.alt;
+  if (patch.variantId !== undefined) values.variantId = patch.variantId;
+
+  if (Object.keys(values).length > 0) {
+    await db.update(schema.productImages).set(values).where(eq(schema.productImages.id, row.id));
+  }
+
   return true;
 }
 

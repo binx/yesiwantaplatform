@@ -246,6 +246,7 @@ function orderPayload(order: Order): Record<string, unknown> {
       variantId: item.variantId,
       productName: item.productName,
       variantLabel: item.variantLabel,
+      sku: item.sku,
       unitPriceCents: item.unitPriceCents,
       quantity: item.quantity,
       options: { ...item.options },
@@ -270,6 +271,7 @@ function productPayload(product: Product, stripeProductId: string): Record<strin
       id: variant.id,
       label: variant.label,
       priceCents: variant.priceCents,
+      sku: variant.sku,
     })),
   };
 }

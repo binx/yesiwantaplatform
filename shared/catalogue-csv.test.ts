@@ -36,6 +36,8 @@ function product(overrides: Partial<Product> = {}): Product {
         id: "v1",
         label: "",
         priceCents: 3400,
+        sku: "CANVAS-TOTE",
+        compareAtPriceCents: 3900,
         inventory: { type: "infinite" },
         weightGrams: 0,
         stripePriceId: null,
@@ -71,6 +73,8 @@ function twoAxisProduct(): Product {
       id: `v${index + 1}`,
       label: optionValues.join(" / "),
       priceCents: 2000 + index,
+      sku: `SHIRT-${index + 1}`,
+      compareAtPriceCents: null,
       inventory: { type: "finite" as const, quantity: index },
       weightGrams: 100,
       stripePriceId: null,
@@ -269,6 +273,34 @@ describe("the round trip", () => {
     ]);
   });
 
+  it("survives a SKU and a compare-at price; exports a per-variant image path", () => {
+    const withImage = product({
+      images: [
+        { path: "tote-front.png", width: 900, height: 1200, alt: "Front", widths: [], variantId: "v1" },
+      ],
+    });
+
+    const [row] = productCsvRows(withImage);
+    expect(row?.[CATALOGUE_CSV_COLUMNS.indexOf("variant_image_paths")]).toBe("tote-front.png");
+
+    const input = roundTrip([withImage]).entries[0]?.input;
+    expect(input?.variants[0]).toMatchObject({ sku: "CANVAS-TOTE", compareAtPriceCents: 3900 });
+  });
+
+  it("adopts a variant's id by SKU even when its option values have changed", () => {
+    const stored = product();
+    // Same SKU, different option values than what is stored — the row that
+    // renamed an axis value, not a genuinely new variant.
+    const plan = planFor(
+      "slug,name,variant_sku,variant_price_cents,option1_name,option1_value\n" +
+        "canvas-tote,Canvas Tote,CANVAS-TOTE,3400,Size,Medium\n",
+      [{ ...stored, options: [{ id: "o1", name: "Size", values: ["Small"] }] }],
+    );
+
+    expect(plan.errors).toEqual([]);
+    expect(plan.entries[0]?.input?.variants[0]?.id).toBe("v1");
+  });
+
   it("survives values a spreadsheet would otherwise evaluate", () => {
     const hostile = product({
       name: "=HYPERLINK(\"http://evil\")",
@@ -411,6 +443,40 @@ describe("errors", () => {
 
     expect(plan.errors[0]?.message).toContain("Small");
     expect(plan.errors[0]?.row).toBe(3);
+  });
+
+  it("rejects two rows in the same file naming the same SKU", () => {
+    const plan = planFor(
+      [
+        "slug,name,variant_sku,variant_price_cents,option1_name,option1_value",
+        "shirt,Shirt,DUP,2000,Size,Small",
+        "shirt,Shirt,DUP,2100,Size,Large",
+      ].join("\n"),
+    );
+
+    expect(plan.errors[0]).toMatchObject({ row: 3, column: "variant_sku" });
+    expect(plan.errors[0]?.message).toContain("DUP");
+  });
+
+  it("reports a bad compare-at price against its own column, not the price column", () => {
+    const plan = planFor(
+      "slug,name,variant_price_cents,variant_compare_at_price_cents\ntote,Tote,3400,19.99\n",
+    );
+
+    expect(plan.errors[0]).toMatchObject({ column: "variant_compare_at_price_cents" });
+  });
+
+  it("rejects a compare-at price that is not higher than the price", () => {
+    const plan = planFor(
+      "slug,name,variant_price_cents,variant_compare_at_price_cents\ntote,Tote,3400,3400\n",
+    );
+
+    expect(plan.errors[0]).toMatchObject({ column: "variant_compare_at_price_cents" });
+  });
+
+  it("rejects a SKU with whitespace in it", () => {
+    const plan = planFor("slug,name,variant_sku,variant_price_cents\ntote,Tote,TOTE 1,3400\n");
+    expect(plan.errors[0]).toMatchObject({ column: "variant_sku" });
   });
 
   it("rejects a second row for a product with no options", () => {

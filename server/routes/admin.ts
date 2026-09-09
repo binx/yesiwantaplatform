@@ -23,7 +23,9 @@ import {
 } from "../../shared/api.js";
 import { webhookEndpointInputSchema } from "../../shared/webhooks.js";
 import {
+  SkuTakenError,
   SlugTakenError,
+  VariantOwnershipError,
   addProductImage,
   collectionExists,
   createCollection,
@@ -40,7 +42,7 @@ import {
   reorderProducts,
   updateCollection,
   updateProduct,
-  updateProductImageAlt,
+  updateProductImage,
   updateSettings,
   clearStorefrontPassword,
   clearStorefrontShareToken,
@@ -163,9 +165,11 @@ adminRouter.use(requireAdmin, verifyCsrf, writeRateLimit);
 
 function toHttp(error: unknown): never {
   if (error instanceof SlugTakenError) throw httpError(409, error.message);
+  if (error instanceof SkuTakenError) throw httpError(409, error.message);
   if (error instanceof EmailTakenError) throw httpError(409, error.message);
   if (error instanceof StripeNotConfiguredError) throw httpError(503, error.message);
   if (error instanceof EndpointNotAllowedError) throw httpError(422, error.message);
+  if (error instanceof VariantOwnershipError) throw httpError(400, error.message);
   // The file's shape is wrong rather than its contents, so there is no row to
   // point at — the message says what the header must look like instead.
   if (error instanceof CsvFormatError) throw httpError(400, error.message);
@@ -571,12 +575,19 @@ adminRouter.delete("/products/:id/images", async (req, res) => {
 
 adminRouter.put("/products/:id/images", async (req, res) => {
   const parsed = imageAltInputSchema.safeParse(req.body);
-  if (!parsed.success) throw httpError(400, "An image path and alt text are required.");
+  if (!parsed.success) throw httpError(400, "An image path is required.");
 
-  const updated = await updateProductImageAlt(req.params.id, parsed.data.path, parsed.data.alt);
-  if (!updated) throw httpError(404, "Image not found on that product.");
+  try {
+    const updated = await updateProductImage(req.params.id, parsed.data.path, {
+      alt: parsed.data.alt,
+      variantId: parsed.data.variantId,
+    });
+    if (!updated) throw httpError(404, "Image not found on that product.");
 
-  res.status(204).end();
+    res.status(204).end();
+  } catch (error) {
+    toHttp(error);
+  }
 });
 
 adminRouter.post("/products/:id/images/reorder", async (req, res) => {
@@ -969,6 +980,7 @@ const CSV_COLUMNS = [
   "email",
   "product_name",
   "variant_label",
+  "sku",
   "options",
   "quantity",
   "unit_price_cents",
@@ -1079,6 +1091,7 @@ adminRouter.get("/orders.csv", async (req, res) => {
             order.email,
             item?.productName ?? "",
             item?.variantLabel ?? "",
+            item?.sku ?? "",
             item
               ? Object.entries(item.options)
                   .map(([key, value]) => `${key}: ${value}`)

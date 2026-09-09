@@ -266,8 +266,17 @@ export function useUpdateImageAlt() {
   const invalidate = useInvalidate();
 
   return useMutation({
-    mutationFn: ({ productId, path, alt }: { productId: string; path: string; alt: string }) =>
-      csrfPut<void>(`/admin/products/${productId}/images`, { path, alt }),
+    mutationFn: ({
+      productId,
+      path,
+      alt,
+      variantId,
+    }: {
+      productId: string;
+      path: string;
+      alt?: string;
+      variantId?: string | null;
+    }) => csrfPut<void>(`/admin/products/${productId}/images`, { path, alt, variantId }),
     onSuccess: () => invalidate(adminKeys.products),
   });
 }

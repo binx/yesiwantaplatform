@@ -76,6 +76,9 @@ interface DraftVariant {
   selections: Record<string, string>;
   /** Kept as text so a half-typed "19." is not destroyed mid-edit. */
   priceText: string;
+  sku: string;
+  /** Kept as text for the same reason priceText is. Empty means no sale. */
+  compareAtText: string;
   infinite: boolean;
   quantity: number;
   /** Grams. Only consulted by weight-banded shipping rates. */
@@ -120,6 +123,8 @@ function blankVariant(): DraftVariant {
     key: nextKey(),
     selections: {},
     priceText: "",
+    sku: "",
+    compareAtText: "",
     infinite: true,
     quantity: 0,
     weightGrams: 0,
@@ -199,6 +204,13 @@ function variantCents(variant: DraftVariant): number | null {
   return cents === null || cents < 0 ? null : cents;
 }
 
+/** Cents for a variant's compare-at price. Null means "not set" or invalid. */
+function variantCompareAtCents(variant: DraftVariant): number | null {
+  if (variant.compareAtText.trim() === "") return null;
+  const cents = parseCents(variant.compareAtText);
+  return cents === null || cents < 0 ? null : cents;
+}
+
 function comboLabel(options: DraftOption[], variant: DraftVariant): string {
   return options
     .map((option) => option.values.find((v) => v.key === variant.selections[option.key])?.text.trim() || "—")
@@ -235,6 +247,8 @@ function toInput(draft: Draft): ProductInput {
         // any options; it only matters here for a product with none.
         label: "",
         priceCents: variantCents(variant) ?? 0,
+        sku: variant.sku.trim() === "" ? null : variant.sku.trim(),
+        compareAtPriceCents: variantCompareAtCents(variant),
         inventory: variant.infinite
           ? { type: "infinite" }
           : { type: "finite", quantity: Math.max(0, Math.trunc(variant.quantity)) },
@@ -288,7 +302,28 @@ function problems(draft: Draft): Problem[] {
     if (variantCents(variant) === null) {
       found.push({ field: `variant-${index}`, message: `Price ${index + 1} is not an amount.` });
     }
+
+    if (variant.compareAtText.trim() !== "") {
+      const compareAt = variantCompareAtCents(variant);
+      const price = variantCents(variant);
+      if (compareAt === null) {
+        found.push({
+          field: `variant-compare-at-${index}`,
+          message: `The compare-at price for ${index + 1} is not an amount.`,
+        });
+      } else if (price !== null && compareAt <= price) {
+        found.push({
+          field: `variant-compare-at-${index}`,
+          message: `The compare-at price for ${index + 1} must be higher than the price, or it is not a markdown.`,
+        });
+      }
+    }
   });
+
+  const skus = draft.variants.map((variant) => variant.sku.trim()).filter(Boolean);
+  if (new Set(skus).size !== skus.length) {
+    found.push({ field: "variants", message: "Two prices use the same SKU." });
+  }
 
   draft.options.forEach((option, index) => {
     const name = option.name.trim() || `Option ${index + 1}`;
@@ -429,6 +464,9 @@ export function ProductEditorPage() {
           id: variant.id,
           selections,
           priceText: (variant.priceCents / 100).toFixed(2),
+          sku: variant.sku ?? "",
+          compareAtText:
+            variant.compareAtPriceCents === null ? "" : (variant.compareAtPriceCents / 100).toFixed(2),
           infinite: variant.inventory.type === "infinite",
           quantity: variant.inventory.type === "finite" ? variant.inventory.quantity : 0,
           weightGrams: variant.weightGrams,
@@ -988,6 +1026,40 @@ export function ProductEditorPage() {
                       </Field>
                     </div>
 
+                    <div className={cx(styles.variantField)}>
+                      <Field label="SKU" help="Shown on orders and exports. Optional.">
+                        {(control) => (
+                          <Input
+                            {...control}
+                            value={variant.sku}
+                            placeholder="TOTE-BLU-S"
+                            onChange={(event) => setVariant(variant.key, { sku: event.target.value })}
+                          />
+                        )}
+                      </Field>
+                    </div>
+
+                    <div className={cx(styles.variantField)}>
+                      <Field
+                        label="Compare-at price"
+                        error={issues.find((issue) => issue.field === `variant-compare-at-${index}`)?.message}
+                        help="Shown struck through, with a Sale badge. Leave blank for no sale."
+                      >
+                        {(control) => (
+                          <Input
+                            {...control}
+                            value={variant.compareAtText}
+                            inputMode="decimal"
+                            prefix={currency}
+                            placeholder="24.99"
+                            onChange={(event) =>
+                              setVariant(variant.key, { compareAtText: event.target.value })
+                            }
+                          />
+                        )}
+                      </Field>
+                    </div>
+
                     {/*
                       * A radio group is labelled by an element, not by `for` —
                       * there is no single control to point at — so it gets a
@@ -1227,7 +1299,14 @@ export function ProductEditorPage() {
           </Card>
 
           <Card title="Images" className={cx(styles.card)}>
-            <ImageManager productId={productId} images={images} onChange={setImages} />
+            <ImageManager
+              productId={productId}
+              images={images}
+              onChange={setImages}
+              variants={draft.variants
+                .filter((variant): variant is DraftVariant & { id: string } => Boolean(variant.id))
+                .map((variant) => ({ id: variant.id, label: comboLabel(draft.options, variant) }))}
+            />
           </Card>
         </div>
       </div>

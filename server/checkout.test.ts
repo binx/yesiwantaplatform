@@ -248,6 +248,55 @@ describe("checkout", () => {
       .send({ lines: [{ productId: "demo-tote", variantId: "demo-tote-s", quantity: 0 }] })
       .expect(400);
   });
+
+  it("checks out a product past listProducts's 200-item page", async () => {
+    const { createProduct } = await import("../db/admin-repository.js");
+    let lastProductId = "";
+    let lastVariantId = "";
+
+    for (let i = 0; i < 201; i++) {
+      const id = await createProduct({
+        slug: `page-overflow-${i}`,
+        name: `Page Overflow ${i}`,
+        kind: "physical",
+        description: "",
+        bulletPoints: [],
+        seoTitle: null,
+        seoDescription: null,
+        taxCode: null,
+        variants: [
+          {
+            label: "",
+            priceCents: 500,
+            sku: null,
+            compareAtPriceCents: null,
+            inventory: { type: "infinite" },
+            weightGrams: 0,
+            optionValues: [],
+          },
+        ],
+        options: [],
+        optionGroups: [],
+        isLive: true,
+      });
+
+      if (i === 200) {
+        const { findProductById } = await import("../db/repository.js");
+        const product = await findProductById(id, true);
+        lastProductId = id;
+        lastVariantId = product!.variants[0]!.id;
+        await publishVariant(lastVariantId, "price_test_page_overflow");
+      }
+    }
+
+    const response = await request(app)
+      .post("/api/checkout")
+      .send({
+        lines: [{ productId: lastProductId, variantId: lastVariantId, quantity: 1 }],
+      });
+
+    expect(response.status).toBe(200);
+  });
 });
 
 /**

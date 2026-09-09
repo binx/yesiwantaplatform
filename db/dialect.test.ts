@@ -336,6 +336,47 @@ for (const { name, context } of dialects) {
       expect(second.products[0]?.slug).not.toBe(first.products[0]?.slug);
     });
 
+    it("finds products by id, drafts included unless liveOnly", async () => {
+      const live = (await db.findProductBySlug("canvas-tote"))!;
+
+      const draftId = await db.admin.createProduct({
+        slug: "draft-by-id-test",
+        name: "Draft By Id Test",
+        kind: "physical",
+        description: "",
+        bulletPoints: [],
+        seoTitle: null,
+        seoDescription: null,
+        taxCode: null,
+        variants: [
+          {
+            label: "",
+            priceCents: 100,
+            sku: null,
+            compareAtPriceCents: null,
+            inventory: { type: "infinite" },
+            weightGrams: 0,
+            optionValues: [],
+          },
+        ],
+        options: [],
+        optionGroups: [],
+        isLive: false,
+      });
+
+      const unknownId = randomUUID();
+
+      const withDrafts = await db.findProductsByIds([live.id, draftId, unknownId], false);
+      expect(withDrafts.map((p) => p.id).sort()).toEqual([live.id, draftId].sort());
+
+      const liveOnly = await db.findProductsByIds([live.id, draftId, unknownId], true);
+      expect(liveOnly.map((p) => p.id)).toEqual([live.id]);
+
+      expect(await db.findProductsByIds([unknownId], false)).toEqual([]);
+
+      await db.admin.deleteProduct(draftId);
+    });
+
     it("cascades variants and images on delete", async () => {
 
       const id = await db.admin.createProduct({

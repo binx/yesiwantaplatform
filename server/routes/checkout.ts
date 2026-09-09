@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import type Stripe from "stripe";
 import { checkoutRequestSchema } from "../../shared/orders.js";
-import { getSettings, listProducts } from "../../db/repository.js";
+import { getSettings, findProductsByIds } from "../../db/repository.js";
 import {
   createPendingOrder,
   findOrderByCheckoutSession,
@@ -49,7 +49,8 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
   const allowedCountries = covered.length > 0 ? covered : ["US", "CA", "GB", "AU", "NZ", "IE"];
 
   // Load every referenced product once, by id, from the live catalogue.
-  const { products } = await listProducts({ liveOnly: true, limit: 200 });
+  const ids = [...new Set(parsed.data.lines.map((line) => line.productId))];
+  const products = await findProductsByIds(ids, true);
   const byId = new Map(products.map((p) => [p.id, p]));
 
   const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];

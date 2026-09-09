@@ -440,6 +440,45 @@ export async function findProductsBySlugs(slugs: string[]): Promise<Product[]> {
   return hydrate(rows);
 }
 
+/**
+ * Look several products up by id, drafts included unless `liveOnly`.
+ *
+ * `listProducts` pages at 200 for the storefront's benefit; checkout, the
+ * shipping quote and publish all resolve specific ids and reached for a page
+ * to do it, which silently failed past product 200. This is the lookup they
+ * actually needed.
+ */
+export async function findProductsByIds(ids: string[], liveOnly: boolean): Promise<Product[]> {
+  if (ids.length === 0) return [];
+
+  const { drizzle: db, schema } = await getDatabase();
+
+  // Chunked well under any driver's parameter limit; in practice one query,
+  // since checkoutRequestSchema caps a cart at 100 lines.
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += 500) chunks.push(ids.slice(i, i + 500));
+
+  const rows: ProductRow[] = [];
+  for (const chunk of chunks) {
+    const filters = [inArray(schema.products.id, chunk)];
+    if (liveOnly) filters.push(eq(schema.products.isLive, true));
+
+    rows.push(
+      ...((await db
+        .select()
+        .from(schema.products)
+        .where(and(...filters))) as unknown as ProductRow[]),
+    );
+  }
+
+  return hydrate(rows);
+}
+
+export async function findProductById(id: string, liveOnly = false): Promise<Product | null> {
+  const [product] = await findProductsByIds([id], liveOnly);
+  return product ?? null;
+}
+
 export async function listCollections(): Promise<Collection[]> {
   const { drizzle: db, schema } = await getDatabase();
 

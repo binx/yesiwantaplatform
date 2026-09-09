@@ -52,6 +52,22 @@ export const storeSettings = pgTable("store_settings", {
   themeLogoWidth: integer("theme_logo_width"),
   themeLogoHeight: integer("theme_logo_height"),
   themeLogoAlt: text("theme_logo_alt"),
+  /*
+   * The landing page's opening block.
+   *
+   * Copy, not look, which is why these are not `theme_*`: a shop changing its
+   * palette is not changing its sentence. All nullable, and every reader has a
+   * fallback — a store that sets none of them renders exactly as it did before
+   * the columns existed. See `heroSchema` in shared/schema.ts.
+   */
+  heroHeading: text("hero_heading"),
+  heroText: text("hero_text"),
+  heroButtonLabel: text("hero_button_label"),
+  heroButtonHref: text("hero_button_href"),
+  heroImagePath: text("hero_image_path"),
+  heroImageWidth: integer("hero_image_width"),
+  heroImageHeight: integer("hero_image_height"),
+  heroImageAlt: text("hero_image_alt"),
   ...timestamps,
 });
 
@@ -287,6 +303,16 @@ export const collections = pgTable(
     coverWidth: integer("cover_width"),
     coverHeight: integer("cover_height"),
     coverAlt: text("cover_alt"),
+    /*
+     * The collection's own introduction, as Markdown.
+     *
+     * Stored as source and rendered on the way out through
+     * `server/markdown.ts`, the same as a page body — so tightening the
+     * allow-list applies retroactively, and the storefront ships no parser.
+     * Null for a collection that says nothing, which is every collection that
+     * existed before this column.
+     */
+    description: text("description"),
     position: integer("position").notNull().default(0),
     ...timestamps,
   },

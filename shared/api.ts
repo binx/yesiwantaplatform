@@ -14,6 +14,8 @@ import {
   taxBehaviorSchema,
   taxCodeSchema,
   themeSchema,
+  heroSchema,
+  defaultHero,
 } from "./schema.js";
 
 /**
@@ -98,6 +100,14 @@ export const collectionInputSchema = z.object({
    * points at it.
    */
   cover: imageSchema.nullable().default(null),
+  /**
+   * The collection's own introduction, as Markdown source.
+   *
+   * Source rather than HTML, and rendered on the way out — see
+   * `server/markdown.ts`. 5,000 characters is an introduction; anything longer
+   * is a page, and pages already exist (task 08).
+   */
+  description: z.string().max(5000).nullable().default(null),
   productIds: z.array(z.string()).max(500).default([]),
 });
 
@@ -141,6 +151,13 @@ export const settingsInputSchema = z.object({
     .nullable()
     .default(null),
   aboutText: z.string().max(20000).nullable().default(null),
+  /**
+   * The landing page's opening block.
+   *
+   * The same shape the storefront receives, so Settings edits exactly what the
+   * page reads. `buttonHref` carries its own refusal — see `heroHrefSchema`.
+   */
+  hero: heroSchema.default(defaultHero),
   /**
    * Tax. Off unless the merchant has said otherwise — see the Settings copy,
    * which is most of this feature: Stripe Tax is a paid add-on, the

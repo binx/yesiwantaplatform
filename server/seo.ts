@@ -35,6 +35,32 @@ export interface ResolvedMeta extends PageMeta {
   status: 200 | 404;
 }
 
+/**
+ * The readable text inside a fragment of rendered HTML.
+ *
+ * Only ever applied to the output of `server/markdown.ts`, which has already
+ * been through the sanitiser — so this is a formatting step, not a security
+ * one, and it must never be mistaken for the thing that makes HTML safe. The
+ * entity decoding covers the handful the renderer emits; anything it misses
+ * arrives as literal text in a meta description, which is ugly rather than
+ * dangerous.
+ */
+function plainText(html: string): string {
+  const entities: Record<string, string> = {
+    amp: "&",
+    lt: "<",
+    gt: ">",
+    quot: '"',
+    "#39": "'",
+  };
+
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&(amp|lt|gt|quot|#39);/g, (_match, entity: string) => entities[entity] ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Google truncates a description here, so there is no point sending more. */
 const DESCRIPTION_LIMIT = 160;
 
@@ -142,10 +168,21 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
       const found = await findCollectionBySlug(decodeURIComponent(collection[1]!));
       if (!found) return missing;
 
+      /*
+       * The collection's own words when it has any.
+       *
+       * This is the reason a description belongs on the collection rather than
+       * in a Page: the link preview for /collection/home-goods gets better for
+       * free. Tags are stripped rather than escaped — the value goes into a
+       * `content="…"` attribute, where markup is noise, and rendered HTML is
+       * the only form the server holds.
+       */
+      const introduction = plainText(found.descriptionHtml);
+
       return {
         ...fallback,
         title: `${found.name} · ${storeName}`,
-        description: `${found.name} from ${storeName}.`,
+        description: introduction ? truncate(introduction) : `${found.name} from ${storeName}.`,
         image: found.cover ? absolute(found.cover.path) : null,
       };
     }

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, isNull, max, ne } from "drizzle-orm";
 import type { CollectionInput, ProductInput, SettingsInput } from "../shared/api.js";
-import type { ProductKind } from "../shared/schema.js";
+import { collectionDraftSchema, type CollectionDraft, type ProductKind } from "../shared/schema.js";
 import { regenerateLabel } from "../shared/product-options.js";
 import { taxSignature } from "../shared/tax.js";
 import { getDatabase } from "./client.js";
@@ -380,6 +380,60 @@ function coverColumns(cover: CollectionInput["cover"]) {
   };
 }
 
+/**
+ * Collections as the admin edits them: Markdown source, not rendered HTML.
+ *
+ * The mirror of `listPageDrafts`. `listCollections` renders on the way out for
+ * the storefront; handing that same HTML to the editor would mean the next
+ * save either stored HTML or silently dropped what the merchant wrote.
+ */
+export async function listCollectionDrafts(): Promise<CollectionDraft[]> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const rows = (await db
+    .select()
+    .from(schema.collections)
+    .orderBy(asc(schema.collections.position), asc(schema.collections.name))) as unknown as {
+    id: string;
+    slug: string;
+    name: string;
+    coverPath: string | null;
+    coverWidth: number | null;
+    coverHeight: number | null;
+    coverAlt: string | null;
+    description: string | null;
+  }[];
+
+  if (rows.length === 0) return [];
+
+  const links = (await db
+    .select()
+    .from(schema.collectionProducts)
+    .orderBy(asc(schema.collectionProducts.position))) as unknown as {
+    collectionId: string;
+    productId: string;
+  }[];
+
+  return rows.map((row) =>
+    collectionDraftSchema.parse({
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      cover:
+        row.coverPath && row.coverWidth && row.coverHeight
+          ? {
+              path: row.coverPath,
+              width: row.coverWidth,
+              height: row.coverHeight,
+              alt: row.coverAlt ?? "",
+            }
+          : null,
+      description: row.description,
+      productIds: links.filter((l) => l.collectionId === row.id).map((l) => l.productId),
+    }),
+  );
+}
+
 export async function createCollection(input: CollectionInput): Promise<string> {
   const { drizzle: db, schema } = await getDatabase();
 
@@ -390,6 +444,7 @@ export async function createCollection(input: CollectionInput): Promise<string> 
     id,
     slug: input.slug,
     name: input.name,
+    description: blankToNull(input.description),
     ...coverColumns(input.cover),
     position: await nextPosition(schema.collections, schema.collections.position),
   });
@@ -405,7 +460,12 @@ export async function updateCollection(id: string, input: CollectionInput): Prom
 
   await db
     .update(schema.collections)
-    .set({ slug: input.slug, name: input.name, ...coverColumns(input.cover) })
+    .set({
+      slug: input.slug,
+      name: input.name,
+      description: blankToNull(input.description),
+      ...coverColumns(input.cover),
+    })
     .where(eq(schema.collections.id, id));
 
   await setCollectionProducts(id, input.productIds);
@@ -460,6 +520,12 @@ export async function reorderProducts(ids: string[]): Promise<void> {
   }
 }
 
+/** "" and "   " both mean "no value", so both become the column's null. */
+function blankToNull(value: string | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
 export async function updateSettings(input: SettingsInput): Promise<void> {
   const { drizzle: db, schema } = await getDatabase();
 
@@ -483,6 +549,17 @@ export async function updateSettings(input: SettingsInput): Promise<void> {
     themeLogoWidth: input.theme.logo?.width ?? null,
     themeLogoHeight: input.theme.logo?.height ?? null,
     themeLogoAlt: input.theme.logo?.alt ?? null,
+    // Empty is not a value here: a merchant clearing the heading means "go
+    // back to the store name", and storing "" would render an empty <h1>
+    // instead. Null is the only way to say "use the default".
+    heroHeading: blankToNull(input.hero.heading),
+    heroText: blankToNull(input.hero.text),
+    heroButtonLabel: blankToNull(input.hero.buttonLabel),
+    heroButtonHref: blankToNull(input.hero.buttonHref),
+    heroImagePath: input.hero.image?.path ?? null,
+    heroImageWidth: input.hero.image?.width ?? null,
+    heroImageHeight: input.hero.image?.height ?? null,
+    heroImageAlt: input.hero.image?.alt ?? null,
   };
 
   const existing = (await db

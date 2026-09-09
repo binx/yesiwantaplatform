@@ -2,7 +2,7 @@ import { useId, type ReactNode } from "react";
 import { cx } from "@/lib/cx";
 import styles from "./Field.module.css";
 
-interface ControlProps {
+export interface ControlProps {
   id: string;
   "aria-describedby": string | undefined;
   "aria-invalid": boolean | undefined;

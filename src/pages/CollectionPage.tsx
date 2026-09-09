@@ -4,7 +4,9 @@ import { PageWrapper } from "@/components/layout/PageWrapper";
 import { ProductBrowser } from "@/components/product/ProductBrowser";
 import { useStore } from "@/lib/useStore";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
+import { cx } from "@/lib/cx";
 import { NotFoundPage } from "./NotFoundPage";
+import styles from "./CollectionPage.module.css";
 
 export function CollectionPage() {
   const store = useStore();
@@ -44,6 +46,23 @@ export function CollectionPage() {
   return (
     <PageWrapper width="wide">
       <h1>{collection.name}</h1>
+
+      {/*
+        * Server-rendered and server-sanitised — see server/markdown.ts. The
+        * storefront ships no Markdown parser and does not have to trust what
+        * it is handed; the allow-list is applied on the way out, so tightening
+        * it reaches every collection already written.
+        *
+        * Above the search and sort controls: it introduces the collection, and
+        * a shopper who has typed a query is past being introduced to it.
+        */}
+      {collection.descriptionHtml ? (
+        <div
+          className={cx(styles.description)}
+          dangerouslySetInnerHTML={{ __html: collection.descriptionHtml }}
+        />
+      ) : null}
+
       {/* Scoped to this collection: a shopper in "Paper goods" searching for
           "print" means a print in here, not one anywhere in the store. */}
       <ProductBrowser

@@ -175,6 +175,71 @@ for (const { name, context } of dialects) {
       expect(page?.body).toContain("\n\n");
     });
 
+    it("round-trips the hero columns on either engine", async () => {
+      const settings = (await db.getSettings())!;
+
+      await db.admin.updateSettings({
+        ...settings,
+        hero: {
+          heading: "Small runs",
+          text: "Made in batches of forty.",
+          buttonLabel: "Browse",
+          buttonHref: "/collection/home-goods",
+          image: { path: "hero/one.png", width: 2400, height: 1200, alt: "", widths: [] },
+        },
+      });
+
+      const updated = await db.getSettings();
+
+      expect(updated?.hero).toMatchObject({
+        heading: "Small runs",
+        text: "Made in batches of forty.",
+        buttonLabel: "Browse",
+        buttonHref: "/collection/home-goods",
+      });
+      expect(updated?.hero.image).toMatchObject({ path: "hero/one.png", width: 2400 });
+
+      // Cleared means null, not "": the reader falls back on null, and an
+      // empty heading would render an empty <h1> on both engines alike.
+      await db.admin.updateSettings({
+        ...settings,
+        hero: { heading: "", text: "  ", buttonLabel: null, buttonHref: null, image: null },
+      });
+
+      const cleared = await db.getSettings();
+      expect(cleared?.hero).toEqual({
+        heading: null,
+        text: null,
+        buttonLabel: null,
+        buttonHref: null,
+        image: null,
+      });
+    });
+
+    it("round-trips a collection description on either engine", async () => {
+      const collections = await db.admin.listCollectionDrafts();
+      const first = collections[0]!;
+
+      await db.admin.updateCollection(first.id, {
+        slug: first.slug,
+        name: first.name,
+        cover: first.cover,
+        description: "Things for the **table**.",
+        productIds: first.productIds,
+      });
+
+      // The admin shape keeps the source; the storefront shape renders it.
+      const drafts = await db.admin.listCollectionDrafts();
+      expect(drafts.find((c) => c.id === first.id)?.description).toBe(
+        "Things for the **table**.",
+      );
+
+      const shown = await db.listCollections();
+      expect(shown.find((c) => c.id === first.id)?.descriptionHtml).toContain(
+        "<strong>table</strong>",
+      );
+    });
+
     it("round-trips the tax settings on either engine", async () => {
       const settings = (await db.getSettings())!;
 
@@ -188,6 +253,7 @@ for (const { name, context } of dialects) {
         defaultTaxCode: "txcd_20030000",
         cartRecoveryEnabled: settings.cartRecoveryEnabled,
         cartRecoveryDelayHours: settings.cartRecoveryDelayHours,
+        hero: settings.hero,
         theme: settings.theme,
       });
 
@@ -208,6 +274,7 @@ for (const { name, context } of dialects) {
         defaultTaxCode: settings.defaultTaxCode,
         cartRecoveryEnabled: settings.cartRecoveryEnabled,
         cartRecoveryDelayHours: settings.cartRecoveryDelayHours,
+        hero: settings.hero,
         theme: settings.theme,
       });
     });

@@ -79,6 +79,11 @@ const MUTATIONS = [
   { method: "put", path: "/api/admin/pages/demo-page" },
   { method: "delete", path: "/api/admin/pages/demo-page" },
   { method: "put", path: "/api/admin/settings" },
+  // Both image uploads. `settings/logo` predates this list and was never in
+  // it — an unprotected upload endpoint is exactly what this file exists to
+  // stop shipping, so it is added here alongside the new one.
+  { method: "post", path: "/api/admin/settings/logo" },
+  { method: "post", path: "/api/admin/settings/hero-image" },
   { method: "post", path: "/api/admin/email/test" },
   { method: "put", path: "/api/admin/shipping" },
   { method: "put", path: "/api/admin/orders/demo-order" },

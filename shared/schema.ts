@@ -158,13 +158,34 @@ export const productSchema = z.object({
   stripeTaxSignature: z.string().nullable().default(null),
 });
 
+/**
+ * A collection as a shopper receives it.
+ *
+ * `descriptionHtml` is rendered from stored Markdown and sanitised on the
+ * server, exactly as `pageSchema.bodyHtml` is — the storefront ships no parser
+ * and does not have to trust what it is handed. The Markdown source stays on
+ * the admin shape, the same split `pageSchema` / `pageDraftSchema` make.
+ */
 export const collectionSchema = z.object({
   id: z.string().min(1),
   slug: slugSchema,
   name: z.string().min(1),
   cover: imageSchema.nullable().default(null),
+  /** Rendered introduction, or "" for a collection that says nothing. */
+  descriptionHtml: z.string().default(""),
   /** Product ids, in display order. */
   productIds: z.array(z.string()).default([]),
+});
+
+/**
+ * A collection as its editor receives it: Markdown source, not HTML.
+ *
+ * The mirror of `pageDraftSchema`. The admin has to round-trip what the
+ * merchant typed — handing it rendered HTML would mean the next save either
+ * stored HTML or lost the source.
+ */
+export const collectionDraftSchema = collectionSchema.omit({ descriptionHtml: true }).extend({
+  description: z.string().nullable().default(null),
 });
 
 /**
@@ -243,12 +264,75 @@ export const themeSchema = z.object({
   logo: imageSchema.nullable().default(null),
 });
 
+/**
+ * Where a hero button may point.
+ *
+ * A same-origin path or an absolute `https://` URL, and nothing else. The
+ * value ends up in an `href` the storefront renders for every visitor, so
+ * `javascript:` and `data:` have to be impossible rather than merely
+ * discouraged — the same rule the page editor's links are held to, applied at
+ * the point the value is saved. Plain `http://` is refused too: a store
+ * sending shoppers from an https page to a plain-http one is a downgrade
+ * nobody chose on purpose.
+ */
+export const heroHrefSchema = z
+  .string()
+  .max(2000)
+  .refine(
+    (value) => value.startsWith("/") || value.startsWith("https://"),
+    "Use a path starting with / or a full https:// address.",
+  )
+  // `//evil.example` is a protocol-relative URL, not a path: it leaves the
+  // store while looking like it does not.
+  .refine((value) => !value.startsWith("//"), "Use a path starting with / or a full https:// address.");
+
+/**
+ * The landing page's opening block, as the merchant edits it.
+ *
+ * Copy, not look, so it sits beside `theme` rather than inside it. Every field
+ * is nullable and every reader has a fallback, which is what lets a store that
+ * sets nothing render exactly as it did before this existed.
+ *
+ * Plain text throughout — deliberately not Markdown. A hero is one sentence,
+ * and a bold word inside it is a decision the theme should be making.
+ */
+export const heroSchema = z.object({
+  /** Null renders the store name. */
+  heading: z.string().max(120).nullable().default(null),
+  /** Null hides the paragraph entirely rather than rendering an empty one. */
+  text: z.string().max(500).nullable().default(null),
+  /** Null renders "Shop everything". */
+  buttonLabel: z.string().max(60).nullable().default(null),
+  /** Null points at /shop. */
+  buttonHref: heroHrefSchema.nullable().default(null),
+  /** Full-bleed behind the hero. Null keeps the flat themed background. */
+  image: imageSchema.nullable().default(null),
+});
+
+/**
+ * A store that has said nothing about its landing page.
+ *
+ * Every field null, and every reader falls back — the store name for the
+ * heading, no paragraph, "Shop everything" to /shop, and the flat themed
+ * background. Named rather than repeated so the several places that construct
+ * a `SettingsInput` cannot drift into different ideas of "unset".
+ */
+export const defaultHero: z.infer<typeof heroSchema> = {
+  heading: null,
+  text: null,
+  buttonLabel: null,
+  buttonHref: null,
+  image: null,
+};
+
 export const storeSchema = z.object({
   name: z.string().min(1),
   /** Publishable key only. The secret key must never reach the client. */
   stripePublishableKey: z.string().nullable().default(null),
   currency: z.string().length(3).default("USD"),
   theme: themeSchema,
+  /** The landing page's opening block. Every field falls back — see heroSchema. */
+  hero: heroSchema.default(defaultHero),
   aboutText: z.string().nullable().default(null),
   /**
    * How prices are quoted, so the storefront can say "includes $X tax" rather
@@ -320,3 +404,5 @@ export type Theme = z.infer<typeof themeSchema>;
 export type ColorScheme = z.infer<typeof colorSchemeSchema>;
 export type TaxBehavior = z.infer<typeof taxBehaviorSchema>;
 export type Store = z.infer<typeof storeSchema>;
+export type Hero = z.infer<typeof heroSchema>;
+export type CollectionDraft = z.infer<typeof collectionDraftSchema>;

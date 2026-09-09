@@ -131,6 +131,142 @@ describe("a collection's cover", () => {
     expect(shown?.cover).toBeNull();
   });
 
+  /**
+   * A collection's introduction, end to end.
+   *
+   * The same round trip the cover gets, and for the same reason: the admin
+   * holds Markdown and the storefront receives HTML, so a field dropped
+   * between them would pass either half on its own. The sanitiser assertion is
+   * the load-bearing one — an administrator is a person a merchant invited
+   * (task 07), and this text renders on the storefront for every shopper.
+   */
+  it("round-trips a description as Markdown, and serves it sanitised", async () => {
+    const { agent, csrf } = await signIn();
+
+    const before = await agent.get("/api/admin/collections").expect(200);
+    const collection = (
+      before.body as { id: string; slug: string; name: string; productIds: string[] }[]
+    ).find((row) => row.id === COLLECTION);
+
+    await agent
+      .put(`/api/admin/collections/${COLLECTION}`)
+      .set("x-csrf-token", csrf)
+      .send({
+        slug: collection?.slug,
+        name: collection?.name,
+        cover: null,
+        description:
+          "Things for the **table**.\n\n<script>alert(1)</script>\n\n[More](https://example.com)",
+        productIds: collection?.productIds,
+      })
+      .expect(204);
+
+    // The admin gets the source back, or the next save would store HTML.
+    const after = await agent.get("/api/admin/collections").expect(200);
+    const draft = (after.body as { id: string; description: string | null }[]).find(
+      (row) => row.id === COLLECTION,
+    );
+    expect(draft?.description).toContain("**table**");
+    expect(draft).not.toHaveProperty("descriptionHtml");
+
+    // The storefront gets rendered, sanitised HTML — and no source.
+    const store = await request(app).get("/api/store").expect(200);
+    const shown = (store.body.collections as { id: string; descriptionHtml: string }[]).find(
+      (row) => row.id === COLLECTION,
+    );
+
+    expect(shown?.descriptionHtml).toContain("<strong>table</strong>");
+    expect(shown?.descriptionHtml).not.toContain("<script");
+    // An outbound link is rewritten so it cannot carry an opener handle.
+    expect(shown?.descriptionHtml).toContain('rel="nofollow noopener noreferrer"');
+    expect(shown).not.toHaveProperty("description");
+  });
+
+  it("clears a description saved as null, rather than storing an empty one", async () => {
+    const { agent, csrf } = await signIn();
+
+    const before = await agent.get("/api/admin/collections").expect(200);
+    const collection = (
+      before.body as { id: string; slug: string; name: string; productIds: string[] }[]
+    ).find((row) => row.id === COLLECTION);
+
+    await agent
+      .put(`/api/admin/collections/${COLLECTION}`)
+      .set("x-csrf-token", csrf)
+      .send({
+        slug: collection?.slug,
+        name: collection?.name,
+        cover: null,
+        description: null,
+        productIds: collection?.productIds,
+      })
+      .expect(204);
+
+    const store = await request(app).get("/api/store").expect(200);
+    const shown = (store.body.collections as { id: string; descriptionHtml: string }[]).find(
+      (row) => row.id === COLLECTION,
+    );
+
+    expect(shown?.descriptionHtml).toBe("");
+  });
+
+  /**
+   * The hero, through the storefront's own snapshot.
+   *
+   * Caught by hand in a browser rather than by a test: `getSettings` grew a
+   * `hero` and `getStoreSnapshot` did not pass it on, so every field arrived
+   * null and the page rendered its fallbacks — which is exactly what a store
+   * with no hero set is supposed to look like, so nothing failed. Component
+   * tests hand `LandingPage` a store directly and never touch this seam.
+   */
+  it("carries the hero through /api/store, not just through getSettings", async () => {
+    const { agent, csrf } = await signIn();
+
+    const settings = await agent.get("/api/admin/settings").expect(200);
+
+    await agent
+      .put("/api/admin/settings")
+      .set("x-csrf-token", csrf)
+      .send({
+        ...settings.body,
+        hero: {
+          heading: "Small runs",
+          text: "Made in batches of forty.",
+          buttonLabel: "Browse",
+          buttonHref: "/collection/home-goods",
+          image: null,
+        },
+      })
+      .expect(204);
+
+    const store = await request(app).get("/api/store").expect(200);
+
+    expect(store.body.hero).toMatchObject({
+      heading: "Small runs",
+      text: "Made in batches of forty.",
+      buttonLabel: "Browse",
+      buttonHref: "/collection/home-goods",
+    });
+  });
+
+  it("refuses a hero button pointing anywhere that is not a path or https", async () => {
+    const { agent, csrf } = await signIn();
+
+    const settings = await agent.get("/api/admin/settings").expect(200);
+
+    for (const buttonHref of ["javascript:alert(1)", "//evil.example", "http://example.com"]) {
+      await agent
+        .put("/api/admin/settings")
+        .set("x-csrf-token", csrf)
+        .send({ ...settings.body, hero: { ...settings.body.hero, buttonHref } })
+        .expect(400);
+    }
+
+    // And the store is unchanged by any of those attempts.
+    const store = await request(app).get("/api/store").expect(200);
+    expect(store.body.hero.buttonHref).not.toContain("evil.example");
+  });
+
   it("refuses a cover upload for a collection that does not exist", async () => {
     const { agent, csrf } = await signIn();
 

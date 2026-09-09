@@ -28,6 +28,7 @@ import {
   deleteProduct,
   getStripeProductId,
   listAllProductsForAdmin,
+  listCollectionDrafts,
   productExists,
   removeProductImage,
   reorderCollections,
@@ -42,7 +43,6 @@ import {
   findProductBySlug,
   findProductsBySlugs,
   getSettings,
-  listCollections,
   listProducts,
 } from "../../db/repository.js";
 import {
@@ -577,7 +577,9 @@ adminRouter.post("/products/:id/images/reorder", async (req, res) => {
 /* ------------------------------------------------------------- collections */
 
 adminRouter.get("/collections", async (_req, res) => {
-  res.json(await listCollections());
+  // Drafts, not the storefront shape: the editor round-trips the Markdown a
+  // merchant typed, and `listCollections` has already rendered it away.
+  res.json(await listCollectionDrafts());
 });
 
 adminRouter.post("/collections", async (req, res) => {
@@ -743,6 +745,32 @@ adminRouter.post("/settings/logo", (req, res, next) => {
 
         const { alt } = imageInputSchema.parse(req.body ?? {});
         const stored = await storeImage("store-logo", req.file.buffer);
+
+        res.status(201).json({ ...stored, alt });
+      } catch (error) {
+        next(error);
+      }
+    })();
+  });
+});
+
+/**
+ * Stores a hero image and hands it back; it is not persisted here.
+ *
+ * The same contract as the logo above, and a separate route for the same
+ * reason `store-logo` is a distinct prefix: the stored file is named for what
+ * it is, so an operator looking at the assets directory can tell a banner
+ * wordmark from a full-bleed landing image without opening either.
+ */
+adminRouter.post("/settings/hero-image", (req, res, next) => {
+  uploadMiddleware(req, res, (uploadError: unknown) => {
+    void (async () => {
+      try {
+        if (uploadError) return next(uploadError);
+        if (!req.file) throw httpError(400, "No file was uploaded.");
+
+        const { alt } = imageInputSchema.parse(req.body ?? {});
+        const stored = await storeImage("store-hero", req.file.buffer);
 
         res.status(201).json({ ...stored, alt });
       } catch (error) {

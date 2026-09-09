@@ -89,3 +89,29 @@
   font-size: 1.0625rem;
   letter-spacing: 0.02em;
 }
+
+/*
+ * A hero carrying an image.
+ *
+ * The gradient stays underneath as the fallback while the image loads and as
+ * the backdrop if it fails, and a scrim goes over the top: a merchant's photo
+ * is chosen for how it looks, not for whether white text will read on it, so
+ * the contrast cannot be left to the upload. `--beluga-page` rather than a
+ * literal, so a dark storefront darkens and a light one lightens.
+ */
+.hasImage {
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+.hasImage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--beluga-page) 62%, transparent);
+}
+
+.hasImage .heroInner {
+  position: relative;
+}

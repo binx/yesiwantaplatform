@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import type Stripe from "stripe";
-import { defaultTheme, type Product } from "../shared/schema.js";
+import { defaultHero, defaultTheme, type Product } from "../shared/schema.js";
 import { settingsInputSchema } from "../shared/api.js";
 
 /**
@@ -263,7 +263,8 @@ describe("the settings round-trip", () => {
       defaultTaxCode: "txcd_20030000",
       cartRecoveryEnabled: false,
       cartRecoveryDelayHours: 4,
-      theme: defaultTheme,
+      hero: defaultHero,
+    theme: defaultTheme,
     });
 
     const settings = await getSettings();
@@ -286,7 +287,8 @@ describe("the settings round-trip", () => {
       taxEnabled: true,
       taxBehavior: "exclusive",
       defaultTaxCode: "99999999",
-      theme: defaultTheme,
+      hero: defaultHero,
+    theme: defaultTheme,
     });
 
     expect(result.success).toBe(false);

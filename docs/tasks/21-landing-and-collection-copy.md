@@ -1,15 +1,15 @@
 ---
 task: "21"
 title: Landing page and collection copy the admin can edit
-status: todo
+status: done
 tier: 1
 size: M
 migration: columns on store_settings and collections
 blocked_by: []
 blocks: []
 touches: shared/schema.ts · shared/api.ts · db/schema.sqlite.ts · db/schema.pg.ts · src/admin/SettingsPage.tsx · src/admin/CollectionsPage.tsx · src/pages/LandingPage.tsx
-completed:
-shipped_in:
+completed: 2026-09-09
+shipped_in: 17
 summary: >-
   The landing page's hero says "Edit it in the admin" and cannot be; the only things a
   merchant controls on the front page are the store name and which collection is featured.

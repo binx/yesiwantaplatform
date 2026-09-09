@@ -3,9 +3,11 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
+  App as AntApp,
   Button,
   Card,
   Checkbox,
+  ConfigProvider,
   Form,
   Input,
   Result,
@@ -21,6 +23,7 @@ import type { SessionResponse, SetupInput } from "@shared/api";
 import { csrfPost, setCsrfToken } from "@/lib/api";
 import { sessionQueryKey, setupStatusQueryKey, useSetupStatus } from "@/lib/session";
 import { ThemeEditor } from "./ThemeEditor";
+import { adminTheme } from "./adminTheme";
 import { cx } from "@/lib/cx";
 import { isLocalOrigin } from "@/lib/publicUrl";
 import styles from "./SetupPage.module.css";
@@ -92,7 +95,33 @@ function clearWizardState() {
   }
 }
 
+/**
+ * Themed like the admin, not like the store.
+ *
+ * This is a sibling of `/admin` in the router rather than a child of it, so it
+ * never saw `AdminRoot`'s `ConfigProvider` and rendered under antd's stock
+ * theme instead. That theme's `colorTextDescription` (#8c8c8c, 3.36:1) and
+ * `colorPrimary` (#1677ff, 4.1:1 under white) both fail WCAG AA, which put
+ * real contrast violations on the not-yet-reached step titles, every field's
+ * help text, and the primary button — on the first page a new operator sees.
+ * `AntApp` comes with it so `ThemeEditor`'s upload errors have somewhere to go.
+ *
+ * The store's own palette is deliberately not used here, for the same reason
+ * the admin does not use it: the wizard is where that palette is being chosen,
+ * and a half-chosen one must not be able to make this page unreadable.
+ * `ThemeEditor` scopes the live preview to its own nested provider.
+ */
 export function SetupPage() {
+  return (
+    <ConfigProvider theme={adminTheme}>
+      <AntApp>
+        <SetupWizard />
+      </AntApp>
+    </ConfigProvider>
+  );
+}
+
+function SetupWizard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const status = useSetupStatus();

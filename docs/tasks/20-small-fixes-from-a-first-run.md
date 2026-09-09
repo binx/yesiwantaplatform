@@ -1,15 +1,15 @@
 ---
 task: "20"
 title: Small fixes a first run turned up
-status: todo
+status: done
 tier: 0
 size: S
 migration: none
 blocked_by: []
 blocks: []
 touches: src/App.tsx · src/pages/ProductPage.tsx · server/app.ts · server/seo.ts · src/lib/account.ts · src/admin/ProductEditorPage.tsx
-completed:
-shipped_in:
+completed: 2026-09-09
+shipped_in: 16
 summary: >-
   Five things a developer meets in the first ten minutes, none of them large. The
   production HTML sends `Canvas Tote · Store` and the client overwrites it with the store

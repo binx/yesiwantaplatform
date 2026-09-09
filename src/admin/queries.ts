@@ -401,6 +401,18 @@ export function useSettings() {
   });
 }
 
+/**
+ * The store's language tag, for anything the admin formats.
+ *
+ * A hook of its own because seven pages need it and none of them should each
+ * decide what to do when settings have not loaded — the answer is `en-US`,
+ * which is what the admin formatted as before stores had a locale, so a table
+ * rendered during that first moment does not shift once it lands.
+ */
+export function useStoreLocale(): string {
+  return useSettings().data?.locale ?? "en-US";
+}
+
 export function useUpdateSettings() {
   const invalidate = useInvalidate();
 

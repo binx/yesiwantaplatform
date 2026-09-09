@@ -12,6 +12,7 @@ import {
   useShipping,
   type ProductSummary,
   type ShippingTable,
+  useStoreLocale,
 } from "./queries";
 import { PageHeader } from "./RequireAdmin";
 import { OrderStatusTag } from "./OrderStatusTag";
@@ -45,6 +46,7 @@ export function DashboardPage() {
   const paidOrders = orders.data?.orders.filter((order) => order.status !== "pending") ?? [];
   const revenue = paidOrders.reduce((total, order) => total + order.totalCents, 0);
   const currency = settings.data?.currency ?? "USD";
+  const locale = useStoreLocale();
 
   return (
     <>
@@ -88,7 +90,7 @@ export function DashboardPage() {
         <Card>
           <Statistic
             title="Recent revenue"
-            value={formatMoney(revenue, currency)}
+            value={formatMoney(revenue, currency, locale)}
             loading={orders.isPending}
           />
           <p className={cx(styles.statNote)}>
@@ -131,18 +133,18 @@ export function DashboardPage() {
               {
                 title: "Status",
                 dataIndex: "status",
-                render: (_value, order) => <OrderStatusTag order={order} />,
+                render: (_value, order) => <OrderStatusTag order={order} locale={locale} />,
               },
               {
                 title: "Total",
                 dataIndex: "totalCents",
                 align: "right",
-                render: (cents: number, order) => formatMoney(cents, order.currency),
+                render: (cents: number, order) => formatMoney(cents, order.currency, locale),
               },
               {
                 title: "Placed",
                 dataIndex: "createdAt",
-                render: (value: number) => formatOrderDate(value),
+                render: (value: number) => formatOrderDate(value, false, locale),
               },
             ]}
           />
@@ -293,6 +295,7 @@ const GAP_PROBE = { weightGrams: 100, subtotalCents: 1000 };
  *  production, shipping rates and product kind, and reaching them through the
  *  whole dashboard would mean mocking four queries to assert one alert. */
 export function Wiring({ environment, shipping, products }: WiringProps) {
+  const locale = useStoreLocale();
   const gaps = useMemo(
     () => (shipping ? findCoverageGaps(shipping.rates, shipping.zones, GAP_PROBE) : []),
     [shipping],
@@ -376,7 +379,7 @@ export function Wiring({ environment, shipping, products }: WiringProps) {
       title: "Some destinations have no rate",
       description: (
         <>
-          A cart going to {countryName(gaps[0]!.countryCode)}
+          A cart going to {countryName(gaps[0]!.countryCode, locale)}
           {gaps.length > 1 ? ` and ${gaps.length - 1} more` : ""} matches no rate, so the buyer
           pays nothing for postage. Fix it under <Link to="/admin/shipping">Shipping</Link>.
         </>

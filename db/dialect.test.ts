@@ -246,6 +246,7 @@ for (const { name, context } of dialects) {
       await db.admin.updateSettings({
         name: settings.name,
         currency: settings.currency,
+        locale: settings.locale,
         stripePublishableKey: settings.stripePublishableKey,
         aboutText: settings.aboutText,
         taxEnabled: true,
@@ -267,6 +268,7 @@ for (const { name, context } of dialects) {
       await db.admin.updateSettings({
         name: settings.name,
         currency: settings.currency,
+        locale: settings.locale,
         stripePublishableKey: settings.stripePublishableKey,
         aboutText: settings.aboutText,
         taxEnabled: settings.taxEnabled,

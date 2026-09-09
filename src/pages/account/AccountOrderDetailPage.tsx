@@ -4,12 +4,16 @@ import { Button, Result, Skeleton } from "antd";
 import { formatMoney } from "@shared/money";
 import { OrderStatusTag } from "@/admin/OrderStatusTag";
 import { useCustomerOrder } from "@/lib/account";
+import { useStore } from "@/lib/useStore";
 import { cx } from "@/lib/cx";
 import styles from "./Account.module.css";
 
 export function AccountOrderDetailPage() {
   const { id } = useParams();
   const order = useCustomerOrder(id);
+  // The store's language, not the buyer's browser: an order confirmation
+  // should read the way the shop it came from reads.
+  const { locale } = useStore();
 
   useEffect(() => {
     if (order.data) document.title = `Order ${order.data.reference} · Your account`;
@@ -42,11 +46,11 @@ export function AccountOrderDetailPage() {
 
       <div className={cx(styles.cardHeader)}>
         <h2>Order {data.reference}</h2>
-        <OrderStatusTag order={data} />
+        <OrderStatusTag order={data} locale={locale} />
       </div>
 
       <p className={cx(styles.meta)}>
-        Placed {new Date(data.createdAt).toLocaleDateString()}
+        Placed {new Date(data.createdAt).toLocaleDateString(locale)}
         {data.trackingNumber ? (
           <>
             {" "}
@@ -65,7 +69,7 @@ export function AccountOrderDetailPage() {
                 <span className={cx(styles.meta)}> × {item.quantity}</span>
               </td>
               <td className={cx(styles.amount)}>
-                {formatMoney(item.unitPriceCents * item.quantity, data.currency)}
+                {formatMoney(item.unitPriceCents * item.quantity, data.currency, locale)}
               </td>
             </tr>
           ))}
@@ -73,27 +77,27 @@ export function AccountOrderDetailPage() {
         <tfoot>
           <tr>
             <td>Subtotal</td>
-            <td className={cx(styles.amount)}>{formatMoney(data.subtotalCents, data.currency)}</td>
+            <td className={cx(styles.amount)}>{formatMoney(data.subtotalCents, data.currency, locale)}</td>
           </tr>
           {data.discountCents > 0 && (
             <tr>
               <td>Discount</td>
               <td className={cx(styles.amount)}>
                 {"−"}
-                {formatMoney(data.discountCents, data.currency)}
+                {formatMoney(data.discountCents, data.currency, locale)}
               </td>
             </tr>
           )}
           <tr>
             <td>Shipping</td>
             <td className={cx(styles.amount)}>
-              {data.shippingCents === 0 ? "Free" : formatMoney(data.shippingCents, data.currency)}
+              {data.shippingCents === 0 ? "Free" : formatMoney(data.shippingCents, data.currency, locale)}
             </td>
           </tr>
           {data.taxCents > 0 && (
             <tr>
               <td>Tax</td>
-              <td className={cx(styles.amount)}>{formatMoney(data.taxCents, data.currency)}</td>
+              <td className={cx(styles.amount)}>{formatMoney(data.taxCents, data.currency, locale)}</td>
             </tr>
           )}
           <tr>
@@ -101,7 +105,7 @@ export function AccountOrderDetailPage() {
               <strong>Total</strong>
             </td>
             <td className={cx(styles.amount)}>
-              <strong>{formatMoney(data.totalCents, data.currency)}</strong>
+              <strong>{formatMoney(data.totalCents, data.currency, locale)}</strong>
             </td>
           </tr>
         </tfoot>

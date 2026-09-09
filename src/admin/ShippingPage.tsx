@@ -7,7 +7,9 @@ import { formatMoney, parseCents } from "@shared/money";
 import { cx } from "@/lib/cx";
 import { Field } from "./Field";
 import { PageHeader } from "./RequireAdmin";
-import { useSettings, useShipping, useUpdateShipping } from "./queries";
+import { useSettings, useShipping, useUpdateShipping,
+  useStoreLocale,
+} from "./queries";
 import styles from "./ShippingPage.module.css";
 
 /**
@@ -62,6 +64,7 @@ export function ShippingPage() {
   }, [shipping.data, zones]);
 
   const currency = settings.data?.currency ?? "USD";
+  const locale = useStoreLocale();
 
   const parsedRates = useMemo(
     () =>
@@ -156,7 +159,7 @@ export function ShippingPage() {
               A cart going to{" "}
               {gaps
                 .slice(0, 6)
-                .map((gap) => countryName(gap.countryCode))
+                .map((gap) => countryName(gap.countryCode, locale))
                 .join(", ")}
               {gaps.length > 6 ? ` and ${gaps.length - 6} more` : ""} matches no rate, so the buyer
               is offered no shipping option and pays nothing for postage.
@@ -252,7 +255,7 @@ export function ShippingPage() {
                         })
                       }
                       options={zone.countryCodes.map((code) => ({
-                        label: `${code} — ${countryName(code)}`,
+                        label: `${code} — ${countryName(code, locale)}`,
                         value: code,
                       }))}
                     />
@@ -342,7 +345,7 @@ export function ShippingPage() {
                   label="Price"
                   {...(rate.priceText !== "" && cents === null
                     ? { error: "Not an amount." }
-                    : { help: cents === 0 ? "Free shipping." : formatMoney(cents ?? 0, currency) })}
+                    : { help: cents === 0 ? "Free shipping." : formatMoney(cents ?? 0, currency, locale) })}
                 >
                   {(control) => (
                     <Input

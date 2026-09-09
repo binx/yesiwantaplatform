@@ -73,7 +73,12 @@ export function LandingPage() {
                 View all →
               </Link>
             </header>
-            <ProductList products={featured} collection="Featured" currency={store.currency} />
+            <ProductList
+              products={featured}
+              collection="Featured"
+              currency={store.currency}
+              locale={store.locale}
+            />
           </section>
         )}
 

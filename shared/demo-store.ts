@@ -12,6 +12,7 @@ export const demoStore: Store = {
   shipping: { countries: [], worldwide: false },
   stripePublishableKey: null,
   currency: "USD",
+  locale: "en-US",
   aboutText:
     "This is the demo store that ships with Beluga.\n\nEverything you see here is placeholder data. Run the setup wizard to connect Stripe, then replace these products with your own.",
   theme: {
@@ -23,6 +24,10 @@ export const demoStore: Store = {
     colorScheme: "light",
     colorPage: null,
     logo: null,
+    // The stack above is entirely system faces, so there is nothing to fetch —
+    // and the demo store should not make a request to a third party just by
+    // being looked at.
+    fontUrl: null,
   },
   /*
    * Unset, on purpose.

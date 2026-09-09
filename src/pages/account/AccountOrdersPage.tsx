@@ -4,11 +4,14 @@ import { Skeleton } from "antd";
 import { formatMoney } from "@shared/money";
 import { OrderStatusTag } from "@/admin/OrderStatusTag";
 import { useCustomerOrders } from "@/lib/account";
+import { useStore } from "@/lib/useStore";
 import { cx } from "@/lib/cx";
 import styles from "./Account.module.css";
 
 export function AccountOrdersPage() {
   const orders = useCustomerOrders();
+  // The store's language, not the buyer's browser — see the order detail page.
+  const { locale } = useStore();
 
   useEffect(() => {
     document.title = "Your orders · Your account";
@@ -40,11 +43,11 @@ export function AccountOrdersPage() {
             <td>
               <Link to={`/account/orders/${order.id}`}>{order.reference}</Link>
             </td>
-            <td className={cx(styles.meta)}>{new Date(order.createdAt).toLocaleDateString()}</td>
+            <td className={cx(styles.meta)}>{new Date(order.createdAt).toLocaleDateString(locale)}</td>
             <td>
-              <OrderStatusTag order={order} />
+              <OrderStatusTag order={order} locale={locale} />
             </td>
-            <td className={cx(styles.amount)}>{formatMoney(order.totalCents, order.currency)}</td>
+            <td className={cx(styles.amount)}>{formatMoney(order.totalCents, order.currency, locale)}</td>
           </tr>
         ))}
       </tbody>

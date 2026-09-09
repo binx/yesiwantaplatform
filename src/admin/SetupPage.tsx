@@ -269,6 +269,10 @@ function SetupWizard() {
               value={theme}
               onChange={setTheme}
               storeName={identity?.storeName ?? "Your store"}
+              // Nothing is saved yet, so any font URL typed here is one the
+              // store's CSP does not allow — which is exactly what the note in
+              // the preview should say.
+              savedFontUrl={null}
             />
 
             <Checkbox

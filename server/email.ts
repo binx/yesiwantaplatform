@@ -52,6 +52,7 @@ function toLocals(
   storeName: string,
   colorAccent: string,
   taxBehavior: TaxBehavior,
+  locale: string,
 ) {
   const currency = order.currency;
 
@@ -60,7 +61,9 @@ function toLocals(
     order: {
       reference: order.reference,
       email: order.email,
-      date: new Date(order.createdAt).toLocaleDateString("en-US", {
+      // The store's language, not `en-US`: a German shop's confirmation should
+      // not date itself in American English.
+      date: new Date(order.createdAt).toLocaleDateString(locale, {
         year: "numeric",
         // v1's order dates were a month early: it used getMonth() without +1.
         month: "long",
@@ -73,13 +76,13 @@ function toLocals(
           .map(([key, value]) => `${key}: ${value}`)
           .join(", "),
         quantity: item.quantity,
-        lineTotal: formatMoney(item.unitPriceCents * item.quantity, currency),
+        lineTotal: formatMoney(item.unitPriceCents * item.quantity, currency, locale),
       })),
-      subtotal: formatMoney(order.subtotalCents, currency),
-      shippingCost: order.shippingCents === 0 ? "Free" : formatMoney(order.shippingCents, currency),
+      subtotal: formatMoney(order.subtotalCents, currency, locale),
+      shippingCost: order.shippingCents === 0 ? "Free" : formatMoney(order.shippingCents, currency, locale),
       hasDiscount: order.discountCents > 0,
       // Formatted as a deduction here, because templates do no arithmetic.
-      discount: `\u2212${formatMoney(order.discountCents, currency)}`,
+      discount: `\u2212${formatMoney(order.discountCents, currency, locale)}`,
       hasTax: order.taxCents > 0,
       /*
        * "Tax" or "Includes tax", never both readings at once.
@@ -89,8 +92,8 @@ function toLocals(
        * carries the difference; the template stays arithmetic-free.
        */
       taxLabel: taxLineLabel(taxBehavior),
-      tax: formatMoney(order.taxCents, currency),
-      total: formatMoney(order.totalCents, currency),
+      tax: formatMoney(order.taxCents, currency, locale),
+      total: formatMoney(order.totalCents, currency, locale),
       shipping: order.shipping,
       carrier: order.carrier,
       trackingNumber: order.trackingNumber,
@@ -154,6 +157,7 @@ export async function sendOrderEmail(template: EmailTemplate, order: Order): Pro
     settings?.name ?? "Beluga",
     settings?.theme.colorAccent ?? "#e07a5f",
     settings?.taxBehavior ?? "exclusive",
+    settings?.locale ?? "en-US",
   );
 
   const rendered = await render(template, locals);

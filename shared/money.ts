@@ -24,6 +24,15 @@ export function parseCents(input: string): Cents | null {
   return negative ? -value : value;
 }
 
+/**
+ * Render an amount in the store's own conventions.
+ *
+ * `locale` decides where the separators and the symbol go, and it is the
+ * store's, never the buyer's: `de-DE` with EUR is `1.234,56 €` while `en-US`
+ * with EUR is `€1,234.56`, and a shop's prices should read the same in every
+ * screenshot of it. The default is what every caller formatted as before the
+ * store carried a locale, so a two-argument call is unchanged.
+ */
 export function formatMoney(cents: Cents, currency = "USD", locale = "en-US"): string {
   return new Intl.NumberFormat(locale, { style: "currency", currency }).format(cents / 100);
 }
@@ -33,13 +42,17 @@ export function formatMoney(cents: Cents, currency = "USD", locale = "en-US"): s
  * Returns null for an empty list rather than `$∞ - -$∞`, which is what v1
  * produced via `Math.min(...[])` on a product with no prices.
  */
-export function formatPriceRange(prices: readonly Cents[], currency = "USD"): string | null {
+export function formatPriceRange(
+  prices: readonly Cents[],
+  currency = "USD",
+  locale = "en-US",
+): string | null {
   if (prices.length === 0) return null;
 
   const min = Math.min(...prices);
   const max = Math.max(...prices);
 
   return min === max
-    ? formatMoney(min, currency)
-    : `${formatMoney(min, currency)} – ${formatMoney(max, currency)}`;
+    ? formatMoney(min, currency, locale)
+    : `${formatMoney(min, currency, locale)} – ${formatMoney(max, currency, locale)}`;
 }

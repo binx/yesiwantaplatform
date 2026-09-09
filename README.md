@@ -147,6 +147,33 @@ rather than drag-and-drop: it is real persisted data, and it should be editable 
 phone or a keyboard. v1 used `react-drag-sortable`, which is unmaintained, mouse-only,
 and incompatible with React 19.
 
+### Theme, typeface and language
+
+**Settings → Look** sets the palette, the corner radius, the logo and the font. A font
+stack alone only renders on a machine that already has the face installed, so there is a
+second field beside it — **Font stylesheet URL** — holding the stylesheet that defines
+the faces: for Google Fonts, the `href` out of the `<link>` they give you; for a
+self-hosted face, a stylesheet under `/assets/`. Leave it empty for a system font.
+
+That field exists because the store's Content-Security-Policy allows stylesheets and
+fonts from `'self'` only, so before it a Google Fonts `<link>` added by hand was refused
+by the browser with nothing on screen to say why. Saving a URL widens the policy by
+exactly the origins that stylesheet needs and no others — Beluga fetches the sheet once
+and reads them out of it, which is how `fonts.gstatic.com` gets allowed even though it
+appears nowhere in the URL you pasted. A URL that cannot be fetched is refused at save
+rather than becoming a font that silently never loads, and clearing the field puts the
+header back exactly as it was. One consequence worth knowing: the preview in Settings
+cannot show a typeface you have not saved yet, because the policy naming it is the one
+the store is currently serving.
+
+**Settings → Identity → Language** is the store's BCP 47 tag, and it decides how money,
+dates and country names are written everywhere — the storefront, the admin, and order
+email. It defaults to `en-US`, which is how every store formatted before the field
+existed. A euro shop that leaves it there prints `€1,234.56`; set to `de-DE` it prints
+`1.234,56 €`. It also sets `<html lang>`, so screen readers and translation prompts get
+the right answer. Prices are stored as integer cents regardless, and the CSV exports are
+unaffected.
+
 ### Staff accounts
 
 The admin was a single shared account until now — one password for a two-person shop, and no way to revoke access when someone left. **Staff** in the admin lists everyone who can sign in, invites colleagues, and removes them.

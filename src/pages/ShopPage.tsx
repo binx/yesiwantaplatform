@@ -34,7 +34,10 @@ export function ShopPage() {
           <ul className={styles.grid}>
             {collections.map((collection) => (
               <li key={collection.id}>
-                <Link to={`/collection/${collection.slug}`} className={styles.card}>
+                <Link
+                  to={`/collection/${collection.slug}`}
+                  className={styles.card}
+                >
                   <ProductImage
                     image={collection.cover}
                     ratio={16 / 9}
@@ -52,11 +55,14 @@ export function ShopPage() {
       <section>
         {/* The heading names what is under it. Leaving it at "All products"
             over a filtered list was the page contradicting itself. */}
-        <h2 className={styles.heading}>{query ? `Results for “${query}”` : "All products"}</h2>
+        <h2 className={styles.heading}>
+          {query ? `Results for “${query}”` : "All products"}
+        </h2>
         <ProductBrowser
           products={getLiveProducts(store)}
           collection="All products"
           currency={store.currency}
+          locale={store.locale}
         />
       </section>
     </PageWrapper>

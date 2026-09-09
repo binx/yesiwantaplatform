@@ -54,6 +54,7 @@ import {
   updatePage,
 } from "../../db/pages-repository.js";
 import { formatMoney } from "../../shared/money.js";
+import { refreshFontOrigins, verifyFontUrl } from "../fonts.js";
 import {
   CSV_BOM,
   CsvStreamParser,
@@ -722,7 +723,22 @@ adminRouter.get("/settings", async (_req, res) => {
 adminRouter.put("/settings", async (req, res) => {
   try {
     const input = settingsInputSchema.parse(req.body);
+
+    /*
+     * Before the write, not after: a font URL that cannot be fetched is a
+     * typo, and the merchant has to be told while the field is still in front
+     * of them. Saving first would leave the store pointing at a stylesheet
+     * that never arrives, with a fallback face and nothing on screen to say
+     * why. See server/fonts.ts.
+     */
+    await verifyFontUrl(input.theme.fontUrl);
+
     await updateSettings(input);
+
+    // The CSP has to widen — or narrow — with the value that was just saved,
+    // or the browser refuses the very stylesheet this store now asks for.
+    await refreshFontOrigins();
+
     res.status(204).end();
   } catch (error) {
     toHttp(error);
@@ -1090,9 +1106,13 @@ adminRouter.post("/orders/:id/refund", async (req, res) => {
     throw httpError(400, "A refund has to be for more than zero.");
   }
   if (amountCents > remaining) {
+    // Read only on the way to the refusal: the message quotes an amount, and a
+    // figure written the store's way is the one the merchant just read off the
+    // order page.
+    const locale = (await getSettings())?.locale ?? "en-US";
     throw httpError(
       409,
-      `That is more than the ${formatMoney(remaining, order.currency)} still refundable on this order.`,
+      `That is more than the ${formatMoney(remaining, order.currency, locale)} still refundable on this order.`,
     );
   }
 

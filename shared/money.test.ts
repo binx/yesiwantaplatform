@@ -48,4 +48,41 @@ describe("formatMoney", () => {
     expect(formatMoney(120000)).toBe("$1,200.00");
     expect(formatMoney(0)).toBe("$0.00");
   });
+
+  /*
+   * The bug this closes: every price was formatted `en-US` whatever the
+   * currency, so a euro store printed `€1,234.56` — the right symbol attached
+   * to American separators in the American position, which is not how anyone
+   * in the eurozone writes money.
+   *
+   * The separators are matched rather than the exact string: `Intl` uses a
+   * non-breaking space before the € and the narrow variety has changed between
+   * ICU versions, so asserting the whole literal would fail on a Node upgrade
+   * for a reason that has nothing to do with this code.
+   */
+  it("writes a euro amount the German way", () => {
+    const formatted = formatMoney(123456, "EUR", "de-DE");
+
+    expect(formatted).toContain("1.234,56");
+    expect(formatted).toContain("€");
+    // The symbol trails in de-DE, which is the half `en-US` got wrong.
+    expect(formatted.trimEnd().endsWith("€")).toBe(true);
+  });
+
+  it("writes a sterling amount the British way", () => {
+    expect(formatMoney(123456, "GBP", "en-GB")).toBe("£1,234.56");
+  });
+
+  it("still formats a euro amount the American way when told to", () => {
+    // The default is unchanged, which is what keeps every two-argument caller
+    // rendering exactly as it did.
+    expect(formatMoney(123456, "EUR")).toBe("€1,234.56");
+  });
+
+  it("carries the locale through a price range", () => {
+    const range = formatPriceRange([123456, 234567], "EUR", "de-DE");
+
+    expect(range).toContain("1.234,56");
+    expect(range).toContain("2.345,67");
+  });
 });

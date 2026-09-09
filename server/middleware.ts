@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { NextFunction, Request, Response } from "express";
+import type { NextFunction, Request, RequestHandler, Response } from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import { isProduction } from "./env.js";
@@ -20,33 +20,84 @@ declare module "express-session" {
 }
 
 /**
+ * The origins the store's web font is served from, if it has one.
+ *
+ * The value lives here rather than in `server/fonts.ts` — which is what
+ * resolves it — so the dependency runs one way: everything imports this
+ * module, and a module this one imported back would be a cycle. `fonts.ts`
+ * pushes; the header below reads.
+ *
+ * Empty is the default and the common case, and it is what keeps a store that
+ * has set no font URL on byte-for-byte the header it had before fonts existed.
+ */
+let fontOrigins: readonly string[] = [];
+
+/** Told by `refreshFontOrigins`. See server/fonts.ts. */
+export function setCspFontOrigins(origins: readonly string[]): void {
+  fontOrigins = origins;
+}
+
+/**
  * Content Security Policy.
  *
  * Stripe.js must be loadable and framed for 3-D Secure; everything else is
  * same-origin. v1 used helmet 3's defaults, which set no CSP at all.
+ *
+ * `styleSrc` and `fontSrc` are the one part that is not fixed: a theme may
+ * name a font stylesheet, and the browser has to be allowed to fetch both it
+ * and the faces it points at. Nothing is hardcoded per provider — the origins
+ * come from the stylesheet the merchant actually chose, resolved once by
+ * `server/fonts.ts`, which is why a self-hosted font works exactly as well as
+ * Google's.
  */
-export const securityHeaders = helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "https://js.stripe.com"],
-      frameSrc: ["https://js.stripe.com", "https://hooks.stripe.com"],
-      connectSrc: ["'self'", "https://api.stripe.com"],
-      imgSrc: ["'self'", "data:", "blob:"],
-      // antd injects component styles at runtime.
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      fontSrc: ["'self'", "data:"],
-      objectSrc: ["'none'"],
-      baseUri: ["'self'"],
-      formAction: ["'self'"],
-      frameAncestors: ["'none'"],
-      ...(isProduction ? { upgradeInsecureRequests: [] } : {}),
+function policyFor(extraOrigins: readonly string[]) {
+  return helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "https://js.stripe.com"],
+        frameSrc: ["https://js.stripe.com", "https://hooks.stripe.com"],
+        connectSrc: ["'self'", "https://api.stripe.com"],
+        imgSrc: ["'self'", "data:", "blob:"],
+        // antd injects component styles at runtime.
+        styleSrc: ["'self'", "'unsafe-inline'", ...extraOrigins],
+        fontSrc: ["'self'", "data:", ...extraOrigins],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+        ...(isProduction ? { upgradeInsecureRequests: [] } : {}),
+      },
     },
-  },
-  // Product images are served to the storefront, which may sit behind a CDN.
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
-});
+    // Product images are served to the storefront, which may sit behind a CDN.
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  });
+}
+
+/**
+ * One helmet instance per distinct origin set.
+ *
+ * Building the policy is not free and the answer changes only when the
+ * merchant saves a different font, so rebuilding it per request would be pure
+ * waste on the hottest path in the app. The map is bounded by the number of
+ * font URLs a store has ever used in one process lifetime.
+ */
+const policies = new Map<string, RequestHandler>();
+
+function currentPolicy(): RequestHandler {
+  const key = fontOrigins.join(" ");
+
+  let policy = policies.get(key);
+  if (!policy) {
+    policy = policyFor(fontOrigins);
+    policies.set(key, policy);
+  }
+
+  return policy;
+}
+
+export const securityHeaders: RequestHandler = (req, res, next) => currentPolicy()(req, res, next);
 
 /**
  * Login rate limit.

@@ -50,6 +50,67 @@ describe("escapeHtml", () => {
   });
 });
 
+describe("injectMeta and the store's own language and typeface", () => {
+  const base = {
+    title: "Beluga",
+    description: "A shop.",
+    canonical: "https://example.com/",
+    image: null,
+    jsonLd: null,
+    fontUrl: null,
+    lang: "en",
+  };
+
+  it("replaces the shell's lang rather than adding a second one", () => {
+    const html = injectMeta(SHELL, { ...base, lang: "de" });
+
+    expect(html).toContain('<html lang="de">');
+    // Two `lang` attributes would leave the browser picking one, and the shell
+    // ships `en` — a guess about a store that has now been asked directly.
+    expect(html).not.toContain('lang="en"');
+    expect(html.match(/lang=/g)).toHaveLength(1);
+  });
+
+  it("writes no font tags when the store uses a system font", () => {
+    const html = injectMeta(SHELL, base);
+
+    expect(html).not.toContain("preconnect");
+    expect(html).not.toContain('rel="stylesheet"');
+  });
+
+  it("preconnects and links a third-party stylesheet", () => {
+    const html = injectMeta(SHELL, {
+      ...base,
+      fontUrl: "https://fonts.googleapis.com/css2?family=Fraunces",
+    });
+
+    // crossorigin, or the preconnected socket is not the one the CORS-mode
+    // font request reuses — which is how this hint usually ends up doing
+    // nothing at all.
+    expect(html).toContain('<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />');
+    expect(html).toContain('id="beluga-font"');
+    expect(html).toContain('href="https://fonts.googleapis.com/css2?family=Fraunces"');
+  });
+
+  it("links a self-hosted stylesheet without preconnecting to it", () => {
+    const html = injectMeta(SHELL, { ...base, fontUrl: "/assets/fonts/inter.css" });
+
+    expect(html).toContain('href="/assets/fonts/inter.css"');
+    // Same origin: the browser already has that connection.
+    expect(html).not.toContain("preconnect");
+  });
+
+  it("escapes a font URL on its way into the attribute", () => {
+    const html = injectMeta(SHELL, {
+      ...base,
+      fontUrl: 'https://fonts.example.com/f.css?a="onload="alert(1)',
+    });
+
+    expect(html).not.toContain('?a="onload=');
+    expect(html).toContain("&quot;");
+  });
+});
+
 describe("injectMeta", () => {
   it("replaces the title rather than adding a second one", () => {
     const html = injectMeta(SHELL, {
@@ -58,6 +119,8 @@ describe("injectMeta", () => {
       canonical: "https://example.com/product/canvas-tote",
       image: null,
       jsonLd: null,
+      fontUrl: null,
+      lang: "en",
     });
 
     expect(html.match(/<title>/g)).toHaveLength(1);
@@ -72,6 +135,8 @@ describe("injectMeta", () => {
       canonical: "https://example.com/",
       image: null,
       jsonLd: null,
+      fontUrl: null,
+      lang: "en",
     });
 
     expect(html).not.toContain('onload="alert(1)"');
@@ -86,6 +151,8 @@ describe("injectMeta", () => {
       canonical: "https://example.com/shop",
       image: "https://example.com/a.png",
       jsonLd: null,
+      fontUrl: null,
+      lang: "en",
     });
 
     expect(html).toContain('<meta property="og:title" content="T" />');
@@ -101,6 +168,8 @@ describe("injectMeta", () => {
       canonical: "https://example.com/",
       image: null,
       jsonLd: { "@type": "Product", name: "</script><img onerror=alert(1)>" },
+      fontUrl: null,
+      lang: "en",
     });
 
     // One opening and one closing tag: the payload did not create a third.
@@ -115,6 +184,8 @@ describe("injectMeta", () => {
       canonical: "https://example.com/",
       image: null,
       jsonLd: null,
+      fontUrl: null,
+      lang: "en",
     });
 
     expect(html).not.toContain("og:image");

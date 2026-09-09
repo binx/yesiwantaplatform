@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Alert, Button, Checkbox, Form, Input, Popconfirm, Select, Skeleton } from "antd";
 import { SHIPPABLE_COUNTRIES, countryName } from "@shared/shipping";
 import type { AddressInput, CustomerAddress } from "@shared/account";
+import { useStore } from "@/lib/useStore";
 import {
   useAddresses,
   useCreateAddress,
@@ -32,12 +33,15 @@ function AddressForm({
   error,
   onSave,
   onCancel,
+  locale,
 }: {
   initial: AddressFormValues;
   saving: boolean;
   error: string | null;
   onSave: (values: AddressInput) => void;
   onCancel: () => void;
+  /** The store's language tag, so the country list reads in it. */
+  locale: string;
 }) {
   return (
     <Form
@@ -83,7 +87,7 @@ function AddressForm({
         <Select
           showSearch
           optionFilterProp="label"
-          options={SHIPPABLE_COUNTRIES.map((code) => ({ label: countryName(code), value: code }))}
+          options={SHIPPABLE_COUNTRIES.map((code) => ({ label: countryName(code, locale), value: code }))}
         />
       </Form.Item>
       <Form.Item name="isDefault" valuePropName="checked">
@@ -107,6 +111,8 @@ export function AccountAddressesPage() {
   const remove = useDeleteAddress();
   // "new" is a sentinel for the add-address form; anything else is an address id.
   const [editing, setEditing] = useState<string | null>(null);
+  // One language for the whole shop — the same one its prices are written in.
+  const { locale } = useStore();
 
   useEffect(() => {
     document.title = "Addresses · Your account";
@@ -127,6 +133,7 @@ export function AccountAddressesPage() {
           <div key={address.id} className={cx(styles.card)}>
             <AddressForm
               initial={address}
+              locale={locale}
               saving={update.isPending}
               error={update.error instanceof Error ? update.error.message : null}
               onCancel={() => setEditing(null)}
@@ -142,6 +149,7 @@ export function AccountAddressesPage() {
           <AddressCard
             key={address.id}
             address={address}
+            locale={locale}
             onEdit={() => setEditing(address.id)}
             onDelete={() => remove.mutate(address.id)}
             deleting={remove.isPending}
@@ -153,6 +161,7 @@ export function AccountAddressesPage() {
         <div className={cx(styles.card)}>
           <AddressForm
             initial={blank()}
+            locale={locale}
             saving={create.isPending}
             error={create.error instanceof Error ? create.error.message : null}
             onCancel={() => setEditing(null)}
@@ -171,11 +180,14 @@ function AddressCard({
   onEdit,
   onDelete,
   deleting,
+  locale,
 }: {
   address: CustomerAddress;
   onEdit: () => void;
   onDelete: () => void;
   deleting: boolean;
+  /** The store's language tag, so the country reads in it. */
+  locale: string;
 }) {
   return (
     <div className={cx(styles.card)}>
@@ -192,7 +204,7 @@ function AddressCard({
           <br />
           {[address.city, address.state, address.postalCode].filter(Boolean).join(", ")}
           <br />
-          {countryName(address.country)}
+          {countryName(address.country, locale)}
           {address.isDefault ? <span className={cx(styles.default)}>Default</span> : null}
         </p>
         <div className={cx(styles.cardActions)}>

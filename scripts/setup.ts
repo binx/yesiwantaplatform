@@ -467,6 +467,9 @@ async function main(): Promise<void> {
     await updateSettings({
       name,
       currency,
+      // As in the browser wizard: the terminal path does not ask, and Settings
+      // → Identity is where a store that is not `en-US` says so.
+      locale: "en-US",
       stripePublishableKey: publishableKey?.startsWith("pk_") ? publishableKey : null,
       aboutText: null,
       // Tax stays off until the merchant has activated Stripe Tax and

@@ -35,6 +35,9 @@ export function ConfirmPage() {
   const sessionId = params.get("session_id");
   const clear = useCart((s) => s.clear);
   const store = useStore();
+  // The shop's language, not the buyer's browser: a receipt should read the
+  // way the store that issued it reads.
+  const { locale } = store;
 
   const { data, error, isPending } = useQuery({
     queryKey: ["order", sessionId],
@@ -126,7 +129,7 @@ export function ConfirmPage() {
                 <span className={styles.meta}> × {item.quantity}</span>
               </td>
               <td className={styles.amount}>
-                {formatMoney(item.unitPriceCents * item.quantity, data.currency)}
+                {formatMoney(item.unitPriceCents * item.quantity, data.currency, locale)}
               </td>
             </tr>
           ))}
@@ -134,21 +137,21 @@ export function ConfirmPage() {
         <tfoot>
           <tr>
             <td>Subtotal</td>
-            <td className={styles.amount}>{formatMoney(data.subtotalCents, data.currency)}</td>
+            <td className={styles.amount}>{formatMoney(data.subtotalCents, data.currency, locale)}</td>
           </tr>
           {data.discountCents > 0 && (
             <tr>
               <td>Discount</td>
               <td className={styles.amount}>
                 {"\u2212"}
-                {formatMoney(data.discountCents, data.currency)}
+                {formatMoney(data.discountCents, data.currency, locale)}
               </td>
             </tr>
           )}
           <tr>
             <td>Shipping</td>
             <td className={styles.amount}>
-              {data.shippingCents === 0 ? "Free" : formatMoney(data.shippingCents, data.currency)}
+              {data.shippingCents === 0 ? "Free" : formatMoney(data.shippingCents, data.currency, locale)}
             </td>
           </tr>
           {data.taxCents > 0 && (
@@ -156,12 +159,12 @@ export function ConfirmPage() {
               {/* "Includes tax" when the price already contained it — an
                   additive-looking row would read as a second charge. */}
               <td>{taxLineLabel(store.taxBehavior)}</td>
-              <td className={styles.amount}>{formatMoney(data.taxCents, data.currency)}</td>
+              <td className={styles.amount}>{formatMoney(data.taxCents, data.currency, locale)}</td>
             </tr>
           )}
           <tr className={styles.total}>
             <td>Total</td>
-            <td className={styles.amount}>{formatMoney(data.totalCents, data.currency)}</td>
+            <td className={styles.amount}>{formatMoney(data.totalCents, data.currency, locale)}</td>
           </tr>
         </tfoot>
       </table>

@@ -24,7 +24,9 @@ import {
   useOrder,
   useRefundOrder,
   useSettings,
+  useStoreLocale,
   useUpdateFulfilment,
+
 } from "./queries";
 import { Field } from "./Field";
 import { PageHeader } from "./RequireAdmin";
@@ -47,6 +49,7 @@ export function OrderDetailPage() {
   const order = useOrder(id);
   const environment = useEnvironment();
   const settings = useSettings();
+  const locale = useStoreLocale();
   const save = useUpdateFulfilment();
 
   const [status, setStatus] = useState<OrderStatus | null>(null);
@@ -92,7 +95,7 @@ export function OrderDetailPage() {
         title={`Order ${current.reference}`}
         description={
           <>
-            Placed {formatOrderDate(current.createdAt, true)} · <OrderStatusTag order={current} />
+            Placed {formatOrderDate(current.createdAt, true, locale)} · <OrderStatusTag order={current} locale={locale} />
           </>
         }
         actions={
@@ -144,14 +147,14 @@ export function OrderDetailPage() {
                   title: "Unit",
                   dataIndex: "unitPriceCents",
                   align: "right",
-                  render: (cents: number) => formatMoney(cents, current.currency),
+                  render: (cents: number) => formatMoney(cents, current.currency, locale),
                 },
                 {
                   title: "Line",
                   key: "line",
                   align: "right",
                   render: (_value, item) =>
-                    formatMoney(item.unitPriceCents * item.quantity, current.currency),
+                    formatMoney(item.unitPriceCents * item.quantity, current.currency, locale),
                 },
               ]}
               summary={() => (
@@ -298,6 +301,7 @@ const REFUND_REASONS: { label: string; value: RefundReason }[] = [
  */
 function RefundCard({ order }: { order: Order }) {
   const { message } = App.useApp();
+  const locale = useStoreLocale();
   const environment = useEnvironment();
   const refund = useRefundOrder();
 
@@ -313,14 +317,14 @@ function RefundCard({ order }: { order: Order }) {
       : amountCents <= 0
         ? "A refund has to be for more than zero."
         : amountCents > remaining
-          ? `That is more than the ${formatMoney(remaining, order.currency)} still refundable.`
+          ? `That is more than the ${formatMoney(remaining, order.currency, locale)} still refundable.`
           : null;
 
   if (remaining <= 0) {
     return (
       <Card title="Refund" className={cx(styles.card)}>
         <p className={cx(styles.help)}>
-          Refunded in full — {formatMoney(order.refundedCents, order.currency)}.
+          Refunded in full — {formatMoney(order.refundedCents, order.currency, locale)}.
         </p>
       </Card>
     );
@@ -330,8 +334,8 @@ function RefundCard({ order }: { order: Order }) {
     <Card title="Refund" className={cx(styles.card)}>
       <p className={cx(styles.help)}>
         {order.refundedCents > 0
-          ? `${formatMoney(order.refundedCents, order.currency)} already refunded; ${formatMoney(remaining, order.currency)} still refundable.`
-          : `${formatMoney(remaining, order.currency)} refundable.`}
+          ? `${formatMoney(order.refundedCents, order.currency, locale)} already refunded; ${formatMoney(remaining, order.currency, locale)} still refundable.`
+          : `${formatMoney(remaining, order.currency, locale)} refundable.`}
       </p>
 
       <Field label="Amount" error={error}>
@@ -371,7 +375,7 @@ function RefundCard({ order }: { order: Order }) {
         description={
           amountCents === null || error
             ? "Fix the amount first."
-            : `${formatMoney(amountCents, order.currency)} goes back to the customer. This cannot be undone.`
+            : `${formatMoney(amountCents, order.currency, locale)} goes back to the customer. This cannot be undone.`
         }
         okText="Refund"
         okButtonProps={{ danger: true }}
@@ -408,7 +412,7 @@ function RefundCard({ order }: { order: Order }) {
         }}
       >
         <Button danger block disabled={Boolean(error)} loading={refund.isPending}>
-          Refund {amountCents !== null && !error ? formatMoney(amountCents, order.currency) : ""}
+          Refund {amountCents !== null && !error ? formatMoney(amountCents, order.currency, locale) : ""}
         </Button>
       </Popconfirm>
     </Card>
@@ -429,7 +433,8 @@ function Total({
   /** Render as a deduction. The stored figure is positive either way. */
   negative?: boolean;
 }) {
-  const amount = `${negative ? "\u2212" : ""}${formatMoney(cents, order.currency)}`;
+  const locale = useStoreLocale();
+  const amount = `${negative ? "\u2212" : ""}${formatMoney(cents, order.currency, locale)}`;
 
   return (
     <Table.Summary.Row>

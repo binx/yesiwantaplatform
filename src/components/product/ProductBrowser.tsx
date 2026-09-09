@@ -21,6 +21,8 @@ interface ProductBrowserProps {
   /** Collection name, carried into the product page for its breadcrumb. */
   collection?: string;
   currency?: string;
+  /** BCP 47, from the store. Passed to the grid so prices read the store's way. */
+  locale?: string;
 }
 
 /**
@@ -41,6 +43,7 @@ export function ProductBrowser({
   products,
   collection,
   currency = "USD",
+  locale = "en-US",
 }: ProductBrowserProps) {
   const [params, setParams] = useSearchParams();
   const searchId = useId();
@@ -148,7 +151,12 @@ export function ProductBrowser({
           </button>
         </div>
       ) : (
-        <ProductList products={shown} {...(collection ? { collection } : {})} currency={currency} />
+        <ProductList
+          products={shown}
+          {...(collection ? { collection } : {})}
+          currency={currency}
+          locale={locale}
+        />
       )}
     </>
   );

@@ -17,16 +17,12 @@ import { expect, test, type Page } from "@playwright/test";
  */
 
 /*
- * Two things this file does not cover, recorded so the gap is visible rather
- * than merely absent:
- *
- * - `/setup`, which redirects to `/admin` as soon as a store is configured, and
- *   the suite runs against a seeded one. Reaching it needs an unconfigured
- *   database, which is a fixture this suite does not have.
- * - The admin behind the session check. Phase 5's screens are tables, modals, a
- *   drag-and-drop image manager and a colour picker, and auditing them is its
- *   own piece of work rather than a rider on this one. `/admin/login` and
- *   `/admin/accept-invite` are public, so they are covered here.
+ * One thing this file does not cover, recorded so the gap is visible rather
+ * than merely absent: the admin behind the session check. Phase 5's screens are
+ * tables, modals, a drag-and-drop image manager and a colour picker, and
+ * auditing them is its own piece of work rather than a rider on this one.
+ * `/admin/login` and `/admin/accept-invite` are public, so they are covered
+ * here, and the setup wizard is covered at the bottom of this file.
  */
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"];
@@ -181,4 +177,111 @@ test("the storefront's first tab stop is the skip link", async ({ page }) => {
 
   await page.keyboard.press("Enter");
   await expect(page.locator("#main")).toBeVisible();
+});
+
+/*
+ * The setup wizard.
+ *
+ * `/setup` redirects away the moment a store is configured, and this suite runs
+ * against a seeded one — so for a long time nothing here reached the wizard,
+ * and it was scanned only by accident, when a worktree's database happened to
+ * have no admin and `/admin/login` redirected onto it. It was not clean when
+ * that happened: the wizard is a sibling of `/admin` in the router rather than
+ * a child, so it never saw `AdminRoot`'s `ConfigProvider` and rendered under
+ * antd's stock theme, whose muted grey and default blue both fail AA.
+ *
+ * Reaching it deliberately needs a store with no admin. Rather than a second
+ * database — `playwright.config.ts` points the API at the real
+ * `data/beluga.sqlite`, and these tests run in parallel with everything above —
+ * the single endpoint the page branches on is stubbed per test. Nothing is
+ * written and no other test's view of the world changes.
+ */
+
+/** `GET /api/setup` for a store nobody has claimed yet. */
+const UNCONFIGURED = {
+  needsSetup: true,
+  hasAdmin: false,
+  hasSettings: false,
+  hasStripeSecret: false,
+  stripeMode: null,
+  requiresToken: false,
+  // A first run on a laptop, which is what makes the wizard's "still localhost"
+  // warning render on the last step. Leaving it out silently skipped that Alert.
+  publicUrl: "http://localhost:5173",
+};
+
+async function openWizard(page: Page, status: Record<string, unknown> = {}) {
+  await page.route("**/api/setup", async (route) => {
+    // Only the status read is faked. A POST here is the real submit, and
+    // letting it through rather than swallowing it means a test that
+    // accidentally reaches one fails loudly instead of appearing to pass.
+    if (route.request().method() !== "GET") return route.fallback();
+    await route.fulfill({ json: { ...UNCONFIGURED, ...status } });
+  });
+
+  await page.goto("/setup");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+}
+
+/** Fills step 1 and advances, so the later steps can be reached at all. */
+async function completeIdentityStep(page: Page) {
+  const password = "a-sufficiently-long-password";
+
+  await page.getByLabel("Store name").fill("Accessibility Test Store");
+  await page.getByLabel("Email").fill("owner@example.com");
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByLabel("Confirm password").fill(password);
+  await page.getByRole("button", { name: "Continue" }).click();
+}
+
+test("the setup wizard's store step has no accessibility violations", async ({ page }) => {
+  await openWizard(page);
+  await expect(page.getByLabel("Store name")).toBeVisible();
+
+  const found = report(await scan(page));
+  expect(found, found).toBe("");
+});
+
+test("the setup wizard's setup-token field has no accessibility violations", async ({ page }) => {
+  // A production deploy, where the wizard is public until someone claims it.
+  await openWizard(page, { requiresToken: true });
+  await expect(page.getByLabel("Setup token")).toBeVisible();
+
+  const found = report(await scan(page));
+  expect(found, found).toBe("");
+});
+
+test("the setup wizard's payments step has no accessibility violations", async ({ page }) => {
+  await openWizard(page);
+  await completeIdentityStep(page);
+  await expect(page.getByPlaceholder("pk_test_…")).toBeVisible();
+
+  const found = report(await scan(page));
+  expect(found, found).toBe("");
+});
+
+test("the setup wizard's live-key warning has no accessibility violations", async ({ page }) => {
+  // The loudest thing the wizard can say, and a different render path: a
+  // success Alert carrying a Tag rather than the info Alert above.
+  await openWizard(page, { hasStripeSecret: true, stripeMode: "live" });
+  await completeIdentityStep(page);
+  await expect(page.getByText("live mode")).toBeVisible();
+
+  const found = report(await scan(page));
+  expect(found, found).toBe("");
+});
+
+test("the setup wizard's theme step has no accessibility violations", async ({ page }) => {
+  await openWizard(page);
+  await completeIdentityStep(page);
+  await expect(page.getByPlaceholder("pk_test_…")).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  // The colour picker, the typeface select and the radius slider — the three
+  // controls that are not plain inputs, and the ones worth scanning.
+  await expect(page.getByText("Preview")).toBeVisible();
+  await expect(page.getByText("This server's public URL is still localhost")).toBeVisible();
+
+  const found = report(await scan(page));
+  expect(found, found).toBe("");
 });

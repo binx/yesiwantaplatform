@@ -150,7 +150,7 @@ import {
   updateAdminPassword,
   verifyPasswordFor,
 } from "../auth.js";
-import { loginRateLimit } from "../middleware.js";
+import { adminLoginRateLimit } from "../middleware.js";
 
 /**
  * Admin API.
@@ -1344,7 +1344,7 @@ adminRouter.delete("/users/invites/:id", async (req, res) => {
  * verifies a password, so it is a guessing surface, and the write ceiling of
  * 120/minute is far too generous for that.
  */
-adminRouter.put("/users/me/password", loginRateLimit, async (req, res) => {
+adminRouter.put("/users/me/password", adminLoginRateLimit, async (req, res) => {
   let input;
   try {
     input = passwordChangeInputSchema.parse(req.body);

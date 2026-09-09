@@ -1,6 +1,7 @@
 import { getSettings } from "../db/repository.js";
 import { fontUrlSchema } from "../shared/schema.js";
 import { httpError, setCspFontOrigins } from "./middleware.js";
+import { assertPublicHostname } from "./webhooks.js";
 
 /**
  * Where a theme's font is allowed to come from.
@@ -43,6 +44,10 @@ const MAX_STYLESHEET_BYTES = 512 * 1024;
  */
 const FETCH_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+/** Same cap as the webhook sender, and the same reason: a public origin can
+ * still bounce the request somewhere the guard has not looked yet. */
+const MAX_REDIRECTS = 3;
 
 /**
  * The origins one `fontUrl` needs, resolved once.
@@ -95,6 +100,95 @@ function referencedOrigins(css: string, base: string): string[] {
 }
 
 /**
+ * Read a response body up to `maxBytes`, then stop — including cancelling the
+ * connection, so an enormous body is a bounded read, not a bounded string cut
+ * from one that was already downloaded in full.
+ */
+async function readCappedBody(response: Response, maxBytes: number): Promise<string> {
+  // undici's ambient `Response.body` type leaves the stream's element type at
+  // its default `any`; this is the one place that matters, so it is pinned
+  // back to `Uint8Array` here rather than letting `any` spread into the loop.
+  const reader = response.body?.getReader() as ReadableStreamDefaultReader<Uint8Array> | undefined;
+  if (!reader) return "";
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+
+  while (total < maxBytes) {
+    const { done, value } = await reader.read();
+    if (done || !value) break;
+
+    const remaining = maxBytes - total;
+    const chunk = value.byteLength > remaining ? value.subarray(0, remaining) : value;
+    chunks.push(chunk);
+    total += chunk.byteLength;
+  }
+
+  await reader.cancel().catch(() => {});
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+/**
+ * Fetch a stylesheet, refusing private addresses on every hop.
+ *
+ * `redirect: "manual"` and a hand-rolled loop, the same shape as `send` in
+ * server/webhooks.ts and for the same reason: `redirect: "follow"` would let
+ * a public URL bounce the request to a private address with the guard having
+ * only ever seen the first hop.
+ */
+async function fetchStylesheet(fontUrl: string): Promise<{ body: string; finalUrl: string }> {
+  let target = fontUrl;
+
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    const targetUrl = new URL(target);
+
+    try {
+      await assertPublicHostname(targetUrl.hostname);
+    } catch {
+      throw httpError(422, `${fontUrl} resolves to a private or reserved address.`);
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(targetUrl, {
+        redirect: "manual",
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        headers: { accept: "text/css,*/*;q=0.1", "user-agent": FETCH_USER_AGENT },
+      });
+    } catch {
+      throw httpError(
+        422,
+        `Could not fetch the font stylesheet at ${fontUrl}. Check the address.`,
+      );
+    }
+
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      if (!location) {
+        throw httpError(
+          422,
+          `The font stylesheet at ${fontUrl} redirected without a destination.`,
+        );
+      }
+      target = new URL(location, targetUrl).toString();
+      continue;
+    }
+
+    if (!response.ok) {
+      throw httpError(
+        422,
+        `The font stylesheet at ${fontUrl} answered ${response.status}. Check the address.`,
+      );
+    }
+
+    const body = await readCappedBody(response, MAX_STYLESHEET_BYTES);
+    return { body, finalUrl: targetUrl.toString() };
+  }
+
+  throw httpError(422, `The font stylesheet at ${fontUrl} redirected too many times.`);
+}
+
+/**
  * Resolve the origins a font stylesheet needs, or refuse it.
  *
  * Throws a 422 naming the URL, because every caller is a merchant saving a
@@ -126,40 +220,19 @@ export async function resolveFontOrigins(
     );
   }
 
-  let response: Response;
-  try {
-    response = await fetch(fontUrl, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      headers: { accept: "text/css,*/*;q=0.1", "user-agent": FETCH_USER_AGENT },
-    });
-  } catch {
-    throw httpError(
-      422,
-      `Could not fetch the font stylesheet at ${fontUrl}. Check the address.`,
-    );
-  }
-
-  if (!response.ok) {
-    throw httpError(
-      422,
-      `The font stylesheet at ${fontUrl} answered ${response.status}. Check the address.`,
-    );
-  }
-
-  const body = (await response.text()).slice(0, MAX_STYLESHEET_BYTES);
+  const { body, finalUrl } = await fetchStylesheet(fontUrl);
 
   /*
    * A redirect may have moved the sheet, and its relative `url()`s resolve
    * against where it ended up rather than where it was asked for. Both origins
    * are allowed for the same reason: the browser will follow the same hop.
    */
-  const finalOrigin = originOf(response.url) ?? stylesheetOrigin;
+  const finalOrigin = originOf(finalUrl) ?? stylesheetOrigin;
   const origins = [
     ...new Set([
       stylesheetOrigin,
       finalOrigin,
-      ...referencedOrigins(body, response.url || fontUrl),
+      ...referencedOrigins(body, finalUrl),
     ]),
   ];
 

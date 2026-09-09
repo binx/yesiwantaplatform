@@ -1,15 +1,15 @@
 ---
 task: "29"
 title: Backend hardening from the blank-store review
-status: todo
+status: done
 tier: 0
 size: S
 migration: none
 blocked_by: []
 blocks: []
 touches: server/routes/account.ts:101 · server/routes/session.ts:138 · server/fonts.ts:131 · server/webhooks.ts:143 · server/middleware.ts:90 · server/middleware.ts:130 · server/security.test.ts
-completed:
-shipped_in:
+completed: 2026-09-09
+shipped_in: 29
 summary: >-
   Four findings from a review that probed the API with curl and read every route. None is
   exploitable today on a default deploy, and each is a defence the codebase already claims

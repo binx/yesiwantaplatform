@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
-import { isProduction, objectStorage } from "./env.js";
+import { objectStorage } from "./env.js";
 import { safeEqual } from "./auth.js";
 
 declare module "express-session" {
@@ -87,7 +87,12 @@ function policyFor(extraOrigins: readonly string[]) {
         baseUri: ["'self'"],
         formAction: ["'self'"],
         frameAncestors: ["'none'"],
-        ...(isProduction ? { upgradeInsecureRequests: [] } : {}),
+        // Helmet sends this directive by default regardless of environment —
+        // there was never a conditional here that worked, only one that read
+        // as if it did. A self-hosted store on plain HTTP behind nothing is
+        // unsupported: every request would be upgraded to an https:// origin
+        // that does not answer.
+        upgradeInsecureRequests: [],
       },
     },
     // Product images are served to the storefront, which may sit behind a CDN.
@@ -121,13 +126,31 @@ function currentPolicy(): RequestHandler {
 export const securityHeaders: RequestHandler = (req, res, next) => currentPolicy()(req, res, next);
 
 /**
- * Login rate limit.
+ * Login rate limits.
  *
  * v1 used `max: 1` per 15 seconds, which locked out a user who mistyped their
  * password once while barely inconveniencing an attacker. This allows a normal
  * retry pattern and still caps sustained guessing.
+ *
+ * Two separate instances, not one shared by IP: a single limiter on the admin
+ * login, invite acceptance, the admin password change, the customer login,
+ * email verification and the customer password reset meant ten wrong customer
+ * passwords from one address could lock the merchant out of their own admin
+ * for fifteen minutes — a shared office NAT or a campus turns that into a
+ * lockout nobody can explain from the inside. Keyed by IP, not by email:
+ * keying by the account identifier would hand an attacker a way to lock out a
+ * victim by name, which is worse than the shared-IP problem this replaces.
  */
-export const loginRateLimit = rateLimit({
+export const adminLoginRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { error: "Too many sign-in attempts. Try again in a few minutes." },
+});
+
+export const customerLoginRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
   standardHeaders: "draft-7",
@@ -139,7 +162,7 @@ export const loginRateLimit = rateLimit({
 /**
  * Routes that send an email to an address the caller chose.
  *
- * `loginRateLimit` skips successful responses, which is right for a login and
+ * The login limiters skip successful responses, which is right for a login and
  * wrong here: registration and a password-reset request answer 204 whether or
  * not the address exists — that is the enumeration defence — so under the
  * login limiter neither ever counted, and one loop could push unlimited mail
@@ -158,7 +181,7 @@ export const emailRateLimit = rateLimit({
 /**
  * The storefront password gate.
  *
- * Shaped like `loginRateLimit` but deliberately without `skipSuccessfulRequests`:
+ * Shaped like the login limiters but deliberately without `skipSuccessfulRequests`:
  * a login only ever needs to be tried by its one owner, but a shared storefront
  * password has no account to lock and no owner to notice repeated guessing, so
  * a *valid* guess still has to count towards the ceiling.

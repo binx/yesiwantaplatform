@@ -9,6 +9,27 @@ import {
 } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
+import { lookup as dnsLookupAll } from "node:dns/promises";
+
+/**
+ * Stubbed so a stylesheet's hostname never touches real DNS — most of this
+ * file's fixture hostnames (fonts.example.com, cdn.example.com) do not
+ * resolve at all, and the ones that do (fonts.googleapis.com) would make
+ * every run of this suite depend on network access. The default answer below
+ * is "public"; the SSRF tests further down override it per hostname.
+ */
+vi.mock("node:dns/promises", () => ({ lookup: vi.fn() }));
+
+/**
+ * `dns.promises.lookup` is overloaded, and the `{ all: true }` shape
+ * `assertPublicHostname` actually calls it with resolves to the *last*
+ * overload's `Promise<LookupAddress>` under `vi.mocked`, not the array form.
+ * Recast to the one signature this file drives.
+ */
+const lookup = dnsLookupAll as unknown as (
+  hostname: string,
+  options: { all: true },
+) => Promise<{ address: string; family: number }[]>;
 
 /**
  * Web fonts, and the header that decides whether one ever loads.
@@ -62,6 +83,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   const { resetFontOrigins } = await import("./fonts.js");
   resetFontOrigins();
+  vi.mocked(lookup).mockReset().mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
 });
 
 afterEach(() => {
@@ -274,6 +296,56 @@ describe("saving a font URL", () => {
 
     // Cached per URL — a settings save should not cost a round trip to a third
     // party every time the merchant changes an unrelated field.
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The guard borrowed from server/webhooks.ts (task 29, group 2). Font
+ * stylesheets are merchant-supplied URLs the server fetches, which is exactly
+ * the shape of an SSRF primitive — and `POST /api/setup` calls this same
+ * resolver while unauthenticated, so it cannot lean on "admin-only" as its
+ * defence.
+ */
+describe("the font URL's address guard", () => {
+  it("refuses a hostname that resolves to a private address, with no fetch made", async () => {
+    vi.mocked(lookup).mockResolvedValue([{ address: "127.0.0.1", family: 4 }]);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await saveFontUrl("https://internal.example.com/font.css");
+
+    expect(response.status).toBe(422);
+    expect(response.body.error).toMatch(/private or reserved/i);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("refuses a stylesheet that redirects to a private address on the second hop", async () => {
+    vi.mocked(lookup).mockImplementation((hostname) =>
+      Promise.resolve(
+        hostname === "internal.example.com"
+          ? [{ address: "127.0.0.1", family: 4 }]
+          : [{ address: "93.184.216.34", family: 4 }],
+      ),
+    );
+
+    const fetchSpy = vi.fn(() =>
+      Promise.resolve(
+        new Response(null, {
+          status: 302,
+          headers: { location: "https://internal.example.com/moved.css" },
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const publicUrl = "https://fonts.example.com/redirecting.css";
+    const response = await saveFontUrl(publicUrl);
+
+    expect(response.status).toBe(422);
+    expect(response.body.error).toMatch(/private or reserved/i);
+    // The first hop is public and is fetched; the second hop is refused
+    // before a request is ever made to it.
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });

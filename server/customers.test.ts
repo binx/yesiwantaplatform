@@ -1,7 +1,16 @@
 import { randomUUID } from "node:crypto";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
+import type * as EmailModule from "./email.js";
+
+// Wraps the real implementation by default, so every test but the timing ones
+// below still gets the unconfigured-SMTP no-op it always got. See those tests
+// for why this exists.
+vi.mock("./email.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof EmailModule>();
+  return { ...actual, sendAccountEmail: vi.fn(actual.sendAccountEmail) };
+});
 
 /**
  * Customer accounts.
@@ -185,6 +194,35 @@ describe("registration and verification", () => {
       .send({ email, password: PASSWORD })
       .expect(200);
   });
+
+  /**
+   * Task 29, group 1: the verification email used to be awaited, so with SMTP
+   * configured a stopwatch on this route could tell a fresh registration from
+   * one that hit `EmailTakenError` by the network round trip the send costs —
+   * exactly the enumeration the identical 204 exists to prevent. A timing
+   * assertion would be flaky; the property that matters is that the response
+   * never waits on the send, which a promise that never resolves proves
+   * directly — if the route ever went back to awaiting it, this test would
+   * time out instead of passing.
+   */
+  it("answers before the verification email finishes sending", async () => {
+    const { sendAccountEmail } = await import("./email.js");
+    let release: (sent: boolean) => void = () => {};
+    vi.mocked(sendAccountEmail).mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        release = resolve;
+      }),
+    );
+
+    const { agent, csrf } = await bootstrap();
+    await agent
+      .post("/api/account/register")
+      .set("x-csrf-token", csrf)
+      .send({ email: "slow-smtp@example.com", password: PASSWORD })
+      .expect(204);
+
+    release(true);
+  });
 });
 
 describe("order access", () => {
@@ -354,6 +392,31 @@ describe("password reset", () => {
     expect(knownResponse.status).toBe(204);
     expect(unknownResponse.status).toBe(204);
     expect(knownResponse.body).toEqual(unknownResponse.body);
+  });
+
+  // See the equivalent test under "registration and verification" for why
+  // this proves the property instead of timing it.
+  it("answers before the reset email finishes sending", async () => {
+    const { sendAccountEmail } = await import("./email.js");
+    let release: (sent: boolean) => void = () => {};
+    vi.mocked(sendAccountEmail).mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        release = resolve;
+      }),
+    );
+
+    const email = "slow-smtp-reset@example.com";
+    const { createCustomer } = await import("./auth.js");
+    await createCustomer(email, PASSWORD, null);
+
+    const { agent, csrf } = await bootstrap();
+    await agent
+      .post("/api/account/password/forgot")
+      .set("x-csrf-token", csrf)
+      .send({ email })
+      .expect(204);
+
+    release(true);
   });
 });
 

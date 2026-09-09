@@ -199,6 +199,22 @@ describe("anonymous access", () => {
   });
 });
 
+/**
+ * Task 29, group 3: `upgradeInsecureRequests` was written as if it were
+ * production-only, but helmet merges its own defaults in regardless of what
+ * is passed, so the header was identical in every environment — the
+ * conditional never did anything. Asserted explicitly here so the next merge
+ * of helmet's defaults cannot make that drift silently again.
+ */
+describe("Content-Security-Policy", () => {
+  it("always sends upgrade-insecure-requests, not only in production", async () => {
+    const response = await request(app).get("/api/health").expect(200);
+    const csp = response.headers["content-security-policy"] ?? "";
+
+    expect(csp).toContain("upgrade-insecure-requests");
+  });
+});
+
 describe("CSRF", () => {
   it("rejects an authenticated write with no token", async () => {
     const { agent } = await signIn();
@@ -710,5 +726,55 @@ describe("storefront lock", () => {
       .set("x-csrf-token", csrf)
       .send({ password: STOREFRONT_PASSWORD })
       .expect(204);
+  });
+});
+
+/**
+ * Task 29, group 4 — and why this file, deliberately last.
+ *
+ * `loginRateLimit` used to be one instance shared by the admin login, invite
+ * acceptance, the admin password change, the customer login, email
+ * verification and the customer password reset. Ten wrong customer passwords
+ * from one address locked the merchant out of their own admin for fifteen
+ * minutes — a shared office NAT or a campus turns that into a lockout nobody
+ * inside can explain. This test deliberately exhausts one surface's limiter,
+ * which is real, fifteen-minute state that nothing declared above may run
+ * into — hence last, after every other describe block's own `signIn()` and
+ * `signInCustomer()` calls are done needing a live login.
+ */
+describe("login rate limits", () => {
+  async function csrfAgent() {
+    const agent = request.agent(app);
+    const { body } = await agent.get("/api/session").expect(200);
+    return { agent, csrf: body.csrfToken as string };
+  }
+
+  it("does not let the customer limiter's exhaustion touch the admin login", async () => {
+    // The limit is 10 per window, and a failed attempt (401) counts — only a
+    // successful one is skipped. Ten get through as ordinary wrong-password
+    // rejections; the eleventh is the limiter itself answering.
+    for (let i = 0; i < 10; i += 1) {
+      const { agent, csrf } = await csrfAgent();
+      await agent
+        .post("/api/account/session")
+        .set("x-csrf-token", csrf)
+        .send({ email: "customer@example.com", password: "wrong" })
+        .expect(401);
+    }
+
+    const { agent: exhausted, csrf: exhaustedCsrf } = await csrfAgent();
+    await exhausted
+      .post("/api/account/session")
+      .set("x-csrf-token", exhaustedCsrf)
+      .send({ email: "customer@example.com", password: "wrong" })
+      .expect(429);
+
+    // A separate limiter: the admin surface must still answer normally.
+    const { agent: admin, csrf: adminCsrf } = await csrfAgent();
+    await admin
+      .post("/api/session")
+      .set("x-csrf-token", adminCsrf)
+      .send({ email: "admin@example.com", password: "wrong" })
+      .expect(401);
   });
 });

@@ -1,5 +1,8 @@
+import { access, mkdir } from "node:fs/promises";
+import { constants } from "node:fs";
 import { createApp } from "./app.js";
 import { env } from "./env.js";
+import { ASSETS_ROOT } from "./uploads.js";
 import { runMigrations } from "../db/migrate.js";
 import { isConfigured } from "../db/repository.js";
 
@@ -12,6 +15,7 @@ import { isConfigured } from "../db/repository.js";
  */
 async function main(): Promise<void> {
   await runMigrations();
+  await ensureAssetsDirectory();
 
   const app = createApp();
 
@@ -36,6 +40,27 @@ async function main(): Promise<void> {
 
   process.on("SIGINT", () => shutdown("SIGINT"));
   process.on("SIGTERM", () => shutdown("SIGTERM"));
+}
+
+/**
+ * Make the upload directory exist and say so if it cannot be written.
+ *
+ * A volume mounted at the wrong path, or owned by the wrong user, otherwise
+ * shows up as a 500 on the first image upload — hours after the deploy, to a
+ * merchant who has no way to connect the two. A warning here, not a crash:
+ * a store with a broken image directory still browses and still sells, and
+ * the operator reads the log either way.
+ */
+async function ensureAssetsDirectory(): Promise<void> {
+  try {
+    await mkdir(ASSETS_ROOT, { recursive: true });
+    await access(ASSETS_ROOT, constants.W_OK);
+  } catch (error) {
+    console.warn(
+      `Uploads will fail: ${ASSETS_ROOT} is not writable (${(error as Error).message}). ` +
+        "Check ASSETS_DIR and the directory's owner.",
+    );
+  }
 }
 
 main().catch((error: unknown) => {

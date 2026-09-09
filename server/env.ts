@@ -42,6 +42,18 @@ const schema = z.object({
   SMTP_URL: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
 
+  /**
+   * Where uploaded imagery is written and served from.
+   *
+   * Relative paths resolve against the working directory, like `dist` and the
+   * migrations folder. The default keeps a clone working with no setup; a
+   * deployment points this at a mounted volume so images survive a redeploy —
+   * the constraint that rules platforms in and out, see docs/site-plan.md §7.3.
+   * Only the directory is configurable, never the URL: `/assets/<path>` stays
+   * the contract with the database and the storefront.
+   */
+  ASSETS_DIR: z.string().min(1).default("public/assets"),
+
   /** Max upload size in bytes. */
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(8 * 1024 * 1024),
 

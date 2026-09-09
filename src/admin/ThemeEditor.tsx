@@ -1,3 +1,4 @@
+import { useId } from "react";
 import {
   Alert,
   App,
@@ -62,6 +63,7 @@ interface ThemeEditorProps {
 export function ThemeEditor({ value, onChange, storeName }: ThemeEditorProps) {
   const { message } = App.useApp();
   const uploadLogo = useUploadLogo();
+  const typefaceId = useId();
 
   const preset = FONT_STACKS.find((stack) => stack.value === value.fontFamily);
   const set = <K extends keyof Theme>(key: K, next: Theme[K]) => onChange({ ...value, [key]: next });
@@ -170,8 +172,16 @@ export function ThemeEditor({ value, onChange, storeName }: ThemeEditorProps) {
             </Space>
           </Form.Item>
 
-          <Form.Item label="Typeface">
+          {/*
+            * `htmlFor`/`id` by hand: every Form.Item in here is unmanaged (no
+            * `name`), so antd generates no id to point a label at and the
+            * visible "Typeface" was decorative — the combobox reached a
+            * screen reader unnamed. A real <label> rather than an aria-label,
+            * so the accessible name is the text on screen.
+            */}
+          <Form.Item label="Typeface" htmlFor={typefaceId}>
             <Select
+              id={typefaceId}
               value={preset ? preset.value : CUSTOM}
               onChange={(next) => {
                 // Switching to Custom keeps the current stack as the starting
@@ -196,11 +206,19 @@ export function ThemeEditor({ value, onChange, storeName }: ThemeEditorProps) {
             help="0 reads as editorial and hard-edged; 4 is as soft as the storefront goes."
           >
             <Slider
+              /*
+               * The handle is a <div role="slider">, so there is nothing for a
+               * <label> to point at and the label above it does not carry. The
+               * px value is already announced from aria-valuenow, which is why
+               * this is the bare noun and not the label's full text.
+               */
+              ariaLabelForHandle="Corner radius"
               min={0}
               max={4}
               value={value.borderRadius}
               onChange={(next: number) => set("borderRadius", next)}
-              // Labelled for anyone driving this from the keyboard.
+              // Shows the px value on drag. It is not what names the handle
+              // for a screen reader — `ariaLabelForHandle` above is.
               tooltip={{ formatter: (px) => `${px ?? 0}px` }}
             />
           </Form.Item>

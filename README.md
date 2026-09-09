@@ -113,6 +113,10 @@ under `data/` and uploaded imagery, which is written to `ASSETS_DIR`
 (`public/assets` by default). On a platform with an ephemeral filesystem, mount
 a volume and point both there.
 
+Forking this to build your own store? [`docs/building-on-beluga.md`](docs/building-on-beluga.md)
+maps which files are cosmetic, which are a documented seam, and which hold a
+rule that breaks silently when edited like the first kind.
+
 `shared/schema.ts` is the contract between the storefront and its data, validated on both sides of the wire. Swapping Phase 1's fixture for the Phase 2 database changed exactly one client file, `src/lib/store-source.ts` — set `VITE_BELUGA_API=false` to render the fixture again without a database.
 
 ### The admin

@@ -1,15 +1,15 @@
 ---
 task: "26"
 title: "Building on Beluga: which files are yours to change"
-status: todo
+status: done
 tier: 0
 size: S
 migration: none
 blocked_by: []
 blocks: []
-touches: docs/building-on-beluga.md · README.md · src/pages/LandingPage.tsx
-completed:
-shipped_in:
+touches: docs/building-on-beluga.md · README.md
+completed: 2026-09-09
+shipped_in: 22
 summary: >-
   The README invites a developer to fork and replace components, and the task briefs hold
   the invariants, but nothing connects the two: no page says which files are cosmetic and

@@ -29,6 +29,7 @@ config.env
 /test-results
 /blob-report
 /.playwright
+/e2e/.auth
 
 # editor / OS
 .DS_Store

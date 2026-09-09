@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { ADMIN_STORAGE_STATE } from "./fixtures/admin";
 
 /**
  * Phase 4's accessibility gate.
@@ -17,12 +18,11 @@ import { expect, test, type Page } from "@playwright/test";
  */
 
 /*
- * One thing this file does not cover, recorded so the gap is visible rather
- * than merely absent: the admin behind the session check. Phase 5's screens are
- * tables, modals, a drag-and-drop image manager and a colour picker, and
- * auditing them is its own piece of work rather than a rider on this one.
  * `/admin/login` and `/admin/accept-invite` are public, so they are covered
- * here, and the setup wizard is covered at the bottom of this file.
+ * by the loop below along with everything else. The setup wizard is covered
+ * at the bottom of this file. Phase 5's screens behind the session check —
+ * tables, modals, a drag-and-drop image manager, a colour picker — get their
+ * own pass further down, signed in via `global-setup.ts`'s fixture owner.
  */
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"];
@@ -127,6 +127,65 @@ for (const [name, path] of routes) {
 }
 
 /*
+ * Phase 5's screens, signed in as `global-setup.ts`'s fixture owner. Same
+ * loop, same `scan`, so a violation here is held to exactly the rule set the
+ * storefront is.
+ */
+test.describe("admin, signed in", () => {
+  test.use({ storageState: ADMIN_STORAGE_STATE });
+
+  const adminRoutes: [name: string, path: string][] = [
+    ["overview", "/admin"],
+    ["products", "/admin/products"],
+    // Table, drag-and-drop image manager, an existing product's variants.
+    ["product editor", "/admin/products/canvas-tote"],
+    // Modal, inline-rename inputs, a multi-select.
+    ["collections", "/admin/collections"],
+    ["pages", "/admin/pages"],
+    ["orders", "/admin/orders"],
+    ["shipping", "/admin/shipping"],
+    ["staff", "/admin/users"],
+    ["webhooks", "/admin/webhooks"],
+    // The colour picker and the typeface select, same controls the setup
+    // wizard's theme step is scanned for below.
+    ["settings", "/admin/settings"],
+  ];
+
+  for (const [name, path] of adminRoutes) {
+    test(`${name} has no accessibility violations`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+      const found = report(await scan(page));
+      expect(found, found).toBe("");
+    });
+  }
+
+  test("the new-collection modal has no accessibility violations", async ({ page }) => {
+    await page.goto("/admin/collections");
+    await page.getByRole("button", { name: "New collection" }).click();
+    await expect(page.getByRole("dialog", { name: "New collection" })).toBeVisible();
+
+    /*
+     * Two things the click that opened the dialog leaves mid-flight, neither
+     * of which `settleAnimations`'s CSS override reaches: antd's own ripple
+     * ("wave") on the button behind it, and the modal mask's fade-in — both
+     * run via rc-motion, which clears its `-appear-` classes on the
+     * transition's own `transitionend`, not by polling duration. Forcing
+     * duration to 0 after that transition is already in flight doesn't
+     * reliably fire the event early, so this waits it out for real instead.
+     * Every other route in this file scans on first paint, before anything
+     * has been clicked — this is the one spot that needs it.
+     */
+    await expect(page.locator(".ant-wave")).toHaveCount(0);
+    await expect(page.locator(".ant-modal-mask.ant-fade-appear")).toHaveCount(0);
+
+    const found = report(await scan(page));
+    expect(found, found).toBe("");
+  });
+});
+
+/*
  * The routes above are all first paint. These are the states a shopper reaches
  * by doing something — where a live region, a focus trap or a dialog exists at
  * all — and they are where an accessibility regression is most likely to hide.
@@ -191,10 +250,10 @@ test("the storefront's first tab stop is the skip link", async ({ page }) => {
  * antd's stock theme, whose muted grey and default blue both fail AA.
  *
  * Reaching it deliberately needs a store with no admin. Rather than a second
- * database — `playwright.config.ts` points the API at the real
- * `data/beluga.sqlite`, and these tests run in parallel with everything above —
- * the single endpoint the page branches on is stubbed per test. Nothing is
- * written and no other test's view of the world changes.
+ * database on top of the one `global-setup.ts` already seeds and signs into —
+ * and these tests run in parallel with everything above — the single endpoint
+ * the page branches on is stubbed per test. Nothing is written and no other
+ * test's view of the world changes.
  */
 
 /** `GET /api/setup` for a store nobody has claimed yet. */

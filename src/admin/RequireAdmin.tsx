@@ -134,9 +134,9 @@ export function RequireAdmin() {
         </div>
       </nav>
 
-      <div className={cx(styles.content)}>
+      <main className={cx(styles.content)}>
         <Outlet />
-      </div>
+      </main>
     </div>
   );
 }

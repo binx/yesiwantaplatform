@@ -56,6 +56,12 @@ ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='a long passphrase' \
 npm run db:seed
 ```
 
+If you deploy first and set up through the browser afterwards, note that
+`/setup` is public until the store has an administrator. In production the
+server prints a **setup token** at boot and the wizard asks for it, so only
+someone who can read the server log can claim a fresh deploy. Set
+`SETUP_TOKEN` yourself if the log is awkward to reach.
+
 ## Scripts
 
 | Command | What it does |

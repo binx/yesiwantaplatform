@@ -100,6 +100,7 @@ import { deleteImageFile, storeImage, uploadMiddleware } from "../uploads.js";
 import { archiveProductInStripe, syncProductToStripe } from "../catalog-sync.js";
 import { StripeNotConfiguredError, requireStripe } from "../stripe.js";
 import { renderMarkdown } from "../markdown.js";
+import { escapeHtml } from "../html.js";
 import {
   EndpointNotAllowedError,
   assertDeliverableUrl,
@@ -1069,11 +1070,13 @@ adminRouter.post("/users", async (req, res) => {
   const settings = await getSettings();
   const storeName = settings?.name ?? "Beluga";
 
+  // The store name is merchant-supplied and this is HTML: escaped like any
+  // other value that lands in markup, so a name cannot carry tags into an inbox.
   const sent = await sendEmail(
     input.email,
     `You have been invited to help run ${storeName}`,
-    `<p>You have been invited to help run <strong>${storeName}</strong>.</p>
-     <p><a href="${inviteUrl}">Set your password and sign in</a>. The link works once and expires in 72 hours.</p>`,
+    `<p>You have been invited to help run <strong>${escapeHtml(storeName)}</strong>.</p>
+     <p><a href="${escapeHtml(inviteUrl)}">Set your password and sign in</a>. The link works once and expires in 72 hours.</p>`,
   );
 
   // Without SMTP there is no way for the invitee to receive the link, so hand
@@ -1129,6 +1132,12 @@ adminRouter.put("/users/me/password", loginRateLimit, async (req, res) => {
   }
 
   await updateAdminPassword(id, input.next);
+
+  // Every other session this account holds is signed out; only the one that
+  // just proved it knows the old password survives. Changing a password is
+  // what someone does after a laptop goes missing, and it must actually work.
+  await destroySessionsForUser(id, { except: req.sessionID });
+
   res.status(204).end();
 });
 

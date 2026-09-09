@@ -43,6 +43,8 @@ import styles from "./SetupPage.module.css";
 const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "JPY", "SEK", "NZD", "CHF", "DKK"];
 
 interface IdentityValues {
+  /** Only when the server printed one at boot — see `requiresToken` below. */
+  setupToken?: string;
   storeName: string;
   currency: string;
   email: string;
@@ -178,6 +180,7 @@ export function SetupPage() {
       stripePublishableKey: publishableKey.trim() || null,
       theme,
       seedDemo,
+      ...(identity.setupToken?.trim() ? { setupToken: identity.setupToken.trim() } : {}),
     });
   };
 
@@ -208,6 +211,7 @@ export function SetupPage() {
         {step === 0 ? (
           <IdentityStep
             initial={identity}
+            requiresToken={status.data?.requiresToken ?? false}
             onDone={(values) => {
               setIdentity(values);
               setStep(1);
@@ -261,9 +265,11 @@ export function SetupPage() {
 
 function IdentityStep({
   initial,
+  requiresToken,
   onDone,
 }: {
   initial: IdentityValues | null;
+  requiresToken: boolean;
   onDone: (values: IdentityValues) => void;
 }) {
   return (
@@ -273,12 +279,29 @@ function IdentityStep({
       initialValues={initial ?? { currency: "USD" }}
       onFinish={onDone}
     >
+      {/*
+        * Shown only when the server says so — a production deploy, where this
+        * page is public before anyone owns the store. The token is in the
+        * server's log and nowhere else, which is what makes it proof that the
+        * person filling this in is the person who deployed it.
+        */}
+      {requiresToken ? (
+        <Form.Item
+          name="setupToken"
+          label="Setup token"
+          help="Printed in the server's log when it started. Whoever can read that log is the operator; this proves you are."
+          rules={[{ required: true, message: "Paste the setup token from the server log." }]}
+        >
+          <Input autoFocus autoComplete="off" spellCheck={false} size="large" />
+        </Form.Item>
+      ) : null}
+
       <Form.Item
         name="storeName"
         label="Store name"
         rules={[{ required: true, message: "Your store needs a name." }]}
       >
-        <Input autoFocus placeholder="Blue Whale Goods" size="large" />
+        <Input autoFocus={!requiresToken} placeholder="Blue Whale Goods" size="large" />
       </Form.Item>
 
       <Form.Item

@@ -27,6 +27,7 @@ import {
   consumeEmailVerificationToken,
   consumePasswordResetToken,
   createCustomer,
+  destroySessionsForCustomer,
   createEmailVerificationToken,
   createPasswordResetToken,
   findCustomerById,
@@ -36,7 +37,16 @@ import {
 } from "../auth.js";
 import { sendAccountEmail } from "../email.js";
 import { env } from "../env.js";
-import { csrfToken, httpError, loginRateLimit, requireCustomer, sessionOp, verifyCsrf, writeRateLimit } from "../middleware.js";
+import {
+  csrfToken,
+  emailRateLimit,
+  httpError,
+  loginRateLimit,
+  requireCustomer,
+  sessionOp,
+  verifyCsrf,
+  writeRateLimit,
+} from "../middleware.js";
 
 /**
  * Customer accounts — a public, unauthenticated-facing login surface.
@@ -77,7 +87,7 @@ function toEpochMs(value: unknown): number {
  * before it discovers the email is taken, which is what keeps the two
  * branches' cost — not just their response — close to equal.
  */
-accountRouter.post("/register", loginRateLimit, async (req, res) => {
+accountRouter.post("/register", emailRateLimit, async (req, res) => {
   const parsed = customerRegisterInputSchema.safeParse(req.body);
   if (!parsed.success) {
     throw httpError(400, parsed.error.issues[0]?.message ?? "That could not be used.");
@@ -255,7 +265,7 @@ meRouter.delete("/addresses/:id", async (req, res) => {
  * Request a reset link. Always 204: an attacker must not learn whether an
  * email has an account by watching this route's response.
  */
-accountRouter.post("/password/forgot", loginRateLimit, async (req, res) => {
+accountRouter.post("/password/forgot", emailRateLimit, async (req, res) => {
   const parsed = forgotPasswordInputSchema.safeParse(req.body);
   if (!parsed.success) throw httpError(400, "Enter a valid email address.");
 
@@ -274,12 +284,17 @@ accountRouter.post("/password/reset", loginRateLimit, async (req, res) => {
     throw httpError(400, parsed.error.issues[0]?.message ?? "That could not be used.");
   }
 
+  let customerId: string;
   try {
-    await consumePasswordResetToken(parsed.data.token, parsed.data.password);
+    customerId = await consumePasswordResetToken(parsed.data.token, parsed.data.password);
   } catch (error) {
     if (error instanceof TokenNotUsableError) throw httpError(410, error.message);
     throw error;
   }
+
+  // A reset is what someone does when they suspect their account is in use by
+  // somebody else. Leaving that somebody signed in would defeat the point.
+  await destroySessionsForCustomer(customerId);
 
   res.status(204).end();
 });

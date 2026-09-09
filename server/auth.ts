@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { hash, verify } from "@node-rs/argon2";
-import { and, count, eq, isNull, like, sql } from "drizzle-orm";
+import { and, count, eq, isNull, like, ne, sql } from "drizzle-orm";
 import { getDatabase } from "../db/client.js";
 import type { AdminRole, AdminSummary } from "../shared/api.js";
 
@@ -376,12 +376,33 @@ export async function revokeInvite(id: string): Promise<void> {
  * JSON in a text column, so the match is on the serialised `adminId` — the id
  * is a UUID, so there is nothing else in the blob it could collide with.
  */
-export async function destroySessionsForUser(adminId: string): Promise<void> {
+export async function destroySessionsForUser(
+  adminId: string,
+  options: { except?: string } = {},
+): Promise<void> {
+  await destroySessionsMatching(`%"adminId":"${adminId}"%`, options.except);
+}
+
+/**
+ * The customer-side twin, for a password reset: the person resetting is
+ * usually the person who suspects someone else is signed in as them.
+ */
+export async function destroySessionsForCustomer(customerId: string): Promise<void> {
+  await destroySessionsMatching(`%"customerId":"${customerId}"%`);
+}
+
+/** `except` keeps one session — the one that just proved it knows the password. */
+async function destroySessionsMatching(pattern: string, except?: string): Promise<void> {
   const { drizzle: db, schema } = await getDatabase();
 
   await db
     .delete(schema.sessions)
-    .where(like(schema.sessions.data, sql`${`%"adminId":"${adminId}"%`}`));
+    .where(
+      and(
+        like(schema.sessions.data, sql`${pattern}`),
+        except ? ne(schema.sessions.sid, except) : undefined,
+      ),
+    );
 }
 
 /** Stamp a successful sign-in, for the staff list. */
@@ -664,8 +685,11 @@ export async function createPasswordResetToken(email: string): Promise<string | 
   return token;
 }
 
-/** Redeem a password-reset token. Single-use, exactly like the invite tokens above. */
-export async function consumePasswordResetToken(token: string, password: string): Promise<void> {
+/**
+ * Redeem a password-reset token. Single-use, exactly like the invite tokens
+ * above. Returns the customer id so the route can sign their other sessions out.
+ */
+export async function consumePasswordResetToken(token: string, password: string): Promise<string> {
   const { drizzle: db, schema } = await getDatabase();
   const tokenHash = hashToken(token);
 
@@ -697,4 +721,6 @@ export async function consumePasswordResetToken(token: string, password: string)
   if ((changed.changes ?? changed.rowCount ?? 0) !== 1) {
     throw new TokenNotUsableError("That reset link has already been used.");
   }
+
+  return row.id;
 }

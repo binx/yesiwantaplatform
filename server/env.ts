@@ -22,6 +22,34 @@ const schema = z.object({
    */
   API_PORT: z.coerce.number().int().positive().default(4000),
 
+  /**
+   * Interface to bind. `0.0.0.0` for a container or a PaaS, where the platform's
+   * edge is the only thing that can reach the port. On a VM with a reverse
+   * proxy on the same box set `127.0.0.1`: otherwise the Node port is reachable
+   * from the internet as well, and a request that skips the proxy arrives over
+   * plain HTTP carrying whatever `X-Forwarded-*` headers the sender chose.
+   */
+  API_HOST: z.string().min(1).default("0.0.0.0"),
+
+  /**
+   * Express's `trust proxy` setting, as a string: `false`, `true`, a hop count
+   * (`1`), or a comma-separated list of addresses or subnets (`loopback`,
+   * `10.0.0.0/8`). It decides which `X-Forwarded-For` entry is the client's
+   * address and whether `X-Forwarded-Proto: https` counts as a secure request.
+   * Both the login rate limit and the `Secure` session cookie depend on it, so
+   * trusting more hops than actually exist lets a caller pick their own IP.
+   * Defaults to one hop in production, none otherwise.
+   */
+  TRUST_PROXY: z.string().optional(),
+
+  /**
+   * A shared secret the first-run wizard must present before it may create the
+   * first administrator. In production one is generated and printed at boot
+   * when the store is unconfigured; set this to choose the value yourself.
+   * See `activeSetupToken` in server/routes/setup.ts.
+   */
+  SETUP_TOKEN: z.string().min(16, "SETUP_TOKEN must be at least 16 characters.").optional(),
+
   /** file:./data/beluga.sqlite for SQLite, postgres://… for Postgres. */
   DATABASE_URL: z.string().default("file:./data/beluga.sqlite"),
 
@@ -42,8 +70,12 @@ const schema = z.object({
   SMTP_URL: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
 
-  /** Max upload size in bytes. */
-  MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(8 * 1024 * 1024),
+  /**
+   * Max upload size in bytes. 20 MB: room for a camera-original product photo,
+   * which is re-encoded and capped at 2400px on the way in regardless. This is
+   * a ceiling for imagery only; digital product files are not uploaded here.
+   */
+  MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(20 * 1024 * 1024),
 
   /**
    * Let outbound webhooks reach plain HTTP and private addresses.
@@ -60,7 +92,27 @@ const schema = z.object({
     .transform((value) => value === "true"),
 });
 
-export type Env = z.infer<typeof schema> & { SESSION_SECRET: string };
+export type Env = Omit<z.infer<typeof schema>, "SESSION_SECRET" | "TRUST_PROXY"> & {
+  SESSION_SECRET: string;
+  TRUST_PROXY: boolean | number | string;
+};
+
+/**
+ * Parse `TRUST_PROXY` into what Express accepts.
+ *
+ * `true` is deliberately allowed but never the default: it trusts every hop,
+ * which means the leftmost `X-Forwarded-For` value — the one the client wrote.
+ */
+function parseTrustProxy(value: string | undefined, production: boolean): boolean | number | string {
+  if (value === undefined || value === "") return production ? 1 : false;
+
+  const lowered = value.trim().toLowerCase();
+  if (lowered === "false" || lowered === "0" || lowered === "no") return false;
+  if (lowered === "true" || lowered === "yes") return true;
+  if (/^\d+$/.test(lowered)) return Number(lowered);
+
+  return value.trim();
+}
 
 function load(): Env {
   const parsed = schema.safeParse(process.env);
@@ -72,7 +124,10 @@ function load(): Env {
     throw new Error(`Invalid environment configuration:\n${issues}\n\nSee .env.example.`);
   }
 
-  const env = parsed.data;
+  const env = {
+    ...parsed.data,
+    TRUST_PROXY: parseTrustProxy(parsed.data.TRUST_PROXY, parsed.data.NODE_ENV === "production"),
+  };
 
   if (!env.SESSION_SECRET) {
     if (env.NODE_ENV === "production") {

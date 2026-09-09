@@ -46,7 +46,12 @@ export function Banner() {
     ...(store.aboutText && !hasAboutPage ? [{ to: "/about", label: "About" }] : []),
   ];
 
+  // Two labels for two jobs. The icon has no text, so its aria-label has to
+  // read as a whole sentence — "Cart, 2 items". The drawer's entry is visible
+  // text in a list of one-word links, and that sentence read as shouted
+  // boilerplate there once the drawer's uppercase styling got hold of it.
   const cartLabel = count > 0 ? `Cart, ${count} item${count === 1 ? "" : "s"}` : "Cart";
+  const cartText = count > 0 ? `Cart (${count})` : "Cart";
 
   return (
     <header className={styles.header}>
@@ -109,7 +114,7 @@ export function Banner() {
             </Link>
           ))}
           <Link to="/cart" onClick={() => setOpen(false)}>
-            {cartLabel}
+            {cartText}
           </Link>
           <Link to={accountHref} onClick={() => setOpen(false)}>
             {accountLabel}

@@ -3,6 +3,7 @@ import { countryCodeSchema, shippingRateInputSchema, shippingZoneInputSchema } f
 import {
   centsSchema,
   collectionSchema,
+  imageSchema,
   inventorySchema,
   optionGroupSchema,
   productKindSchema,
@@ -90,6 +91,13 @@ export const productInputSchema = z
 export const collectionInputSchema = z.object({
   slug: slugSchema,
   name: z.string().min(1).max(200),
+  /**
+   * The tile image on /shop. Uploaded first, to
+   * `POST /admin/collections/:id/cover`, and then carried here — the same
+   * shape the theme's logo uses, so the image exists on disk before any row
+   * points at it.
+   */
+  cover: imageSchema.nullable().default(null),
   productIds: z.array(z.string()).max(500).default([]),
 });
 
@@ -177,6 +185,11 @@ export const setupInputSchema = z.object({
   theme: themeSchema,
   /** Load the demo catalogue so the storefront has something to render. */
   seedDemo: z.boolean().default(false),
+  /**
+   * The token the server printed at boot, required whenever `GET /setup`
+   * reports `requiresToken`. See `activeSetupToken` in server/routes/setup.ts.
+   */
+  setupToken: z.string().max(200).optional(),
 });
 
 /**
@@ -193,6 +206,8 @@ export const setupStatusSchema = z.object({
   /** Whether the *server* has a secret key. The key itself never leaves it. */
   hasStripeSecret: z.boolean().optional(),
   stripeMode: z.enum(["test", "live"]).nullable().optional(),
+  /** Whether `POST /setup` needs the token the server printed when it started. */
+  requiresToken: z.boolean().optional(),
 });
 
 /** Server-side wiring, shown on the admin dashboard. Booleans, never values. */

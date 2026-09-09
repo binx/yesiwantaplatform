@@ -123,7 +123,7 @@ README asides and source comments.
 | Page | v1 origin |
 | --- | --- |
 | Products, variants and options | *Adding Products*; retires *Advanced: Custom Product Data* |
-| **Digital products** **NEW** | Task 13. Writable now; grows a delivery section when task 16 lands — see §4 |
+| **Digital products** **NEW** | Task 13. Writable now; grows a delivery section if delivery is ever built — see §4 |
 | Collections | *Adding Collections*, condensed |
 | Images | **NEW** — derivatives, `srcset`, EXIF stripping, the naming contract |
 | Pages | *Adding Pages*, now a real feature: Markdown, server-rendered, reserved slugs |
@@ -272,8 +272,12 @@ Resolved while I was working: `main` has since split the feature in two
   lines (`physicalLines`, `requiresShipping`, `parcelFor` in
   `shared/shipping.ts`), and checkout skips address collection when no physical
   line is present (`server/routes/checkout.ts:92`). `migration: one column`.
-- **Task 16 — digital delivery**, not yet built: entitlements, expiring signed
-  URLs, and file storage outside the statically-served upload directory.
+- **Digital delivery — a known gap, not a queued task.** Entitlements, expiring
+  signed URLs, and file storage outside the statically-served upload directory.
+  The approach has not been chosen, so it sits in
+  [docs/gaps/digital-delivery.md](gaps/digital-delivery.md) rather than in
+  `docs/tasks/` — it was briefly numbered task 16, which is why the commit
+  history and the note above still say so.
 
 That closes the discrepancy I flagged in revision 2 — the tracker was briefly
 overstating task 13 against its own brief, and someone fixed it properly by

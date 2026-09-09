@@ -303,4 +303,33 @@ describe("changing your own password", () => {
     const newPassword = await signIn("changer@example.com", "a-brand-new-long-password");
     expect(newPassword.login.status).toBe(200);
   });
+
+  it("signs out every other session, and keeps the one that made the change", async () => {
+    const { agent, csrf } = await signIn();
+    const { token } = await invite(agent, csrf, "two-devices@example.com");
+
+    const laptop = request.agent(app);
+    const bootstrap = await laptop.get("/api/session").expect(200);
+    await laptop
+      .post("/api/invites/accept")
+      .set("x-csrf-token", bootstrap.body.csrfToken as string)
+      .send({ token, password: PASSWORD })
+      .expect(201);
+
+    // A second, older session — the one on the phone that went missing.
+    const phone = await signIn("two-devices@example.com", PASSWORD);
+    expect(phone.login.status).toBe(200);
+    await phone.agent.get("/api/admin/settings").expect(200);
+
+    const changed = await laptop
+      .put("/api/admin/users/me/password")
+      .set("x-csrf-token", (await laptop.get("/api/session")).body.csrfToken as string)
+      .send({ current: PASSWORD, next: "a-brand-new-long-password" })
+      .expect(204);
+    expect(changed.status).toBe(204);
+
+    // The phone is out; the laptop that changed the password is still in.
+    await phone.agent.get("/api/admin/settings").expect(401);
+    await laptop.get("/api/admin/settings").expect(200);
+  });
 });

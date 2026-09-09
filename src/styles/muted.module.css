@@ -1,0 +1,22 @@
+/*
+ * One rule for inline links inside muted text.
+ *
+ * A link in a `.note` or `.footer` paragraph inherited the paragraph's muted
+ * colour exactly, carried `text-decoration: none`, and was no heavier — so
+ * "New here? Create an account" gave a shopper nothing at all to tell the two
+ * halves of the sentence apart. Colour on its own would not be enough either:
+ * WCAG 1.4.1 wants something other than hue distinguishing a link from the
+ * text around it, which is what the underline is for.
+ *
+ * It lives here, composed into each block, because the same pattern appears in
+ * five modules and five copies of it would drift.
+ */
+.notice a {
+  color: var(--beluga-ink);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.notice a:hover {
+  text-decoration-thickness: 2px;
+}

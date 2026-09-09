@@ -38,7 +38,7 @@ export function LoginPage() {
   const rateLimited = login.error instanceof ApiError && login.error.status === 429;
 
   return (
-    <div className={cx(styles.page)}>
+    <main className={cx(styles.page)}>
       <Card className={cx(styles.card)}>
         <Typography.Title level={1} className={cx(styles.title)}>
           <span aria-hidden="true">🎷🐋</span> Beluga
@@ -95,6 +95,6 @@ export function LoginPage() {
           <Link to="/">← Back to the storefront</Link>
         </p>
       </Card>
-    </div>
+    </main>
   );
 }

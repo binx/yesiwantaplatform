@@ -40,7 +40,7 @@ export function AcceptInvitePage() {
   const tooShort = password.length > 0 && password.length < 12;
 
   return (
-    <div className={cx(styles.page)}>
+    <main className={cx(styles.page)}>
       <Card className={cx(styles.card)}>
         <Typography.Title level={1} className={cx(styles.title)}>
           <span aria-hidden="true">🎷🐋</span> Beluga
@@ -61,12 +61,24 @@ export function AcceptInvitePage() {
         ) : null}
 
         <Form layout="vertical" onFinish={() => void accept.mutate({ token, password })}>
+          {/*
+            The id and htmlFor are load-bearing, not decoration.
+
+            antd derives a label's `for` from the Form.Item's `name`, and this
+            field has none — it is controlled React state rather than an entry
+            in antd's form store, because the button's disabled state reads the
+            length as it is typed. So the label rendered, looked correct, and
+            was attached to nothing: an invited colleague on a screen reader
+            got "edit text, blank" for the one field on the page.
+          */}
           <Form.Item
             label="Password"
+            htmlFor="invite-password"
             {...(tooShort ? ({ validateStatus: "error" } as const) : {})}
             help={tooShort ? "Use at least 12 characters." : "At least 12 characters."}
           >
             <Input.Password
+              id="invite-password"
               value={password}
               autoComplete="new-password"
               onChange={(event) => setPassword(event.target.value)}
@@ -84,6 +96,6 @@ export function AcceptInvitePage() {
           </Button>
         </Form>
       </Card>
-    </div>
+    </main>
   );
 }

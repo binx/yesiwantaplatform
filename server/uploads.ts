@@ -34,6 +34,15 @@ if (ASSETS_ROOT === path.parse(ASSETS_ROOT).root) {
 }
 
 const ALLOWED_FORMATS = new Set(["jpeg", "png", "webp", "avif", "gif"]);
+
+/**
+ * The most pixels an upload may decode to: 50 megapixels, roughly 7000×7000.
+ *
+ * `MAX_UPLOAD_BYTES` bounds the file, not the image — a few kilobytes of PNG
+ * can declare 30000×30000 and decode to gigabytes. sharp's own default allows
+ * 268 megapixels, and nothing in a catalogue needs more than a fraction of it.
+ */
+const MAX_INPUT_PIXELS = 50_000_000;
 /** Buffer in memory so nothing is persisted before it has been validated. */
 export const uploadMiddleware = multer({
   storage: multer.memoryStorage(),
@@ -73,7 +82,7 @@ export interface StoredImage {
 export async function storeImage(ownerId: string, buffer: Buffer): Promise<StoredImage> {
   assertSafeOwnerId(ownerId);
 
-  let image = sharp(buffer, { failOn: "error" });
+  let image = sharp(buffer, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS });
   let metadata;
 
   try {
@@ -100,7 +109,9 @@ export async function storeImage(ownerId: string, buffer: Buffer): Promise<Store
   // appended after the image data.
   const isAnimated = format === "gif" && (metadata.pages ?? 1) > 1;
   const output = isAnimated
-    ? await sharp(buffer, { animated: true }).gif().toBuffer({ resolveWithObject: true })
+    ? await sharp(buffer, { animated: true, limitInputPixels: MAX_INPUT_PIXELS })
+        .gif()
+        .toBuffer({ resolveWithObject: true })
     : await image
         .rotate() // honour EXIF orientation before we discard the metadata
         .webp({ quality: 82 })

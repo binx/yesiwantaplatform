@@ -5,6 +5,7 @@ import { env } from "./env.js";
 import { ASSETS_ROOT } from "./uploads.js";
 import { runMigrations } from "../db/migrate.js";
 import { isConfigured } from "../db/repository.js";
+import { activeSetupToken } from "./routes/setup.js";
 
 /**
  * Boot.
@@ -19,8 +20,8 @@ async function main(): Promise<void> {
 
   const app = createApp();
 
-  const server = app.listen(env.API_PORT, () => {
-    console.log(`Beluga API listening on http://localhost:${env.API_PORT}`);
+  const server = app.listen(env.API_PORT, env.API_HOST, () => {
+    console.log(`Beluga API listening on http://${env.API_HOST}:${env.API_PORT}`);
   });
 
   if (!(await isConfigured())) {
@@ -29,6 +30,23 @@ async function main(): Promise<void> {
         "    npm run setup                 — three prompts in this terminal, or\n" +
         `    open ${env.PUBLIC_URL}/setup  — the same three steps in a browser\n`,
     );
+
+    /*
+     * Until setup completes, POST /api/setup will create an administrator for
+     * whoever calls it. On a machine nobody else can reach that is fine; on a
+     * public address it is a race the operator has to win against every scanner
+     * on the internet. So in production the wizard also asks for this — it is
+     * only ever printed here, where only the operator can read it.
+     */
+    const token = activeSetupToken();
+    if (token) {
+      console.log(
+        env.SETUP_TOKEN
+          ? "  The wizard will ask for the SETUP_TOKEN from the environment.\n"
+          : `  The wizard will ask for this setup token:\n\n    ${token}\n\n` +
+              "  It is not stored anywhere; a restart prints a new one.\n",
+      );
+    }
   }
 
   const shutdown = (signal: string) => {

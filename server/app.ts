@@ -25,8 +25,9 @@ export function createApp(): Express {
   const app = express();
 
   // Needed for `secure` cookies and correct client IPs behind a proxy or a
-  // platform load balancer.
-  if (isProduction) app.set("trust proxy", 1);
+  // platform load balancer. One hop in production unless TRUST_PROXY says
+  // otherwise — see server/env.ts for why "every hop" is never the default.
+  app.set("trust proxy", env.TRUST_PROXY);
 
   app.disable("x-powered-by");
   app.use(securityHeaders);

@@ -21,12 +21,6 @@ interface ProductBrowserProps {
   /** Collection name, carried into the product page for its breadcrumb. */
   collection?: string;
   currency?: string;
-  /**
-   * Render only the search box, no results. The shop's collection grid uses
-   * this: the input has to be there to type into, but until there is a query
-   * the collections are the answer, not a flat product list.
-   */
-  controlsOnly?: boolean;
 }
 
 /**
@@ -47,7 +41,6 @@ export function ProductBrowser({
   products,
   collection,
   currency = "USD",
-  controlsOnly = false,
 }: ProductBrowserProps) {
   const [params, setParams] = useSearchParams();
   const searchId = useId();
@@ -104,69 +97,58 @@ export function ProductBrowser({
           />
         </div>
 
-        {controlsOnly ? null : (
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor={sortId}>
-              Sort by
-            </label>
-            <select
-              id={sortId}
-              className={styles.select}
-              value={sort}
-              onChange={(event) =>
-                setParams((previous) => {
-                  const next = new URLSearchParams(previous);
-                  if (event.target.value === "featured") next.delete("sort");
-                  else next.set("sort", event.target.value);
-                  return next;
-                })
-              }
-            >
-              {SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={sortId}>
+            Sort by
+          </label>
+          <select
+            id={sortId}
+            className={styles.select}
+            value={sort}
+            onChange={(event) =>
+              setParams((previous) => {
+                const next = new URLSearchParams(previous);
+                if (event.target.value === "featured") next.delete("sort");
+                else next.set("sort", event.target.value);
+                return next;
+              })
+            }
+          >
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {controlsOnly ? null : (
-        <>
-          {/* Announced rather than only shown, so the result of typing is not
-          invisible to a screen reader. */}
-          <p className={styles.count} aria-live="polite">
-            {query.trim()
-              ? `${shown.length} ${shown.length === 1 ? "product" : "products"} matching “${query}”`
-              : `${shown.length} ${shown.length === 1 ? "product" : "products"}`}
-          </p>
+      {/* Announced rather than only shown, so the result of typing is not
+      invisible to a screen reader. */}
+      <p className={styles.count} aria-live="polite">
+        {query.trim()
+          ? `${shown.length} ${shown.length === 1 ? "product" : "products"} matching “${query}”`
+          : `${shown.length} ${shown.length === 1 ? "product" : "products"}`}
+      </p>
 
-          {query.trim() && shown.length === 0 ? (
-            <div className={styles.empty}>
-              <p>Nothing matches “{query}”.</p>
-              <button
-                type="button"
-                className={styles.clear}
-                onClick={() =>
-                  setParams((previous) => {
-                    const next = new URLSearchParams(previous);
-                    next.delete("q");
-                    return next;
-                  })
-                }
-              >
-                Show everything
-              </button>
-            </div>
-          ) : (
-            <ProductList
-              products={shown}
-              {...(collection ? { collection } : {})}
-              currency={currency}
-            />
-          )}
-        </>
+      {query.trim() && shown.length === 0 ? (
+        <div className={styles.empty}>
+          <button
+            type="button"
+            className={styles.clear}
+            onClick={() =>
+              setParams((previous) => {
+                const next = new URLSearchParams(previous);
+                next.delete("q");
+                return next;
+              })
+            }
+          >
+            Show everything
+          </button>
+        </div>
+      ) : (
+        <ProductList products={shown} {...(collection ? { collection } : {})} currency={currency} />
       )}
     </>
   );

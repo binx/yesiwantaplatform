@@ -19,11 +19,25 @@ function renderShop(route = "/shop") {
 }
 
 describe("ShopPage search", () => {
-  it("shows collections until something is typed", () => {
+  it("shows the collections and the whole catalogue side by side", () => {
     renderShop();
 
     expect(screen.getByRole("heading", { name: "Shop" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Collections" })).toBeInTheDocument();
     expect(screen.getByLabelText("Search")).toBeInTheDocument();
+
+    // The point of the page: "Shop everything" has to land on everything.
+    expect(screen.getByRole("heading", { name: "All products" })).toBeInTheDocument();
+    expect(screen.getByText("Canvas Tote")).toBeInTheDocument();
+    expect(screen.getByText("Enamel Mug")).toBeInTheDocument();
+  });
+
+  it("titles the list after the query, and drops the collections while searching", () => {
+    renderShop("/shop?q=tote");
+
+    expect(screen.getByRole("heading", { name: "Results for “tote”" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "All products" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Collections" })).not.toBeInTheDocument();
   });
 
   it("deep-links a query through ?q=", () => {
@@ -54,11 +68,18 @@ describe("ShopPage search", () => {
     const user = userEvent.setup();
     renderShop("/shop?q=bicycle");
 
-    expect(screen.getByText(/Nothing matches/)).toBeInTheDocument();
+    // One statement of the miss, in the live region — the empty block used to
+    // repeat it as prose directly underneath.
+    const count = screen.getByText(/product/i, { selector: "[aria-live]" });
+    expect(count).toHaveTextContent("0 products matching “bicycle”");
+    expect(screen.queryByText(/Nothing matches/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Show everything" }));
 
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Shop" })).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "All products" })).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Canvas Tote")).toBeInTheDocument();
   });
 
   it("sorts by price without losing the query", async () => {

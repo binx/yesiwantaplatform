@@ -64,6 +64,25 @@ export const loginRateLimit = rateLimit({
   message: { error: "Too many sign-in attempts. Try again in a few minutes." },
 });
 
+/**
+ * Routes that send an email to an address the caller chose.
+ *
+ * `loginRateLimit` skips successful responses, which is right for a login and
+ * wrong here: registration and a password-reset request answer 204 whether or
+ * not the address exists — that is the enumeration defence — so under the
+ * login limiter neither ever counted, and one loop could push unlimited mail
+ * at any inbox through the merchant's own SMTP reputation. Every response
+ * counts here, and the ceiling is what a person retrying a form needs, not
+ * what a script does.
+ */
+export const emailRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many requests. Try again in a few minutes." },
+});
+
 /** A broad ceiling on write traffic, so a loop cannot hammer the database. */
 export const writeRateLimit = rateLimit({
   windowMs: 60 * 1000,

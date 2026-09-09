@@ -100,6 +100,7 @@ import { deleteImageFile, storeImage, uploadMiddleware } from "../uploads.js";
 import { archiveProductInStripe, syncProductToStripe } from "../catalog-sync.js";
 import { StripeNotConfiguredError, requireStripe } from "../stripe.js";
 import { renderMarkdown } from "../markdown.js";
+import { escapeHtml } from "../html.js";
 import {
   EndpointNotAllowedError,
   assertDeliverableUrl,
@@ -562,6 +563,32 @@ adminRouter.delete("/collections/:id", async (req, res) => {
 
   await deleteCollection(req.params.id);
   res.status(204).end();
+});
+
+/**
+ * A collection's cover image.
+ *
+ * Stores the file and hands it back; the caller then sends it with the
+ * collection in the usual `PUT /collections/:id`, so nothing points at an
+ * image that failed to upload. Same division of labour as the theme logo.
+ */
+adminRouter.post("/collections/:id/cover", (req, res, next) => {
+  uploadMiddleware(req, res, (uploadError: unknown) => {
+    void (async () => {
+      try {
+        if (uploadError) return next(uploadError);
+        if (!req.file) throw httpError(400, "No file was uploaded.");
+        if (!(await collectionExists(req.params.id))) throw httpError(404, "Collection not found.");
+
+        const { alt } = imageInputSchema.parse(req.body ?? {});
+        const stored = await storeImage(req.params.id, req.file.buffer);
+
+        res.status(201).json({ ...stored, alt });
+      } catch (error) {
+        next(error);
+      }
+    })();
+  });
 });
 
 adminRouter.post("/collections/reorder", async (req, res) => {
@@ -1069,11 +1096,13 @@ adminRouter.post("/users", async (req, res) => {
   const settings = await getSettings();
   const storeName = settings?.name ?? "Beluga";
 
+  // The store name is merchant-supplied and this is HTML: escaped like any
+  // other value that lands in markup, so a name cannot carry tags into an inbox.
   const sent = await sendEmail(
     input.email,
     `You have been invited to help run ${storeName}`,
-    `<p>You have been invited to help run <strong>${storeName}</strong>.</p>
-     <p><a href="${inviteUrl}">Set your password and sign in</a>. The link works once and expires in 72 hours.</p>`,
+    `<p>You have been invited to help run <strong>${escapeHtml(storeName)}</strong>.</p>
+     <p><a href="${escapeHtml(inviteUrl)}">Set your password and sign in</a>. The link works once and expires in 72 hours.</p>`,
   );
 
   // Without SMTP there is no way for the invitee to receive the link, so hand
@@ -1129,6 +1158,12 @@ adminRouter.put("/users/me/password", loginRateLimit, async (req, res) => {
   }
 
   await updateAdminPassword(id, input.next);
+
+  // Every other session this account holds is signed out; only the one that
+  // just proved it knows the old password survives. Changing a password is
+  // what someone does after a laptop goes missing, and it must actually work.
+  await destroySessionsForUser(id, { except: req.sessionID });
+
   res.status(204).end();
 });
 

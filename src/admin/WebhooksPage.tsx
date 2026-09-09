@@ -237,8 +237,8 @@ export function WebhooksPage() {
 
           <Card title="Verifying a signature" className={cx(styles.card)}>
             <p className={cx(styles.help)}>
-              Every request carries <code>beluga-signature</code>, in the same
-              <code> t=…,v1=… </code> shape Stripe uses: an HMAC-SHA256 of{" "}
+              Every request carries <code>beluga-signature</code>, in the same{" "}
+              <code>t=…,v1=…</code> shape Stripe uses: an HMAC-SHA256 of{" "}
               <code>{"`${timestamp}.${rawBody}`"}</code> under this endpoint&rsquo;s secret. If you
               already verify Stripe&rsquo;s webhooks, this is that code with a different header
               name. Compare against the raw body, before any JSON parsing, and reject a timestamp

@@ -28,6 +28,16 @@ export function CartPage() {
   const setShippingRateId = useCart((s) => s.setShippingRateId);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
+  /*
+   * The last quantity that was clamped, and what it was clamped to.
+   *
+   * Typing 3 for a variant with 2 in stock used to snap the field to 2 with
+   * nothing said, which reads as the field being broken. One at a time is
+   * enough: a shopper clamps the row they are typing in, and the note clears
+   * as soon as that row takes a value it can keep.
+   */
+  const [clamped, setClamped] = useState<{ key: string; max: number } | null>(null);
+
   const customer = useCustomer();
   const addresses = useAddresses(Boolean(customer.data));
   const defaultAddress = addresses.data?.find((a) => a.isDefault) ?? null;
@@ -186,12 +196,22 @@ export function CartPage() {
               </thead>
               <tbody>
                 {lines.map(({ index, line, product, variant, image, lineTotalCents, stock }) => {
+                  const key = `${line.productId}-${line.variantId}-${index}`;
+
+                  // A choice still sitting on its default says nothing.
+                  // "gift wrap: No" under every line is noise now, and it
+                  // multiplies with every group a product grows. A group the
+                  // product no longer has is kept: it was chosen deliberately.
                   const chosen = Object.entries(line.options)
-                    .map(([key, value]) => `${key}: ${value}`)
+                    .filter(([name, value]) => {
+                      const group = product.optionGroups.find((g) => g.name === name);
+                      return group === undefined || value !== group.choices[0];
+                    })
+                    .map(([name, value]) => `${name}: ${value}`)
                     .join(", ");
 
                   return (
-                    <tr key={`${line.productId}-${line.variantId}-${index}`}>
+                    <tr key={key}>
                       <td>
                         <div className={styles.product}>
                           <Link to={`/product/${product.slug}`} className={styles.thumb}>
@@ -209,14 +229,37 @@ export function CartPage() {
                       <td>
                         <InputNumber
                           min={1}
-                          {...(stock !== null ? { max: stock } : {})}
+                          /*
+                           * Deliberately no `max`. antd clamps to it silently,
+                           * before onChange ever fires — which is the whole
+                           * bug: the field snapped to the stock on hand and
+                           * nothing said why. `normalizeQuantity` does the
+                           * clamping instead, so there is one authority on it
+                           * and a moment at which to say something.
+                           */
+                          {...(stock !== null ? { "aria-valuemax": stock } : {})}
                           step={1}
                           precision={0}
                           value={line.quantity}
-                          onChange={(value) => setQuantity(index, normalizeQuantity(value, stock))}
+                          onChange={(value) => {
+                            const next = normalizeQuantity(value, stock);
+                            const typed = typeof value === "number" ? value : Number(value);
+                            setClamped(
+                              Number.isFinite(typed) && typed > next ? { key, max: next } : null,
+                            );
+                            setQuantity(index, next);
+                          }}
                           aria-label={`Quantity for ${product.name}`}
                           className={cx(styles.qty)}
                         />
+                        {clamped?.key === key ? (
+                          // Same sentence the product page uses when stock is
+                          // low, next to the field that just changed under
+                          // them.
+                          <p className={styles.stockNote} role="status">
+                            Only {clamped.max} left
+                          </p>
+                        ) : null}
                       </td>
                       <td className={styles.lineTotal}>
                         {formatMoney(lineTotalCents, store.currency)}

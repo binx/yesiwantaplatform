@@ -51,6 +51,8 @@ export interface ProductSummary {
   name: string;
   slug: string;
   isLive: boolean;
+  /** Live on the storefront with a variant that has no Stripe Price. */
+  needsPublish: boolean;
   /** Published to Stripe under tax settings the store no longer uses. */
   needsTaxRepublish: boolean;
 }
@@ -291,6 +293,18 @@ export function useUpdateCollection() {
     mutationFn: ({ id, input }: { id: string; input: CollectionInput }) =>
       csrfPut<void>(`/admin/collections/${id}`, input),
     onSuccess: () => invalidate(adminKeys.collections),
+  });
+}
+
+/**
+ * Uploads a cover and returns it. Like the logo, it deliberately does not
+ * invalidate anything: the image exists on disk, but no collection points at
+ * it until the caller saves one.
+ */
+export function useUploadCollectionCover() {
+  return useMutation({
+    mutationFn: ({ id, file, alt }: { id: string; file: File; alt: string }) =>
+      csrfUpload<Image>(`/admin/collections/${id}/cover`, file, { alt }),
   });
 }
 

@@ -1,15 +1,15 @@
 ---
 task: "17"
 title: Storefront copy and the gaps a UI pass found
-status: todo
+status: done
 tier: 0
 size: M
 migration: none
 blocked_by: []
 blocks: []
 touches: src/pages/ShopPage.tsx · src/App.tsx · src/admin/CollectionsPage.tsx · src/pages/CartPage.tsx
-completed: 
-shipped_in: 
+completed: 2026-09-08
+shipped_in: 6
 summary: >-
   A pass over the running UI turned up copy that promises something the page does not do,
   links with no visual affordance at all, and two structural holes: the storefront has no

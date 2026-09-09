@@ -64,6 +64,14 @@
   width: 5rem;
 }
 
+/* Says why the field just changed under the shopper. Warm rather than muted:
+   it is a correction, not a caption. */
+.stockNote {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--beluga-ink);
+}
+
 .lineTotal {
   white-space: nowrap;
 }
@@ -83,6 +91,7 @@
 }
 
 .note {
+  composes: notice from "../styles/muted.module.css";
   margin: 0 0 0.5rem;
   font-size: 0.875rem;
   color: var(--beluga-muted);

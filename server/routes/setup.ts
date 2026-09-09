@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { ZodError } from "zod";
@@ -7,11 +8,11 @@ import {
   type SessionResponse,
 } from "../../shared/api.js";
 import { DEFAULT_TAX_CODE } from "../../shared/schema.js";
-import { countAdmins, createAdmin } from "../auth.js";
+import { countAdmins, createAdmin, safeEqual } from "../auth.js";
 import { getSettings, isConfigured } from "../../db/repository.js";
 import { updateSettings } from "../../db/admin-repository.js";
 import { seedIfEmpty } from "../../db/seed.js";
-import { env, hasStripe } from "../env.js";
+import { env, hasStripe, isProduction } from "../env.js";
 import { csrfToken, httpError, verifyCsrf } from "../middleware.js";
 
 /**
@@ -37,6 +38,30 @@ const setupRateLimit = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many setup attempts. Try again in a few minutes." },
 });
+
+/**
+ * The secret the wizard has to know before `POST /setup` will do anything.
+ *
+ * "Self-closing once configured" protects a store that exists. It does nothing
+ * for the minutes between a first deploy and the owner reaching the wizard —
+ * and a fresh public address is port-scanned within minutes, so on a PaaS
+ * that window is a real race. A token that only ever appears in the server's
+ * own log (or in its environment) closes it: whoever can read the log is the
+ * operator.
+ *
+ * `null` in development and test, where the process is bound to a machine
+ * nobody else can reach and a token would only be friction. Setting
+ * SETUP_TOKEN explicitly makes it required everywhere, which is also how it is
+ * tested.
+ */
+let generatedToken: string | null = null;
+
+export function activeSetupToken(): string | null {
+  if (env.SETUP_TOKEN) return env.SETUP_TOKEN;
+  if (!isProduction) return null;
+  generatedToken ??= randomBytes(24).toString("base64url");
+  return generatedToken;
+}
 
 function stripeMode(): "test" | "live" | null {
   if (!env.STRIPE_SECRET_KEY) return null;
@@ -64,6 +89,7 @@ setupRouter.get("/setup", async (_req, res) => {
     hasSettings: settings !== null,
     hasStripeSecret: hasStripe,
     stripeMode: stripeMode(),
+    requiresToken: activeSetupToken() !== null,
   } satisfies SetupStatus);
 });
 
@@ -94,6 +120,16 @@ setupRouter.post("/setup", setupRateLimit, verifyCsrf, async (req, res) => {
       throw httpError(400, first ? `${first.path.join(".")}: ${first.message}` : "Invalid input.");
     }
     throw error;
+  }
+
+  // Checked before the lock: a caller without the token should not get to
+  // touch the serialised section at all, let alone learn its state.
+  const required = activeSetupToken();
+  if (required && !(input.setupToken && safeEqual(input.setupToken, required))) {
+    throw httpError(
+      403,
+      "The setup token is missing or wrong. The server printed it when it started, or it is the SETUP_TOKEN in its environment.",
+    );
   }
 
   const adminId = await serialise(async () => {

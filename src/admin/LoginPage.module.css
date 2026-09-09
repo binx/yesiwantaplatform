@@ -36,11 +36,28 @@
   color: #71717a;
 }
 
+/* Same rule as the storefront's muted notes, written out rather than composed:
+   this page's palette is literal on purpose, and --beluga-ink is the *store's*
+   ink, which on a dark shop would be near-white on this white card. */
+.footer a {
+  color: #18181b;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.footer a:hover {
+  text-decoration-thickness: 2px;
+}
+
 .code {
   display: block;
   margin-top: 0.5rem;
   padding: 0.5rem 0.625rem;
   background: #f4f4f5;
+  /* Inheriting .footer's #71717a put muted grey on the chip's own grey, which
+     is 4.4:1 — under the threshold, on the one line here meant to be read
+     character by character and retyped. */
+  color: #3f3f46;
   border-radius: 2px;
   font-size: 0.75rem;
   /*

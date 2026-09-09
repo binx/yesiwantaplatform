@@ -51,6 +51,7 @@ import {
   setStorefrontShareToken,
 } from "../../db/admin-repository.js";
 import {
+  findProductById,
   findProductBySlug,
   findProductsBySlugs,
   getSettings,
@@ -944,9 +945,7 @@ adminRouter.put("/shipping", async (req, res) => {
  * nothing reaches a live Stripe account until this is called.
  */
 adminRouter.post("/products/:id/publish", async (req, res) => {
-  const product = await listProducts({ liveOnly: false, limit: 200 }).then((page) =>
-    page.products.find((p) => p.id === req.params.id),
-  );
+  const product = await findProductById(req.params.id, false);
   if (!product) throw httpError(404, "Product not found.");
 
   try {

@@ -8,7 +8,7 @@ import {
 } from "../../shared/shipping.js";
 import type { TaxBehavior } from "../../shared/schema.js";
 import { getShippingTable, variantWeights } from "../../db/shipping-repository.js";
-import { listProducts } from "../../db/repository.js";
+import { findProductsByIds } from "../../db/repository.js";
 import { httpError, writeRateLimit } from "../middleware.js";
 
 /**
@@ -58,9 +58,10 @@ export async function quoteShipping(
   lines: readonly { productId: string; variantId: string; quantity: number }[],
   countryCode: string,
 ): Promise<ShippingQuote> {
-  const [{ zones, rates }, { products }] = await Promise.all([
+  const ids = [...new Set(lines.map((line) => line.productId))];
+  const [{ zones, rates }, products] = await Promise.all([
     getShippingTable(),
-    listProducts({ liveOnly: true, limit: 200 }),
+    findProductsByIds(ids, true),
   ]);
 
   const byId = new Map(products.map((p) => [p.id, p]));

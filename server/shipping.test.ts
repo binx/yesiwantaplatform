@@ -261,6 +261,64 @@ describe("quoting", () => {
       .send({ lines: [], countryCode: "United States" })
       .expect(400);
   });
+
+  it("quotes a product past listProducts's 200-item page", async () => {
+    const { createProduct } = await import("../db/admin-repository.js");
+    const { findProductById } = await import("../db/repository.js");
+
+    let lastProductId = "";
+    let lastVariantId = "";
+
+    for (let i = 0; i < 201; i++) {
+      const id = await createProduct({
+        slug: `shipping-overflow-${i}`,
+        name: `Shipping Overflow ${i}`,
+        kind: "physical",
+        description: "",
+        bulletPoints: [],
+        seoTitle: null,
+        seoDescription: null,
+        taxCode: null,
+        variants: [
+          {
+            label: "",
+            priceCents: 700,
+            sku: null,
+            compareAtPriceCents: null,
+            inventory: { type: "infinite" },
+            weightGrams: 250,
+            optionValues: [],
+          },
+        ],
+        options: [],
+        optionGroups: [],
+        isLive: true,
+      });
+
+      if (i === 200) {
+        const product = await findProductById(id, true);
+        lastProductId = id;
+        lastVariantId = product!.variants[0]!.id;
+      }
+    }
+
+    const body = (
+      await request(app)
+        .post("/api/shipping/quote")
+        .send({
+          lines: [{ productId: lastProductId, variantId: lastVariantId, quantity: 1 }],
+          countryCode: "US",
+        })
+        .expect(200)
+    ).body as Quote;
+
+    // If the line were silently dropped, as it was before the id lookup
+    // replaced the 200-item page scan, this would be an empty, weightless
+    // cart with no rates at all rather than a real quote.
+    expect(body.subtotalCents).toBe(700);
+    expect(body.weightGrams).toBe(250);
+    expect(body.rates.map((r) => r.name)).toEqual(["US standard"]);
+  });
 });
 
 describe("the storefront payload", () => {

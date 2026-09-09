@@ -7,7 +7,6 @@ import {
   Card,
   Empty,
   Input,
-  Segmented,
   Skeleton,
   Space,
   Switch,
@@ -22,7 +21,6 @@ import {
 import type { PageInput } from "@shared/api";
 import { RESERVED_PAGE_SLUGS, type PageDraft } from "@shared/schema";
 import { cx } from "@/lib/cx";
-import { csrfPost } from "@/lib/api";
 import {
   useCreatePage,
   useDeletePage,
@@ -34,6 +32,7 @@ import { Field } from "./Field";
 import { PageHeader } from "./RequireAdmin";
 import { SaveIndicator } from "./SaveIndicator";
 import { useAutosave } from "./useAutosave";
+import { MarkdownEditor } from "./MarkdownEditor";
 import styles from "./PagesPage.module.css";
 
 /**
@@ -219,7 +218,6 @@ export function PageEditorPage() {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [pageId, setPageId] = useState<string | null>(id ?? null);
   const [slugTouched, setSlugTouched] = useState(!isNew);
-  const [mode, setMode] = useState<"write" | "preview">("write");
   const hydrated = useRef(false);
 
   const loaded = pages.data?.find((page) => page.id === id);
@@ -290,38 +288,6 @@ export function PageEditorPage() {
 
   // Write out whatever is pending when the editor is navigated away from.
   useEffect(() => () => void flush(), [flush]);
-
-  /* --- preview ----------------------------------------------------------- */
-
-  const [preview, setPreview] = useState<{ body: string; html: string } | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (mode !== "preview" || preview?.body === draft.body) return;
-
-    let cancelled = false;
-
-    // Rendered by the server, through the very function the storefront uses.
-    // A second Markdown implementation in the client would eventually disagree
-    // with the first about what is safe to render.
-    void csrfPost<{ bodyHtml: string }>("/admin/pages/preview", { body: draft.body }).then(
-      (result) => {
-        if (!cancelled) {
-          setPreview({ body: draft.body, html: result.bodyHtml });
-          setPreviewError(null);
-        }
-      },
-      (error: unknown) => {
-        if (!cancelled) {
-          setPreviewError(error instanceof Error ? error.message : "Could not render a preview.");
-        }
-      },
-    );
-
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, draft.body, preview?.body]);
 
   if (!isNew && pages.isPending) return <Skeleton active paragraph={{ rows: 8 }} />;
   if (!isNew && !loaded && !hydrated.current) {
@@ -421,42 +387,12 @@ export function PageEditorPage() {
           help="Markdown: # for a heading, * for a bullet, [text](https://…) for a link."
         >
           {(control) => (
-            <>
-              <Segmented
-                className={cx(styles.modes)}
-                value={mode}
-                onChange={(value) => setMode(value as "write" | "preview")}
-                options={[
-                  { label: "Write", value: "write" },
-                  { label: "Preview", value: "preview" },
-                ]}
-              />
-
-              {mode === "write" ? (
-                <Input.TextArea
-                  {...control}
-                  className={cx(styles.body)}
-                  value={draft.body}
-                  autoSize={{ minRows: 16 }}
-                  placeholder={"## How to return something\n\nEmail us within 30 days…"}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, body: event.target.value }))
-                  }
-                />
-              ) : previewError ? (
-                <Alert type="error" showIcon message={previewError} />
-              ) : (
-                /*
-                 * Server-rendered and server-sanitised (see server/markdown.ts).
-                 * The admin previews exactly the HTML the storefront will show,
-                 * including whatever the sanitiser decided to strip.
-                 */
-                <div
-                  className={cx(styles.preview)}
-                  dangerouslySetInnerHTML={{ __html: preview?.html ?? "" }}
-                />
-              )}
-            </>
+            <MarkdownEditor
+              control={control}
+              value={draft.body}
+              onChange={(body) => setDraft((current) => ({ ...current, body }))}
+              placeholder={"## How to return something\n\nEmail us within 30 days…"}
+            />
           )}
         </Field>
 

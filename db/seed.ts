@@ -31,6 +31,16 @@ export async function seedStore(store: Store = demoStore): Promise<void> {
     themeColorAccent: store.theme.colorAccent,
     themeFontFamily: store.theme.fontFamily,
     themeBorderRadius: store.theme.borderRadius,
+    // The fixture's landing copy, or the demo would advertise a feature its
+    // own front page does not use.
+    heroHeading: store.hero.heading,
+    heroText: store.hero.text,
+    heroButtonLabel: store.hero.buttonLabel,
+    heroButtonHref: store.hero.buttonHref,
+    heroImagePath: store.hero.image?.path ?? null,
+    heroImageWidth: store.hero.image?.width ?? null,
+    heroImageHeight: store.hero.image?.height ?? null,
+    heroImageAlt: store.hero.image?.alt ?? null,
   });
 
   for (const [index, product] of store.products.entries()) {

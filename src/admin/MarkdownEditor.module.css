@@ -1,0 +1,35 @@
+.modes {
+  margin-bottom: 0.5rem;
+}
+
+.body {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+/*
+ * The preview is sized to match the textarea it replaces, so toggling between
+ * the two does not make the page jump under the cursor. `min-height` rather
+ * than a fixed one: a short collection description should not leave a screen
+ * of empty box below it.
+ */
+.preview {
+  min-height: 6rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--beluga-line);
+  background: var(--beluga-surface);
+  overflow-wrap: break-word;
+}
+
+.preview > :first-child {
+  margin-top: 0;
+}
+
+.preview > :last-child {
+  margin-bottom: 0;
+}
+
+.preview pre {
+  overflow-x: auto;
+}

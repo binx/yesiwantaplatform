@@ -1,4 +1,4 @@
-import type { Store } from "./schema.js";
+import { defaultHero, type Store } from "./schema.js";
 
 /**
  * The store a fresh clone renders before the owner has configured anything.
@@ -24,6 +24,17 @@ export const demoStore: Store = {
     colorPage: null,
     logo: null,
   },
+  /*
+   * Unset, on purpose.
+   *
+   * A demo hero would put a fictional shop's slogan at the top of a real
+   * merchant's front page until they noticed and deleted it — the same class
+   * of untrue copy task 20 removed from here. Empty is what a new store
+   * actually looks like, so the fallbacks are what the demo exercises: the
+   * store name, no paragraph, and Shop everything. Settings is where the
+   * feature is discovered, and the README says so.
+   */
+  hero: defaultHero,
   // Prices are quoted without tax, which is the default a US-shaped demo
   // wants; a store that quotes VAT-inclusive prices changes it in Settings.
   taxBehavior: "exclusive",
@@ -257,6 +268,7 @@ export const demoStore: Store = {
       slug: "featured-products",
       name: "Featured",
       cover: null,
+      descriptionHtml: "",
       productIds: ["demo-tote", "demo-print", "demo-mug"],
     },
     {
@@ -264,6 +276,11 @@ export const demoStore: Store = {
       slug: "home-goods",
       name: "Home Goods",
       cover: { path: "demo/cover-home.svg", width: 1600, height: 900, alt: "Home goods", widths: [] },
+      // Empty, like every freshly seeded collection: the column holds Markdown
+      // and the fixture holds rendered HTML, so anything written here would be
+      // a second hand-maintained copy of a string the seed cannot produce. A
+      // description is something a merchant writes, and the admin is where.
+      descriptionHtml: "",
       productIds: ["demo-mug", "demo-tote"],
     },
     {
@@ -271,6 +288,7 @@ export const demoStore: Store = {
       slug: "paper-goods",
       name: "Paper Goods",
       cover: { path: "demo/cover-paper.svg", width: 1600, height: 900, alt: "Paper goods", widths: [] },
+      descriptionHtml: "",
       productIds: ["demo-print", "demo-scarf"],
     },
   ],

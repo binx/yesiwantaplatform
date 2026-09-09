@@ -461,7 +461,7 @@ async function main(): Promise<void> {
       await seedIfEmpty();
     }
 
-    const { defaultTheme, DEFAULT_TAX_CODE } = await import("../shared/schema.js");
+    const { defaultTheme, defaultHero, DEFAULT_TAX_CODE } = await import("../shared/schema.js");
     const { updateSettings } = await import("../db/admin-repository.js");
 
     await updateSettings({
@@ -479,6 +479,7 @@ async function main(): Promise<void> {
       // Off until the merchant opts in from Settings — see the Settings copy.
       cartRecoveryEnabled: false,
       cartRecoveryDelayHours: 4,
+      hero: defaultHero,
       theme: defaultTheme,
     });
 

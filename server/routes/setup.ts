@@ -7,7 +7,7 @@ import {
   type SetupStatus,
   type SessionResponse,
 } from "../../shared/api.js";
-import { DEFAULT_TAX_CODE } from "../../shared/schema.js";
+import { DEFAULT_TAX_CODE, defaultHero } from "../../shared/schema.js";
 import { countAdmins, createAdmin, safeEqual } from "../auth.js";
 import { getSettings, isConfigured } from "../../db/repository.js";
 import { updateSettings } from "../../db/admin-repository.js";
@@ -158,6 +158,10 @@ setupRouter.post("/setup", setupRateLimit, verifyCsrf, async (req, res) => {
       // Off until the merchant opts in from Settings — see the Settings copy.
       cartRecoveryEnabled: false,
       cartRecoveryDelayHours: 4,
+      // The wizard does not ask about the landing page: a store with no
+      // products yet has nothing to write a hero about. Settings is where it
+      // is filled in, and every field falls back until then.
+      hero: defaultHero,
       theme: input.theme,
     });
 

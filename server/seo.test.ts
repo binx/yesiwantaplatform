@@ -163,6 +163,43 @@ describe("metaForPath", () => {
     );
   });
 
+  /*
+   * The reason a description belongs on the collection rather than in a Page:
+   * the link preview for /collection/home-goods gets better for free.
+   */
+  it("describes a collection with its own words when it has any", async () => {
+    const { listCollections } = await import("../db/repository.js");
+    const { updateCollection } = await import("../db/admin-repository.js");
+    const { metaForPath } = await import("./seo.js");
+
+    const collection = (await listCollections()).find((c) => c.slug === "home-goods")!;
+
+    await updateCollection(collection.id, {
+      slug: collection.slug,
+      name: collection.name,
+      cover: collection.cover,
+      description: "Mugs, bowls and boards, **made in small runs** in a shed in Yorkshire.",
+      productIds: collection.productIds,
+    });
+
+    const meta = await metaForPath("/collection/home-goods");
+
+    // Text, not markup: this lands inside a content="…" attribute.
+    expect(meta.description).toBe(
+      "Mugs, bowls and boards, made in small runs in a shed in Yorkshire.",
+    );
+    expect(meta.description).not.toContain("<");
+    expect(meta.description.length).toBeLessThanOrEqual(160);
+  });
+
+  it("falls back to the generated line for a collection that says nothing", async () => {
+    const { metaForPath } = await import("./seo.js");
+
+    expect((await metaForPath("/collection/paper-goods")).description).toBe(
+      "Paper Goods from Beluga Demo.",
+    );
+  });
+
   it("falls back to the store defaults for anything unknown", async () => {
     const { metaForPath } = await import("./seo.js");
 

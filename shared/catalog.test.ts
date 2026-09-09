@@ -63,7 +63,7 @@ describe("getCollectionProducts", () => {
     const s = store({
       products: [product("a")],
       collections: [
-        { id: "c1", slug: "c1", name: "C1", cover: null, productIds: ["a", "ghost"] },
+        { id: "c1", slug: "c1", name: "C1", cover: null, descriptionHtml: "", productIds: ["a", "ghost"] },
       ],
     });
 
@@ -73,7 +73,7 @@ describe("getCollectionProducts", () => {
   it("omits draft products from the storefront", () => {
     const s = store({
       products: [product("a"), product("b", { isLive: false })],
-      collections: [{ id: "c1", slug: "c1", name: "C1", cover: null, productIds: ["a", "b"] }],
+      collections: [{ id: "c1", slug: "c1", name: "C1", cover: null, descriptionHtml: "", productIds: ["a", "b"] }],
     });
 
     expect(getCollectionProducts(s, "c1").map((p) => p.id)).toEqual(["a"]);
@@ -82,7 +82,7 @@ describe("getCollectionProducts", () => {
   it("preserves the collection's ordering, not the catalogue's", () => {
     const s = store({
       products: [product("a"), product("b"), product("c")],
-      collections: [{ id: "c1", slug: "c1", name: "C1", cover: null, productIds: ["c", "a"] }],
+      collections: [{ id: "c1", slug: "c1", name: "C1", cover: null, descriptionHtml: "", productIds: ["c", "a"] }],
     });
 
     expect(getCollectionProducts(s, "c1").map((p) => p.id)).toEqual(["c", "a"]);
@@ -93,8 +93,8 @@ describe("getVisibleCollections", () => {
   it("hides the reserved featured collection from navigation", () => {
     const s = store({
       collections: [
-        { id: "f", slug: "featured-products", name: "Featured", cover: null, productIds: [] },
-        { id: "c1", slug: "hats", name: "Hats", cover: null, productIds: [] },
+        { id: "f", slug: "featured-products", name: "Featured", cover: null, descriptionHtml: "", productIds: [] },
+        { id: "c1", slug: "hats", name: "Hats", cover: null, descriptionHtml: "", productIds: [] },
       ],
     });
 

@@ -7,13 +7,16 @@ import {
   colorSchemeSchema,
   taxBehaviorSchema,
   themeSchema,
+  heroHrefSchema,
   type Collection,
+  type Hero,
   type Product,
   type Store,
   type TaxBehavior,
   type Theme,
 } from "../shared/schema.js";
 import { countriesCovered, hasCatchAllZone } from "../shared/shipping.js";
+import { renderMarkdown } from "../server/markdown.js";
 import { getDatabase } from "./client.js";
 import { listPageSummaries } from "./pages-repository.js";
 import { getShippingTable } from "./shipping-repository.js";
@@ -443,6 +446,7 @@ export async function listCollections(): Promise<Collection[]> {
     coverWidth: number | null;
     coverHeight: number | null;
     coverAlt: string | null;
+    description: string | null;
   }[];
 
   if (rows.length === 0) return [];
@@ -469,6 +473,14 @@ export async function listCollections(): Promise<Collection[]> {
               alt: row.coverAlt ?? "",
             }
           : null,
+      /*
+       * Rendered here rather than in each route, so `/api/store` and
+       * `/api/collections` cannot come to disagree about what a collection
+       * says. Rendered on the way *out*, never on the way in — the column
+       * holds Markdown, so tightening the allow-list in server/markdown.ts
+       * applies retroactively to every collection already written.
+       */
+      descriptionHtml: row.description ? renderMarkdown(row.description) : "",
       productIds: links.filter((l) => l.collectionId === row.id).map((l) => l.productId),
     }),
   );
@@ -499,6 +511,14 @@ interface SettingsRow {
   themeLogoWidth: number | null;
   themeLogoHeight: number | null;
   themeLogoAlt: string | null;
+  heroHeading: string | null;
+  heroText: string | null;
+  heroButtonLabel: string | null;
+  heroButtonHref: string | null;
+  heroImagePath: string | null;
+  heroImageWidth: number | null;
+  heroImageHeight: number | null;
+  heroImageAlt: string | null;
 }
 
 export async function getSettings(): Promise<{
@@ -512,6 +532,7 @@ export async function getSettings(): Promise<{
   cartRecoveryEnabled: boolean;
   cartRecoveryDelayHours: number;
   theme: Theme;
+  hero: Hero;
 } | null> {
   const { drizzle: db, schema } = await getDatabase();
 
@@ -551,6 +572,29 @@ export async function getSettings(): Promise<{
             }
           : null,
     }),
+    /*
+     * Parsed, not cast, for the same reason the theme is: `heroButtonHref` is
+     * the one field here that ends up in an `href`, and a row edited by hand —
+     * or written before `heroHrefSchema` tightened — must not put
+     * `javascript:` in front of a shopper. A value that no longer passes is
+     * dropped back to the default rather than rendered.
+     */
+    hero: {
+      heading: row.heroHeading,
+      text: row.heroText,
+      buttonLabel: row.heroButtonLabel,
+      buttonHref: heroHrefSchema.nullable().catch(null).parse(row.heroButtonHref),
+      image:
+        row.heroImagePath && row.heroImageWidth && row.heroImageHeight
+          ? {
+              path: row.heroImagePath,
+              width: row.heroImageWidth,
+              height: row.heroImageHeight,
+              alt: row.heroImageAlt ?? "",
+              widths: [],
+            }
+          : null,
+    },
   };
 }
 
@@ -580,6 +624,7 @@ export async function getStoreSnapshot(): Promise<Store | null> {
     stripePublishableKey: settings.stripePublishableKey,
     currency: settings.currency,
     theme: settings.theme,
+    hero: settings.hero,
     aboutText: settings.aboutText,
     taxBehavior: settings.taxBehavior,
     collections,

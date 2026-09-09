@@ -7,7 +7,7 @@ import {
   PlusOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
-import { FEATURED_SLUG, type Collection } from "@shared/schema";
+import { FEATURED_SLUG, type CollectionDraft } from "@shared/schema";
 import { assetUrl } from "@/lib/store-source";
 import { cx } from "@/lib/cx";
 import {
@@ -19,7 +19,8 @@ import {
   useUpdateCollection,
   useUploadCollectionCover,
 } from "./queries";
-import { Field } from "./Field";
+import { Field, type ControlProps } from "./Field";
+import { MarkdownEditor } from "./MarkdownEditor";
 import { PageHeader } from "./RequireAdmin";
 import styles from "./CollectionsPage.module.css";
 
@@ -70,7 +71,7 @@ export function CollectionsPage() {
    * the last collection instead of the intended one. The API refuses an
    * unknown id; this dialog names what is going.
    */
-  const confirmDelete = (collection: Collection) => {
+  const confirmDelete = (collection: CollectionDraft) => {
     modal.confirm({
       title: `Delete “${collection.name}”?`,
       okText: "Delete",
@@ -99,8 +100,8 @@ export function CollectionsPage() {
    * now, and `CollectionInput` makes leaving one out a type error.
    */
   const save = (
-    collection: Collection,
-    patch: Partial<Pick<Collection, "name" | "cover" | "productIds">>,
+    collection: CollectionDraft,
+    patch: Partial<Pick<CollectionDraft, "name" | "cover" | "description" | "productIds">>,
     failure: string,
   ) => {
     update.mutate(
@@ -110,6 +111,8 @@ export function CollectionsPage() {
           slug: collection.slug,
           name: patch.name ?? collection.name,
           cover: patch.cover !== undefined ? patch.cover : collection.cover,
+          description:
+            patch.description !== undefined ? patch.description : collection.description,
           productIds: patch.productIds ?? collection.productIds,
         },
       },
@@ -120,7 +123,7 @@ export function CollectionsPage() {
     );
   };
 
-  const rename = (collection: Collection, name: string) => {
+  const rename = (collection: CollectionDraft, name: string) => {
     if (name.trim() === "" || name === collection.name) return;
     save(collection, { name }, "Could not rename.");
   };
@@ -268,6 +271,27 @@ export function CollectionsPage() {
                 )}
               </Field>
 
+              {/*
+                * Saved on blur, not on every keystroke: `save` is a mutation
+                * per call, and a debounce here would be a second autosave
+                * implementation living next to the one the product editor
+                * already has.
+                */}
+              <Field
+                label="Introduction"
+                help="Markdown, shown under the heading on the collection page. Optional."
+              >
+                {(control) => (
+                  <CollectionDescription
+                    control={control}
+                    collection={collection}
+                    onSave={(description) =>
+                      save(collection, { description }, "Could not save the introduction.")
+                    }
+                  />
+                )}
+              </Field>
+
               <Field label="Products, in the order they appear">
                 {(control) => (
                   <Select
@@ -301,7 +325,7 @@ export function CollectionsPage() {
           if (name === "") return;
 
           create.mutate(
-            { slug: slugify(name), name, cover: null, productIds: [] },
+            { slug: slugify(name), name, cover: null, description: null, productIds: [] },
             {
               onSuccess: () => {
                 setCreating(false);
@@ -345,4 +369,47 @@ function slugify(value: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
+}
+
+/**
+ * The description editor for one collection card.
+ *
+ * Local state, saved on blur. Everything else on these cards saves
+ * immediately — a name, a cover, a product list are each one gesture — but a
+ * paragraph is typed, and a mutation per keystroke would be both a flood of
+ * requests and a cursor that jumps every time the refetched list re-renders.
+ * Blur is the moment the merchant has finished the thought.
+ */
+function CollectionDescription({
+  collection,
+  onSave,
+  control,
+}: {
+  collection: CollectionDraft;
+  onSave: (description: string | null) => void;
+  control: ControlProps;
+}) {
+  const saved = collection.description ?? "";
+  const [text, setText] = useState(saved);
+
+  // A save elsewhere on the card refetches the list; adopt the server's copy
+  // rather than holding a stale draft over it.
+  useEffect(() => setText(saved), [saved]);
+
+  return (
+    <div
+      onBlur={() => {
+        if (text === saved) return;
+        onSave(text.trim() === "" ? null : text);
+      }}
+    >
+      <MarkdownEditor
+        control={control}
+        value={text}
+        onChange={setText}
+        minRows={4}
+        placeholder="Things for the table and the shelf, made in small runs."
+      />
+    </div>
+  );
 }

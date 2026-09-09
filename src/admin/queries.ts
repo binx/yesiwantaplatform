@@ -18,7 +18,7 @@ import type {
   WebhookEndpointInput,
   WebhookEndpointSummary,
 } from "@shared/webhooks";
-import type { Collection, Image, PageDraft, Product, ProductKind } from "@shared/schema";
+import type { CollectionDraft, Image, PageDraft, Product, ProductKind } from "@shared/schema";
 import type { FulfilmentInput, Order, OrderStatus, RefundInput } from "@shared/orders";
 import { apiGet, csrfDelete, csrfPost, csrfPostText, csrfPut, csrfUpload } from "@/lib/api";
 
@@ -241,6 +241,14 @@ export function useUploadLogo() {
   });
 }
 
+/** The hero image, on the same terms as the logo: uploaded now, saved on Save. */
+export function useUploadHeroImage() {
+  return useMutation({
+    mutationFn: ({ file, alt }: { file: File; alt: string }) =>
+      csrfUpload<Image>("/admin/settings/hero-image", file, { alt }),
+  });
+}
+
 export function useDeleteImage() {
   const invalidate = useInvalidate();
 
@@ -276,7 +284,9 @@ export function useReorderImages() {
 export function useCollections() {
   return useQuery({
     queryKey: adminKeys.collections,
-    queryFn: ({ signal }) => apiGet<Collection[]>("/admin/collections", signal),
+    // Drafts: the editor round-trips Markdown source, not the rendered HTML
+    // the storefront receives. Same split as pages.
+    queryFn: ({ signal }) => apiGet<CollectionDraft[]>("/admin/collections", signal),
   });
 }
 

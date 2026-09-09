@@ -1,9 +1,37 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, App, Button, Card, Input, InputNumber, Select, Skeleton, Switch, Tag } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Input,
+  InputNumber,
+  Select,
+  Skeleton,
+  Space,
+  Switch,
+  Tag,
+  Upload,
+} from "antd";
+import { UploadOutlined } from "@ant-design/icons";
 import type { SettingsInput } from "@shared/api";
-import { DEFAULT_TAX_CODE, defaultTheme, type TaxBehavior, type Theme } from "@shared/schema";
+import {
+  DEFAULT_TAX_CODE,
+  defaultHero,
+  defaultTheme,
+  heroHrefSchema,
+  type Hero,
+  type TaxBehavior,
+  type Theme,
+} from "@shared/schema";
 import { cx } from "@/lib/cx";
-import { useEnvironment, useSendTestEmail, useSettings, useUpdateSettings } from "./queries";
+import {
+  useEnvironment,
+  useSendTestEmail,
+  useSettings,
+  useUpdateSettings,
+  useUploadHeroImage,
+} from "./queries";
 import { Field } from "./Field";
 import { PageHeader } from "./RequireAdmin";
 import { ThemeEditor } from "./ThemeEditor";
@@ -59,6 +87,7 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
     initial.cartRecoveryDelayHours,
   );
   const [theme, setTheme] = useState<Theme>(initial.theme ?? defaultTheme);
+  const [hero, setHero] = useState<Hero>(initial.hero ?? defaultHero);
 
   const saved = useRef(initial);
 
@@ -72,9 +101,21 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
     defaultTaxCode !== saved.current.defaultTaxCode ||
     cartRecoveryEnabled !== saved.current.cartRecoveryEnabled ||
     cartRecoveryDelayHours !== saved.current.cartRecoveryDelayHours ||
-    JSON.stringify(theme) !== JSON.stringify(saved.current.theme);
+    JSON.stringify(theme) !== JSON.stringify(saved.current.theme) ||
+    JSON.stringify(hero) !== JSON.stringify(saved.current.hero);
 
   const keyLooksSecret = publishableKey.trim().startsWith("sk_");
+  /*
+   * Checked against the shared schema, not a second regex here.
+   *
+   * The value ends up in an `href` rendered to every shopper, so the browser
+   * and the server have to refuse exactly the same strings — see
+   * `heroHrefSchema`. Save is blocked while it is wrong rather than the server
+   * rejecting a form the merchant already thought was fine.
+   */
+  const heroHrefWrong =
+    (hero.buttonHref ?? "").trim() !== "" &&
+    !heroHrefSchema.safeParse((hero.buttonHref ?? "").trim()).success;
   const currencyChanged = currency !== initial.currency;
   const taxCodeLooksWrong =
     defaultTaxCode.trim() !== "" && !/^txcd_[0-9]+$/.test(defaultTaxCode.trim());
@@ -96,6 +137,7 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
       defaultTaxCode: defaultTaxCode.trim() || DEFAULT_TAX_CODE,
       cartRecoveryEnabled,
       cartRecoveryDelayHours,
+      hero,
       theme,
     };
 
@@ -117,7 +159,9 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
         actions={
           <Button
             type="primary"
-            disabled={!dirty || keyLooksSecret || taxCodeLooksWrong || name.trim() === ""}
+            disabled={
+            !dirty || keyLooksSecret || taxCodeLooksWrong || heroHrefWrong || name.trim() === ""
+          }
             loading={update.isPending}
             onClick={submit}
           >
@@ -201,6 +245,21 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
             />
           )}
         </Field>
+      </Card>
+
+      <Card title="Landing page" className={cx(styles.card)}>
+        <p className={cx(styles.wiring)}>
+          The opening block of your front page. Leave a field empty and the storefront falls
+          back to what it showed before — the store name, no paragraph, and a{" "}
+          <strong>Shop everything</strong> button.
+        </p>
+
+        <HeroEditor
+          value={hero}
+          onChange={setHero}
+          storeName={name}
+          hrefWrong={heroHrefWrong}
+        />
       </Card>
 
       <Card title="Email" className={cx(styles.card)}>
@@ -382,7 +441,9 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
       <div className={cx(styles.footer)}>
         <Button
           type="primary"
-          disabled={!dirty || keyLooksSecret || taxCodeLooksWrong || name.trim() === ""}
+          disabled={
+            !dirty || keyLooksSecret || taxCodeLooksWrong || heroHrefWrong || name.trim() === ""
+          }
           loading={update.isPending}
           onClick={submit}
         >
@@ -390,6 +451,133 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
         </Button>
         {dirty ? <span className={cx(styles.help)}>You have unsaved changes.</span> : null}
       </div>
+    </>
+  );
+}
+
+/**
+ * The landing page's opening block.
+ *
+ * Plain text, deliberately — a hero is one sentence, and a bold word inside it
+ * is a decision the theme should be making, not the merchant. Everything here
+ * is optional: the placeholders show what the storefront renders when a field
+ * is left empty, so the fallbacks are visible rather than something to
+ * discover by saving and looking.
+ */
+function HeroEditor({
+  value,
+  onChange,
+  storeName,
+  hrefWrong,
+}: {
+  value: Hero;
+  onChange: (hero: Hero) => void;
+  storeName: string;
+  hrefWrong: boolean;
+}) {
+  const { message } = App.useApp();
+  const upload = useUploadHeroImage();
+
+  const set = <K extends keyof Hero>(key: K, next: Hero[K]) =>
+    onChange({ ...value, [key]: next });
+
+  /** "" is how a cleared input arrives; null is how the store says "default". */
+  const setText = (key: "heading" | "text" | "buttonLabel" | "buttonHref", next: string) =>
+    set(key, next.trim() === "" ? null : next);
+
+  return (
+    <>
+      <Field label="Heading" help="Falls back to the store name.">
+        {(control) => (
+          <Input
+            {...control}
+            value={value.heading ?? ""}
+            placeholder={storeName || "Your store"}
+            onChange={(event) => setText("heading", event.target.value)}
+          />
+        )}
+      </Field>
+
+      <Field label="Text" help="One line under the heading. Leave empty to show none.">
+        {(control) => (
+          <Input.TextArea
+            {...control}
+            value={value.text ?? ""}
+            autoSize={{ minRows: 2 }}
+            placeholder="Small runs, made to be used."
+            onChange={(event) => setText("text", event.target.value)}
+          />
+        )}
+      </Field>
+
+      <Field label="Button label" help="Falls back to “Shop everything”.">
+        {(control) => (
+          <Input
+            {...control}
+            value={value.buttonLabel ?? ""}
+            placeholder="Shop everything"
+            onChange={(event) => setText("buttonLabel", event.target.value)}
+          />
+        )}
+      </Field>
+
+      <Field
+        label="Button link"
+        {...(hrefWrong
+          ? {
+              error:
+                "Use a path starting with / or a full https:// address. Anything else could send shoppers somewhere this store does not control.",
+            }
+          : { help: "A path like /shop, or a full https:// address. Falls back to /shop." })}
+      >
+        {(control) => (
+          <Input
+            {...control}
+            value={value.buttonHref ?? ""}
+            placeholder="/shop"
+            status={hrefWrong ? "error" : ""}
+            onChange={(event) => setText("buttonHref", event.target.value)}
+          />
+        )}
+      </Field>
+
+      <Field
+        label="Background image"
+        help="Sits full-bleed behind the hero. Without one the themed background shows."
+      >
+        {() => (
+          <Space>
+            <Upload
+              accept="image/*"
+              showUploadList={false}
+              beforeUpload={(file) => {
+                upload.mutate(
+                  // Decorative: the heading beside it already carries the
+                  // meaning, and describing a background twice is noise in a
+                  // screen reader.
+                  { file, alt: "" },
+                  {
+                    onSuccess: (image) => set("image", image),
+                    onError: () => void message.error("That image could not be uploaded."),
+                  },
+                );
+                // Handed to the mutation above; antd's own uploader stays out.
+                return Upload.LIST_IGNORE;
+              }}
+            >
+              <Button icon={<UploadOutlined />} loading={upload.isPending}>
+                {value.image ? "Replace" : "Upload"}
+              </Button>
+            </Upload>
+
+            {value.image ? (
+              <Button type="link" size="small" onClick={() => set("image", null)}>
+                Remove
+              </Button>
+            ) : null}
+          </Space>
+        )}
+      </Field>
     </>
   );
 }

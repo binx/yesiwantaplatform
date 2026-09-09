@@ -132,6 +132,16 @@ Two decisions are worth knowing about, because both are corrections of v1:
   instead of the intended one. Deletes now go by id, the API refuses an unknown one, and
   the dialog names what is about to go.
 
+**The landing page's opening block is edited under Settings → Landing page**: a heading,
+a line of text, a button label and target, and an optional background image. Leave any of
+them empty and the storefront falls back to what it showed before — the store name, no
+paragraph, and a **Shop everything** button pointing at `/shop`. The button's target is
+held to a same-origin path or an `https://` address on both sides of the wire, so it
+cannot be made to point at `javascript:`. Collections get an introduction of their own on
+the **Collections** page, written in Markdown and rendered through the same sanitiser as
+store pages; it appears under the collection's heading and becomes its search-result
+description.
+
 Display order, in the products list and inside a collection, is edited with buttons
 rather than drag-and-drop: it is real persisted data, and it should be editable from a
 phone or a keyboard. v1 used `react-drag-sortable`, which is unmaintained, mouse-only,

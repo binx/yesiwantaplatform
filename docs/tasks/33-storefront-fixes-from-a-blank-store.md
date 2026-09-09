@@ -120,7 +120,7 @@ cannot know the family; say nothing.
 ## Out of scope
 
 - Palette and contrast in the dark scheme. Real, seen, and deliberately not
-  here — see `docs/gaps/dark-scheme-contrast.md`.
+  here — task 34 derives a scheme-adjusted primary.
 - A different gallery interaction. Scroll-snap plus thumbnails plus zoom is
   fine; only the frame changes.
 

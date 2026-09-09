@@ -418,7 +418,23 @@ export const passwordChangeInputSchema = z.object({
   next: z.string().min(12, "Use at least 12 characters.").max(200),
 });
 
+/**
+ * Request a reset link. Mirrors `forgotPasswordInputSchema` in
+ * shared/account.ts — the same shape, on the admin's own schemas rather than
+ * the customer's, since the two are never imported together.
+ */
+export const forgotPasswordInputSchema = z.object({
+  email: adminEmailSchema,
+});
+
+export const resetPasswordInputSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(12, "Use at least 12 characters.").max(400),
+});
+
 export type AdminRole = z.infer<typeof adminRoleSchema>;
 export type InviteInput = z.infer<typeof inviteInputSchema>;
 export type AcceptInviteInput = z.infer<typeof acceptInviteInputSchema>;
 export type PasswordChangeInput = z.infer<typeof passwordChangeInputSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordInputSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordInputSchema>;

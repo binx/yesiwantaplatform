@@ -84,8 +84,12 @@ export function LoginPage() {
         </Form>
 
         <p className={cx(styles.footer)}>
-          Lost the password? It is stored as an argon2id hash and cannot be read back. Create a
-          replacement account from the command line:
+          <Link to="/admin/forgot-password">Forgot your password?</Link>
+        </p>
+
+        <p className={cx(styles.footer)}>
+          No access to that inbox either? The password is stored as an argon2id hash and cannot be
+          read back. Create a replacement account from the command line:
           <code className={cx(styles.code)}>
             ADMIN_EMAIL=you@example.com ADMIN_PASSWORD=&apos;…&apos; npm run db:seed
           </code>

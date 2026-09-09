@@ -134,6 +134,13 @@
       "when": 1788970094232,
       "tag": "0018_violet_dragon_man",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788973841795,
+      "tag": "0019_flat_gargoyle",
+      "breakpoints": true
     }
   ]
 }

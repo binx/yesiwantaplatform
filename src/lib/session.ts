@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
-import type { LoginInput, SessionResponse, SetupStatus } from "@shared/api";
+import type {
+  ForgotPasswordInput,
+  LoginInput,
+  ResetPasswordInput,
+  SessionResponse,
+  SetupStatus,
+} from "@shared/api";
 import { apiGet, clearCsrfToken, csrfDelete, csrfPost, setCsrfToken } from "./api";
 
 /**
@@ -64,5 +70,17 @@ export function useLogout() {
       queryClient.clear();
       await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
     },
+  });
+}
+
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: (input: ForgotPasswordInput) => csrfPost<void>("/session/forgot-password", input),
+  });
+}
+
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: (input: ResetPasswordInput) => csrfPost<void>("/session/reset-password", input),
   });
 }

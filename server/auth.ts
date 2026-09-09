@@ -413,6 +413,90 @@ async function destroySessionsMatching(pattern: string, except?: string): Promis
     );
 }
 
+/**
+ * Issue a password-reset token for an administrator's email, if one holds it.
+ *
+ * Same shape as the customer equivalent below: null for an unknown email
+ * rather than a throw, because the route must answer identically either way.
+ * The miss branch runs the same decoy argon2 verify `verifyLogin` uses, so a
+ * timing measurement cannot tell a known admin email from an unknown one —
+ * the hit branch's own work (a token hash and a write) is otherwise the
+ * cheaper path.
+ */
+export async function createAdminPasswordResetToken(email: string): Promise<string | null> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+
+  const rows = (await db
+    .select({ id: schema.adminUsers.id })
+    .from(schema.adminUsers)
+    .where(eq(schema.adminUsers.email, email.toLowerCase().trim()))
+    .limit(1)) as unknown as { id: string }[];
+
+  const row = rows[0];
+  if (!row) {
+    await verify(DECOY_HASH, email).catch(() => false);
+    return null;
+  }
+
+  const token = randomBytes(32).toString("base64url");
+  const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
+
+  await db
+    .update(schema.adminUsers)
+    .set({
+      passwordResetTokenHash: hashToken(token),
+      passwordResetExpiresAt: dialect === "pg" ? expiresAt : Math.floor(expiresAt.getTime() / 1000),
+    })
+    .where(eq(schema.adminUsers.id, row.id));
+
+  return token;
+}
+
+/**
+ * Redeem an administrator's password-reset token. Single-use, exactly like
+ * `consumePasswordResetToken` below. Returns the admin id so the route can
+ * destroy their other sessions — the same behaviour `updateAdminPassword`'s
+ * route already has.
+ */
+export async function consumeAdminPasswordResetToken(
+  token: string,
+  password: string,
+): Promise<string> {
+  const { drizzle: db, schema } = await getDatabase();
+  const tokenHash = hashToken(token);
+
+  const rows = (await db
+    .select({
+      id: schema.adminUsers.id,
+      passwordResetExpiresAt: schema.adminUsers.passwordResetExpiresAt,
+    })
+    .from(schema.adminUsers)
+    .where(eq(schema.adminUsers.passwordResetTokenHash, tokenHash))
+    .limit(1)) as unknown as { id: string; passwordResetExpiresAt: unknown }[];
+
+  const row = rows[0];
+  if (!row) throw new TokenNotUsableError("That reset link is not valid.");
+  if ((toEpochMs(row.passwordResetExpiresAt) ?? 0) < Date.now()) {
+    throw new TokenNotUsableError("That reset link has expired. Request a new one.");
+  }
+
+  const claim = await db
+    .update(schema.adminUsers)
+    .set({
+      passwordHash: await hashPassword(password),
+      passwordResetTokenHash: null,
+      passwordResetExpiresAt: null,
+    })
+    .where(and(eq(schema.adminUsers.id, row.id), eq(schema.adminUsers.passwordResetTokenHash, tokenHash)));
+
+  const changed = (claim as { changes?: number; rowCount?: number } | null) ?? {};
+  if ((changed.changes ?? changed.rowCount ?? 0) !== 1) {
+    throw new TokenNotUsableError("That reset link has already been used.");
+  }
+
+  return row.id;
+}
+
 /** Stamp a successful sign-in, for the staff list. */
 export async function recordLogin(id: string): Promise<void> {
   const { drizzle: db, schema, dialect } = await getDatabase();

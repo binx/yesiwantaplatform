@@ -56,6 +56,20 @@ export const router = createBrowserRouter([
         }),
       },
       {
+        // Public, for the same reason as accept-invite: the caller cannot
+        // sign in, that is why they are here.
+        path: "forgot-password",
+        lazy: async () => ({
+          Component: (await import("./admin/ForgotPasswordPage")).ForgotPasswordPage,
+        }),
+      },
+      {
+        path: "reset-password",
+        lazy: async () => ({
+          Component: (await import("./admin/ResetPasswordPage")).ResetPasswordPage,
+        }),
+      },
+      {
         // Pathless: everything below it is behind the session check.
         lazy: async () => ({ Component: (await import("./admin/RequireAdmin")).RequireAdmin }),
         children: [

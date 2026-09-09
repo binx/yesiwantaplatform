@@ -91,6 +91,20 @@ function absolute(pathname: string): string {
 }
 
 /**
+ * An uploaded image as a crawler fetches it.
+ *
+ * The database holds `demo/tote-front.svg`; the storefront serves it at
+ * `/assets/demo/tote-front.svg`. Passing the stored value straight to
+ * `absolute` produced `https://shop.example/demo/tote-front.svg` — a 404 in
+ * every link preview, and one no test caught because each passed an image
+ * that was already a URL. The prefix is the storefront's `assetUrl` rule, so
+ * a change to how images are served has exactly two places to update.
+ */
+function imageUrl(relativePath: string): string {
+  return absolute(`/assets/${relativePath}`);
+}
+
+/**
  * `formatMoney` returns a display string with a currency symbol. schema.org
  * wants a bare decimal, so the conversion is done here rather than reused.
  */
@@ -201,7 +215,7 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
         ...fallback,
         title: `${found.name} · ${storeName}`,
         description: introduction ? truncate(introduction) : `${found.name} from ${storeName}.`,
-        image: found.cover ? absolute(found.cover.path) : null,
+        image: found.cover ? imageUrl(found.cover.path) : null,
       };
     }
 
@@ -214,7 +228,7 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
       const found = await findProductBySlug(decodeURIComponent(product[1]!), true);
       if (!found) return missing;
 
-      const image = found.images[0] ? absolute(found.images[0].path) : null;
+      const image = found.images[0] ? imageUrl(found.images[0].path) : null;
       const description = found.seoDescription ?? truncate(found.description || `${found.name} from ${storeName}.`);
 
       return {

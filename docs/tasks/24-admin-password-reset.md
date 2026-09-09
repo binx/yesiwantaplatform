@@ -1,15 +1,15 @@
 ---
 task: "24"
 title: An administrator can reset a forgotten password
-status: todo
+status: done
 tier: 0
 size: S
 migration: two columns on admin_users
 blocked_by: []
 blocks: []
-touches: server/routes/session.ts · server/auth.ts · db/admin-repository.ts · src/admin/LoginPage.tsx · emails/ResetPassword
-completed:
-shipped_in:
+touches: server/routes/session.ts · server/auth.ts · shared/api.ts · src/admin/LoginPage.tsx · emails/ResetPassword
+completed: 2026-09-09
+shipped_in: 20
 summary: >-
   Customers have a forgot-password flow; administrators do not. A solo merchant who loses
   their password has no route back except the database. Reuse the customer flow's shape —

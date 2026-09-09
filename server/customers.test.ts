@@ -224,6 +224,32 @@ describe("password reset", () => {
     expect(response.body.error).toMatch(/not valid|already been used/i);
   });
 
+  it("signs out every session the account had", async () => {
+    const email = "hijacked@example.com";
+    const { createCustomer, createPasswordResetToken } = await import("./auth.js");
+    await createCustomer(email, PASSWORD, null);
+
+    // Someone — perhaps not the owner — is signed in already.
+    const intruder = await bootstrap();
+    await intruder.agent
+      .post("/api/account/session")
+      .set("x-csrf-token", intruder.csrf)
+      .send({ email, password: PASSWORD })
+      .expect(200);
+    await intruder.agent.get("/api/account").expect(200);
+
+    const token = await createPasswordResetToken(email);
+    const { agent, csrf } = await bootstrap();
+    await agent
+      .post("/api/account/password/reset")
+      .set("x-csrf-token", csrf)
+      .send({ token, password: "a-brand-new-long-password" })
+      .expect(204);
+
+    // The reset is what the owner does when they suspect exactly this.
+    await intruder.agent.get("/api/account").expect(401);
+  });
+
   it("expires after its window", async () => {
     const email = "expired-reset@example.com";
     const { createCustomer, createPasswordResetToken } = await import("./auth.js");

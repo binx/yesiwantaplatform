@@ -1,15 +1,15 @@
 ---
 task: "18"
 title: Setup asks for the public URL, and the URLs Beluga prints are true
-status: todo
+status: done
 tier: 0
 size: S
 migration: none
 blocked_by: []
 blocks: []
 touches: scripts/setup.ts · server/routes/setup.ts · shared/api.ts · src/admin/SetupPage.tsx · src/admin/DashboardPage.tsx
-completed:
-shipped_in:
+completed: 2026-09-09
+shipped_in: 11
 summary: >-
   Neither setup path asks for `PUBLIC_URL`, so a store deployed straight from setup
   publishes a `sitemap.xml` and `robots.txt` full of `http://localhost:5173` links and

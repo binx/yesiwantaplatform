@@ -5,6 +5,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin, stdout } from "node:process";
+import { adminEmailSchema } from "../shared/api.js";
 
 /**
  * `npm run setup` — the first-run path.
@@ -173,6 +174,28 @@ function writeEnv(lines: string[]): void {
   writeFileSync(ENV_PATH, body.endsWith("\n") ? body : `${body}\n`, { mode: 0o600 });
 }
 
+/**
+ * Validate a public origin the way `server/env.ts` will, and normalise it.
+ *
+ * A bare host is the usual mistake, and it fails on the protocol rather than
+ * on parsing: `shop.example.com:8080` is a perfectly well-formed URL whose
+ * scheme happens to be `shop.example.com`. The trailing slash is stripped
+ * because every caller appends a path — a kept one produces
+ * `https://shop.example.com//confirm` in the link Stripe redirects to.
+ */
+function parseOrigin(value: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    return null;
+  }
+
+  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+
+  return value.trim().replace(/\/+$/, "");
+}
+
 /* ------------------------------------------------------------------- Stripe */
 
 interface StripeCheck {
@@ -320,6 +343,36 @@ async function main(): Promise<void> {
     }
   }
 
+  /* --- 4. public address --------------------------------------------------- */
+
+  heading("4. Public address");
+  console.log(
+    dim(
+      "Where shoppers will reach the store. Stripe sends buyers back here after\n" +
+        "paying, and every emailed link starts with it. Leave the default while\n" +
+        "developing; set it before the store is public.\n",
+    ),
+  );
+
+  let publicUrl = currentValue(lines, "PUBLIC_URL") ?? "http://localhost:5173";
+  for (;;) {
+    const answer = parseOrigin(await ask("Public URL", publicUrl));
+
+    if (!answer) {
+      console.log(
+        red(
+          "  That is not a public address. It needs a scheme and a host,\n" +
+            "  like https://shop.example.com.",
+        ),
+      );
+      continue;
+    }
+
+    publicUrl = answer;
+    break;
+  }
+  lines = setEnvValue(lines, "PUBLIC_URL", publicUrl);
+
   /* --- write .env before anything reads it -------------------------------- */
 
   writeEnv(lines);
@@ -333,24 +386,39 @@ async function main(): Promise<void> {
   const stripeSecret = currentValue(lines, "STRIPE_SECRET_KEY");
   if (stripeSecret) process.env.STRIPE_SECRET_KEY = stripeSecret;
 
-  /* --- 4. migrations ------------------------------------------------------ */
+  /* --- 5. migrations ------------------------------------------------------ */
 
-  heading("4. Database schema");
+  heading("5. Database schema");
 
   const { runMigrations } = await import("../db/migrate.js");
   await runMigrations();
   console.log(`${green("✓")} Migrations applied.`);
 
-  /* --- 5. admin account --------------------------------------------------- */
+  /* --- 6. admin account --------------------------------------------------- */
 
-  heading("5. Administrator");
+  heading("6. Administrator");
 
   const { countAdmins, createAdmin } = await import("../server/auth.js");
 
   if ((await countAdmins()) > 0) {
     console.log(`${green("✓")} An admin account already exists — leaving it alone.`);
   } else {
-    const email = await ask("Email", "");
+    /*
+     * The same schema the browser wizard validates against, so the two paths
+     * refuse the same strings. Unvalidated, a typo here becomes an account
+     * nobody can sign into and nothing will ever email — and the only way out
+     * is editing the database by hand.
+     */
+    let email = "";
+    for (;;) {
+      const answer = adminEmailSchema.safeParse(await ask("Email", ""));
+      if (answer.success) {
+        email = answer.data;
+        break;
+      }
+      console.log(red("  That is not an email address. You sign in with it, and it receives"));
+      console.log(red("  password resets and staff invitations."));
+    }
 
     let password = "";
     for (;;) {
@@ -373,9 +441,9 @@ async function main(): Promise<void> {
     console.log(`${green("✓")} Created ${email}. The hash is argon2id, stored in the database.`);
   }
 
-  /* --- 6. store + demo data ----------------------------------------------- */
+  /* --- 7. store + demo data ----------------------------------------------- */
 
-  heading("6. Your store");
+  heading("7. Your store");
 
   const { getSettings } = await import("../db/repository.js");
   const settings = await getSettings();
@@ -421,8 +489,10 @@ async function main(): Promise<void> {
 
   heading("Ready");
   console.log(`  Start it with:  ${bold("npm run dev:all")}`);
-  console.log(`  Storefront:     http://localhost:5173`);
-  console.log(`  Admin:          http://localhost:5173/admin\n`);
+  // PUBLIC_URL, not a literal: it is what Stripe and every emailed link will
+  // use, so printing anything else here would be printing a second answer.
+  console.log(`  Storefront:     ${publicUrl}`);
+  console.log(`  Admin:          ${publicUrl}/admin\n`);
 }
 
 /**

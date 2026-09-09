@@ -1,15 +1,15 @@
 ---
 task: "30"
 title: Errors that say what went wrong
-status: todo
+status: done
 tier: 0
 size: S
 migration: none
 blocked_by: []
 blocks: []
 touches: server/routes/admin.ts:538 · server/routes/admin.ts:546 · server/uploads.ts:80 · server/routes/setup.ts · server/stripe.ts · src/admin/SetupPage.tsx:540 · src/admin/DashboardPage.tsx · src/admin/ProductEditorPage.tsx:656
-completed:
-shipped_in:
+completed: 2026-09-09
+shipped_in: 31
 summary: >-
   Five paths where the merchant sees "Something went wrong" and the real reason is only in
   the server log. A reorder with a bad body is a 500; an image over the size cap is a 500; a

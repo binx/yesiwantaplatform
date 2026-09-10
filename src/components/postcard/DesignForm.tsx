@@ -216,7 +216,7 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
           onKeyDown={onKeyDown}
         >
           {editing ? (
-            <ProductImage image={editing.thumbnail} className={styles.frontImage} decorative />
+            <ProductImage image={editing.thumbnail} className={cx(styles.frontImage)} decorative />
           ) : picked ? (
             <img
               className={styles.frontImage}

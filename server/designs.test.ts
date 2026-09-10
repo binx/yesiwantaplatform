@@ -89,3 +89,44 @@ describe("POST /api/designs", () => {
     expect(out.body.error).toMatch(/crop\.x/);
   });
 });
+
+describe("PUT /api/designs/:id", () => {
+  async function savedDesign() {
+    const response = await request(app)
+      .post("/api/designs")
+      .field("orientation", "portrait")
+      .field("back", JSON.stringify({ text: "Wish you were here" }))
+      .attach("file", await halves(), { filename: "a.png", contentType: "image/png" })
+      .expect(201);
+    return response.body.id as string;
+  }
+
+  it("updates the back and returns it, without touching the front", async () => {
+    const id = await savedDesign();
+
+    const response = await request(app)
+      .put(`/api/designs/${id}`)
+      .send({ text: "Miss you lots", valediction: "Love, Rachel", fontName: "Patrick Hand", fontSize: 24, fontColor: "#000000" })
+      .expect(200);
+
+    expect(response.body.back.text).toBe("Miss you lots");
+    expect(response.body.back.valediction).toBe("Love, Rachel");
+    expect(response.body.id).toBe(id);
+  });
+
+  it("refuses to change a design that has already been ordered, and leaves it untouched", async () => {
+    const id = await savedDesign();
+    const { attachDesignsToOrder, getDesign } = await import("../db/designs-repository.js");
+    await attachDesignsToOrder([id], "order-for-this-test");
+
+    const response = await request(app).put(`/api/designs/${id}`).send({ text: "Too late" }).expect(409);
+    expect(response.body.error).toMatch(/already been ordered/);
+
+    const design = (await getDesign(id))!;
+    expect(design.back.text).toBe("Wish you were here");
+  });
+
+  it("404s for an id that does not exist", async () => {
+    await request(app).put("/api/designs/does-not-exist").send({ text: "hi" }).expect(404);
+  });
+});

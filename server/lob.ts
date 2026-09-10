@@ -6,6 +6,7 @@ import sharp from "sharp";
 import { env, hasLob, lobMode } from "./env.js";
 import {
   BACK_FONTS,
+  CARD_FONTS_URL,
   PRINT_SIZES,
   cropRect,
   defaultCrop,
@@ -220,6 +221,7 @@ export async function renderBack(back: PostcardBack, replyUrl: string | null = n
   return backTemplate({
     text: stripEmoji(back.text),
     valediction: stripEmoji(back.valediction),
+    cardFontsUrl: CARD_FONTS_URL,
     fontFamily: fontStack(back.fontName),
     // Points, not pixels: the site previews at `px` on a 6.25in-wide mock and
     // Lob renders at 300 dpi, and a point is the unit both agree on.

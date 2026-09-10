@@ -7,6 +7,20 @@
     <meta name="theme-color" content="#333333" />
     <meta name="description" content="Design your own postcards, send them to multiple addresses, and schedule them to arrive every few days." />
     <title>Postcard Gifts</title>
+    <!--
+      The postcard's own three faces (Patrick Hand, Sacramento, Quicksand),
+      loaded regardless of the store's theme font — see CARD_FONTS_URL in
+      shared/postcards.ts, which server/html.ts builds this same tag from for
+      a server-rendered page. Kept in sync by hand: this file has no
+      templating step, so it cannot import the constant.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      id="beluga-card-fonts"
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Sacramento&family=Quicksand:wght@400;600&display=swap"
+    />
   </head>
   <body>
     <div id="root"></div>

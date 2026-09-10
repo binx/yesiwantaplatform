@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
+import { CARD_FONTS_LINK_ID, CARD_FONTS_URL } from "../shared/postcards.js";
 import { escapeHtml, injectMeta } from "./html.js";
 
 const SHELL = `<!doctype html>
@@ -38,6 +40,47 @@ describe("injectMeta", () => {
     expect(html.match(/<title>/g)).toHaveLength(1);
     expect(html).not.toContain('onload="alert(1)"');
     expect(html.match(/<\/script>/g)).toHaveLength(1);
+  });
+
+  it("loads the card fonts whether or not the store has a theme font", () => {
+    const meta = {
+      title: "Postcard Gifts",
+      description: "A storefront.",
+      canonical: "https://example.com/",
+      image: null,
+      jsonLd: null,
+      lang: "en",
+    };
+    for (const fontUrl of [null, "https://fonts.googleapis.com/css2?family=Fraunces"]) {
+      const html = injectMeta(SHELL, { ...meta, fontUrl });
+      expect(html).toContain(CARD_FONTS_LINK_ID);
+      expect(html).toContain(CARD_FONTS_URL.replaceAll("&", "&amp;"));
+    }
+  });
+
+  it("does not add a second card-fonts link when the shell already carries one", () => {
+    const shellWithCardFonts = SHELL.replace(
+      "<title>Postcard Gifts</title>",
+      `<title>Postcard Gifts</title>\n    <link id="${CARD_FONTS_LINK_ID}" rel="stylesheet" href="x" />`,
+    );
+    const html = injectMeta(shellWithCardFonts, {
+      title: "Postcard Gifts",
+      description: "A storefront.",
+      canonical: "https://example.com/",
+      image: null,
+      jsonLd: null,
+      fontUrl: null,
+      lang: "en",
+    });
+    expect(html.match(new RegExp(CARD_FONTS_LINK_ID, "g"))).toHaveLength(1);
+  });
+});
+
+describe("index.html", () => {
+  it("carries the same card-fonts link server/html.ts builds, so dev matches production", () => {
+    const source = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+    expect(source).toContain(CARD_FONTS_LINK_ID);
+    expect(source).toContain(CARD_FONTS_URL);
   });
 });
 

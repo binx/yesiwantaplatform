@@ -259,3 +259,28 @@ test("the confirmation page handles being opened without an order", async ({ pag
   await page.goto("/confirm");
   await expect(page.getByRole("heading", { name: "No order to show" })).toBeVisible();
 });
+
+test("the card's own faces load on the designer, whatever the store's theme font", async ({ page }) => {
+  await page.goto("/create");
+  // Forced rather than awaiting document.fonts.ready: the back-of-card mock
+  // may not render (and so never trigger the fetch) before a photo is
+  // uploaded, and this asserts the face is loadable, not merely that
+  // something on the initial paint happened to ask for it first. Cast rather
+  // than widening this project's tsconfig to the DOM lib: `document` here is
+  // the browser's, evaluated inside the page, not Node's.
+  const patrickHandLoaded = await page.evaluate(async () => {
+    const fonts = (globalThis as unknown as { document: { fonts: Iterable<{ family: string; status: string }> & { load(font: string): Promise<unknown> } } }).document.fonts;
+    await fonts.load('16px "Patrick Hand"');
+    return [...fonts].some((face) => face.family === "Patrick Hand" && face.status === "loaded");
+  });
+  expect(patrickHandLoaded).toBe(true);
+});
+
+test("the footer sits at the bottom of a short page, not above a band of page-grey", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/cart");
+  const footer = page.locator("footer");
+  const box = await footer.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y + box!.height).toBeCloseTo(800, 0);
+});

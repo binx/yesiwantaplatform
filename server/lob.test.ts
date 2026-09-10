@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import Handlebars from "handlebars";
 import sharp from "sharp";
+import { CARD_FONTS_URL } from "../shared/postcards.js";
 import { LobError, cropToCard, printFile, renderBack, retryAfterMs } from "./lob.js";
 
 /**
@@ -116,6 +118,11 @@ describe("renderBack", () => {
   it("omits the closing line when there is none", async () => {
     const html = await renderBack({ text: "Just this.", valediction: "", fontName: "Quicksand", fontSize: 12, fontColor: "#000000" });
     expect(html).not.toContain("valediction\"");
+  });
+
+  it("loads all three faces from CARD_FONTS_URL, not a hardcoded string", async () => {
+    const html = await renderBack({ text: "Hi", valediction: "", fontName: "Quicksand", fontSize: 12, fontColor: "#000000" });
+    expect(html).toContain(Handlebars.escapeExpression(CARD_FONTS_URL));
   });
 });
 

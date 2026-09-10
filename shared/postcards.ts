@@ -94,6 +94,20 @@ export const BACK_FONTS = [
   { name: "Quicksand", label: "Modern" },
 ] as const;
 
+/**
+ * Where `BACK_FONTS` load from — always, regardless of the store's own theme
+ * font. `print/back.hbs` and the storefront shell both build their `<link>`
+ * from this constant rather than duplicating the string.
+ */
+export const CARD_FONTS_URL =
+  "https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Sacramento&family=Quicksand:wght@400;600&display=swap";
+
+/** The origins `CARD_FONTS_URL` needs: the stylesheet host and the one its `@font-face`s point at. */
+export const CARD_FONTS_ORIGINS = ["https://fonts.googleapis.com", "https://fonts.gstatic.com"] as const;
+
+/** The id on the card fonts' `<link>`, so a server-rendered shell and a static one can recognise each other's copy. */
+export const CARD_FONTS_LINK_ID = "beluga-card-fonts";
+
 export const backFontSchema = z.enum(
   BACK_FONTS.map((font) => font.name) as [string, ...string[]],
 );

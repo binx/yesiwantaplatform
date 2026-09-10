@@ -268,7 +268,7 @@ export function ThemeEditor({ value, onChange, storeName, savedFontUrl }: ThemeE
           <Form.Item
             label="Font stylesheet URL"
             htmlFor={fontUrlId}
-            help="Where the browser loads the typeface from. For Google Fonts, paste the <link href>. Leave empty for a system font."
+            help="Where the browser loads the typeface from. For Google Fonts, paste the <link href>. Leave empty for a system font. The postcard's own faces are always loaded; this URL is for the site's text."
             // The server refuses the same strings — see `fontUrlSchema` — but
             // it also has to fetch the stylesheet to check it, so saying the
             // obvious half here costs the merchant no round trip.

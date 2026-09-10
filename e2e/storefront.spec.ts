@@ -100,6 +100,35 @@ test("repositions the photo with the arrow keys and saves that crop", async ({ p
   await expect(page.getByRole("button", { name: "Saved!" })).toBeVisible();
 });
 
+test("imports a spreadsheet's CSV, previews the columns, and fixes a bad row by hand", async ({ page }) => {
+  await page.goto("/create");
+  await page.getByRole("button", { name: "Upload a list" }).click();
+
+  // What Excel exports in a European locale: a byte-order mark, semicolons, spaced headers.
+  const csv =
+    "﻿First Name;Last Name;Street Address;City;State;Zip Code\n" +
+    "Maya;Okafor;12 Elm St;Marfa;TX;79843\n" +
+    "Sam;Lee;3 Oak St;Boston;MA;2134\n";
+  await page.locator('input[type="file"][accept=".csv,text/csv"]').setInputFiles({ name: "friends.csv", mimeType: "text/csv", buffer: Buffer.from(csv, "utf8") });
+
+  const readout = page.getByRole("status", { name: "What was read from the file" });
+  await expect(readout).toContainText("1 recipient read, 1 row needs fixing");
+  await expect(readout).toContainText("We read Street Address as the street");
+  await page.getByRole("button", { name: "Import 1 recipient" }).click();
+
+  await expect(page.getByRole("list", { name: "Recipients" })).toContainText("Maya Okafor");
+  const fixes = page.getByRole("region", { name: "Rows that need fixing" });
+  await expect(fixes).toContainText("leading zero");
+
+  await fixes.getByRole("button", { name: "Fix line 3" }).click();
+  await expect(page.getByLabel("ZIP")).toHaveValue("2134");
+  await page.getByLabel("ZIP").fill("02134");
+  await page.getByRole("button", { name: "Add recipient" }).click();
+
+  await expect(page.getByRole("list", { name: "Recipients" })).toContainText("Sam Lee");
+  await expect(fixes).toHaveCount(0);
+});
+
 test("refuses a recipient that would not fit on the card, before the cart", async ({ page }) => {
   await page.goto("/create");
   await page.getByLabel("Name").fill("Grandma");

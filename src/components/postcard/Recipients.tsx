@@ -4,7 +4,7 @@ import { Alert, Button, Checkbox, Input, Modal, type InputRef } from "antd";
 import { DeleteOutlined, EditOutlined, UploadOutlined } from "@ant-design/icons";
 import { formatRecipient, recipientSchema, type Recipient } from "@shared/postcards";
 import { useAddresses, useCustomer } from "@/lib/account";
-import { parseRecipientsCsv, SAMPLE_CSV, type CsvProblem } from "@/lib/recipients-csv";
+import { parseRecipientsCsv, SAMPLE_CSV, type CsvProblem, type CsvResult } from "@/lib/recipients-csv";
 import { cx } from "@/lib/cx";
 import styles from "./Postcard.module.css";
 
@@ -43,6 +43,9 @@ export function Recipients({ recipients, onChange }: RecipientsProps) {
   const [editing, setEditing] = useState<number | null>(null);
   const [csvOpen, setCsvOpen] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
+  // Rows a CSV could not use, kept here so the good rows go in and these get fixed one by one.
+  const [pending, setPending] = useState<CsvProblem[]>([]);
+  const [fixingLine, setFixingLine] = useState<number | null>(null);
   const nameRef = useRef<InputRef>(null);
   const customer = useCustomer();
 
@@ -61,9 +64,27 @@ export function Recipients({ recipients, onChange }: RecipientsProps) {
     if (editing === null) onChange([...recipients, result.value]);
     else onChange(recipients.map((r, i) => (i === editing ? result.value : r)));
 
+    if (fixingLine !== null) setPending((current) => current.filter((problem) => problem.line !== fixingLine));
+    setFixingLine(null);
     setDraft(BLANK);
     setErrors({});
     setEditing(null);
+    nameRef.current?.focus();
+  };
+
+  const importCsv = (list: Recipient[], problems: CsvProblem[]) => {
+    onChange([...recipients, ...list]);
+    setPending(problems);
+    setFixingLine(null);
+  };
+
+  /** Load a row the CSV could not use into the form, with its errors showing, so the fix is one field away. */
+  const fix = (problem: CsvProblem) => {
+    const result = validate(problem.draft);
+    setDraft(problem.draft);
+    setErrors(result.ok ? {} : result.errors);
+    setEditing(null);
+    setFixingLine(problem.line);
     nameRef.current?.focus();
   };
 
@@ -117,10 +138,11 @@ export function Recipients({ recipients, onChange }: RecipientsProps) {
           <Button type="primary" htmlType="submit">
             {editing === null ? "Add recipient" : "Save changes"}
           </Button>
-          {editing !== null ? (
+          {editing !== null || fixingLine !== null ? (
             <Button
               onClick={() => {
                 setEditing(null);
+                setFixingLine(null);
                 setDraft(BLANK);
                 setErrors({});
               }}
@@ -158,7 +180,35 @@ export function Recipients({ recipients, onChange }: RecipientsProps) {
         ))}
       </ol>
 
-      <CsvModal open={csvOpen} onClose={() => setCsvOpen(false)} onImport={(list) => onChange([...recipients, ...list])} />
+      {pending.length > 0 ? (
+        <div className={styles.pendingRows} role="region" aria-label="Rows that need fixing">
+          <strong>
+            {pending.length} row{pending.length === 1 ? "" : "s"} from your file need{pending.length === 1 ? "s" : ""} fixing
+          </strong>
+          <ul>
+            {pending.map((problem) => (
+              <li key={problem.line}>
+                <span>
+                  Line {problem.line}: {problem.message}
+                </span>
+                <Button size="small" onClick={() => fix(problem)} aria-label={`Fix line ${problem.line}`}>
+                  Edit
+                </Button>
+                <Button
+                  size="small"
+                  type="text"
+                  aria-label={`Skip line ${problem.line}`}
+                  onClick={() => setPending((current) => current.filter((p) => p.line !== problem.line))}
+                >
+                  Skip
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <CsvModal open={csvOpen} onClose={() => setCsvOpen(false)} onImport={importCsv} />
       {customer.data ? (
         <SavedRecipientsModal
           open={savedOpen}
@@ -198,6 +248,12 @@ function Field({
 
 /* ---------------------------------------------------------------------- CSV */
 
+/**
+ * Two steps: read the file, then show what was made of it — which column fed
+ * which field, the first rows as parsed, how many rows failed — before
+ * anything is added. That one screen is what catches a "City" column that
+ * was really the state, which would otherwise print two hundred cards wrong.
+ */
 function CsvModal({
   open,
   onClose,
@@ -205,34 +261,36 @@ function CsvModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onImport: (recipients: Recipient[]) => void;
+  onImport: (recipients: Recipient[], problems: CsvProblem[]) => void;
 }) {
-  const [problems, setProblems] = useState<CsvProblem[]>([]);
-  const [imported, setImported] = useState<number | null>(null);
+  const [result, setResult] = useState<CsvResult | null>(null);
+  const [fileName, setFileName] = useState("");
   const inputId = useId();
 
   useEffect(() => {
     if (!open) {
-      setProblems([]);
-      setImported(null);
+      setResult(null);
+      setFileName("");
     }
   }, [open]);
 
   const read = async (file: File | undefined) => {
     if (!file) return;
-    const { recipients, problems: found } = parseRecipientsCsv(await file.text());
-    setProblems(found);
-    if (found.length === 0 && recipients.length > 0) {
-      onImport(recipients);
-      setImported(recipients.length);
-    }
+    setFileName(file.name);
+    setResult(parseRecipientsCsv(await file.text()));
   };
+
+  // A problem on line 1 is about the file's shape, not a row: nothing was read.
+  const fatal = result !== null && result.recipients.length === 0 && result.problems.some((problem) => problem.line === 1);
+  const good = result?.recipients.length ?? 0;
+  const bad = result?.problems.length ?? 0;
 
   return (
     <Modal title="Upload a list of recipients" open={open} onCancel={onClose} footer={null}>
       <p>
         Format your list as a CSV with the columns in the sample. Every address needs a name, a
-        street, a city, a two-letter state and a 5-digit ZIP.
+        street, a city, a two-letter state and a 5-digit ZIP. Column names like "Street Address"
+        or "Zip Code" are fine too.
       </p>
       <p className={styles.recipientActions}>
         <a href={`data:text/csv;charset=utf-8,${encodeURIComponent(SAMPLE_CSV)}`} download="sample_recipients.csv">
@@ -241,31 +299,58 @@ function CsvModal({
         <label htmlFor={inputId}>
           <input id={inputId} className={styles.fileInput} type="file" accept=".csv,text/csv" onChange={(event) => void read(event.target.files?.[0])} />
           <Button type="primary" icon={<UploadOutlined />} onClick={() => document.getElementById(inputId)?.click()}>
-            Choose a CSV
+            {result ? "Choose a different CSV" : "Choose a CSV"}
           </Button>
         </label>
       </p>
 
-      {imported !== null ? (
-        <Alert type="success" showIcon title={`Added ${imported} recipient${imported === 1 ? "" : "s"}.`} />
-      ) : null}
+      {result && fatal ? <Alert type="error" showIcon title={result.problems[0]?.message} /> : null}
 
-      {problems.length > 0 ? (
-        <Alert
-          type="error"
-          showIcon
-          title="Some rows need fixing before the list can be used"
-          description={
-            <ul className={styles.problemList}>
-              {problems.slice(0, 20).map((problem) => (
-                <li key={`${problem.line}-${problem.message}`}>
-                  Line {problem.line}: {problem.message}
-                </li>
-              ))}
-              {problems.length > 20 ? <li>…and {problems.length - 20} more.</li> : null}
-            </ul>
-          }
-        />
+      {result && !fatal ? (
+        <div role="status" aria-label="What was read from the file">
+          <p>
+            <strong>{fileName}</strong>: {good} recipient{good === 1 ? "" : "s"} read
+            {bad > 0 ? `, ${bad} row${bad === 1 ? "" : "s"} need${bad === 1 ? "s" : ""} fixing` : ""}.
+          </p>
+          <ul className={styles.csvMapping}>
+            {result.mapping.map((column) => (
+              <li key={column.header}>
+                We read <em>{column.header}</em> as {column.label}.
+              </li>
+            ))}
+            {result.ignored.length > 0 ? <li>Ignored: {result.ignored.join(", ")}.</li> : null}
+          </ul>
+          {result.preview.length > 0 ? (
+            <table className={styles.csvPreview}>
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Address</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.preview.map((recipient, index) => (
+                  <tr key={index}>
+                    <td>{recipient.name}</td>
+                    <td>{formatRecipient(recipient)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+          <div className={styles.csvActions}>
+            <Button
+              type="primary"
+              disabled={good === 0 && bad === 0}
+              onClick={() => {
+                onImport(result.recipients, result.problems);
+                onClose();
+              }}
+            >
+              {good > 0 ? `Import ${good} recipient${good === 1 ? "" : "s"}` : "Fix the rows by hand"}
+            </Button>
+          </div>
+        </div>
       ) : null}
     </Modal>
   );

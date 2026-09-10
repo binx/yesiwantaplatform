@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { csvField, csvRow } from "./csv.js";
+import { CSV_BOM, CsvStreamParser, csvField, csvRow, detectCsvDelimiter, stripCsvBom } from "./csv.js";
 
 describe("csvField", () => {
   it("leaves an ordinary value alone", () => {
@@ -54,5 +54,24 @@ describe("csvRow", () => {
 
   it("renders an empty row as just the separators", () => {
     expect(csvRow(["", ""])).toBe(",\r\n");
+  });
+});
+
+describe("reading what a spreadsheet wrote", () => {
+  it("detects the delimiter from the header line", () => {
+    expect(detectCsvDelimiter("name,city\nA,B\n")).toBe(",");
+    expect(detectCsvDelimiter("name;city\nA;B\n")).toBe(";");
+    expect(detectCsvDelimiter("name\nA\n")).toBe(",");
+  });
+
+  it("strips a byte-order mark, and only a leading one", () => {
+    expect(stripCsvBom(`${CSV_BOM}name,city`)).toBe("name,city");
+    expect(stripCsvBom("name,city")).toBe("name,city");
+  });
+
+  it("splits on the delimiter it was given", () => {
+    const parser = new CsvStreamParser({ delimiter: ";" });
+    const records = [...parser.push('a;"b;c";d\n'), ...parser.end()];
+    expect(records[0]?.fields).toEqual(["a", "b;c", "d"]);
   });
 });

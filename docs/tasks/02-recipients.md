@@ -1,7 +1,7 @@
 ---
 task: "02"
 title: "Recipients: CSV matching, address verification, international"
-status: todo
+status: in-progress
 tier: 1
 size: L
 migration: columns on postcards, customer_addresses, store_settings, orders
@@ -20,6 +20,15 @@ summary: >-
 ---
 
 # 02 · Recipients: CSV matching, address verification, international
+
+## Progress
+
+- **A** built. Headers are normalised and matched against an alias table
+  (first + last name join), the byte-order mark is stripped, semicolons are
+  detected, the modal previews the mapping and the first rows before
+  importing, good rows import while bad ones are listed with Edit/Skip and
+  a four-digit ZIP gets the leading-zero message.
+- **B** and **C** not started.
 
 Three parts. **A and B ship independently. C depends on both**: it adds a
 country column to the CSV and needs the verification call to pick Lob's

@@ -327,6 +327,53 @@ for (const { name, context } of dialects) {
       expect((await db.requests.renewAddressRequest(short.id, customerId))?.status).toBe("revoked");
     });
 
+    it("lists a customer's designs newest first with counts, pages by cursor, and claims a guest's designs with their orders", async () => {
+      const { drizzle, schema } = await db.getDatabase();
+      const customerId = randomUUID();
+      const email = `${customerId}@example.com`;
+      await drizzle.insert(schema.customers).values({ id: customerId, email, passwordHash: null, name: "Rachel" });
+
+      // A guest order with one design, later claimed.
+      const guestDesign = await design();
+      const orderId = randomUUID();
+      await db.orders.createPendingOrder({
+        id: orderId,
+        checkoutSessionId: `cs_${orderId}`,
+        email,
+        currency: "USD",
+        unitPriceCents: 140,
+        lines: [{ designs: [{ designId: guestDesign.id, mailDate: "2026-09-14" }], recipients: [RECIPIENT, { ...RECIPIENT, name: "Grandpa" }] }],
+      });
+      await db.orders.markOrderPaid(orderId, { paymentIntentId: null, email, subtotalCents: 280, discountCents: 0, totalCents: 280, currency: "USD" });
+      await db.designs.attachDesignsToOrder([guestDesign.id], orderId);
+      expect(await db.orders.claimOrdersForCustomer(customerId, email)).toBe(1);
+      expect((await db.designs.getDesign(guestDesign.id))?.customerId).toBe(customerId);
+
+      // Two drafts of their own, made afterwards.
+      const draftA = await db.designs.createDesign({ customerId, orientation: "portrait", printPath: "designs/a/print.png", thumbnailPath: "designs/a/thumb.webp", thumbnailWidth: 400, thumbnailHeight: 588, back: { text: "A", valediction: "", fontName: "Quicksand", fontSize: 20, fontColor: "#000000" } });
+      const copy = await db.designs.createDesign({ customerId, originId: guestDesign.id, orientation: "portrait", printPath: "designs/c/print.png", thumbnailPath: "designs/c/thumb.webp", thumbnailWidth: 400, thumbnailHeight: 588, back: guestDesign.back });
+
+      const first = await db.designs.listDesignsForCustomer(customerId, { limit: 2 });
+      expect(first.designs).toHaveLength(2);
+      expect(first.nextCursor).not.toBeNull();
+      const second = await db.designs.listDesignsForCustomer(customerId, { limit: 2, cursor: first.nextCursor! });
+      expect(second.nextCursor).toBeNull();
+      const all = [...first.designs, ...second.designs];
+      expect(all.map((d) => d.id)).toContain(draftA.id);
+      const ordered = all.find((d) => d.id === guestDesign.id)!;
+      expect(ordered.postcards).toMatchObject({ total: 2, scheduled: 2, sent: 0, firstMailDate: "2026-09-14", lastMailDate: "2026-09-14" });
+      expect(ordered.canSendAgain).toBe(true);
+
+      expect((await db.designs.listCopiesOf(guestDesign.id, customerId)).map((d) => d.id)).toEqual([copy.id]);
+      expect(await db.orders.listPostcardsForDesign(guestDesign.id, customerId)).toHaveLength(2);
+      expect(await db.orders.listPostcardsForDesign(guestDesign.id, randomUUID())).toHaveLength(0);
+
+      expect(await db.designs.getDesignForCustomer(guestDesign.id, randomUUID())).toBeNull();
+      expect(await db.designs.deleteDraftDesign(guestDesign.id, customerId)).toBeNull();
+      expect((await db.designs.deleteDraftDesign(draftA.id, customerId))?.id).toBe(draftA.id);
+      expect(await db.designs.getDesign(draftA.id)).toBeNull();
+    });
+
     it("round-trips a page's booleans", async () => {
       const id = await db.pages.createPage({ slug: "dialect-page", title: "Dialect Page", body: "# Hello", isLive: true, inNav: true });
       const page = await db.pages.findPageBySlug("dialect-page");

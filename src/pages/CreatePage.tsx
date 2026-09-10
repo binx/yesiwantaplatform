@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { App, Button } from "antd";
 import { useMutation } from "@tanstack/react-query";
 import type { Order } from "@shared/orders";
 import { csrfPost } from "@/lib/api";
+import { useDesigns } from "@/lib/designs";
 import { useSession } from "@/lib/session";
 import { addDaysIso, isInternational, todayIso, type PostcardDesign, type Recipient } from "@shared/postcards";
 import { formatMoney } from "@shared/money";
@@ -52,6 +53,22 @@ export function CreatePage() {
   });
 
   const [designs, setDesigns] = useState<PostcardDesign[]>([]);
+
+  // Designs handed in by the gallery's "send again": `?designs=a,b`. Fetched
+  // once through the public designs route and seeded into the schedule; the
+  // query string is then dropped so a reload does not seed them twice.
+  const [params, setParams] = useSearchParams();
+  const handedIn = useMemo(() => (params.get("designs") ?? "").split(",").map((id) => id.trim()).filter(Boolean), [params]);
+  const incoming = useDesigns(handedIn);
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (seeded.current || handedIn.length === 0 || !incoming.data) return;
+    seeded.current = true;
+    const found = handedIn.map((id) => incoming.data.get(id)).filter((d): d is PostcardDesign => d !== undefined);
+    if (found.length > 0) setDesigns((current) => [...current, ...found.filter((d) => !current.some((c) => c.id === d.id))]);
+    if (found.length < handedIn.length) message.warning("One of the designs you chose is no longer available.");
+    setParams({}, { replace: true });
+  }, [handedIn, incoming.data, message, setParams]);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [mode, setMode] = useState<ScheduleMode>("cadence");
   // Recipients USPS refused. Lob would refuse them too, after payment, so the batch waits.

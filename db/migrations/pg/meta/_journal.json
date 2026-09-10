@@ -43,6 +43,13 @@
       "when": 1789044383476,
       "tag": "0005_reflective_blizzard",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789044991350,
+      "tag": "0006_mighty_veda",
+      "breakpoints": true
     }
   ]
 }

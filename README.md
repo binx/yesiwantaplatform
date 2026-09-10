@@ -148,6 +148,14 @@ as a CSV the designer's importer reads back. Orders are linked to an account
 only after the email is verified, so registering with a stranger's address
 cannot read their order history.
 
+**Your postcards** is a gallery of everything a customer has designed, newest
+first, with where each card got to. Opening one shows the front, the back as
+it printed, every recipient, and **Send again**, which copies the design into
+the designer for new recipients without uploading the photo twice. For that
+to work the sweep keeps a customer's print files rather than trimming them
+once every card has gone; a customer's unbought drafts are kept for six months
+and can be deleted from the gallery.
+
 A customer who does not have someone's address can **ask for it with a link**:
 the friend opens `/address/<token>`, sees a first name and a form, and their
 address lands in the customer's book. A single link works once; a collector

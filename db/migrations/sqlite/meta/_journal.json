@@ -43,6 +43,13 @@
       "when": 1789044383141,
       "tag": "0005_bumpy_argent",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1789044991003,
+      "tag": "0006_complex_iron_monger",
+      "breakpoints": true
     }
   ]
 }

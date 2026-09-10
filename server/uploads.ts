@@ -217,3 +217,16 @@ export async function deleteDesignFile(relativePath: string): Promise<void> {
   if (!isSafeRelativePath(relativePath)) throw httpError(400, "Invalid image path.");
   await imageStore.delete(relativePath);
 }
+
+/**
+ * Copy a design's files under a new id, for "send again". Both files, both
+ * drivers; the caller writes the row and removes the copies if that fails.
+ */
+export async function copyDesignFiles(design: { printPath: string; thumbnailPath: string }, newId: string): Promise<{ printPath: string; thumbnailPath: string }> {
+  assertSafeOwnerId(newId);
+  const printPath = `designs/${newId}/print.png`;
+  const thumbnailPath = `designs/${newId}/thumb.webp`;
+  await imageStore.put(printPath, await imageStore.get(design.printPath), "image/png");
+  await imageStore.put(thumbnailPath, await imageStore.get(design.thumbnailPath), "image/webp");
+  return { printPath, thumbnailPath };
+}

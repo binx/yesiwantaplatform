@@ -257,6 +257,8 @@ export const postcardDesigns = sqliteTable(
     customerId: text("customer_id").references(() => customers.id, { onDelete: "set null" }),
     /** Set once a paid order holds postcards of this design. */
     orderId: text("order_id"),
+    /** The design this one was duplicated from, when "send again" made it. */
+    originId: text("origin_id"),
     /** "portrait" | "landscape" */
     orientation: text("orientation").notNull(),
     /** Relative to the assets root — the file Lob prints. Null once cleaned up. */

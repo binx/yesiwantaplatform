@@ -69,8 +69,10 @@ const MAX_ATTEMPTS = 8;
 const RETRY_WAIT_CAP_MS = 10_000;
 const RETRY_WAIT_DEFAULT_MS = 5_000;
 
-/** How long a saved-but-unbought design is kept, and how long a sent design's thumbnail is. */
+/** How long a guest's saved-but-unbought design is kept. */
 const ORPHAN_DESIGN_DAYS = 30;
+/** A customer's drafts stay six months: they can see them in the gallery, and delete them themselves. */
+const CUSTOMER_DRAFT_DAYS = 180;
 
 /** Cards per sweep, so one enormous mailing day cannot hold the tick for an hour. */
 const BATCH = 100;
@@ -248,20 +250,23 @@ export interface CleanupResult {
 /**
  * Housekeeping, once every few hours.
  *
- *   - A design saved but never bought is deleted after a month, files and
- *     row. Nothing refers to it, and a public upload route without this is a
- *     free image host.
- *   - Once every card of an ordered design has gone to Lob, the print file
- *     (the large one) goes; the thumbnail stays so the order page still shows
- *     what was sent.
+ *   - A guest's design saved but never bought is deleted after a month,
+ *     files and row; a customer's draft after six months. Nothing refers to
+ *     either, and a public upload route without this is a free image host.
+ *   - Once every card of a guest's ordered design has gone to Lob, the print
+ *     file (the large one) goes; the thumbnail stays so the order page still
+ *     shows what was sent. A customer's print files are kept: they are what
+ *     makes "send again" print exactly the same card.
  *
  * v1 had four such crons and all four were commented out.
  */
 export async function cleanUp(): Promise<CleanupResult> {
   const result: CleanupResult = { orphansDeleted: 0, printFilesRemoved: 0 };
 
-  const cutoff = new Date(Date.now() - ORPHAN_DESIGN_DAYS * 24 * 60 * 60 * 1000);
-  for (const design of await findOrphanDesigns(cutoff, BATCH)) {
+  const guestCutoff = new Date(Date.now() - ORPHAN_DESIGN_DAYS * 24 * 60 * 60 * 1000);
+  const draftCutoff = new Date(Date.now() - CUSTOMER_DRAFT_DAYS * 24 * 60 * 60 * 1000);
+  const orphans = [...(await findOrphanDesigns(guestCutoff, BATCH, "guest")), ...(await findOrphanDesigns(draftCutoff, BATCH, "customer"))];
+  for (const design of orphans) {
     try {
       if (design.printPath) await deleteDesignFile(design.printPath);
       await deleteDesignFile(design.thumbnailPath);

@@ -35,6 +35,14 @@ test("designs a card, adds a recipient and sees the right total in the cart", as
 
   await expect(page.getByRole("button", { name: "Remove design 1" })).toBeVisible();
 
+  // The freshly saved thumbnail must render on first paint, not a broken
+  // image while Vite's public-directory watcher catches up to the API's
+  // write (the bug in task 15).
+  await expect(page.locator("section[aria-labelledby=schedule-heading] img").first()).toHaveJSProperty(
+    "naturalWidth",
+    408,
+  );
+
   await page.getByLabel("Name").fill("Grandma");
   await page.getByLabel("Street address").fill("1 Test Street");
   await page.getByLabel("City").fill("Marfa");

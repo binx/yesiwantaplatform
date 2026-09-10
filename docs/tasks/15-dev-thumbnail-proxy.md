@@ -1,15 +1,15 @@
 ---
 task: "15"
 title: "Dev only: freshly saved thumbnails render broken in the schedule"
-status: todo
+status: done
 tier: 3
 size: S
 migration: none
 blocked_by: []
 blocks: []
 touches: vite.config.ts:66 · server/uploads.ts:205
-completed:
-shipped_in:
+completed: 2026-09-10
+shipped_in: 17
 summary: >-
   In `npm run dev`, the thumbnail of a design saved seconds ago shows as a broken
   image in the schedule. The Vite proxy's bypass sees the new file on disk and lets

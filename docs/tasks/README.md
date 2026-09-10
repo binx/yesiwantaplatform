@@ -196,4 +196,4 @@ desktop and a phone). None needs a migration. Suggested order:
 | 12 | [Copy: one delivery estimate, tenses, labels](12-copy-pass.md) | done | 1 | S | none |
 | 13 | [Sign up without leaving the checkout](13-signup-in-checkout.md) | todo | 1 | M | none |
 | 14 | [Shell: card fonts always loaded, footer stays down](14-shell-fonts-and-footer.md) | todo | 0 | S | none |
-| 15 | [Dev only: fresh thumbnails broken in the schedule](15-dev-thumbnail-proxy.md) | todo | 3 | S | none |
+| 15 | [Dev only: fresh thumbnails broken in the schedule](15-dev-thumbnail-proxy.md) | done | 3 | S | none |

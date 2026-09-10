@@ -11,10 +11,30 @@ import { normaliseRecipient, recipientFieldsSchema, recipientSchema, refineRecip
 /** Same bar as `setupInputSchema` in shared/api.ts. */
 const NEW_PASSWORD_MIN = 12;
 
+/**
+ * A same-site path: exactly one leading slash, so `//evil.example` (a
+ * protocol-relative URL a browser will follow off-site) is rejected along
+ * with any absolute URL.
+ */
+function isSameSitePath(value: string): boolean {
+  return value.startsWith("/") && !value.startsWith("//");
+}
+
 export const customerRegisterInputSchema = z.object({
   email: z.string().email().max(320),
   password: z.string().min(NEW_PASSWORD_MIN, "Use at least 12 characters.").max(400),
   name: z.string().max(200).nullable().default(null),
+  /**
+   * Where to send the shopper after they verify — the cart or the designer
+   * they registered from. Dropped rather than rejected when it isn't a
+   * same-site path, the same fallback `AccountLoginPage` uses for `from`.
+   */
+  next: z
+    .string()
+    .max(2048)
+    .nullable()
+    .default(null)
+    .transform((value) => (value && isSameSitePath(value) ? value : null)),
 });
 
 export const customerLoginInputSchema = z.object({

@@ -18,6 +18,13 @@ export function VerifyEmailPage() {
   const verify = useVerifyEmail();
   const attempted = useRef(false);
 
+  // Where the register route sent the verification link's `next` — a link
+  // is copyable and forwardable, so this gets the same guard the server
+  // applied before it ever put the value in the email: one leading slash,
+  // never `//host` (a protocol-relative redirect off-site).
+  const nextParam = params.get("next");
+  const next = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/account";
+
   useEffect(() => {
     document.title = "Verify your email · Your account";
   }, []);
@@ -25,8 +32,8 @@ export function VerifyEmailPage() {
   useEffect(() => {
     if (!token || attempted.current) return;
     attempted.current = true;
-    verify.mutate(token, { onSuccess: () => void navigate("/account", { replace: true }) });
-  }, [token, verify, navigate]);
+    verify.mutate(token, { onSuccess: () => void navigate(next, { replace: true }) });
+  }, [token, verify, navigate, next]);
 
   if (!token) {
     return (

@@ -214,6 +214,15 @@ test("shows a country only once the shop mails abroad, then takes a recipient in
   }
 });
 
+test("opens 'land it by a date' as a bottom drawer on a phone, not a popover over the thumbnails", async ({ page }) => {
+  test.skip(test.info().project.name !== "mobile", "this checks the phone-only drawer");
+
+  await designOne(page);
+  await page.getByRole("button", { name: "Land it by a date" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByLabel("The day that matters")).toBeVisible();
+});
+
 test("refuses a recipient that would not fit on the card, before the cart", async ({ page }) => {
   await page.goto("/create");
   await page.getByLabel("Name").fill("Grandma");

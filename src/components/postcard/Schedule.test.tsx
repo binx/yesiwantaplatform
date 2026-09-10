@@ -75,7 +75,7 @@ describe("Schedule", () => {
 
   it("mails a chosen number of days ahead of the day that matters, promising nothing about arrival", async () => {
     const { onArriveBy } = renderSchedule("custom");
-    await userEvent.click(screen.getByRole("button", { name: "Send it ahead of a date" }));
+    await userEvent.click(screen.getByRole("button", { name: "Land it by a date" }));
 
     const target = "2099-06-15";
     const input = await screen.findByLabelText("The day that matters");

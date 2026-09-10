@@ -191,7 +191,7 @@ desktop and a phone). None needs a migration. Suggested order:
 | 07 | [Back of card: the message must fit](07-back-of-card-fit.md) | todo | 0 | M | none |
 | 08 | [Designer: photo frame, layout, price line, batch explainer](08-designer-layout.md) | todo | 1 | M | none |
 | 09 | [Edit a saved design](09-edit-saved-design.md) | todo | 1 | S | none |
-| 10 | [Schedule: surface “ahead of a date”, tidy per-date cards](10-schedule-polish.md) | todo | 2 | S | none |
+| 10 | [Schedule: surface “ahead of a date”, tidy per-date cards](10-schedule-polish.md) | done | 2 | S | none |
 | 11 | [Recipients: state picker, honest buttons, unbroken row](11-recipient-form.md) | todo | 1 | S | none |
 | 12 | [Copy: one delivery estimate, tenses, labels](12-copy-pass.md) | done | 1 | S | none |
 | 13 | [Sign up without leaving the checkout](13-signup-in-checkout.md) | todo | 1 | M | none |

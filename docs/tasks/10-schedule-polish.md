@@ -1,14 +1,14 @@
 ---
 task: "10"
 title: "Schedule: surface “ahead of a date” and tidy per-date cards"
-status: todo
+status: done
 tier: 2
 size: S
 migration: none
 blocked_by: []
 blocks: []
 touches: src/components/postcard/Schedule.tsx:148 · src/components/postcard/Schedule.tsx:242 · src/components/postcard/Postcard.module.css:253
-completed:
+completed: 2026-09-10
 shipped_in:
 summary: >-
   "Send it ahead of a date" is a real feature hiding as a link at the end of a grey

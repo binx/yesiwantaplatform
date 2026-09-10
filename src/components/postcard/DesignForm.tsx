@@ -1,4 +1,14 @@
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import { Alert, Button, ColorPicker, Input, Radio, Slider } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import {
@@ -59,6 +69,7 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
   const [box, setBox] = useState<{ width: number; height: number } | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const [fits, setFits] = useState(true);
+  const [dragging, setDragging] = useState(false);
   const save = useSaveDesign();
   const update = useUpdateDesignBack();
   const fileId = useId();
@@ -86,8 +97,14 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
     if (picked) URL.revokeObjectURL(picked.url);
   }, [picked]);
 
+  // `--frame-ratio` is the same shape as `aspect-ratio`, as a number the phone
+  // breakpoint can multiply a viewport height by to cap the frame's width.
   const previewStyle = useMemo(
-    () => ({ aspectRatio: `${size.width} / ${size.height}` }),
+    () =>
+      ({
+        aspectRatio: `${size.width} / ${size.height}`,
+        "--frame-ratio": size.width / size.height,
+      }) as CSSProperties,
     [size],
   );
 
@@ -121,6 +138,23 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
     image.src = url;
   };
 
+  const openPicker = () => document.getElementById(fileId)?.click();
+
+  // Editing, the photo is fixed: a dropped file would silently do nothing, so
+  // the frame does not offer itself as a target at all.
+  const onDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (editing) return;
+    event.preventDefault();
+    setDragging(true);
+  };
+
+  const onDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (editing) return;
+    event.preventDefault();
+    setDragging(false);
+    choose(event.dataTransfer.files?.[0]);
+  };
+
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (!picked) return;
     pointer.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
@@ -139,6 +173,8 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
   };
 
   const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    // Empty, the frame is a button and `onPointerDown` never captured anything.
+    if (!picked) return;
     pointer.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
@@ -195,20 +231,59 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
   return (
     <div className={cx(styles.form)}>
       <div className={styles.frontRow}>
+        {editing ? null : (
+          <div className={styles.frontSwitches}>
+            <label htmlFor={fileId} className={styles.fileLabel}>
+              <input
+                id={fileId}
+                className={styles.fileInput}
+                type="file"
+                accept="image/*"
+                onChange={(event) => choose(event.target.files?.[0])}
+              />
+              <Button icon={<UploadOutlined />} onClick={openPicker}>
+                {picked ? "Choose a different photo" : "Upload a photo"}
+              </Button>
+            </label>
+
+            <Radio.Group
+              value={orientation}
+              onChange={(event) => setOrientation(event.target.value as Orientation)}
+              aria-label="Orientation"
+              options={[
+                { label: "Portrait", value: "portrait" },
+                { label: "Landscape", value: "landscape" },
+              ]}
+            />
+          </div>
+        )}
+
+        {/*
+         * Empty and not editing, the frame is a button: every tester clicked it
+         * before they found the upload button beside it. It is a `role="img"`
+         * once there is something to look at — a saved thumbnail or a fresh
+         * pick — because that role would hide the button from a screen reader.
+         */}
         <div
           ref={previewRef}
           className={cx(styles.frontPreview)}
           style={previewStyle}
-          role="img"
+          role={editing || picked ? "img" : undefined}
           aria-label={
             editing
               ? "The saved photo for this design"
               : picked
                 ? "Your photo in the card. Drag it, or use the arrow keys, to choose what shows."
-                : "Your photo goes here"
+                : undefined
           }
           aria-describedby={picked ? hintId : undefined}
           tabIndex={picked ? 0 : -1}
+          data-photo={picked ? "" : undefined}
+          data-fixed={editing ? "" : undefined}
+          data-dragging={dragging ? "" : undefined}
+          onDragOver={onDragOver}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -230,7 +305,11 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
               }
             />
           ) : (
-            <div className={styles.frontEmpty}>Your photo goes here</div>
+            <button type="button" className={styles.frontEmpty} onClick={openPicker}>
+              <UploadOutlined aria-hidden />
+              <span>Add a photo</span>
+              <span className={styles.note}>JPG, PNG or HEIC, straight from your phone is fine.</span>
+            </button>
           )}
           <div className={styles.safeArea} aria-hidden />
           {picked && !moved ? (
@@ -240,53 +319,32 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
           ) : null}
         </div>
 
-        <div className={styles.frontControls}>
+        {editing ? null : (
+          <div className={cx(styles.field, styles.frontZoom)}>
+            <span className={styles.label} id="zoom-label">
+              Zoom
+            </span>
+            <Slider
+              ariaLabelForHandle="Zoom"
+              min={1}
+              max={3}
+              step={0.05}
+              disabled={!picked}
+              value={crop.zoom}
+              tooltip={{ formatter: (value) => `${(value ?? 1).toFixed(2)}×` }}
+              onChange={(value: number) => {
+                setCrop((current) => ({ ...current, zoom: value }));
+                setMoved(true);
+              }}
+            />
+          </div>
+        )}
+
+        <div className={styles.frontNotes}>
           {editing ? (
             <p className={styles.note}>To change the photo, remove this design and save a new one.</p>
           ) : (
             <>
-              <label htmlFor={fileId} className={styles.fileLabel}>
-                <input
-                  id={fileId}
-                  className={styles.fileInput}
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => choose(event.target.files?.[0])}
-                />
-                <Button icon={<UploadOutlined />} onClick={() => document.getElementById(fileId)?.click()}>
-                  {picked ? "Choose a different photo" : "Upload a photo"}
-                </Button>
-              </label>
-
-              <Radio.Group
-                value={orientation}
-                onChange={(event) => setOrientation(event.target.value as Orientation)}
-                aria-label="Orientation"
-                options={[
-                  { label: "Portrait", value: "portrait" },
-                  { label: "Landscape", value: "landscape" },
-                ]}
-              />
-
-              <div className={styles.field}>
-                <span className={styles.label} id="zoom-label">
-                  Zoom
-                </span>
-                <Slider
-                  ariaLabelForHandle="Zoom"
-                  min={1}
-                  max={3}
-                  step={0.05}
-                  disabled={!picked}
-                  value={crop.zoom}
-                  tooltip={{ formatter: (value) => `${(value ?? 1).toFixed(2)}×` }}
-                  onChange={(value: number) => {
-                    setCrop((current) => ({ ...current, zoom: value }));
-                    setMoved(true);
-                  }}
-                />
-              </div>
-
               <p className={styles.note} id={hintId}>
                 For a sharp print, use a photo at least {size.width} × {size.height} pixels. Drag the
                 photo, or use the arrow keys, to choose what shows. The inner frame is the safe zone —

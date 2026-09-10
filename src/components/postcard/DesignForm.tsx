@@ -52,6 +52,7 @@ export function DesignForm({ onSaved, replyLink = true }: DesignFormProps) {
   const [moved, setMoved] = useState(false);
   const [box, setBox] = useState<{ width: number; height: number } | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [fits, setFits] = useState(true);
   const save = useSaveDesign();
   const fileId = useId();
   const hintId = useId();
@@ -260,7 +261,6 @@ export function DesignForm({ onSaved, replyLink = true }: DesignFormProps) {
             <Input.TextArea
               value={back.text}
               maxLength={600}
-              showCount
               autoSize={{ minRows: 4, maxRows: 8 }}
               onChange={(event) => set("text", event.target.value)}
             />
@@ -317,8 +317,17 @@ export function DesignForm({ onSaved, replyLink = true }: DesignFormProps) {
           </div>
         </div>
 
-        <PostcardBackMock back={back} replyLink={replyLink} />
+        <PostcardBackMock back={back} replyLink={replyLink} onFit={setFits} />
       </div>
+
+      {!fits ? (
+        <Alert
+          type="warning"
+          showIcon
+          title="That's more than fits on the card"
+          description="Shorten the note, or choose a smaller size. What you see on the card is what prints."
+        />
+      ) : null}
 
       {save.isError ? (
         <Alert
@@ -330,13 +339,15 @@ export function DesignForm({ onSaved, replyLink = true }: DesignFormProps) {
       ) : null}
 
       <div className={styles.actions}>
-        <Button type="primary" size="large" disabled={!picked} loading={save.isPending} onClick={submit}>
+        <Button type="primary" size="large" disabled={!picked || !fits} loading={save.isPending} onClick={submit}>
           {savedFlash ? "Saved!" : "Save this design"}
         </Button>
         <span className={styles.note} role="status">
-          {savedFlash
-            ? "Added to the schedule below. Save another, or scroll down to add recipients."
-            : "Save each design, then choose who gets it and when."}
+          {!fits
+            ? "Shorten the note, or choose a smaller size. What you see on the card is what prints."
+            : savedFlash
+              ? "Added to the schedule below. Save another, or scroll down to add recipients."
+              : "Save each design, then choose who gets it and when."}
         </span>
       </div>
     </div>

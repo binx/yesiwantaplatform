@@ -57,3 +57,12 @@ if (typeof window.matchMedia !== "function") {
 }
 
 Element.prototype.scrollIntoView = vi.fn();
+
+// jsdom has no font-loading API at all. Resolved immediately: nothing here
+// ever waits on a real font, so there is no later moment to fire it from.
+if (!("fonts" in document)) {
+  Object.defineProperty(document, "fonts", {
+    configurable: true,
+    value: { ready: Promise.resolve() },
+  });
+}

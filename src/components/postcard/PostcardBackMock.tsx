@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import { stripEmoji, type PostcardBack } from "@shared/postcards";
 import { cx } from "@/lib/cx";
 import styles from "./Postcard.module.css";
@@ -14,8 +15,46 @@ import styles from "./Postcard.module.css";
 const CARD_WIDTH_PX = 468;
 const PX_PER_INCH = CARD_WIDTH_PX / 6.25;
 
-export function PostcardBackMock({ back, replyLink = false }: { back: PostcardBack; replyLink?: boolean }) {
+interface PostcardBackMockProps {
+  back: PostcardBack;
+  replyLink?: boolean;
+  /** Called whenever the message column's content fits or stops fitting. */
+  onFit?: (fits: boolean) => void;
+}
+
+export function PostcardBackMock({ back, replyLink = false, onFit }: PostcardBackMockProps) {
   const fontPx = (back.fontSize / 72) * PX_PER_INCH;
+  const textRef = useRef<HTMLDivElement>(null);
+
+  /*
+   * The column's height is fixed (an inch measurement, not content-driven),
+   * so typing more text never changes its own box — ResizeObserver alone
+   * would never fire. It still matters for what *does* change the box: the
+   * phone layout scales the card (brief 14 in docs/NEXT-STEPS.md §6). `back`
+   * as a dependency is what catches a longer note; fonts.ready is what
+   * catches a face that was still loading when this first measured, since a
+   * fallback face wraps differently than the one that landed a moment later.
+   */
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (!el || !onFit) return;
+
+    const measure = () => onFit(el.scrollHeight <= el.clientHeight + 1);
+    measure();
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+
+    let cancelled = false;
+    void document.fonts.ready.then(() => {
+      if (!cancelled) measure();
+    });
+
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, [back, onFit]);
 
   return (
     <div
@@ -24,6 +63,7 @@ export function PostcardBackMock({ back, replyLink = false }: { back: PostcardBa
       aria-hidden
     >
       <div
+        ref={textRef}
         className={cx(styles.backText)}
         style={{
           left: 0.25 * PX_PER_INCH,

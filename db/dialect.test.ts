@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
 
 /**
  * The same repository assertions against both dialects.
@@ -63,12 +64,13 @@ async function loadWith(databaseUrl: string) {
   const pages = await import("./pages-repository.js");
   const carts = await import("./carts-repository.js");
   const customers = await import("./customers-repository.js");
+  const requests = await import("./address-requests-repository.js");
   const { getDatabase, resetDatabase } = await import("./client.js");
 
   await runMigrations();
   await seedIfEmpty();
 
-  return { ...repository, admin, orders, designs, pages, carts, customers, getDatabase, resetDatabase };
+  return { ...repository, admin, orders, designs, pages, carts, customers, requests, getDatabase, resetDatabase };
 }
 
 const RECIPIENT = { name: "Grandma", line1: "1 Test Street", line2: null, city: "Marfa", state: "TX", postalCode: "79843", country: "US" };
@@ -293,6 +295,36 @@ for (const { name, context } of dialects) {
       const both = await db.customers.listAddresses(customerId);
       expect(both).toHaveLength(2);
       expect(both.every((a) => a.label === "Grandma B")).toBe(true);
+    });
+
+    it("mints, answers, fulfils and expires address requests, on either engine", async () => {
+      const { drizzle, schema } = await db.getDatabase();
+      const customerId = randomUUID();
+      await drizzle.insert(schema.customers).values({ id: customerId, email: `${customerId}@example.com`, passwordHash: null, name: "Rachel" });
+
+      const single = await db.requests.createAddressRequest(customerId, { label: "Maya", multi: false, notifyByEmail: true, expiresInDays: 90 });
+      expect(single.token).toHaveLength(43);
+      expect(single.status).toBe("open");
+
+      const found = (await db.requests.findAddressRequestByToken(single.token))!;
+      expect(found.requester).toEqual({ id: customerId, email: `${customerId}@example.com`, name: "Rachel" });
+
+      const saved = await db.requests.recordAddressResponse(found.request, RECIPIENT, { verified: true });
+      expect(saved).toMatchObject({ label: "Maya", source: "request", verifiedAt: expect.any(Number) });
+      const fulfilled = (await db.requests.findAddressRequestByToken(single.token))!.request;
+      expect(fulfilled).toMatchObject({ status: "fulfilled", responses: 1 });
+      await expect(db.requests.recordAddressResponse(fulfilled, RECIPIENT, { verified: false })).rejects.toThrow(/already been used/);
+
+      const short = await db.requests.createAddressRequest(customerId, { label: "Sam", multi: true, notifyByEmail: false, expiresInDays: 1 });
+      const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      await drizzle
+        .update(schema.addressRequests)
+        .set({ expiresAt: (db.getDatabase && (await db.getDatabase()).dialect === "pg" ? past : Math.floor(past.getTime() / 1000)) as never })
+        .where(eq(schema.addressRequests.id, short.id));
+      expect((await db.requests.listAddressRequests(customerId)).find((r) => r.id === short.id)?.status).toBe("expired");
+      expect((await db.requests.renewAddressRequest(short.id, customerId))?.status).toBe("open");
+      expect(await db.requests.revokeAddressRequest(short.id, customerId)).toBe(true);
+      expect((await db.requests.renewAddressRequest(short.id, customerId))?.status).toBe("revoked");
     });
 
     it("round-trips a page's booleans", async () => {

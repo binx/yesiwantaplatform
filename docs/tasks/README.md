@@ -168,6 +168,6 @@ graph LR
 | 01 | [Front of card: crop offset and collage](01-front-of-card.md) | in-progress (A done) | 1 | L | none |
 | 02 | [Recipients: CSV matching, verification, international](02-recipients.md) | done | 1 | L | columns on three tables |
 | 03 | [Fulfilment: rate-limit backoff and delivery tracking](03-fulfilment.md) | in-progress (A, B built) | 0 | M | one table |
-| 04 | [Address book and ask-for-address links](04-address-book.md) | in-progress (A done) | 2 | L | one table + columns |
+| 04 | [Address book and ask-for-address links](04-address-book.md) | done | 2 | L | one table + columns |
 | 05 | [Sender gallery and send again](05-sender-gallery.md) | todo | 2 | M | none |
 | 06 | [Reply link](06-reply-link.md) | todo | 3 | L | one table + columns |

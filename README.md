@@ -148,6 +148,13 @@ as a CSV the designer's importer reads back. Orders are linked to an account
 only after the email is verified, so registering with a stranger's address
 cannot read their order history.
 
+A customer who does not have someone's address can **ask for it with a link**:
+the friend opens `/address/<token>`, sees a first name and a form, and their
+address lands in the customer's book. A single link works once; a collector
+link takes many, for a whole holiday list. Links expire after ninety days and
+can be renewed or revoked; the requester can opt in to an email when someone
+answers. The responder is never emailed.
+
 ### Abandoned cart reminders
 
 Off by default. A signed-in customer with a verified email who leaves designs

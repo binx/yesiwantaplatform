@@ -9,6 +9,7 @@ import { useStore } from "@/lib/useStore";
 import { BLANK_RECIPIENT, useRecipientCheck, validateRecipient, type RecipientErrors } from "@/lib/recipient-form";
 import { RecipientFields, VerificationNotice } from "@/components/postcard/RecipientFields";
 import postcard from "@/components/postcard/Postcard.module.css";
+import { AddressRequests } from "./AddressRequests";
 import styles from "./Account.module.css";
 
 /**
@@ -179,6 +180,8 @@ export function AccountAddressesPage() {
         Everyone you have sent a postcard to. They are saved when an order is paid, and the
         designer can pick them again — one tag at a time, if you like.
       </p>
+
+      <AddressRequests locale={store.locale} />
 
       {list.length > 0 ? (
         <div className={cx(styles.bookTools)}>

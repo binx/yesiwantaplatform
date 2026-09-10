@@ -102,7 +102,7 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
 
     // Client routes with nothing to say about themselves beyond the store's
     // own line. They exist, so they are 200s, not misses.
-    if (["/cart", "/confirm", "/unsubscribe", "/account", "/admin", "/setup"].some((p) => path === p || path.startsWith(`${p}/`))) {
+    if (["/cart", "/confirm", "/unsubscribe", "/account", "/address", "/admin", "/setup"].some((p) => path === p || path.startsWith(`${p}/`))) {
       return fallback;
     }
 

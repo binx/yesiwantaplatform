@@ -163,9 +163,43 @@ export const customerAddresses = sqliteTable(
     source: text("source").notNull().default("order"),
     /** The most recent paid order that mailed to this address. */
     lastSentAt: integer("last_sent_at"),
+    /** The request link this entry came through, when it did. */
+    requestId: text("request_id"),
     ...timestamps,
   },
   (t) => [index("customer_addresses_customer_idx").on(t.customerId)],
+);
+
+/**
+ * "Send me your address" links.
+ *
+ * The token is stored in the clear — the one token-shaped thing here that
+ * is not hashed, on purpose. A collector link is re-copied for weeks, and
+ * what it unlocks is submitting one address into someone's book and reading
+ * their first name; a leaked database makes nothing of that worse. Do not
+ * "fix" it to a hash without a way to show the link again.
+ */
+export const addressRequests = sqliteTable(
+  "address_requests",
+  {
+    id: text("id").primaryKey(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    /** 32 random bytes, base64url. */
+    token: text("token").notNull(),
+    /** "Maya", or "Holiday card 2026". Shown to the requester; to the responder only for a collector. */
+    label: text("label").notNull(),
+    /** A collector takes many responses; a single link takes one. */
+    multi: integer("multi", { mode: "boolean" }).notNull().default(false),
+    /** open | fulfilled | revoked. Expiry is `expiresAt`, read at request time. */
+    status: text("status").notNull().default("open"),
+    notifyByEmail: integer("notify_by_email", { mode: "boolean" }).notNull().default(true),
+    responses: integer("responses").notNull().default(0),
+    expiresAt: integer("expires_at").notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("address_requests_token_idx").on(t.token), index("address_requests_customer_idx").on(t.customerId)],
 );
 
 /** Sessions in the database, not express-session's in-memory default. */

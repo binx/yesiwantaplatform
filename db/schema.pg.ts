@@ -106,9 +106,30 @@ export const customerAddresses = pgTable(
     notes: text("notes"),
     source: text("source").notNull().default("order"),
     lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
+    requestId: text("request_id"),
     ...timestamps,
   },
   (t) => [index("customer_addresses_customer_idx").on(t.customerId)],
+);
+
+/** "Send me your address" links. The token is stored raw on purpose — see db/schema.sqlite.ts. */
+export const addressRequests = pgTable(
+  "address_requests",
+  {
+    id: text("id").primaryKey(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    token: text("token").notNull(),
+    label: text("label").notNull(),
+    multi: boolean("multi").notNull().default(false),
+    status: text("status").notNull().default("open"),
+    notifyByEmail: boolean("notify_by_email").notNull().default(true),
+    responses: integer("responses").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("address_requests_token_idx").on(t.token), index("address_requests_customer_idx").on(t.customerId)],
 );
 
 export const sessions = pgTable(

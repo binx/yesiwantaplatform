@@ -273,6 +273,25 @@ export async function sendCartRecoveryEmail(
   return deliver(to, rendered.subject, rendered.html);
 }
 
+/**
+ * "Maya sent you their address" — to the requester, who opted in per link.
+ * The responder is never emailed; they were handed the link by the
+ * requester in whatever channel the two of them use.
+ */
+export async function sendAddressReceivedEmail(
+  to: string,
+  locals: { name: string; address: string; bookUrl: string },
+): Promise<boolean> {
+  const store = await storeLocals();
+  const rendered = await render("AddressReceived", {
+    store: { name: store.name, colorAccent: store.colorAccent },
+    ...locals,
+  });
+  if (!rendered) return false;
+
+  return deliver(to, rendered.subject, rendered.html);
+}
+
 /** Test hook. */
 export function resetMailer(): void {
   transporter = null;

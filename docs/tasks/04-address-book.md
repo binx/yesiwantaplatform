@@ -1,15 +1,15 @@
 ---
 task: "04"
 title: Address book and ask-for-address links
-status: in-progress
+status: done
 tier: 2
 size: L
 migration: columns on customer_addresses + one table
 blocked_by: ["02"]
 blocks: []
 touches: db/customers-repository.ts:87 · src/pages/account/AccountAddressesPage.tsx · src/components/postcard/Recipients.tsx:278 · server/routes/account.ts:260 · shared/account.ts
-completed:
-shipped_in:
+completed: 2026-09-10
+shipped_in: 9, 10
 summary: >-
   Saved recipients already exist — filled from paid orders, editable, pickable in the
   designer. **A** turns the list into an address book: labels, tags for one-click groups,
@@ -28,7 +28,13 @@ summary: >-
   paid order updates "last sent" for a known address and keeps a namesake's
   new address beside the old with the label carried over. The birthday →
   schedule offer waits for brief 00 to land.
-- **B** not started.
+- **B** built. `address_requests` (token stored raw, see the schema comment),
+  `customer_addresses.request_id`, owner routes on `meRouter`, a public
+  `/api/address-requests/:token` pair behind CSRF and `requestRateLimit`,
+  the `/address/:token` page, the "Ask someone for their address" panel
+  with copy and share, and an `AddressReceived` email to the requester
+  when opted in. Entries that arrived through a link carry a "via your
+  link" chip.
 
 Two parts. **A first**: B writes into the fields A adds. Both depend on
 brief 02B for the verification step on the public form.

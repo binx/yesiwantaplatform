@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { normaliseRecipient, recipientFieldsSchema, refineRecipient } from "./postcards.js";
+import { normaliseRecipient, recipientFieldsSchema, recipientSchema, refineRecipient } from "./postcards.js";
 
 /**
  * Storefront customer accounts.
@@ -80,6 +80,53 @@ export const customerAddressSchema = recipientFieldsSchema
   })
   .superRefine(refineRecipient)
   .transform(normaliseRecipient);
+
+/* ------------------------------------------------------- address requests */
+
+/**
+ * "Send me your address": a link the customer hands to a friend, who fills
+ * in one address that lands in the customer's book. A single link takes one
+ * response; a collector link takes many, for a whole holiday list.
+ */
+export const addressRequestInputSchema = z.object({
+  /** Who it is for ("Maya"), or what it is for ("Holiday card 2026"). */
+  label: z.string().trim().min(1, "Say who this is for.").max(80),
+  multi: z.boolean().default(false),
+  /** Email the requester — never the responder — when an address arrives. */
+  notifyByEmail: z.boolean().default(true),
+  expiresInDays: z.number().int().min(1).max(365).default(90),
+});
+
+export const addressRequestStatusSchema = z.enum(["open", "fulfilled", "revoked", "expired"]);
+
+/** A request as its owner sees it, link included. */
+export const addressRequestSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  multi: z.boolean(),
+  status: addressRequestStatusSchema,
+  notifyByEmail: z.boolean(),
+  responses: z.number().int(),
+  url: z.string(),
+  expiresAt: z.number().int(),
+  createdAt: z.number().int(),
+});
+
+/** What the responder is shown. Nothing about the requester but a first name. */
+export const addressRequestPublicSchema = z.object({
+  requesterName: z.string(),
+  /** The collector's purpose, so the responder has context. Null for a single link: its label is their own name. */
+  label: z.string().nullable(),
+  multi: z.boolean(),
+  status: addressRequestStatusSchema,
+});
+
+export const addressRequestResponseSchema = recipientSchema;
+
+export type AddressRequestInput = z.infer<typeof addressRequestInputSchema>;
+export type AddressRequestStatus = z.infer<typeof addressRequestStatusSchema>;
+export type AddressRequest = z.infer<typeof addressRequestSchema>;
+export type AddressRequestPublic = z.infer<typeof addressRequestPublicSchema>;
 
 /** A customer, as the client is allowed to see it. No hashes, no tokens. */
 export const customerProfileSchema = z.object({

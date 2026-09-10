@@ -69,6 +69,8 @@ export interface AddressOptions {
   verified?: boolean;
   /** How the entry arrived. Defaults to a paid order. */
   source?: AddressSource;
+  /** The request link it came through, for a `request` source. */
+  requestId?: string;
 }
 
 export async function listAddresses(customerId: string): Promise<CustomerAddress[]> {
@@ -121,6 +123,7 @@ export async function createAddress(customerId: string, write: AddressWrite, opt
     notes: input.notes,
     source,
     lastSentAt,
+    requestId: options.requestId ?? null,
   });
 
   return { id, ...input, verifiedAt: epochOrNull(verifiedAt), source, lastSentAt: epochOrNull(lastSentAt) };

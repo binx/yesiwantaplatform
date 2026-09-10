@@ -146,6 +146,13 @@ graph LR
   T04A[04A address book] --> T04B
   T04A -.-> T00
   T05 --> T06
+  T14A[14A card fonts always loaded] --> T07[07 message fit]
+  T07 --> T09[09 edit a saved design]
+  T12[12 copy pass] -.-> T13[13 sign-up in checkout]
+  T08[08 designer layout]
+  T10[10 schedule polish]
+  T11[11 recipient form]
+  T15[15 dev thumbnail proxy]
 ```
 
 ## Suggested order
@@ -160,6 +167,16 @@ graph LR
 6. **06** reply link, phases A then B.
 7. **01B** collage, whenever there is appetite; nothing depends on it.
 
+Briefs 07–15 came out of a new-customer walkthrough on 2026-09-10 (the
+storefront, the designer, the cart, sign-up and the account pages, on a
+desktop and a phone). None needs a migration. Suggested order:
+
+8. **14** first — 07's fit measurement depends on the card fonts actually
+   loading — then **07**, which is the one that loses words off a paid card.
+9. **11**, **12**, **15**, **10** — each an hour or three, independent.
+10. **08**, **09**, **13** — the designer's layout, editing a saved design,
+    and the sign-up flow; half a day each.
+
 ## Tasks
 
 | # | Title | Status | Tier | Size | Migration |
@@ -171,3 +188,12 @@ graph LR
 | 04 | [Address book and ask-for-address links](04-address-book.md) | done | 2 | L | one table + columns |
 | 05 | [Sender gallery and send again](05-sender-gallery.md) | done | 2 | M | none |
 | 06 | [Reply link](06-reply-link.md) | done | 3 | L | columns on three tables |
+| 07 | [Back of card: the message must fit](07-back-of-card-fit.md) | todo | 0 | M | none |
+| 08 | [Designer: photo frame, layout, price line, batch explainer](08-designer-layout.md) | todo | 1 | M | none |
+| 09 | [Edit a saved design](09-edit-saved-design.md) | todo | 1 | S | none |
+| 10 | [Schedule: surface “ahead of a date”, tidy per-date cards](10-schedule-polish.md) | todo | 2 | S | none |
+| 11 | [Recipients: state picker, honest buttons, unbroken row](11-recipient-form.md) | todo | 1 | S | none |
+| 12 | [Copy: one delivery estimate, tenses, labels](12-copy-pass.md) | todo | 1 | S | none |
+| 13 | [Sign up without leaving the checkout](13-signup-in-checkout.md) | todo | 1 | M | none |
+| 14 | [Shell: card fonts always loaded, footer stays down](14-shell-fonts-and-footer.md) | todo | 0 | S | none |
+| 15 | [Dev only: fresh thumbnails broken in the schedule](15-dev-thumbnail-proxy.md) | todo | 3 | S | none |

@@ -1,7 +1,7 @@
 ---
 task: "01"
 title: "Front of card: crop offset and collage"
-status: todo
+status: in-progress
 tier: 1
 size: L
 migration: none
@@ -9,7 +9,7 @@ blocked_by: []
 blocks: []
 touches: server/lob.ts:91 · server/uploads.ts:180 · src/components/postcard/DesignForm.tsx · shared/postcards.ts · shared/api.ts:141
 completed:
-shipped_in:
+shipped_in: 4
 summary: >-
   The front is one photo, centre-cropped, and the crop cannot be moved — the single most
   common complaint with any auto-crop is the head at the top of the frame. Part A lets the
@@ -19,6 +19,16 @@ summary: >-
 ---
 
 # 01 · Front of card: crop offset and collage
+
+## Progress
+
+- **A** built. `cropSchema` / `cropRect` in `shared/postcards.ts`; the server
+  crops with `cropToCard` (resize + extract) and cuts the thumbnail from the
+  same face; the designer draws the photo at the crop's geometry and takes
+  drag, arrow keys and a zoom slider. Also fixed on the way: the preview box
+  collapsed to 2px on desktop viewports because its percentage width sat in
+  an `auto` grid track.
+- **B** not started.
 
 Two parts. **A ships alone** and is small. **B depends on A** and is the
 larger piece; nothing else in the roadmap depends on B.

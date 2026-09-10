@@ -3,7 +3,17 @@ import path from "node:path";
 import Handlebars from "handlebars";
 import sharp from "sharp";
 import { env, hasLob, lobMode } from "./env.js";
-import { BACK_FONTS, PRINT_SIZES, stripEmoji, type PostcardBack, type Recipient } from "../shared/postcards.js";
+import {
+  BACK_FONTS,
+  PRINT_SIZES,
+  cropRect,
+  defaultCrop,
+  stripEmoji,
+  type Crop,
+  type Orientation,
+  type PostcardBack,
+  type Recipient,
+} from "../shared/postcards.js";
 
 /**
  * Lob — the printer.
@@ -104,37 +114,56 @@ export interface SendPostcardInput {
 /* ----------------------------------------------------------------- the file */
 
 /**
- * Make the print-ready front from whatever the buyer uploaded.
+ * The card face, pre-rotation: the source cropped to the print size at `crop`.
  *
- * Centre-cropped to the card's aspect ratio, which is what v1's canvas did
- * — the preview on the site draws the same crop, so what the buyer sees is
- * what prints. Then rotated to landscape if it was portrait, and written as
- * PNG with the density Lob expects to find.
+ * `cropRect` in shared/postcards.ts decides the window; the preview on the
+ * site calls the same function with the same three numbers, so what the
+ * buyer dragged into the frame is what prints. Resize-then-extract rather
+ * than sharp's `fit: "cover"`, whose `position` only takes a gravity or a
+ * strategy, never a fraction.
+ *
+ * One pipeline: sharp applies the EXIF `rotate` first whatever order the
+ * calls are made in, and `extract` after `resize` acts on the resized image
+ * — so the source's upright dimensions are what the rect is computed from.
  */
-export async function printFile(
-  source: Buffer,
-  orientation: "portrait" | "landscape",
-): Promise<{ bytes: Buffer; width: number; height: number }> {
+export async function cropToCard(source: Buffer, orientation: Orientation, crop: Crop = defaultCrop): Promise<Buffer> {
   const size = PRINT_SIZES[orientation];
+  const meta = await sharp(source, { failOn: "error" }).metadata();
+  if (!meta.width || !meta.height) throw new Error("Could not read the image dimensions.");
 
-  /*
-   * Two pipelines, not one: sharp applies `rotate` before `resize` whatever
-   * order they are called in, so a single chain would turn the source first
-   * and then crop the wrong way round. The crop lands first, on its own;
-   * the quarter turn is a second pass over the cropped bytes.
-   */
-  const cropped = await sharp(source, { failOn: "error" })
-    .rotate() // honour EXIF orientation before cropping
-    .resize(size.width, size.height, { fit: "cover", position: "centre" })
+  // EXIF orientations 5–8 are the quarter turns; `rotate()` will swap the axes.
+  const turned = (meta.orientation ?? 1) >= 5;
+  const upright = turned ? { width: meta.height, height: meta.width } : { width: meta.width, height: meta.height };
+
+  const rect = cropRect(upright, size, crop);
+  const scaledWidth = Math.max(size.width, Math.round(rect.scaledWidth));
+  const scaledHeight = Math.max(size.height, Math.round(rect.scaledHeight));
+  const left = Math.min(Math.max(0, Math.round(rect.left)), scaledWidth - size.width);
+  const top = Math.min(Math.max(0, Math.round(rect.top)), scaledHeight - size.height);
+
+  return sharp(source, { failOn: "error" })
+    .rotate() // honour EXIF orientation before measuring the window
+    .resize(scaledWidth, scaledHeight)
+    .extract({ left, top, width: size.width, height: size.height })
     // Onto white: a transparent PNG would otherwise print its transparency as
     // black, which is not what anyone who exported a cut-out meant.
     .flatten({ background: "#ffffff" })
     .png()
     .toBuffer();
+}
 
+/**
+ * Finish a cropped card face into the file Lob receives: rotated to
+ * landscape if it was portrait, and written as PNG with the density Lob
+ * expects to find.
+ */
+export async function finishPrintFile(
+  card: Buffer,
+  orientation: Orientation,
+): Promise<{ bytes: Buffer; width: number; height: number }> {
   // A quarter turn clockwise puts the top of a portrait card on the right
   // edge, which is how a landscape frame holds a portrait picture.
-  const oriented = orientation === "portrait" ? sharp(cropped).rotate(90) : sharp(cropped);
+  const oriented = orientation === "portrait" ? sharp(card).rotate(90) : sharp(card);
 
   const bytes = await oriented
     .png({ compressionLevel: 6 })
@@ -142,6 +171,15 @@ export async function printFile(
     .toBuffer();
 
   return { bytes, width: PRINT_SIZES.landscape.width, height: PRINT_SIZES.landscape.height };
+}
+
+/** Make the print-ready front from whatever the buyer uploaded: `cropToCard`, then `finishPrintFile`. */
+export async function printFile(
+  source: Buffer,
+  orientation: Orientation,
+  crop: Crop = defaultCrop,
+): Promise<{ bytes: Buffer; width: number; height: number }> {
+  return finishPrintFile(await cropToCard(source, orientation, crop), orientation);
 }
 
 /* ----------------------------------------------------------------- the back */

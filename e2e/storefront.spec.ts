@@ -77,6 +77,29 @@ test("mails two designs on two chosen dates", async ({ page }) => {
   await expect(page.getByText(/Mailed .+ to .+/)).toBeVisible();
 });
 
+test("repositions the photo with the arrow keys and saves that crop", async ({ page }) => {
+  await page.goto("/create");
+  await page.locator('input[type="file"][accept="image/*"]').setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: PNG });
+
+  const preview = page.getByRole("img", { name: /Your photo in the card/ });
+  await expect(preview).toBeVisible();
+  const photo = preview.locator("img");
+  // A square photo in a portrait frame overflows sideways, so the centre crop hides some of each edge.
+  await expect(photo).toHaveAttribute("style", /translate\(-\d+(\.\d+)?px, 0px\)/);
+  const centred = await photo.getAttribute("style");
+
+  await preview.focus();
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  // Each nudge moves the photo further left, i.e. a larger hidden offset.
+  await expect(photo).not.toHaveAttribute("style", centred ?? "");
+  await expect(page.getByText("Drag to reposition")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Save this design" }).click();
+  await expect(page.getByRole("button", { name: "Saved!" })).toBeVisible();
+});
+
 test("refuses a recipient that would not fit on the card, before the cart", async ({ page }) => {
   await page.goto("/create");
   await page.getByLabel("Name").fill("Grandma");

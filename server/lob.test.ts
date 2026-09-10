@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { LobError, printFile, renderBack, retryAfterMs } from "./lob.js";
+import { LobError, cropToCard, printFile, renderBack, retryAfterMs } from "./lob.js";
 
 /**
  * The print file and the back, checked as arithmetic.
@@ -40,6 +40,47 @@ describe("printFile", () => {
     const right = data.subarray((info.width - 1) * info.channels, info.width * info.channels);
     expect(left[1]).toBeGreaterThan(200);
     expect(right[2]).toBeGreaterThan(200);
+  });
+});
+
+describe("cropToCard", () => {
+  async function halves() {
+    // Left half green, right half blue.
+    return sharp({ create: { width: 4000, height: 1000, channels: 3, background: "#00ff00" } })
+      .composite([{ input: await sharp({ create: { width: 2000, height: 1000, channels: 3, background: "#0000ff" } }).png().toBuffer(), left: 2000, top: 0 }])
+      .png()
+      .toBuffer();
+  }
+
+  async function corners(bytes: Buffer) {
+    const { data, info } = await sharp(bytes).raw().toBuffer({ resolveWithObject: true });
+    const at = (x: number, y: number) => data.subarray((y * info.width + x) * info.channels, (y * info.width + x + 1) * info.channels);
+    return { left: at(0, 0), right: at(info.width - 1, 0), width: info.width, height: info.height };
+  }
+
+  it("pins the left edge at x 0 and the right edge at x 1, at either orientation", async () => {
+    const source = await halves();
+
+    const pinnedLeft = await corners(await cropToCard(source, "landscape", { x: 0, y: 0.5, zoom: 1 }));
+    expect([pinnedLeft.width, pinnedLeft.height]).toEqual([1875, 1275]);
+    expect(pinnedLeft.left[1]).toBeGreaterThan(200);
+    expect(pinnedLeft.right[1]).toBeGreaterThan(200);
+
+    const pinnedRight = await corners(await cropToCard(source, "landscape", { x: 1, y: 0.5, zoom: 1 }));
+    expect(pinnedRight.left[2]).toBeGreaterThan(200);
+    expect(pinnedRight.right[2]).toBeGreaterThan(200);
+
+    const portrait = await corners(await cropToCard(source, "portrait", { x: 0, y: 0.5, zoom: 1 }));
+    expect([portrait.width, portrait.height]).toEqual([1275, 1875]);
+    expect(portrait.right[1]).toBeGreaterThan(200);
+  });
+
+  it("zooms in on the middle at zoom 2", async () => {
+    const source = await halves();
+    // Centre crop at zoom 2 spans the middle quarter of the source: still half green, half blue.
+    const zoomed = await corners(await cropToCard(source, "landscape", { x: 0.5, y: 0.5, zoom: 2 }));
+    expect(zoomed.left[1]).toBeGreaterThan(200);
+    expect(zoomed.right[2]).toBeGreaterThan(200);
   });
 });
 

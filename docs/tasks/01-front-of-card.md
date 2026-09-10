@@ -9,7 +9,7 @@ blocked_by: []
 blocks: []
 touches: server/lob.ts:91 · server/uploads.ts:180 · src/components/postcard/DesignForm.tsx · shared/postcards.ts · shared/api.ts:141
 completed:
-shipped_in:
+shipped_in: 4
 summary: >-
   The front is one photo, centre-cropped, and the crop cannot be moved — the single most
   common complaint with any auto-crop is the head at the top of the frame. Part A lets the

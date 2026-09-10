@@ -1,11 +1,20 @@
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
 import { orderReference, orderSchema, type Order, type OrderStatus } from "../shared/orders.js";
-import { countPostcardsByDestination, type CartLine } from "../shared/cart.js";
-import { isShownTrackingEvent, type Postcard, type PostcardStatus, type TrackingEvent } from "../shared/postcards.js";
+import { countPostcardsByDestination, type CartLineInput } from "../shared/cart.js";
+import { recipientSchema } from "../shared/postcards.js";
+import {
+  REPLY_CODE_ALPHABET,
+  REPLY_CODE_LENGTH,
+  isShownTrackingEvent,
+  type Postcard,
+  type PostcardStatus,
+  type ReplySummary,
+  type TrackingEvent,
+} from "../shared/postcards.js";
 import { getDatabase } from "./client.js";
 import { affectedRows, claimDesignsForOrders, findDesignsByIds, toPublicDesign } from "./designs-repository.js";
-import { nowFor, toEpochMs } from "./repository.js";
+import { nowFor, toBool, toEpochMs } from "./repository.js";
 
 /**
  * Orders and the postcards on them.
@@ -24,9 +33,18 @@ export interface CreatePendingOrderInput {
   /** What a card mailed abroad costs. Null when the cart has none, or the shop is US-only. */
   internationalUnitPriceCents?: number | null;
   /** The cart, validated: every design id already checked against the table. */
-  lines: CartLine[];
+  lines: CartLineInput[];
   /** Set only when the buyer was signed in at checkout. Null for a guest. */
   customerId?: string | null;
+  /** The card this order replies to, when it does. Its lines were resolved by the caller. */
+  replyToPostcardId?: string | null;
+}
+
+/** Eight characters from the alphabet on the back of the card. */
+export function generateReplyCode(): string {
+  let code = "";
+  for (let i = 0; i < REPLY_CODE_LENGTH; i += 1) code += REPLY_CODE_ALPHABET[randomInt(REPLY_CODE_ALPHABET.length)];
+  return code;
 }
 
 /**
@@ -62,12 +80,14 @@ export async function createPendingOrder(input: CreatePendingOrderInput): Promis
     subtotalCents,
     totalCents: subtotalCents,
     customerId: input.customerId ?? null,
+    replyToPostcardId: input.replyToPostcardId ?? null,
   });
 
   for (const [batchIndex, line] of input.lines.entries()) {
     for (const design of line.designs) {
-      for (const recipient of line.recipients) {
-        await db.insert(schema.postcards).values({
+      for (const raw of line.recipients ?? []) {
+        const recipient = recipientSchema.parse(raw);
+        await insertPostcard(db, schema, {
           id: randomUUID(),
           orderId: input.id,
           designId: design.designId,
@@ -81,12 +101,31 @@ export async function createPendingOrder(input: CreatePendingOrderInput): Promis
           recipientCountry: recipient.country,
           mailDate: design.mailDate,
           status: "pending",
+          replyCode: (line.replyLink ?? true) ? generateReplyCode() : null,
+          isReply: (line.replyTo ?? null) !== null,
         });
       }
     }
   }
 
   return input.id;
+}
+
+/** Insert one card, minting a fresh code on the one-in-a-trillion collision. */
+async function insertPostcard(
+  db: Awaited<ReturnType<typeof getDatabase>>["drizzle"],
+  schema: Awaited<ReturnType<typeof getDatabase>>["schema"],
+  values: Record<string, unknown> & { replyCode: string | null },
+): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await db.insert(schema.postcards).values(values);
+      return;
+    } catch (error) {
+      if (!values.replyCode || attempt === 2) throw error;
+      values.replyCode = generateReplyCode();
+    }
+  }
 }
 
 interface OrderRow {
@@ -103,6 +142,7 @@ interface OrderRow {
   discountCents: number;
   totalCents: number;
   refundedCents: number;
+  replyToPostcardId: string | null;
   createdAt: unknown;
 }
 
@@ -127,6 +167,15 @@ export interface PostcardRow {
   attempts: number;
   lastError: string | null;
   trackingStatus: string | null;
+  replyCode: string | null;
+  replyDisabledAt: unknown;
+  isReply: unknown;
+}
+
+/** Everything a card carries beyond its own row: scans, and what came back. */
+export interface PostcardExtras {
+  tracking?: TrackingEvent[];
+  replies?: ReplySummary | null;
 }
 
 interface TrackingRow {
@@ -137,7 +186,8 @@ interface TrackingRow {
   location: string | null;
 }
 
-export function buildPostcard(row: PostcardRow, tracking: TrackingEvent[] = []): Postcard {
+export function buildPostcard(row: PostcardRow, extras: PostcardExtras | TrackingEvent[] = {}): Postcard {
+  const { tracking = [], replies = null } = Array.isArray(extras) ? { tracking: extras } : extras;
   return {
     id: row.id,
     designId: row.designId,
@@ -161,6 +211,10 @@ export function buildPostcard(row: PostcardRow, tracking: TrackingEvent[] = []):
     lastError: row.lastError,
     trackingStatus: row.trackingStatus,
     tracking,
+    // Off, or turned off: the code is not shown, so nothing can be reached by it.
+    replyCode: row.replyCode && (row.replyDisabledAt === null || row.replyDisabledAt === undefined) ? row.replyCode : null,
+    isReply: toBool(row.isReply),
+    replies,
   };
 }
 
@@ -195,6 +249,7 @@ async function buildOrders(rows: OrderRow[]): Promise<Order[]> {
       discountCents: row.discountCents,
       totalCents: row.totalCents,
       refundedCents: row.refundedCents,
+      replyToPostcardId: row.replyToPostcardId,
       createdAt: toEpochMs(row.createdAt),
       postcards,
       designs: used,
@@ -222,15 +277,62 @@ async function loadPostcards(orderIds: string[]): Promise<Map<string, Postcard[]
         asc(schema.postcards.id),
       )) as unknown as PostcardRow[];
 
-    const tracking = await loadTracking(rows.map((row) => row.id));
+    const extras = await loadExtras(rows.map((row) => row.id));
     for (const row of rows) {
       const existing = map.get(row.orderId);
-      const postcard = buildPostcard(row, tracking.get(row.id) ?? []);
+      const postcard = buildPostcard(row, extras(row.id));
       if (existing) existing.push(postcard);
       else map.set(row.orderId, [postcard]);
     }
   }
 
+  return map;
+}
+
+/** Scans and replies for a set of cards, two queries rather than two per card. */
+export async function loadExtras(postcardIds: string[]): Promise<(id: string) => PostcardExtras> {
+  const [tracking, replies] = await Promise.all([loadTracking(postcardIds), loadReplies(postcardIds)]);
+  return (id) => ({ tracking: tracking.get(id) ?? [], replies: replies.get(id) ?? null });
+}
+
+/**
+ * What came back through each card's code: reply orders that were paid,
+ * and the first reply's front once its own tracking says it landed. Until
+ * then the sender sees only that one is on its way — the surprise is the
+ * point of a postcard.
+ */
+async function loadReplies(postcardIds: string[]): Promise<Map<string, ReplySummary>> {
+  const map = new Map<string, ReplySummary>();
+  if (postcardIds.length === 0) return map;
+  const { drizzle: db, schema } = await getDatabase();
+
+  const rows = (await db
+    .select({ to: schema.orders.replyToPostcardId, orderStatus: schema.orders.status, status: schema.postcards.status, trackingStatus: schema.postcards.trackingStatus, designId: schema.postcards.designId })
+    .from(schema.orders)
+    .innerJoin(schema.postcards, eq(schema.postcards.orderId, schema.orders.id))
+    .where(inArray(schema.orders.replyToPostcardId, postcardIds))) as unknown as { to: string; orderStatus: string; status: string; trackingStatus: string | null; designId: string }[];
+
+  const deliveredDesigns = new Map<string, string>();
+  for (const row of rows) {
+    if (row.orderStatus === "pending" || row.orderStatus === "cancelled" || row.status === "cancelled") continue;
+    const summary = map.get(row.to) ?? { onTheWay: 0, delivered: 0, thumbnail: null };
+    const delivered = row.status === "sent" && (row.trackingStatus === "postcard.delivered" || row.trackingStatus === "postcard.processed_for_delivery");
+    if (delivered) {
+      summary.delivered += 1;
+      if (!deliveredDesigns.has(row.to)) deliveredDesigns.set(row.to, row.designId);
+    } else summary.onTheWay += 1;
+    map.set(row.to, summary);
+  }
+
+  if (deliveredDesigns.size > 0) {
+    const designs = await findDesignsByIds([...deliveredDesigns.values()]);
+    const byId = new Map(designs.map((d) => [d.id, toPublicDesign(d)]));
+    for (const [to, designId] of deliveredDesigns) {
+      const summary = map.get(to);
+      const design = byId.get(designId);
+      if (summary && design) summary.thumbnail = design.thumbnail;
+    }
+  }
   return map;
 }
 
@@ -352,8 +454,54 @@ export async function listPostcardsForDesign(designId: string, customerId: strin
     .where(and(eq(schema.postcards.designId, designId), eq(schema.orders.customerId, customerId)))
     .orderBy(asc(schema.postcards.mailDate), asc(schema.postcards.recipientName), asc(schema.postcards.id))) as unknown as { postcard: PostcardRow }[];
 
-  const tracking = await loadTracking(rows.map((row) => row.postcard.id));
-  return rows.map((row) => buildPostcard(row.postcard, tracking.get(row.postcard.id) ?? []));
+  const extras = await loadExtras(rows.map((row) => row.postcard.id));
+  return rows.map((row) => buildPostcard(row.postcard, extras(row.postcard.id)));
+}
+
+/* ------------------------------------------------------------- reply link */
+
+export interface ReplyTarget {
+  postcard: PostcardRow;
+  order: { id: string; customerId: string | null; status: string; email: string };
+}
+
+/** The card behind a code, with its order — for the public page and for checkout. Null for a code nobody was given. */
+export async function findPostcardByReplyCode(code: string): Promise<ReplyTarget | null> {
+  const { drizzle: db, schema } = await getDatabase();
+  const rows = (await db
+    .select({ postcard: schema.postcards, orderId: schema.orders.id, customerId: schema.orders.customerId, orderStatus: schema.orders.status, email: schema.orders.email })
+    .from(schema.postcards)
+    .innerJoin(schema.orders, eq(schema.orders.id, schema.postcards.orderId))
+    .where(eq(schema.postcards.replyCode, code))
+    .limit(1)) as unknown as { postcard: PostcardRow; orderId: string; customerId: string | null; orderStatus: string; email: string }[];
+  const row = rows[0];
+  return row ? { postcard: row.postcard, order: { id: row.orderId, customerId: row.customerId, status: row.orderStatus, email: row.email } } : null;
+}
+
+/** The sender turns a card's link off. Scoped to their own order. Returns false when it is not theirs. */
+export async function disableReplyLink(orderId: string, postcardId: string, customerId: string): Promise<boolean> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+  const owned = (await db
+    .select({ id: schema.orders.id })
+    .from(schema.orders)
+    .where(and(eq(schema.orders.id, orderId), eq(schema.orders.customerId, customerId)))
+    .limit(1)) as unknown as { id: string }[];
+  if (owned.length === 0) return false;
+  const result = await db
+    .update(schema.postcards)
+    .set({ replyDisabledAt: nowFor(dialect), updatedAt: nowFor(dialect) })
+    .where(and(eq(schema.postcards.id, postcardId), eq(schema.postcards.orderId, orderId)));
+  return affectedRows(result) === 1;
+}
+
+/** Paid or paid-then-completed reply orders sent to one card, for the cap. */
+export async function countReplyOrders(postcardId: string): Promise<number> {
+  const { drizzle: db, schema } = await getDatabase();
+  const rows = (await db
+    .select({ value: count() })
+    .from(schema.orders)
+    .where(and(eq(schema.orders.replyToPostcardId, postcardId), inArray(schema.orders.status, ["paid", "completed"])))) as unknown as { value: number }[];
+  return Number(rows[0]?.value ?? 0);
 }
 
 export async function listOrders(
@@ -638,8 +786,8 @@ export async function getPostcard(orderId: string, id: string): Promise<Postcard
 
   const row = rows[0];
   if (!row) return null;
-  const tracking = await loadTracking([row.id]);
-  return buildPostcard(row, tracking.get(row.id) ?? []);
+  const extras = await loadExtras([row.id]);
+  return buildPostcard(row, extras(row.id));
 }
 
 /* ---------------------------------------------------------------- tracking */

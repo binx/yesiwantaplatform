@@ -1,29 +1,55 @@
 ---
 task: "06"
 title: Reply link
-status: todo
+status: done
 tier: 3
 size: L
-migration: columns on postcards, orders, customers + one table
+migration: columns on postcards, orders, customers
 blocked_by: ["03", "05"]
 blocks: []
 touches: print/back.hbs · src/components/postcard/PostcardBackMock.tsx · shared/cart.ts:24 · server/routes/checkout.ts:37 · server/routes/account.ts:82 · db/orders-repository.ts:38
-completed:
-shipped_in:
+completed: 2026-09-10
+shipped_in: "#13"
 summary: >-
-  Every card gets a short code printed on the back. Holding the card is the credential:
-  the code opens the card online, lets the recipient tap "it arrived" with a note the
-  sender sees, and — when the sender has opted in with a return address — lets them send a
-  postcard back without ever seeing that address. **A:** code, landing page, reaction.
-  **B:** the reply order. Chains and prepaid replies are named and left for later.
+  Every card gets a QR code printed on the back. Holding the card is the credential:
+  the code opens the card online and — when the sender has opted in with a return
+  address — lets the recipient send a postcard back without ever seeing that address.
+  **A:** code and landing page. **B:** the reply order. The reaction in the original
+  spec was cut at review. Chains and prepaid replies are named and left for later.
 ---
 
 # 06 · Reply link
 
 Two phases. **A** needs brief 03B's tracking (the page goes live only once
-the card has arrived) and is worth shipping on its own — the reaction is
-the part most recipients will use. **B** needs brief 05's account surfaces
+the card has arrived) and is worth shipping on its own. **B** needs brief 05's account surfaces
 and a return address on the sender's account.
+
+## Progress
+
+Built as one PR, both phases, with three amendments from review:
+
+- **The back carries a QR code, not a printed URL.** The code is still the
+  eight-character token and the page is still `/r/CODE`, but the only
+  thing on the card is a 0.6in QR (drawn server-side with `qrcode`, inline
+  SVG in `print/back.hbs`) and the caption "Scan to see this card online,
+  or to send one back." Stores on a Lob-hosted template get the URL as the
+  `reply_url` merge variable and draw their own.
+- **Opening the page records nothing.** There is no `first_viewed_at`, no
+  "seen online" event, and no timeline entry when the recipient looks. A
+  reader's visit is their own business.
+- **No reaction.** The "it arrived" tap with an emoji and a note was cut
+  at review. The page does two things: shows the card, and offers to send
+  one back. There is no `postcard_reactions` table and no
+  `POST /api/r/:code/reaction`; the sections below that describe them are
+  the original spec, kept for the record.
+
+Everything else is as specified: the gate (sent, not disabled, tracking
+says landed or seven days since mailing), the per-batch checkbox (default
+on), the sender's "turn off the link", the reply address on the account,
+server-side resolution at checkout, the cap of three paid replies per
+card, and redaction in `toCustomerPostcard` and the emails. The e2e
+coverage is the accessibility sweep of `/r/…`; the full flow is covered in
+`server/reply.test.ts`.
 
 ## The idea, and the property it rests on
 

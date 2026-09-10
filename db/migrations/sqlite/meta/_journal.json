@@ -50,6 +50,13 @@
       "when": 1789044991003,
       "tag": "0006_complex_iron_monger",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1789046769258,
+      "tag": "0007_easy_marten_broadcloak",
+      "breakpoints": true
     }
   ]
 }

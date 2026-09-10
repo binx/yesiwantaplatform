@@ -135,7 +135,17 @@ export const customerProfileSchema = z.object({
   name: z.string().nullable(),
   emailVerified: z.boolean(),
   createdAt: z.number().int(),
+  /** Replies: the name a recipient is shown, and where a reply is mailed. Null when replies are off. */
+  replyDisplayName: z.string().nullable().default(null),
+  replyAddress: recipientSchema.nullable().default(null),
 });
+
+/** Turn replies on: a name to show and an address to mail to. */
+export const replySettingsInputSchema = z.object({
+  displayName: z.string().trim().min(1, "A name is required.").max(40, "40 characters at most."),
+  address: recipientSchema,
+});
+export type ReplySettingsInput = z.infer<typeof replySettingsInputSchema>;
 
 /** Who is signed in, if anyone. Answers 200 either way. */
 export const customerSessionSchema = z.object({

@@ -10,6 +10,7 @@ import { sessionRouter } from "./routes/session.js";
 import { accountRouter } from "./routes/account.js";
 import { recipientsRouter } from "./routes/recipients.js";
 import { addressRequestsRouter } from "./routes/address-requests.js";
+import { replyRouter } from "./routes/reply.js";
 import { setupRouter } from "./routes/setup.js";
 import { adminRouter } from "./routes/admin.js";
 import { checkoutRouter } from "./routes/checkout.js";
@@ -87,6 +88,7 @@ export function createApp(options: { schedulers?: boolean } = {}): Express {
   app.use("/api", designsRouter);
   app.use("/api", recipientsRouter);
   app.use("/api", addressRequestsRouter);
+  app.use("/api", replyRouter);
   app.use("/api/account", accountRouter);
   app.use("/api", checkoutRouter);
   app.use("/api/cart", cartRouter);

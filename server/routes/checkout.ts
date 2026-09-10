@@ -6,7 +6,8 @@ import { countPostcardsByDestination, type CartLine } from "../../shared/cart.js
 import { todayIso } from "../../shared/postcards.js";
 import { getSettings, type Settings } from "../../db/repository.js";
 import { findDesignsByIds } from "../../db/designs-repository.js";
-import { createPendingOrder, findOrderByCheckoutSession } from "../../db/orders-repository.js";
+import { countReplyOrders, createPendingOrder, findOrderByCheckoutSession, findPostcardByReplyCode } from "../../db/orders-repository.js";
+import { getReplySettings } from "../../db/customers-repository.js";
 import { env } from "../env.js";
 import { httpError, writeRateLimit } from "../middleware.js";
 import { getStripe } from "../stripe.js";
@@ -74,6 +75,41 @@ export function assertMailable(lines: CartLine[], settings: Pick<Settings, "inte
   }
 }
 
+/** How many paid replies one card may receive. A conversation, not a mailing list. */
+const REPLY_CAP = 3;
+
+/**
+ * A reply line names a card's code and no recipient; the recipient is the
+ * card's sender, resolved here from their reply settings and written onto
+ * the order like any other. The client never receives it — `toCustomerOrder`
+ * blanks it on the way out — and a sender who moves later does not strand a
+ * paid reply, because the address is snapshotted now.
+ */
+export async function resolveReplyLines(lines: CartLine[]): Promise<{ lines: CartLine[]; replyToPostcardId: string | null }> {
+  let replyToPostcardId: string | null = null;
+  const resolved: CartLine[] = [];
+
+  for (const line of lines) {
+    if (line.replyTo === null) {
+      resolved.push(line);
+      continue;
+    }
+    const target = await findPostcardByReplyCode(line.replyTo);
+    const closed = !target || target.postcard.replyDisabledAt !== null || target.postcard.status !== "sent" || !target.order.customerId;
+    const settings = closed ? null : await getReplySettings(target.order.customerId!);
+    if (closed || !settings?.address || !settings.displayName) {
+      throw httpError(409, "That card can't be replied to any more. Remove it from the cart to continue.");
+    }
+    if ((await countReplyOrders(target.postcard.id)) >= REPLY_CAP) {
+      throw httpError(409, "That card has had as many replies as it can take. Remove it from the cart to continue.");
+    }
+    replyToPostcardId ??= target.postcard.id;
+    resolved.push({ ...line, recipients: [{ ...settings.address, name: settings.displayName }] });
+  }
+
+  return { lines: resolved, replyToPostcardId };
+}
+
 checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
   const stripe = getStripe();
   if (!stripe) {
@@ -89,12 +125,12 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
   const settings = await getSettings();
   if (!settings) throw httpError(503, "This store has not been set up yet.");
 
-  const lines = parsed.data.lines;
   const currency = settings.currency.toLowerCase();
 
   // Every design has to exist, unordered, right now, and every date has to
-  // be one Lob can still act on.
-  await assertOrderable(lines);
+  // be one Lob can still act on. A reply line gets its recipient here.
+  await assertOrderable(parsed.data.lines);
+  const { lines, replyToPostcardId } = await resolveReplyLines(parsed.data.lines);
   assertMailable(lines, settings);
 
   const { domestic, international } = countPostcardsByDestination(lines);
@@ -168,6 +204,7 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
     internationalUnitPriceCents,
     lines,
     customerId: customer?.id ?? null,
+    replyToPostcardId,
   });
 
   res.json({ url: session.url, orderId });

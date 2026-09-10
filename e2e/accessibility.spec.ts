@@ -19,6 +19,7 @@ const routes: [name: string, path: string][] = [
   ["order confirmation", "/confirm"],
   ["cart-email unsubscribe", "/unsubscribe"],
   ["address request", "/address/not-a-real-token"],
+  ["postcard code", "/r/NOTACODE1"],
   ["admin sign-in", "/admin/login"],
 ];
 

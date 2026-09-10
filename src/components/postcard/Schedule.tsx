@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { Button, InputNumber, Popover, Segmented, Select } from "antd";
+import { Button, Checkbox, InputNumber, Popover, Segmented, Select } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
 import { addDaysIso, todayIso, type PostcardDesign } from "@shared/postcards";
 import { ProductImage } from "@/components/ui/ProductImage";
@@ -38,6 +38,9 @@ interface ScheduleProps {
   onArriveBy: (designId: string, mailDate: string) => void;
   onRemove: (index: number) => void;
   locale: string;
+  /** Print a QR code on the back so the recipient can see the card online and send one back. */
+  replyLink: boolean;
+  onReplyLinkChange: (on: boolean) => void;
 }
 
 export function Schedule({
@@ -52,6 +55,8 @@ export function Schedule({
   onArriveBy,
   onRemove,
   locale,
+  replyLink,
+  onReplyLinkChange,
 }: ScheduleProps) {
   const dateId = useId();
   const cadenceId = useId();
@@ -141,11 +146,18 @@ export function Schedule({
       </ul>
 
       {items.length > 0 ? (
-        <p className={styles.note}>
-          Delivery time varies: a couple of days when the address is near the printer, a week or
-          more when it isn't.{" "}
-          <ArriveBy items={items} locale={locale} onArriveBy={onArriveBy} />
-        </p>
+        <>
+          <p className={styles.note}>
+            Delivery time varies: a couple of days when the address is near the printer, a week or
+            more when it isn't.{" "}
+            <ArriveBy items={items} locale={locale} onArriveBy={onArriveBy} />
+          </p>
+          <p className={styles.replyOption}>
+            <Checkbox checked={replyLink} onChange={(event) => onReplyLinkChange(event.target.checked)}>
+              Print a small QR code on the back, so they can see the card online and send one back.
+            </Checkbox>
+          </p>
+        </>
       ) : null}
     </div>
   );

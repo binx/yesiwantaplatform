@@ -273,6 +273,32 @@ export const trackingEventSchema = z.object({
 
 export type TrackingEvent = z.infer<typeof trackingEventSchema>;
 
+/* ------------------------------------------------------------ reply link */
+
+/**
+ * The code printed on the back of a card as a QR. Holding the card is the
+ * credential, so the alphabet leaves out what is misread from paper (0/O,
+ * 1/I/l) and eight characters of it is 10¹² codes: guessing is pointless,
+ * and the route is rate-limited anyway.
+ */
+export const REPLY_CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+export const REPLY_CODE_LENGTH = 8;
+export const replyCodeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(new RegExp(`^[${REPLY_CODE_ALPHABET}]{${REPLY_CODE_LENGTH}}$`), "That is not a postcard code.");
+
+/** What came back through a card's code: how many replies are paid for, and the first one's front once it has landed. */
+export const replySummarySchema = z.object({
+  onTheWay: z.number().int(),
+  delivered: z.number().int(),
+  /** Hidden until the reply has been delivered, so the sender is not shown their own surprise. */
+  thumbnail: imageSchema.nullable(),
+});
+
+export type ReplySummary = z.infer<typeof replySummarySchema>;
+
 /**
  * One physical card on an order.
  *
@@ -296,6 +322,11 @@ export const postcardSchema = z.object({
   trackingStatus: z.string().nullable().default(null),
   /** Every shown event so far, oldest first. */
   tracking: z.array(trackingEventSchema).default([]),
+  /** The code on the back, when the sender opted in and has not turned it off. */
+  replyCode: z.string().nullable().default(null),
+  /** A card sent back to a sender. The customer view blanks its address. */
+  isReply: z.boolean().default(false),
+  replies: replySummarySchema.nullable().default(null),
 });
 
 export type Postcard = z.infer<typeof postcardSchema>;

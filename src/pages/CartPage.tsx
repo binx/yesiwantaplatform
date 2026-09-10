@@ -139,14 +139,16 @@ export function CartPage() {
 
                   <div className={styles.details}>
                     <p className={styles.title}>
-                      {line.designs.length} design{line.designs.length === 1 ? "" : "s"} to{" "}
-                      {line.recipients.length} recipient{line.recipients.length === 1 ? "" : "s"}
+                      {line.replyTo
+                        ? `${line.designs.length} design${line.designs.length === 1 ? "" : "s"} back to ${line.replyToName ?? "the sender"}`
+                        : `${line.designs.length} design${line.designs.length === 1 ? "" : "s"} to ${line.recipients.length} recipient${line.recipients.length === 1 ? "" : "s"}`}
                     </p>
                     <p className={styles.meta}>
                       {first === last
                         ? `Mailed ${formatMailDate(first, store.locale)}`
                         : `Mailed ${formatMailDate(first, store.locale)} to ${formatMailDate(last, store.locale)}`}
                     </p>
+                    {line.replyTo ? <p className={styles.meta}>A reply: their address is kept private.</p> : null}
                     <details className={styles.recipients}>
                       <summary>Recipients</summary>
                       <ul>

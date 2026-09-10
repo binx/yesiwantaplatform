@@ -9,10 +9,13 @@ import {
   forgotPasswordInputSchema,
   resetPasswordInputSchema,
   verifyEmailInputSchema,
+  replySettingsInputSchema,
   type AddressRequest,
   type CustomerProfile,
   type CustomerSession,
 } from "../../shared/account.js";
+import { clearReplySettings, getReplySettings, setReplySettings } from "../../db/customers-repository.js";
+import { disableReplyLink } from "../../db/orders-repository.js";
 import {
   createAddressRequest,
   listAddressRequests,
@@ -104,13 +107,23 @@ meRouter.use(requireCustomer);
  * printer jargon.
  */
 export function toCustomerOrder(order: Order): Order {
+  return { ...order, postcards: order.postcards.map(toCustomerPostcard) };
+}
+
+/**
+ * A card as its buyer may see it. A reply's recipient is the original
+ * sender, whose address the replier must never see — the name they chose
+ * stays, the rest is blank. This is the one gate; every customer-facing
+ * order and gallery route goes through it.
+ */
+export function toCustomerPostcard(postcard: Postcard): Postcard {
   return {
-    ...order,
-    postcards: order.postcards.map((postcard) => ({
-      ...postcard,
-      lastError: null,
-      attempts: 0,
-    })),
+    ...postcard,
+    lastError: null,
+    attempts: 0,
+    recipient: postcard.isReply
+      ? { ...postcard.recipient, line1: "", line2: null, city: "", state: "", postalCode: "", country: "US" }
+      : postcard.recipient,
   };
 }
 
@@ -239,6 +252,7 @@ accountRouter.get("/", async (req, res) => {
   // A null customer covers both "signed out" and "the account was removed
   // after the session was issued" — the second is rare, and from the client's
   // side there is nothing to tell apart: neither is signed in.
+  const reply = customer ? await getReplySettings(customer.id) : null;
   const profile: CustomerProfile | null = customer
     ? {
         id: customer.id,
@@ -246,6 +260,8 @@ accountRouter.get("/", async (req, res) => {
         name: customer.name,
         emailVerified: customer.emailVerifiedAt !== null && customer.emailVerifiedAt !== undefined,
         createdAt: toEpochMs(customer.createdAt),
+        replyDisplayName: reply?.displayName ?? null,
+        replyAddress: reply?.address ?? null,
       }
     : null;
 
@@ -323,15 +339,31 @@ meRouter.delete("/addresses/:id", async (req, res) => {
   }
 });
 
+/* ----------------------------------------------------------------- replies */
+
+/** Turn replies on: a name to show the recipient, and where a reply is mailed. */
+meRouter.put("/reply-address", async (req, res) => {
+  const parsed = replySettingsInputSchema.safeParse(req.body);
+  if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "That could not be used.");
+  await setReplySettings(req.session.customerId!, parsed.data);
+  res.status(204).end();
+});
+
+meRouter.delete("/reply-address", async (req, res) => {
+  await clearReplySettings(req.session.customerId!);
+  res.status(204).end();
+});
+
+/** Turn one card's code off. The page goes dark and the reply button disappears; a reply already paid for is unaffected. */
+meRouter.post("/orders/:id/postcards/:postcardId/reply/disable", async (req, res) => {
+  if (!(await disableReplyLink(req.params.id, req.params.postcardId, req.session.customerId!))) throw httpError(404, "No such postcard.");
+  res.status(204).end();
+});
+
 /* ----------------------------------------------------------------- gallery */
 
 function toGalleryDesign(design: GalleryDesignRow): GalleryDesign {
   return { ...toPublicDesign(design), ordered: design.orderId !== null, originId: design.originId, canSendAgain: design.canSendAgain, postcards: design.postcards };
-}
-
-/** The customer view of a card: the same stripping `toCustomerOrder` does. */
-function toCustomerPostcard(postcard: Postcard): Postcard {
-  return { ...postcard, lastError: null, attempts: 0 };
 }
 
 meRouter.get("/designs", async (req, res) => {

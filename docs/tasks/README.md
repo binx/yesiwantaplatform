@@ -93,8 +93,8 @@ least one of them. A change that breaks one is wrong even if it passes.
   customer-facing ones) that invalidates its query key.
 - **Customer-facing views of an order go through `toCustomerOrder`**
   (`server/routes/account.ts:82`). Anything a buyer must not see — Lob's
-  error text, and after brief 06 a reply's recipient address — is stripped
-  there and nowhere else.
+  error text, and a reply's recipient address — is stripped there and
+  nowhere else.
 - **The back of the card is drawn twice on purpose.** `print/back.hbs` is
   what Lob renders; `src/components/postcard/PostcardBackMock.tsx` is what
   the buyer sees. They share inch measurements. Change both or neither.
@@ -170,4 +170,4 @@ graph LR
 | 03 | [Fulfilment: rate-limit backoff and delivery tracking](03-fulfilment.md) | in-progress (A, B built) | 0 | M | one table |
 | 04 | [Address book and ask-for-address links](04-address-book.md) | done | 2 | L | one table + columns |
 | 05 | [Sender gallery and send again](05-sender-gallery.md) | done | 2 | M | none |
-| 06 | [Reply link](06-reply-link.md) | todo | 3 | L | one table + columns |
+| 06 | [Reply link](06-reply-link.md) | done | 3 | L | columns on three tables |

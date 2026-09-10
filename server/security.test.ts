@@ -92,6 +92,9 @@ const CUSTOMER_MUTATIONS = [
   { method: "post", path: "/api/account/address-requests" },
   { method: "post", path: "/api/account/address-requests/some-request/renew" },
   { method: "delete", path: "/api/account/address-requests/some-request" },
+  { method: "put", path: "/api/account/reply-address" },
+  { method: "delete", path: "/api/account/reply-address" },
+  { method: "post", path: "/api/account/orders/some-order/postcards/some-card/reply/disable" },
   { method: "post", path: "/api/cart/sync" },
 ] as const;
 

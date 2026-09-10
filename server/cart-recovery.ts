@@ -162,6 +162,9 @@ export function linesFromOrder(order: Order): CartLine[] {
 
   return [...batches.entries()]
     .sort(([a], [b]) => a - b)
+    // A reply's recipient is the other card's sender, whose address the
+    // order never carried in the open. That batch can't be rebuilt into a cart.
+    .filter(([, postcards]) => !postcards.some((p) => p.isReply))
     .map(([, postcards]) => {
       const designs = new Map<string, { designId: string; mailDate: string }>();
       const recipients = new Map<string, Order["postcards"][number]["recipient"]>();
@@ -169,7 +172,13 @@ export function linesFromOrder(order: Order): CartLine[] {
         designs.set(`${p.designId}|${p.mailDate}`, { designId: p.designId, mailDate: p.mailDate });
         recipients.set(`${p.recipient.name}|${formatRecipient(p.recipient)}`, p.recipient);
       }
-      return { designs: [...designs.values()], recipients: [...recipients.values()] };
+      return {
+        designs: [...designs.values()],
+        recipients: [...recipients.values()],
+        replyLink: postcards.some((p) => p.replyCode !== null),
+        replyTo: null,
+        replyToName: null,
+      };
     });
 }
 

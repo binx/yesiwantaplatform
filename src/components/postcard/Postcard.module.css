@@ -575,3 +575,63 @@
   flex-wrap: wrap;
   gap: 0.25rem;
 }
+
+/* --------------------------------------------------------------- reply link */
+
+.backReply {
+  margin-top: auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+.backQr {
+  flex: 0 0 auto;
+  background:
+    repeating-linear-gradient(90deg, #333 0 3px, transparent 3px 6px),
+    repeating-linear-gradient(0deg, #333 0 3px, transparent 3px 6px);
+  background-blend-mode: multiply;
+  border: 2px solid #333;
+  opacity: 0.35;
+}
+
+.backReplyCaption {
+  font-family: Quicksand, sans-serif;
+  font-size: 0.5rem;
+  line-height: 1.3;
+  color: #666;
+  max-width: 6rem;
+}
+
+.replyOption {
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+}
+
+.replyLock {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--beluga-line);
+  border-left: 3px solid var(--beluga-accent);
+  max-width: 28rem;
+}
+
+.replyNotes {
+  margin-top: 0.35rem;
+  font-size: 0.8125rem;
+  white-space: normal;
+}
+
+.replyBack {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.turnOff {
+  padding: 0;
+  height: auto;
+  font-size: 0.75rem;
+}

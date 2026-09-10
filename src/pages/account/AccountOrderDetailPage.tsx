@@ -4,7 +4,7 @@ import { Button, Result, Skeleton } from "antd";
 import { formatMoney } from "@shared/money";
 import { OrderStatusTag } from "@/admin/OrderStatusTag";
 import { PostcardSchedule } from "@/components/postcard/PostcardSchedule";
-import { useCustomerOrder } from "@/lib/account";
+import { useCustomerOrder, useDisableReplyLink } from "@/lib/account";
 import { useStore } from "@/lib/useStore";
 import { cx } from "@/lib/cx";
 import styles from "./Account.module.css";
@@ -12,6 +12,7 @@ import styles from "./Account.module.css";
 export function AccountOrderDetailPage() {
   const { id } = useParams();
   const order = useCustomerOrder(id);
+  const disable = useDisableReplyLink();
   const { locale } = useStore();
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export function AccountOrderDetailPage() {
 
       <p className={cx(styles.meta)}>Placed {new Date(data.createdAt).toLocaleDateString(locale)}</p>
 
-      <PostcardSchedule order={data} locale={locale} />
+      <PostcardSchedule order={data} locale={locale} onDisableReply={(postcard) => disable.mutate({ orderId: data.id, postcardId: postcard.id })} />
 
       <table className={cx(styles.table)}>
         <tfoot>

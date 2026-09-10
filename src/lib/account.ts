@@ -10,6 +10,7 @@ import type {
   CustomerRegisterInput,
   CustomerSession,
   ForgotPasswordInput,
+  ReplySettingsInput,
   ResetPasswordInput,
 } from "@shared/account";
 import type { Order } from "@shared/orders";
@@ -198,5 +199,32 @@ export function useRevokeAddressRequest() {
   return useMutation({
     mutationFn: (id: string) => csrfDelete<void>(`/account/address-requests/${id}`),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: addressRequestsQueryKey }),
+  });
+}
+
+/* ------------------------------------------------------------------ replies */
+
+export function useSetReplySettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ReplySettingsInput) => csrfPut<void>("/account/reply-address", input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: customerQueryKey }),
+  });
+}
+
+export function useClearReplySettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => csrfDelete<void>("/account/reply-address"),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: customerQueryKey }),
+  });
+}
+
+export function useDisableReplyLink() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, postcardId }: { orderId: string; postcardId: string }) =>
+      csrfPost<void>(`/account/orders/${orderId}/postcards/${postcardId}/reply/disable`, {}),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ordersQueryKey }),
   });
 }

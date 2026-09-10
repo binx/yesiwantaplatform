@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDaysIso, cropRect, defaultCrop, formatRecipient, recipientSchema, stripEmoji, todayIso } from "./postcards";
+import { addDaysIso, cropRect, defaultCrop, formatRecipient, recipientSchema, replyCodeSchema, stripEmoji, todayIso } from "./postcards";
 
 describe("dates", () => {
   it("adds days as calendar arithmetic, across month and year ends, forwards and back", () => {
@@ -82,5 +82,14 @@ describe("cropRect", () => {
     expect(rect.scale).toBeCloseTo(2.55);
     expect(rect.top).toBeCloseTo((2550 - 1275) / 2);
     expect(rect.left + target.width).toBeLessThanOrEqual(rect.scaledWidth);
+  });
+});
+
+describe("the reply code", () => {
+  it("is eight characters from an alphabet with no lookalikes", () => {
+    expect(replyCodeSchema.safeParse("AB7X3KQM").success).toBe(true);
+    expect(replyCodeSchema.safeParse("AB7X3KQ0").success).toBe(false);
+    expect(replyCodeSchema.safeParse("AB7X3KQ").success).toBe(false);
+    expect(replyCodeSchema.parse(" ab7x3kqm ")).toBe("AB7X3KQM");
   });
 });

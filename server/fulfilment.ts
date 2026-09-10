@@ -1,4 +1,4 @@
-import { hasLob } from "./env.js";
+import { env, hasLob } from "./env.js";
 import { imageStore } from "./image-store.js";
 import { LobError, LobNotConfiguredError, sendPostcard } from "./lob.js";
 import { sendPostcardSentEmail } from "./email.js";
@@ -184,6 +184,7 @@ export async function sendDuePostcards(today = todayIso(), options: SweepOptions
         front,
         back: design.back,
         description: `Order ${row.orderId.slice(0, 8)} → ${postcard.recipient.name}`,
+        replyUrl: postcard.replyCode ? new URL(`/r/${postcard.replyCode}`, env.PUBLIC_URL).toString() : null,
       };
 
       let lob;

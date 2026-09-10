@@ -178,3 +178,17 @@
 .form :global(.ant-checkbox-wrapper) {
   margin-top: 0.75rem;
 }
+
+/* --------------------------------------------------------------- replies */
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  max-width: 24rem;
+}
+
+.fieldError {
+  color: var(--beluga-danger, #b3261e);
+  font-size: 0.8125rem;
+}

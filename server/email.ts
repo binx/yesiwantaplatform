@@ -58,6 +58,11 @@ function formatDay(isoDate: string, locale: string): string {
   });
 }
 
+/** A card's address as the buyer may read it: a reply's is the sender's, and stays private. */
+function addressLine(postcard: Postcard): string {
+  return postcard.isReply ? "address kept private" : formatRecipient(postcard.recipient);
+}
+
 /** Where a buyer follows the order: the confirmation page, keyed by the session. */
 export function trackingUrlFor(order: Order): string {
   return new URL(`/confirm?session_id=${order.checkoutSessionId}`, env.PUBLIC_URL).toString();
@@ -86,7 +91,7 @@ function toLocals(order: Order, storeName: string, colorAccent: string, locale: 
     .sort(([a], [b]) => a - b)
     .map(([, postcards]) => {
       const designs = new Set(postcards.map((p) => p.designId));
-      const recipients = [...new Map(postcards.map((p) => [formatRecipient(p.recipient) + p.recipient.name, p.recipient])).values()];
+      const recipients = [...new Map(postcards.map((p) => [formatRecipient(p.recipient) + p.recipient.name, p])).values()];
       const dates = [...new Set(postcards.map((p) => p.mailDate))].sort();
 
       return {
@@ -94,7 +99,7 @@ function toLocals(order: Order, storeName: string, colorAccent: string, locale: 
         designLabel: designs.size === 1 ? "postcard design" : "postcard designs",
         recipientCount: recipients.length,
         recipientLabel: recipients.length === 1 ? "recipient" : "recipients",
-        recipients: recipients.slice(0, RECIPIENT_CAP).map((r) => ({ name: r.name, address: formatRecipient(r) })),
+        recipients: recipients.slice(0, RECIPIENT_CAP).map((p) => ({ name: p.recipient.name, address: addressLine(p) })),
         moreRecipients: Math.max(recipients.length - RECIPIENT_CAP, 0),
         firstDate: formatDay(dates[0]!, locale),
         lastDate: formatDay(dates[dates.length - 1]!, locale),
@@ -203,7 +208,7 @@ export async function sendPostcardSentEmail(order: Order, postcard: Postcard): P
     ...toLocals(order, store.name, store.colorAccent, store.locale),
     postcard: {
       recipientName: postcard.recipient.name,
-      address: formatRecipient(postcard.recipient),
+      address: addressLine(postcard),
       expectedDelivery: postcard.expectedDeliveryDate
         ? formatDay(postcard.expectedDeliveryDate, store.locale)
         : null,

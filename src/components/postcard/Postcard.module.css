@@ -563,3 +563,15 @@
   flex: 0 0 3.5rem;
   font-variant-numeric: tabular-nums;
 }
+
+.savedTools {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.savedTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}

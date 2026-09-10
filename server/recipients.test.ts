@@ -189,6 +189,31 @@ describe("POST /api/recipients/verify", () => {
     expect(addresses.find((a) => a.id === created.body.id)?.verifiedAt).toBeNull();
   });
 
+  it("saves the address book's own fields through the account routes", async () => {
+    answer = () => ok({ deliverability: "deliverable" });
+    const agent = request.agent(app);
+    const bootstrap = await agent.get("/api/session").expect(200);
+    const login = await agent
+      .post("/api/account/session")
+      .set("x-csrf-token", bootstrap.body.csrfToken as string)
+      .send({ email: "verify@example.com", password: PASSWORD })
+      .expect(200);
+    const csrf = login.body.csrfToken as string;
+
+    const created = await agent
+      .post("/api/account/addresses")
+      .set("x-csrf-token", csrf)
+      .send({ ...SENT, name: "Maya", label: "Mom", tags: ["Family", "holiday"], birthday: "10-14", notes: "Beach ones." })
+      .expect(201);
+    expect(created.body).toMatchObject({ label: "Mom", tags: ["family", "holiday"], birthday: "10-14", notes: "Beach ones.", source: "manual" });
+
+    await agent
+      .post("/api/account/addresses")
+      .set("x-csrf-token", csrf)
+      .send({ ...SENT, name: "Nope", birthday: "October 14" })
+      .expect(400);
+  });
+
   it("is rate-limited per address, well above what a person needs", async () => {
     answer = () => ok({ deliverability: "deliverable" });
     const { agent, csrf } = await anonymous();

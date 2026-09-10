@@ -1,7 +1,7 @@
 ---
 task: "04"
 title: Address book and ask-for-address links
-status: todo
+status: in-progress
 tier: 2
 size: L
 migration: columns on customer_addresses + one table
@@ -19,6 +19,16 @@ summary: >-
 ---
 
 # 04 · Address book and ask-for-address links
+
+## Progress
+
+- **A** built. Label, tags, birthday, notes, source and last-sent on
+  `customer_addresses`; search, tag chips and CSV export on the account
+  page; search, tag chips and "Select all shown" in the designer's picker; a
+  paid order updates "last sent" for a known address and keeps a namesake's
+  new address beside the old with the label carried over. The birthday →
+  schedule offer waits for brief 00 to land.
+- **B** not started.
 
 Two parts. **A first**: B writes into the fields A adds. Both depend on
 brief 02B for the verification step on the public form.

@@ -102,3 +102,31 @@
   color: var(--beluga-muted);
   font-size: 0.8125rem;
 }
+
+/* ------------------------------------------------------------- address book */
+
+.bookTools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.search {
+  max-width: 20rem;
+}
+
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.facts {
+  margin-top: 0.35rem;
+}
+
+.facts :global(.ant-tag) {
+  margin-left: 0.35rem;
+}

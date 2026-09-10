@@ -152,6 +152,17 @@ export const customerAddresses = sqliteTable(
     country: text("country").notNull().default("US"),
     /** When Lob's verification last called this address deliverable. Null: never, or edited since. */
     verifiedAt: integer("verified_at"),
+    /** What the customer calls them — "Mom", "the Okafors". The card still prints `name`. */
+    label: text("label"),
+    /** Free tags for grouping, lowercase, as a JSON array in TEXT. */
+    tags: text("tags").notNull().default("[]"),
+    /** MM-DD, or YYYY-MM-DD when the year is known. */
+    birthday: text("birthday"),
+    notes: text("notes"),
+    /** How this entry arrived: a paid order, typed by hand, or a request link. */
+    source: text("source").notNull().default("order"),
+    /** The most recent paid order that mailed to this address. */
+    lastSentAt: integer("last_sent_at"),
     ...timestamps,
   },
   (t) => [index("customer_addresses_customer_idx").on(t.customerId)],

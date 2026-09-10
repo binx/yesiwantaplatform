@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Alert, Button, Checkbox, Modal, type InputRef } from "antd";
+import { Alert, Button, Checkbox, Input, Modal, Tag, type InputRef } from "antd";
 import { DeleteOutlined, EditOutlined, UploadOutlined } from "@ant-design/icons";
 import { formatRecipient, isInternational, type Recipient, type Verification } from "@shared/postcards";
 import type { CustomerAddress } from "@shared/account";
@@ -8,6 +8,7 @@ import { useAddresses, useCustomer } from "@/lib/account";
 import { useStore } from "@/lib/useStore";
 import { parseRecipientsCsv, SAMPLE_CSV, type CsvProblem, type CsvResult } from "@/lib/recipients-csv";
 import { describeVerification, recipientKey, verifyRecipient } from "@/lib/recipients";
+import { addressTitle, allTags, filterAddresses } from "@/lib/address-book";
 import { cx } from "@/lib/cx";
 import { BLANK_RECIPIENT, useRecipientCheck, validateRecipient, type RecipientErrors } from "@/lib/recipient-form";
 import { RecipientFields, VerificationNotice } from "./RecipientFields";
@@ -442,10 +443,15 @@ function SavedRecipientsModal({
   onAdd: (addresses: CustomerAddress[]) => void;
 }) {
   const addresses = useAddresses(open);
+  const store = useStore();
   const [chosen, setChosen] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const already = new Set(existing.map(recipientKey));
 
-  const list = (addresses.data ?? []).filter((address) => !already.has(recipientKey(address)));
+  const available = (addresses.data ?? []).filter((address) => !already.has(recipientKey(address)));
+  const tagOptions = allTags(available);
+  const list = filterAddresses(available, query, tags);
 
   return (
     <Modal
@@ -455,33 +461,57 @@ function SavedRecipientsModal({
       okText={`Add ${chosen.length || ""}`.trim()}
       okButtonProps={{ disabled: chosen.length === 0 }}
       onOk={() => {
-        onAdd(list.filter((address) => chosen.includes(address.id)));
+        onAdd(available.filter((address) => chosen.includes(address.id)));
         setChosen([]);
         onClose();
       }}
     >
       {addresses.isPending ? (
         <p>Loading…</p>
-      ) : list.length === 0 ? (
+      ) : available.length === 0 ? (
         <p>
           Everyone you have saved is already on this list, or you have not saved anyone yet. The
           people you send to are saved when an order is paid.
         </p>
       ) : (
-        <Checkbox.Group
-          className={cx(styles.savedList)}
-          value={chosen}
-          onChange={(values) => setChosen(values)}
-          options={list.map((address) => ({
-            value: address.id,
-            label: (
-              <span className={styles.recipientText}>
-                <strong>{address.name}</strong>
-                <span>{formatRecipient(address)}</span>
-              </span>
-            ),
-          }))}
-        />
+        <>
+          <div className={styles.savedTools}>
+            <Input allowClear placeholder="Search" value={query} aria-label="Search saved recipients" onChange={(e) => setQuery(e.target.value)} />
+            {tagOptions.length > 0 ? (
+              <div className={styles.savedTags} role="group" aria-label="Filter by tag">
+                {tagOptions.map((tag) => (
+                  <Tag.CheckableTag key={tag} checked={tags.includes(tag)} onChange={(on) => setTags((current) => (on ? [...current, tag] : current.filter((t) => t !== tag)))}>
+                    {tag}
+                  </Tag.CheckableTag>
+                ))}
+              </div>
+            ) : null}
+            <Button size="small" disabled={list.length === 0} onClick={() => setChosen((current) => [...new Set([...current, ...list.map((a) => a.id)])])}>
+              Select all shown{tags.length > 0 || query ? ` (${list.length})` : ""}
+            </Button>
+          </div>
+          {list.length === 0 ? (
+            <p className={styles.note}>Nobody matches that.</p>
+          ) : (
+            <Checkbox.Group
+              className={cx(styles.savedList)}
+              value={chosen}
+              onChange={(values) => setChosen(values)}
+              options={list.map((address) => ({
+                value: address.id,
+                label: (
+                  <span className={styles.recipientText}>
+                    <strong>{addressTitle(address)}</strong>
+                    <span>{formatRecipient(address, store.locale)}</span>
+                    {address.lastSentAt ? (
+                      <span className={styles.note}>Last sent {new Date(address.lastSentAt).toLocaleDateString(store.locale, { month: "short", year: "numeric" })}</span>
+                    ) : null}
+                  </span>
+                ),
+              }))}
+            />
+          )}
+        </>
       )}
     </Modal>
   );

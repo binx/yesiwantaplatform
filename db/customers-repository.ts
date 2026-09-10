@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
-import type { AddressInput, CustomerAddress } from "../shared/account.js";
+import type { AddressInput, AddressSource, CustomerAddress } from "../shared/account.js";
+import type { Recipient } from "../shared/postcards.js";
 import { getDatabase } from "./client.js";
-import { nowFor, toEpochMs } from "./repository.js";
+import { jsonFor, nowFor, parseJson, toEpochMs } from "./repository.js";
 
 /**
  * Saved recipients, and the one customer lookup the checkout webhook needs.
@@ -22,9 +23,18 @@ interface AddressRow {
   postalCode: string;
   country: string;
   verifiedAt: unknown;
+  label: string | null;
+  tags: unknown;
+  birthday: string | null;
+  notes: string | null;
+  source: string;
+  lastSentAt: unknown;
 }
 
+const epochOrNull = (value: unknown) => (value === null || value === undefined ? null : toEpochMs(value));
+
 function buildAddress(row: AddressRow): CustomerAddress {
+  const tags = parseJson<unknown>(row.tags, []);
   return {
     id: row.id,
     name: row.name,
@@ -34,13 +44,31 @@ function buildAddress(row: AddressRow): CustomerAddress {
     state: row.state,
     postalCode: row.postalCode,
     country: row.country,
-    verifiedAt: row.verifiedAt === null || row.verifiedAt === undefined ? null : toEpochMs(row.verifiedAt),
+    verifiedAt: epochOrNull(row.verifiedAt),
+    label: row.label,
+    tags: Array.isArray(tags) ? tags.filter((tag): tag is string => typeof tag === "string") : [],
+    birthday: row.birthday,
+    notes: row.notes,
+    source: row.source === "manual" || row.source === "request" ? row.source : "order",
+    lastSentAt: epochOrNull(row.lastSentAt),
   };
 }
 
-/** Whether Lob's verification just called this address deliverable, so the designer can skip asking again. */
+/**
+ * What a write takes: a recipient, plus whatever of the book's own fields
+ * the caller has. A paid order has none of them; the account page has all.
+ */
+export type AddressWrite = Recipient & Partial<Pick<AddressInput, "label" | "tags" | "birthday" | "notes">>;
+
+function withBookFields(input: AddressWrite): AddressInput {
+  return { ...input, label: input.label ?? null, tags: input.tags ?? [], birthday: input.birthday ?? null, notes: input.notes ?? null };
+}
+
 export interface AddressOptions {
+  /** Whether Lob's verification just called this address deliverable, so the designer can skip asking again. */
   verified?: boolean;
+  /** How the entry arrived. Defaults to a paid order. */
+  source?: AddressSource;
 }
 
 export async function listAddresses(customerId: string): Promise<CustomerAddress[]> {
@@ -68,10 +96,13 @@ async function getOwnAddress(id: string, customerId: string): Promise<AddressRow
   return rows[0] ?? null;
 }
 
-export async function createAddress(customerId: string, input: AddressInput, options: AddressOptions = {}): Promise<CustomerAddress> {
+export async function createAddress(customerId: string, write: AddressWrite, options: AddressOptions = {}): Promise<CustomerAddress> {
   const { drizzle: db, schema, dialect } = await getDatabase();
+  const input = withBookFields(write);
   const id = randomUUID();
   const verifiedAt = options.verified ? nowFor(dialect) : null;
+  const source = options.source ?? "order";
+  const lastSentAt = source === "order" ? nowFor(dialect) : null;
 
   await db.insert(schema.customerAddresses).values({
     id,
@@ -84,9 +115,15 @@ export async function createAddress(customerId: string, input: AddressInput, opt
     postalCode: input.postalCode,
     country: input.country,
     verifiedAt,
+    label: input.label,
+    tags: jsonFor(dialect, input.tags) as never,
+    birthday: input.birthday,
+    notes: input.notes,
+    source,
+    lastSentAt,
   });
 
-  return { id, ...input, verifiedAt: verifiedAt === null ? null : toEpochMs(verifiedAt) };
+  return { id, ...input, verifiedAt: epochOrNull(verifiedAt), source, lastSentAt: epochOrNull(lastSentAt) };
 }
 
 /**
@@ -95,17 +132,31 @@ export async function createAddress(customerId: string, input: AddressInput, opt
  * Matched on the whole address rather than the name: two friends can share a
  * name, and one friend can move house.
  */
-export async function saveRecipientsFromOrder(customerId: string, recipients: AddressInput[]): Promise<number> {
+export async function saveRecipientsFromOrder(customerId: string, recipients: AddressWrite[]): Promise<number> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
   const existing = await listAddresses(customerId);
-  const key = (r: AddressInput) =>
+  const key = (r: Pick<Recipient, "name" | "line1" | "line2" | "city" | "state" | "postalCode" | "country">) =>
     [r.name, r.line1, r.line2 ?? "", r.city, r.state, r.postalCode, r.country].join("|").toLowerCase();
-  const seen = new Set(existing.map(key));
+  const byKey = new Map(existing.map((address) => [key(address), address]));
 
   let added = 0;
   for (const recipient of recipients) {
-    if (seen.has(key(recipient))) continue;
-    seen.add(key(recipient));
-    await createAddress(customerId, recipient);
+    const known = byKey.get(key(recipient));
+    if (known) {
+      // The same person at the same address: only the date moves.
+      await db
+        .update(schema.customerAddresses)
+        .set({ lastSentAt: nowFor(dialect), updatedAt: nowFor(dialect) })
+        .where(eq(schema.customerAddresses.id, known.id));
+      continue;
+    }
+
+    // A known name at a new address is kept beside the old one, with the
+    // label carried over. Which one is current is the customer's call, not
+    // a guess made here.
+    const namesake = existing.find((address) => address.name.toLowerCase() === recipient.name.toLowerCase());
+    const created = await createAddress(customerId, { ...recipient, label: recipient.label ?? namesake?.label ?? null });
+    byKey.set(key(created), created);
     added += 1;
   }
   return added;
@@ -118,8 +169,9 @@ export class AddressNotFoundError extends Error {
   }
 }
 
-export async function updateAddress(id: string, customerId: string, input: AddressInput, options: AddressOptions = {}): Promise<CustomerAddress> {
+export async function updateAddress(id: string, customerId: string, write: AddressWrite, options: AddressOptions = {}): Promise<CustomerAddress> {
   const { drizzle: db, schema, dialect } = await getDatabase();
+  const input = withBookFields(write);
 
   const existing = await getOwnAddress(id, customerId);
   if (!existing) throw new AddressNotFoundError();
@@ -138,10 +190,15 @@ export async function updateAddress(id: string, customerId: string, input: Addre
       postalCode: input.postalCode,
       country: input.country,
       verifiedAt,
+      label: input.label,
+      tags: jsonFor(dialect, input.tags) as never,
+      birthday: input.birthday,
+      notes: input.notes,
+      updatedAt: nowFor(dialect),
     })
     .where(eq(schema.customerAddresses.id, id));
 
-  return { id, ...input, verifiedAt: verifiedAt === null ? null : toEpochMs(verifiedAt) };
+  return { id, ...input, verifiedAt: epochOrNull(verifiedAt), source: buildAddress(existing).source, lastSentAt: epochOrNull(existing.lastSentAt) };
 }
 
 export async function deleteAddress(id: string, customerId: string): Promise<void> {

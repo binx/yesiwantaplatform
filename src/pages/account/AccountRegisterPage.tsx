@@ -35,7 +35,7 @@ export function AccountRegisterPage() {
         <Result
           status="success"
           title={<h1>Check your email</h1>}
-          subTitle="If that address can hold an account, we've sent a link to verify it. Verifying is also what lets us attach any past orders placed with that email to your new account."
+          subTitle="We've sent a link to verify your email. Once you've clicked it, any orders you've placed with this address will show up in your account."
           extra={
             <Link to="/account/login">
               <Button type="primary">Back to sign in</Button>

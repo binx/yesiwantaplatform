@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { Button, Checkbox, InputNumber, Popover, Segmented, Select } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
 import { addDaysIso, todayIso, type PostcardDesign } from "@shared/postcards";
+import { DELIVERY_ESTIMATE } from "@shared/copy";
 import { ProductImage } from "@/components/ui/ProductImage";
 import { formatMailDate } from "@/lib/postcards";
 import { cx } from "@/lib/cx";
@@ -148,9 +149,7 @@ export function Schedule({
       {items.length > 0 ? (
         <>
           <p className={styles.note}>
-            Delivery time varies: a couple of days when the address is near the printer, a week or
-            more when it isn't.{" "}
-            <ArriveBy items={items} locale={locale} onArriveBy={onArriveBy} />
+            {DELIVERY_ESTIMATE} <ArriveBy items={items} locale={locale} onArriveBy={onArriveBy} />
           </p>
           <p className={styles.replyOption}>
             <Checkbox checked={replyLink} onChange={(event) => onReplyLinkChange(event.target.checked)}>
@@ -221,7 +220,7 @@ function ArriveBy({
         <p className={styles.note}>
           {tight
             ? `That's soon: it would be mailed today, and may arrive after ${formatMailDate(target, locale)}.`
-            : `Mailed ${formatMailDate(mailDate, locale)}. How long it takes from there depends on how far it travels and on USPS — a couple of days, or a week or more.`}
+            : `Mails ${formatMailDate(mailDate, locale)}. How long it takes from there depends on how far it travels and on USPS — a couple of days, or a week or more.`}
         </p>
       ) : null}
       <Button

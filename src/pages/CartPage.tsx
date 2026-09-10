@@ -145,8 +145,8 @@ export function CartPage() {
                     </p>
                     <p className={styles.meta}>
                       {first === last
-                        ? `Mailed ${formatMailDate(first, store.locale)}`
-                        : `Mailed ${formatMailDate(first, store.locale)} to ${formatMailDate(last, store.locale)}`}
+                        ? `Mails ${formatMailDate(first, store.locale)}`
+                        : `Mails ${formatMailDate(first, store.locale)} to ${formatMailDate(last, store.locale)}`}
                     </p>
                     {line.replyTo ? <p className={styles.meta}>A reply: their address is kept private.</p> : null}
                     <details className={styles.recipients}>

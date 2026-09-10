@@ -1,15 +1,15 @@
 ---
 task: "12"
 title: "Copy: one delivery estimate, tenses, and labels"
-status: todo
+status: done
 tier: 1
 size: S
 migration: none
 blocked_by: []
 blocks: []
 touches: src/pages/LandingPage.tsx:89 · src/components/postcard/Schedule.tsx:150 · src/pages/CartPage.tsx:147 · src/components/postcard/DesignForm.tsx:274 · src/components/postcard/DesignForm.tsx:281 · src/pages/account/AccountRegisterPage.tsx:38
-completed:
-shipped_in:
+completed: 2026-09-10
+shipped_in: 16
 summary: >-
   Small strings that contradict each other or mislead: two different delivery
   estimates on the home page and the designer; "Mailed" in the cart for cards that

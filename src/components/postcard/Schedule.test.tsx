@@ -81,7 +81,7 @@ describe("Schedule", () => {
     const input = await screen.findByLabelText("The day that matters");
     fireEvent.change(input, { target: { value: target } });
     // A week ahead by default, in calendar days; the note says how long it takes is not ours to promise.
-    expect(await screen.findByText(/Mailed Jun 8, 2099/)).toBeInTheDocument();
+    expect(await screen.findByText(/Mails Jun 8, 2099/)).toBeInTheDocument();
     expect(screen.getByText(/depends on how far it travels/)).toBeInTheDocument();
     expect(screen.queryByText(/should arrive/)).not.toBeInTheDocument();
 

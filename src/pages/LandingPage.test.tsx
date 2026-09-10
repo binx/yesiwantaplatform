@@ -26,4 +26,15 @@ describe("the landing page", () => {
     expect(link).toHaveAttribute("href", "https://example.com/x");
     expect(link).toHaveAttribute("target", "_blank");
   });
+
+  it("apologises for the US-only reach until an international price is set", () => {
+    renderWithProviders(<LandingPage />, { store: withHero({}) });
+    expect(screen.getByText(/Apologies to our international customers/)).toBeInTheDocument();
+  });
+
+  it("switches to the international answer once the store has a price for it", () => {
+    const store = storeSchema.parse({ ...demoStore, internationalPostcardPriceCents: 250 });
+    renderWithProviders(<LandingPage />, { store });
+    expect(screen.getByText(/and to \d+ other countries — international cards cost \$2\.50/)).toBeInTheDocument();
+  });
 });

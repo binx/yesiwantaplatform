@@ -75,7 +75,7 @@ test("mails two designs on two chosen dates", async ({ page }) => {
   await expect(page).toHaveURL(/\/cart$/);
   await expect(page.getByText("2 designs to 1 recipient")).toBeVisible();
   // Two dates, forty days apart, not one plus a cadence.
-  await expect(page.getByText(/Mailed .+ to .+/)).toBeVisible();
+  await expect(page.getByText(/Mails .+ to .+/)).toBeVisible();
 });
 
 test("repositions the photo with the arrow keys and saves that crop", async ({ page }) => {

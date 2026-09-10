@@ -1,7 +1,7 @@
 ---
 task: "03"
 title: "Fulfilment: rate-limit backoff and delivery tracking"
-status: todo
+status: in-progress
 tier: 0
 size: M
 migration: one table
@@ -20,6 +20,14 @@ summary: >-
 ---
 
 # 03 · Fulfilment: rate-limit backoff and delivery tracking
+
+## Progress
+
+- **A** built. A 429 or no answer from Lob now stops the sweep and puts the
+  card back with its attempt undone (`releasePostcard`); the first 429 of a
+  sweep waits for `Retry-After` once. `MAX_ATTEMPTS` is 8. The admin overview
+  shows why the last sweep stopped.
+- **B** not started.
 
 Two parts. **A is a morning's work and should land first** — it protects
 paid cards. **B** is the prerequisite for brief 05's status column and

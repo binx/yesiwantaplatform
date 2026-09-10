@@ -11,6 +11,7 @@ import {
   getOrder,
   markPostcardFailed,
   markPostcardSent,
+  releasePostcard,
   releaseStalePostcards,
   buildPostcard,
 } from "../db/orders-repository.js";
@@ -34,6 +35,13 @@ import { deleteDesignFile } from "./uploads.js";
  * same card can win, so a duplicate tick costs a wasted query, never two
  * postcards in one letterbox. Lob's idempotency key (our postcard id) is the
  * second belt on the same trousers.
+ *
+ * The sweep is sequential on purpose. Lob allows 150 requests per five
+ * seconds; one send uploads a print file and takes most of a second, so this
+ * loop cannot reach that ceiling on its own. A 429 here means something
+ * *else* is talking to Lob with the same key — address verification, a
+ * second instance — and the right response is to stop and let the next tick
+ * try, not to add concurrency to "speed it up".
  */
 
 const SWEEP_INTERVAL_MS = 15 * 60 * 1000;
@@ -42,8 +50,16 @@ const CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000;
 /** A card claimed longer ago than this belonged to a sweep that died mid-send. */
 const STALE_CLAIM_MS = 30 * 60 * 1000;
 
-/** Retries for a transient failure before a card is parked for a person. */
-const MAX_ATTEMPTS = 5;
+/**
+ * Retries for a card-specific transient failure (a 5xx) before it is parked
+ * for a person. Rate limits and outages do not count — see `releasePostcard`
+ * — so eight ticks is two hours of Lob objecting to one particular card.
+ */
+const MAX_ATTEMPTS = 8;
+
+/** The most a sweep will pause for Lob's `Retry-After` before giving the tick up. */
+const RETRY_WAIT_CAP_MS = 10_000;
+const RETRY_WAIT_DEFAULT_MS = 5_000;
 
 /** How long a saved-but-unbought design is kept, and how long a sent design's thumbnail is. */
 const ORPHAN_DESIGN_DAYS = 30;
@@ -72,8 +88,29 @@ export interface SweepResult {
   sent: number;
   failed: number;
   parked: number;
+  /** Why the sweep stopped early, when it did: no key, a rate limit, no answer from Lob. */
   skipped: string | null;
 }
+
+export interface SweepRun {
+  /** When the sweep finished, epoch milliseconds. */
+  at: number;
+  result: SweepResult;
+}
+
+/** The most recent sweep, for the admin overview. In memory: a restart clears it and the next tick refills it. */
+let lastRun: SweepRun | null = null;
+
+export function getLastSweep(): SweepRun | null {
+  return lastRun;
+}
+
+export interface SweepOptions {
+  /** Ceiling on the one in-sweep pause for `Retry-After`. Tests set it low. */
+  retryWaitCapMs?: number;
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
  * Send every card whose day has come.
@@ -83,9 +120,17 @@ export interface SweepResult {
  * on that card and the loop moves on — a bad address must not hold up the
  * hundred good ones behind it, which is what v1's `return` inside the
  * callback did.
+ *
+ * The one exception is a *stall*: a 429, or no HTTP answer at all. That is
+ * not about the card, and carrying on would walk every remaining card into
+ * the same wall, each one burning an attempt. So the card is put back
+ * unchanged and the sweep stops; the next tick is fifteen minutes away. On
+ * the first 429 of a sweep Lob's `Retry-After` is honoured once, briefly,
+ * in case the limit was a burst rather than a condition.
  */
-export async function sendDuePostcards(today = todayIso()): Promise<SweepResult> {
+export async function sendDuePostcards(today = todayIso(), options: SweepOptions = {}): Promise<SweepResult> {
   const result: SweepResult = { sent: 0, failed: 0, parked: 0, skipped: null };
+  const retryWaitCap = options.retryWaitCapMs ?? RETRY_WAIT_CAP_MS;
 
   if (!hasLob) {
     result.skipped = "LOB_API_KEY is not set, so nothing goes to print.";
@@ -100,6 +145,7 @@ export async function sendDuePostcards(today = todayIso()): Promise<SweepResult>
   const designs = await findDesignsByIds(due.map((row) => row.designId));
   const designById = new Map(designs.map((design) => [design.id, design]));
   const touchedOrders = new Set<string>();
+  let pausedOnce = false;
 
   for (const row of due) {
     if (!(await claimPostcard(row.id))) continue;
@@ -113,13 +159,24 @@ export async function sendDuePostcards(today = todayIso()): Promise<SweepResult>
       if (!design.printPath) throw new Error("The print file for this design has already been removed.");
 
       const front = await imageStore.get(design.printPath);
-      const lob = await sendPostcard({
+      const input = {
         id: postcard.id,
         to: postcard.recipient,
         front,
         back: design.back,
         description: `Order ${row.orderId.slice(0, 8)} → ${postcard.recipient.name}`,
-      });
+      };
+
+      let lob;
+      try {
+        lob = await sendPostcard(input);
+      } catch (error) {
+        // One short pause on the sweep's first rate limit, then the same card again.
+        if (!(error instanceof LobError && error.status === 429) || pausedOnce) throw error;
+        pausedOnce = true;
+        await sleep(Math.min(error.retryAfterMs ?? RETRY_WAIT_DEFAULT_MS, retryWaitCap));
+        lob = await sendPostcard(input);
+      }
 
       await markPostcardSent(postcard.id, lob);
       result.sent += 1;
@@ -130,6 +187,17 @@ export async function sendDuePostcards(today = todayIso()): Promise<SweepResult>
       if (order) await sendPostcardSentEmail(order, { ...postcard, status: "sent", lobUrl: lob.url, expectedDeliveryDate: lob.expectedDeliveryDate });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+
+      if (error instanceof LobError && error.stall) {
+        await releasePostcard(postcard.id, message);
+        result.skipped =
+          error.status === 429
+            ? "Lob rate-limited the sweep; the next tick will resume."
+            : "Lob could not be reached; the next tick will resume.";
+        console.error(`[fulfilment] stopped at postcard ${postcard.id}: ${message}`);
+        break;
+      }
+
       const retryable =
         error instanceof LobError ? error.retryable : !(error instanceof LobNotConfiguredError);
       // `attempts` was incremented by the claim, so this is the count so far.
@@ -151,6 +219,7 @@ export async function sendDuePostcards(today = todayIso()): Promise<SweepResult>
     );
   }
 
+  lastRun = { at: Date.now(), result };
   return result;
 }
 

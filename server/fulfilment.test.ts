@@ -206,6 +206,103 @@ describe("sendDuePostcards", () => {
     answer = () => new Response(JSON.stringify({ id: "psc_test_3" }), { status: 200, headers: { "content-type": "application/json" } });
   });
 
+  it("stops the sweep on a rate limit and charges no card an attempt", async () => {
+    // Earlier tests leave due cards behind; send them first so this one sees only its own.
+    await (await import("./fulfilment.js")).sendDuePostcards();
+    let calls = 0;
+    answer = () => {
+      calls += 1;
+      return new Response(JSON.stringify({ error: { message: "Rate limit exceeded", status_code: 429 } }), {
+        status: 429,
+        headers: { "content-type": "application/json", "retry-after": "1" },
+      });
+    };
+    const { orderId } = await paidOrder(todayIso(), [RECIPIENT, { ...RECIPIENT, name: "Grandpa" }, { ...RECIPIENT, name: "Auntie" }]);
+    const { sendDuePostcards } = await import("./fulfilment.js");
+
+    const result = await sendDuePostcards(todayIso(), { retryWaitCapMs: 10 });
+    expect(result.skipped).toMatch(/rate-limited/);
+    expect(result.sent + result.failed + result.parked).toBe(0);
+    // The first card, then one retry after Retry-After; nothing for the rest.
+    expect(calls).toBe(2);
+
+    const { getOrder } = await import("../db/orders-repository.js");
+    const order = (await getOrder(orderId))!;
+    expect(order.postcards.every((p) => p.status === "scheduled")).toBe(true);
+    expect(order.postcards.every((p) => p.attempts === 0)).toBe(true);
+    expect(order.postcards.filter((p) => p.lastError?.includes("429"))).toHaveLength(1);
+
+    answer = () => new Response(JSON.stringify({ id: "psc_test_5" }), { status: 200, headers: { "content-type": "application/json" } });
+  });
+
+  it("stops the sweep when Lob cannot be reached at all", async () => {
+    // Earlier tests leave due cards behind; send them first so this one sees only its own.
+    await (await import("./fulfilment.js")).sendDuePostcards();
+    answer = () => {
+      throw new TypeError("fetch failed");
+    };
+    const { orderId } = await paidOrder(todayIso(), [RECIPIENT, { ...RECIPIENT, name: "Grandpa" }]);
+    const { sendDuePostcards } = await import("./fulfilment.js");
+
+    const result = await sendDuePostcards();
+    expect(result.skipped).toMatch(/could not be reached/);
+
+    const { getOrder } = await import("../db/orders-repository.js");
+    const order = (await getOrder(orderId))!;
+    expect(order.postcards.every((p) => p.status === "scheduled" && p.attempts === 0)).toBe(true);
+
+    answer = () => new Response(JSON.stringify({ id: "psc_test_6" }), { status: 200, headers: { "content-type": "application/json" } });
+  });
+
+  it("carries on past a 5xx on one card, and that card alone pays an attempt", async () => {
+    // Earlier tests leave due cards behind; send them first so this one sees only its own.
+    await (await import("./fulfilment.js")).sendDuePostcards();
+    let calls = 0;
+    answer = () => {
+      calls += 1;
+      if (calls === 2) return new Response("bad gateway", { status: 502 });
+      return new Response(JSON.stringify({ id: `psc_test_7_${calls}` }), { status: 200, headers: { "content-type": "application/json" } });
+    };
+    const { orderId } = await paidOrder(todayIso(), [RECIPIENT, { ...RECIPIENT, name: "Grandpa" }, { ...RECIPIENT, name: "Auntie" }]);
+    const { sendDuePostcards } = await import("./fulfilment.js");
+
+    const result = await sendDuePostcards();
+    expect(result.skipped).toBeNull();
+    expect(result.sent).toBe(2);
+    expect(result.failed).toBe(1);
+
+    const { getOrder } = await import("../db/orders-repository.js");
+    const order = (await getOrder(orderId))!;
+    const back = order.postcards.filter((p) => p.status === "scheduled");
+    expect(back).toHaveLength(1);
+    expect(back[0]?.attempts).toBe(1);
+    expect(order.postcards.filter((p) => p.status === "sent")).toHaveLength(2);
+
+    answer = () => new Response(JSON.stringify({ id: "psc_test_8" }), { status: 200, headers: { "content-type": "application/json" } });
+  });
+
+  it("honours Retry-After once and sends the card when the limit was a burst", async () => {
+    // Earlier tests leave due cards behind; send them first so this one sees only its own.
+    await (await import("./fulfilment.js")).sendDuePostcards();
+    let calls = 0;
+    answer = () => {
+      calls += 1;
+      if (calls === 1) return new Response("", { status: 429, headers: { "retry-after": "0" } });
+      return new Response(JSON.stringify({ id: "psc_test_9" }), { status: 200, headers: { "content-type": "application/json" } });
+    };
+    const { orderId } = await paidOrder(todayIso());
+    const { sendDuePostcards, getLastSweep } = await import("./fulfilment.js");
+
+    const result = await sendDuePostcards(todayIso(), { retryWaitCapMs: 10 });
+    expect(result.sent).toBe(1);
+    expect(result.skipped).toBeNull();
+    expect(calls).toBe(2);
+    expect(getLastSweep()?.result.sent).toBe(1);
+
+    const { getOrder } = await import("../db/orders-repository.js");
+    expect((await getOrder(orderId))?.postcards[0]?.status).toBe("sent");
+  });
+
   it("only ever claims a card once, even when two sweeps race", async () => {
     const { orderId } = await paidOrder(todayIso());
     const { getOrder, claimPostcard } = await import("../db/orders-repository.js");

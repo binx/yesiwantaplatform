@@ -143,6 +143,13 @@ describe("Content-Security-Policy", () => {
     const response = await request(app).get("/api/health").expect(200);
     expect(response.headers["content-security-policy"] ?? "").toContain("upgrade-insecure-requests");
   });
+
+  it("always allows the card fonts' own origins, regardless of the store's theme font", async () => {
+    const response = await request(app).get("/api/health").expect(200);
+    const csp = response.headers["content-security-policy"] ?? "";
+    expect(csp).toContain("https://fonts.googleapis.com");
+    expect(csp).toContain("https://fonts.gstatic.com");
+  });
 });
 
 describe("CSRF", () => {

@@ -48,6 +48,31 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Keeps the footer at the viewport's bottom edge on a short page (an empty
+   cart, the login page, the 404) instead of leaving a band of --beluga-page
+   showing beneath it. Banner, main and Footer are siblings under AntApp
+   (ThemedShell in src/App.tsx), but AntApp itself renders a wrapping
+   `div.ant-app` — the one actual DOM child of #root on that path — so the
+   column layout has to be re-established one level down for `main`'s
+   flex-grow to reach anything. The StoreErrorBoundary fallback renders
+   `<main>` straight under #root with no such wrapper, and needs none: a
+   single flex child already fills a flex column with nothing to grow past. */
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+#root > .ant-app {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+main {
+  flex: 1 0 auto;
+}
+
 body {
   margin: 0;
   /*

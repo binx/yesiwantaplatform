@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
+import { CARD_FONTS_ORIGINS } from "../shared/postcards.js";
 import { objectStorage } from "./env.js";
 import { safeEqual } from "./auth.js";
 
@@ -56,12 +57,15 @@ const imageOrigins: readonly string[] = objectStorage ? [new URL(objectStorage.p
  * Stripe.js must be loadable and framed for 3-D Secure; everything else is
  * same-origin. v1 used helmet 3's defaults, which set no CSP at all.
  *
- * `styleSrc` and `fontSrc` are the one part that is not fixed: a theme may
- * name a font stylesheet, and the browser has to be allowed to fetch both it
- * and the faces it points at. Nothing is hardcoded per provider — the origins
- * come from the stylesheet the merchant actually chose, resolved once by
- * `server/fonts.ts`, which is why a self-hosted font works exactly as well as
- * Google's.
+ * `styleSrc` and `fontSrc` have two parts that are not fixed. `CARD_FONTS_ORIGINS`
+ * is always allowed — the three faces the back of a card can be set in are not a
+ * merchant choice, unlike the rest of the theme, so they are not resolved by
+ * `server/fonts.ts` and cannot be turned off by picking a different theme font.
+ * `extraOrigins` is the other part: a theme may name its own font stylesheet,
+ * and the browser has to be allowed to fetch both it and the faces it points
+ * at. Nothing is hardcoded per provider there — those origins come from the
+ * stylesheet the merchant actually chose, resolved once by `server/fonts.ts`,
+ * which is why a self-hosted font works exactly as well as Google's.
  */
 function policyFor(extraOrigins: readonly string[]) {
   return helmet({
@@ -73,8 +77,8 @@ function policyFor(extraOrigins: readonly string[]) {
         connectSrc: ["'self'", "https://api.stripe.com"],
         imgSrc: ["'self'", "data:", "blob:", ...imageOrigins],
         // antd injects component styles at runtime.
-        styleSrc: ["'self'", "'unsafe-inline'", ...extraOrigins],
-        fontSrc: ["'self'", "data:", ...extraOrigins],
+        styleSrc: ["'self'", "'unsafe-inline'", ...CARD_FONTS_ORIGINS, ...extraOrigins],
+        fontSrc: ["'self'", "data:", ...CARD_FONTS_ORIGINS, ...extraOrigins],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],

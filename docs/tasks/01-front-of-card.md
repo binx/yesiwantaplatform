@@ -28,7 +28,7 @@ summary: >-
   drag, arrow keys and a zoom slider. Also fixed on the way: the preview box
   collapsed to 2px on desktop viewports because its percentage width sat in
   an `auto` grid track.
-- **B** not started.
+- **B** not started; moved to the backlog in `README.md` on 2026-09-10. The spec below stands.
 
 Two parts. **A ships alone** and is small. **B depends on A** and is the
 larger piece; nothing else in the roadmap depends on B.

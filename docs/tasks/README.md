@@ -165,7 +165,7 @@ graph LR
 4. **04A** address book, then **04B** ask-for-address links.
 5. **05** sender gallery, including the retention change.
 6. **06** reply link, phases A then B.
-7. **01B** collage, whenever there is appetite; nothing depends on it.
+7. ~~**01B** collage~~ — moved to the backlog below on 2026-09-10.
 
 Briefs 07–15 came out of a new-customer walkthrough on 2026-09-10 (the
 storefront, the designer, the cart, sign-up and the account pages, on a
@@ -182,7 +182,7 @@ desktop and a phone). None needs a migration. Suggested order:
 | # | Title | Status | Tier | Size | Migration |
 |---|-------|--------|------|------|-----------|
 | 00 | [Mail dates per design](00-mail-dates.md) | done | 0 | S | none |
-| 01 | [Front of card: crop offset and collage](01-front-of-card.md) | in-progress (A done) | 1 | L | none |
+| 01 | [Front of card: crop offset and collage](01-front-of-card.md) | in-progress (A done · B backlogged) | 1 | L | none |
 | 02 | [Recipients: CSV matching, verification, international](02-recipients.md) | done | 1 | L | columns on three tables |
 | 03 | [Fulfilment: rate-limit backoff and delivery tracking](03-fulfilment.md) | in-progress (A, B built) | 0 | M | one table |
 | 04 | [Address book and ask-for-address links](04-address-book.md) | done | 2 | L | one table + columns |
@@ -197,3 +197,12 @@ desktop and a phone). None needs a migration. Suggested order:
 | 13 | [Sign up without leaving the checkout](13-signup-in-checkout.md) | done | 1 | M | none |
 | 14 | [Shell: card fonts always loaded, footer stays down](14-shell-fonts-and-footer.md) | done | 0 | S | none |
 | 15 | [Dev only: fresh thumbnails broken in the schedule](15-dev-thumbnail-proxy.md) | done | 3 | S | none |
+
+## Backlog
+
+Specified, not scheduled. Nothing depends on these; pick one up only when
+there is appetite, and move it back into the table when you do.
+
+| Brief | What | Size | Why it waits |
+|---|---|---|---|
+| [01B](01-front-of-card.md#part-b--collage-layouts) | Collage layouts: two to four photos on one card face | L | Deprioritized 2026-09-10. The single-photo front with crop and zoom (01A) covers the site's use; a collage is a new print pipeline for a nice-to-have. |

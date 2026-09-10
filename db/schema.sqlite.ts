@@ -125,6 +125,10 @@ export const customers = sqliteTable("customers", {
   cartRecoveryOptOutAt: integer("cart_recovery_opt_out_at"),
   /** Hash only. Minted fresh on every reminder send. */
   cartRecoveryUnsubscribeTokenHash: text("cart_recovery_unsubscribe_token_hash"),
+  /** Where a reply to this customer's cards is mailed. JSON in the recipient shape; null means replies are off. */
+  replyAddress: text("reply_address"),
+  /** What a recipient is told the card came from. Never the email. */
+  replyDisplayName: text("reply_display_name"),
   ...timestamps,
 });
 
@@ -303,6 +307,8 @@ export const orders = sqliteTable(
     totalCents: integer("total_cents").notNull().default(0),
     /** Cumulative amount refunded. Less than totalCents means a partial refund. */
     refundedCents: integer("refunded_cents").notNull().default(0),
+    /** The card this order was sent back to, when it is a reply. */
+    replyToPostcardId: text("reply_to_postcard_id"),
     ...timestamps,
   },
   (t) => [
@@ -363,14 +369,39 @@ export const postcards = sqliteTable(
     lastError: text("last_error"),
     /** The latest tracking event Lob reported, as its `event_type.id` — `postcard.in_transit`. Denormalised from the events table. */
     trackingStatus: text("tracking_status"),
+    /**
+     * The code printed on the back as a QR, when the sender opted in. Holding
+     * the card is the credential: it opens the card online and, when the
+     * sender has a reply address, lets the recipient send one back.
+     */
+    replyCode: text("reply_code"),
+    /** The sender turned the link off. The page and the reply stop; nothing else changes. */
+    replyDisabledAt: integer("reply_disabled_at"),
+    /** A card sent back through a reply code: its recipient is the original sender, and is never shown to the replier. */
+    isReply: integer("is_reply", { mode: "boolean" }).notNull().default(false),
     ...timestamps,
   },
   (t) => [
     index("postcards_order_idx").on(t.orderId),
     index("postcards_design_idx").on(t.designId),
     index("postcards_due_idx").on(t.status, t.mailDate),
+    uniqueIndex("postcards_reply_code_idx").on(t.replyCode),
   ],
 );
+
+/**
+ * "It arrived": one tap from the recipient, with an optional note, shown to
+ * the sender beside that card. An explicit act — nothing is recorded when
+ * the page is merely opened.
+ */
+export const postcardReactions = sqliteTable("postcard_reactions", {
+  postcardId: text("postcard_id")
+    .primaryKey()
+    .references(() => postcards.id, { onDelete: "cascade" }),
+  emoji: text("emoji").notNull(),
+  note: text("note"),
+  ...timestamps,
+});
 
 /**
  * Where a card is, from Lob's tracking webhook: one row per event, keyed

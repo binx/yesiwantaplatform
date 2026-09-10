@@ -24,12 +24,15 @@ function renderSchedule(mode: "cadence" | "custom", handlers: Partial<Parameters
   const onDateChange = vi.fn();
   const onModeChange = vi.fn();
   const onArriveBy = vi.fn();
+  const onReplyLinkChange = vi.fn();
   renderWithProviders(
     <Schedule
       items={items}
       mode={mode}
       startDate={today}
       cadenceDays={7}
+      replyLink
+      onReplyLinkChange={onReplyLinkChange}
       onModeChange={onModeChange}
       onStartDateChange={() => {}}
       onCadenceChange={() => {}}
@@ -40,7 +43,7 @@ function renderSchedule(mode: "cadence" | "custom", handlers: Partial<Parameters
       {...handlers}
     />,
   );
-  return { onDateChange, onModeChange, onArriveBy };
+  return { onDateChange, onModeChange, onArriveBy, onReplyLinkChange };
 }
 
 describe("Schedule", () => {
@@ -84,5 +87,13 @@ describe("Schedule", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Use this date" }));
     expect(onArriveBy).toHaveBeenCalledWith("a", "2099-06-08");
+  });
+
+  it("offers the QR code on the back, on by default, and reports it being turned off", async () => {
+    const { onReplyLinkChange } = renderSchedule("cadence");
+    const box = screen.getByRole("checkbox", { name: /Print a small QR code/ });
+    expect(box).toBeChecked();
+    await userEvent.click(box);
+    expect(onReplyLinkChange).toHaveBeenCalledWith(false);
   });
 });

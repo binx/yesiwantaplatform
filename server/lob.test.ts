@@ -102,6 +102,17 @@ describe("renderBack", () => {
     expect(html).toContain("#123456");
   });
 
+  it("draws the reply QR only when the card has a code", async () => {
+    const back = { text: "Hi", valediction: "", fontName: "Quicksand", fontSize: 12, fontColor: "#000000" };
+    const withCode = await renderBack(back, "https://postcards.example/r/AB7X3KQM");
+    expect(withCode).toContain("<svg");
+    expect(withCode).toContain("Scan to see this card online");
+    expect(withCode).not.toContain("https://postcards.example/r/AB7X3KQM");
+    const without = await renderBack(back, null);
+    expect(without).not.toContain("<svg");
+    expect(without).not.toContain("Scan to see");
+  });
+
   it("omits the closing line when there is none", async () => {
     const html = await renderBack({ text: "Just this.", valediction: "", fontName: "Quicksand", fontSize: 12, fontColor: "#000000" });
     expect(html).not.toContain("valediction\"");

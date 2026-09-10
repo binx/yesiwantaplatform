@@ -50,6 +50,13 @@
       "when": 1789044991003,
       "tag": "0006_complex_iron_monger",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1789045430067,
+      "tag": "0007_redundant_doctor_spectrum",
+      "breakpoints": true
     }
   ]
 }

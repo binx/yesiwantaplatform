@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Order } from "@shared/orders";
+import { Button, Popconfirm } from "antd";
 import { formatRecipient, type Postcard, type PostcardStatus } from "@shared/postcards";
 import { ProductImage } from "@/components/ui/ProductImage";
 import { cx } from "@/lib/cx";
@@ -43,15 +44,49 @@ function statusClass(status: PostcardStatus): string {
   return "";
 }
 
+/**
+ * What came back through the card's QR: the recipient's tap and note, and
+ * a reply on its way — shown without its front until it has landed.
+ */
+export function ReplyNotes({ postcard, locale }: { postcard: Postcard; locale: string }) {
+  const { reaction, replies } = postcard;
+  if (!reaction && !replies) return null;
+  const day = (epochMs: number) => new Date(epochMs).toLocaleDateString(locale, { month: "short", day: "numeric" });
+  return (
+    <div className={styles.replyNotes}>
+      {reaction ? (
+        <div>
+          <span className={styles.reactionEmoji}>{reaction.emoji}</span> {reaction.note ? `“${reaction.note}”` : "It arrived"}{" "}
+          <span className={styles.note}>{day(reaction.at)}</span>
+        </div>
+      ) : null}
+      {replies && replies.onTheWay > 0 ? <div className={styles.note}>A reply is on its way</div> : null}
+      {replies && replies.delivered > 0 ? (
+        <div className={styles.replyBack}>
+          {replies.thumbnail ? (
+            <div className={styles.scheduleThumb}>
+              <ProductImage image={replies.thumbnail} sizes="64px" decorative />
+            </div>
+          ) : null}
+          <span className={styles.note}>They sent one back</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function PostcardSchedule({
   order,
   locale,
   renderStatus,
+  onDisableReply,
 }: {
   order: Pick<Order, "postcards" | "designs">;
   locale: string;
   /** The admin passes its own cell; the storefront gets the plain label. */
   renderStatus?: (postcard: Postcard) => ReactNode;
+  /** The sender's own order page offers to turn a card's code off. */
+  onDisableReply?: (postcard: Postcard) => void;
 }) {
   const designs = new Map(order.designs.map((design) => [design.id, design]));
 
@@ -78,7 +113,15 @@ export function PostcardSchedule({
                 </td>
                 <td>
                   <div>{postcard.recipient.name}</div>
-                  <div className={styles.note}>{formatRecipient(postcard.recipient, locale)}</div>
+                  <div className={styles.note}>{postcard.isReply ? "Address kept private" : formatRecipient(postcard.recipient, locale)}</div>
+                  <ReplyNotes postcard={postcard} locale={locale} />
+                  {onDisableReply && postcard.replyCode && postcard.status !== "cancelled" ? (
+                    <Popconfirm title="Turn off this card's QR code?" description="The page behind it goes dark and nobody can reply through it. This can't be undone." onConfirm={() => onDisableReply(postcard)}>
+                      <Button type="link" size="small" className={cx(styles.turnOff)}>
+                        Turn off the link
+                      </Button>
+                    </Popconfirm>
+                  ) : null}
                 </td>
                 <td className={styles.status}>{formatMailDate(postcard.mailDate, locale)}</td>
                 <td className={cx(styles.status, statusClass(postcard.status))}>

@@ -81,6 +81,8 @@ export const customers = pgTable("customers", {
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   cartRecoveryOptOutAt: timestamp("cart_recovery_opt_out_at", { withTimezone: true }),
   cartRecoveryUnsubscribeTokenHash: text("cart_recovery_unsubscribe_token_hash"),
+  replyAddress: jsonb("reply_address"),
+  replyDisplayName: text("reply_display_name"),
   ...timestamps,
 });
 
@@ -198,6 +200,7 @@ export const orders = pgTable(
     discountCents: integer("discount_cents").notNull().default(0),
     totalCents: integer("total_cents").notNull().default(0),
     refundedCents: integer("refunded_cents").notNull().default(0),
+    replyToPostcardId: text("reply_to_postcard_id"),
     ...timestamps,
   },
   (t) => [
@@ -238,14 +241,28 @@ export const postcards = pgTable(
     lastError: text("last_error"),
     /** The latest tracking event Lob reported, as its `event_type.id`. See db/schema.sqlite.ts. */
     trackingStatus: text("tracking_status"),
+    replyCode: text("reply_code"),
+    replyDisabledAt: timestamp("reply_disabled_at", { withTimezone: true }),
+    isReply: boolean("is_reply").notNull().default(false),
     ...timestamps,
   },
   (t) => [
     index("postcards_order_idx").on(t.orderId),
     index("postcards_design_idx").on(t.designId),
     index("postcards_due_idx").on(t.status, t.mailDate),
+    uniqueIndex("postcards_reply_code_idx").on(t.replyCode),
   ],
 );
+
+/** "It arrived", from the recipient, shown to the sender. See db/schema.sqlite.ts. */
+export const postcardReactions = pgTable("postcard_reactions", {
+  postcardId: text("postcard_id")
+    .primaryKey()
+    .references(() => postcards.id, { onDelete: "cascade" }),
+  emoji: text("emoji").notNull(),
+  note: text("note"),
+  ...timestamps,
+});
 
 export const postcardTrackingEvents = pgTable(
   "postcard_tracking_events",

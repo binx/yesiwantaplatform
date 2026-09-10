@@ -50,6 +50,13 @@
       "when": 1789044991350,
       "tag": "0006_mighty_veda",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789045430581,
+      "tag": "0007_good_white_queen",
+      "breakpoints": true
     }
   ]
 }

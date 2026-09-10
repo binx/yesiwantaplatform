@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Alert, Button, Form, Input, Tag } from "antd";
-import { useCustomer, useCustomerLogout, useUpdateProfile } from "@/lib/account";
+import { useClearReplySettings, useCustomer, useCustomerLogout, useSetReplySettings, useUpdateProfile } from "@/lib/account";
+import { useStore } from "@/lib/useStore";
+import { RecipientFields, VerificationNotice } from "@/components/postcard/RecipientFields";
+import { BLANK_RECIPIENT, useRecipientCheck, validateRecipient, type RecipientErrors } from "@/lib/recipient-form";
+import { formatRecipient, type Recipient } from "@shared/postcards";
 import { useGallery } from "@/lib/gallery";
 import { DesignCard } from "./AccountPostcardsPage";
 import gallery from "./Gallery.module.css";
@@ -101,6 +105,8 @@ export function AccountOverviewPage() {
         </section>
       ) : null}
 
+      <ReplySettings displayName={profile.replyDisplayName} address={profile.replyAddress} />
+
       <Button
         loading={logout.isPending}
         onClick={() => logout.mutate(undefined, { onSuccess: () => void navigate("/") })}
@@ -108,5 +114,125 @@ export function AccountOverviewPage() {
         Sign out
       </Button>
     </div>
+  );
+}
+
+/**
+ * Where a reply comes. Off until the customer fills it in, and never shown to
+ * the person replying: checkout puts it on the card, and their order shows
+ * only the name.
+ */
+function ReplySettings({ displayName, address }: { displayName: string | null; address: Recipient | null }) {
+  const { locale } = useStore();
+  const save = useSetReplySettings();
+  const clear = useClearReplySettings();
+  const check = useRecipientCheck();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(displayName ?? "");
+  const [draft, setDraft] = useState<Recipient>(address ?? BLANK_RECIPIENT);
+  const [errors, setErrors] = useState<RecipientErrors>({});
+  const [nameError, setNameError] = useState<string | null>(null);
+  const on = address !== null;
+
+  const open = () => {
+    setName(displayName ?? "");
+    setDraft(address ?? BLANK_RECIPIENT);
+    setErrors({});
+    setNameError(null);
+    setEditing(true);
+  };
+  const close = () => {
+    check.dismiss();
+    setEditing(false);
+  };
+
+  const commit = (value: Recipient) => {
+    save.mutate({ displayName: name.trim(), address: value }, { onSuccess: close });
+  };
+  const submit = () => {
+    const trimmedName = name.trim();
+    const result = validateRecipient(draft);
+    setNameError(trimmedName === "" ? "A name is required." : trimmedName.length > 40 ? "40 characters at most." : null);
+    if (!result.ok) setErrors(result.errors);
+    if (trimmedName === "" || trimmedName.length > 40 || !result.ok) return;
+    void check.run(result.value, commit);
+  };
+
+  return (
+    <section className={cx(styles.card)} aria-labelledby="replies-heading">
+      <div className={cx(styles.cardHeader)}>
+        <div>
+          <h2 id="replies-heading">Replies</h2>
+          {on ? (
+            <p className={cx(styles.meta)}>
+              Replies are addressed to <strong>{displayName}</strong>, {formatRecipient(address, locale)}.
+            </p>
+          ) : (
+            <p className={cx(styles.meta)}>
+              Each card you send carries a small QR code. Scan it and the recipient can send you one back, without ever seeing
+              your address. Add an address here to allow that.
+            </p>
+          )}
+        </div>
+        <div className={cx(styles.cardActions)}>
+          {editing ? (
+            <Button onClick={close}>Cancel</Button>
+          ) : (
+            <>
+              <Button onClick={open}>{on ? "Change" : "Allow replies"}</Button>
+              {on ? (
+                <Button danger loading={clear.isPending} onClick={() => clear.mutate()}>
+                  Turn off
+                </Button>
+              ) : null}
+            </>
+          )}
+        </div>
+      </div>
+
+      {editing ? (
+        <form
+          className={cx(styles.form)}
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit();
+          }}
+        >
+          {save.isError ? (
+            <Alert className={cx(styles.alert)} type="error" showIcon title={save.error instanceof Error ? save.error.message : "Could not save."} />
+          ) : null}
+          <label className={cx(styles.field)}>
+            <span>Name on the card</span>
+            <Input
+              value={name}
+              maxLength={40}
+              autoComplete="name"
+              status={nameError ? "error" : ""}
+              onChange={(event) => {
+                setName(event.target.value);
+                setNameError(null);
+              }}
+            />
+            {nameError ? <span className={cx(styles.fieldError)}>{nameError}</span> : null}
+          </label>
+          <RecipientFields
+            draft={draft}
+            errors={errors}
+            locale={locale}
+            allowInternational={false}
+            onChange={(key, value) => {
+              setDraft((current) => ({ ...current, [key]: value }));
+              if (errors[key]) setErrors((current) => ({ ...current, [key]: undefined }));
+            }}
+          />
+          {check.check ? (
+            <VerificationNotice check={check.check} locale={locale} onUse={check.useSuggested} onKeep={check.keepMine} onDismiss={check.dismiss} />
+          ) : null}
+          <Button type="primary" htmlType="submit" loading={check.verifying || save.isPending}>
+            Save
+          </Button>
+        </form>
+      ) : null}
+    </section>
   );
 }

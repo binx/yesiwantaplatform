@@ -1,0 +1,77 @@
+.card {
+  margin: 0 auto 1.5rem;
+  max-width: 28rem;
+  border: 1px solid var(--beluga-ink);
+  box-shadow: 4px 4px 0 var(--beluga-accent);
+  background: var(--beluga-surface);
+}
+
+.message {
+  margin: 0 0 0.35rem;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+.valediction {
+  margin: 0;
+  text-align: right;
+}
+
+.from {
+  margin: 0 0 1.5rem;
+  color: var(--beluga-muted);
+  font-size: 0.875rem;
+}
+
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.reaction {
+  width: 3rem;
+  height: 3rem;
+  font-size: 1.5rem;
+  line-height: 1;
+  border: 1px solid var(--beluga-line);
+  border-radius: 999px;
+  background: var(--beluga-surface);
+  cursor: pointer;
+}
+
+.reaction:hover,
+.reaction:focus-visible {
+  border-color: var(--beluga-ink);
+  outline: none;
+}
+
+.reactionChosen {
+  border-color: var(--beluga-ink);
+  background: var(--beluga-accent);
+}
+
+.note {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 28rem;
+}
+
+.sent {
+  margin: 0.5rem 0 0;
+  color: var(--beluga-muted);
+  font-size: 0.875rem;
+}
+
+.reply {
+  margin: 2rem 0 1rem;
+}
+
+.footer {
+  margin: 2.5rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--beluga-line);
+  font-size: 0.8125rem;
+  color: var(--beluga-muted);
+}

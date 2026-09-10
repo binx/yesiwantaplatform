@@ -55,7 +55,7 @@ import { escapeHtml } from "../html.js";
 import { sendEmailReportingFailure, sendOrderEmail } from "../email.js";
 import { LobError, LobNotConfiguredError, sendTestPostcard } from "../lob.js";
 import { cleanUp, getLastSweep, kickSweep, sendDuePostcards } from "../fulfilment.js";
-import { assertMailable, assertOrderable } from "./checkout.js";
+import { assertMailable, assertOrderable, resolveReplyLines } from "./checkout.js";
 import { attachDesignsToOrder } from "../../db/designs-repository.js";
 import { randomUUID } from "node:crypto";
 import {
@@ -369,8 +369,9 @@ adminRouter.post("/orders/complimentary", async (req, res) => {
   if (!settings) throw httpError(503, "This store has not been set up yet.");
 
   await assertOrderable(input.lines);
+  const { lines, replyToPostcardId } = await resolveReplyLines(input.lines);
   // Free or not, an international card still needs the return address Lob prints.
-  assertMailable(input.lines, { internationalPostcardPriceCents: settings.internationalPostcardPriceCents ?? 0, returnAddress: settings.returnAddress });
+  assertMailable(lines, { internationalPostcardPriceCents: settings.internationalPostcardPriceCents ?? 0, returnAddress: settings.returnAddress });
 
   const orderId = randomUUID();
   await createPendingOrder({
@@ -381,7 +382,8 @@ adminRouter.post("/orders/complimentary", async (req, res) => {
     currency: settings.currency,
     unitPriceCents: 0,
     internationalUnitPriceCents: 0,
-    lines: input.lines,
+    lines,
+    replyToPostcardId,
   });
 
   await markOrderPaid(orderId, {

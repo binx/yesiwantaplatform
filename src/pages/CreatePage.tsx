@@ -5,9 +5,12 @@ import { useMutation } from "@tanstack/react-query";
 import type { Order } from "@shared/orders";
 import { csrfPost } from "@/lib/api";
 import { useDesigns } from "@/lib/designs";
+import { fetchReplyCard } from "@/lib/reply";
+import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/lib/session";
 import { addDaysIso, isInternational, todayIso, type PostcardDesign, type Recipient } from "@shared/postcards";
 import { formatMoney } from "@shared/money";
+import type { CartLineInput } from "@shared/cart";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { DesignForm } from "@/components/postcard/DesignForm";
 import { Recipients } from "@/components/postcard/Recipients";
@@ -43,8 +46,7 @@ export function CreatePage() {
    */
   const session = useSession();
   const complimentary = useMutation({
-    mutationFn: (line: { designs: { designId: string; mailDate: string }[]; recipients: Recipient[] }) =>
-      csrfPost<{ order: Order }>("/admin/orders/complimentary", { lines: [line] }),
+    mutationFn: (line: CartLineInput) => csrfPost<{ order: Order }>("/admin/orders/complimentary", { lines: [line] }),
     onSuccess: ({ order }) => {
       message.success(`Ordered ${order.postcardCount} postcard${order.postcardCount === 1 ? "" : "s"} for free.`);
       void navigate(`/admin/orders/${order.id}`);
@@ -67,10 +69,37 @@ export function CreatePage() {
     const found = handedIn.map((id) => incoming.data.get(id)).filter((d): d is PostcardDesign => d !== undefined);
     if (found.length > 0) setDesigns((current) => [...current, ...found.filter((d) => !current.some((c) => c.id === d.id))]);
     if (found.length < handedIn.length) message.warning("One of the designs you chose is no longer available.");
-    setParams({}, { replace: true });
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete("designs");
+      return next;
+    }, { replace: true });
   }, [handedIn, incoming.data, message, setParams]);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [replyLink, setReplyLink] = useState(true);
   const [mode, setMode] = useState<ScheduleMode>("cadence");
+
+  // A reply: `?replyTo=CODE` from the page behind a card's QR. The recipient
+  // is the card's sender, resolved on the server at checkout; here the
+  // recipients section is locked to their name and nothing else.
+  const replyTo = params.get("replyTo") ?? null;
+  const replyCard = useQuery({
+    queryKey: ["reply-card", replyTo],
+    queryFn: ({ signal }) => fetchReplyCard(replyTo ?? "", signal),
+    enabled: replyTo !== null,
+    retry: false,
+  });
+  const replying = replyTo !== null && replyCard.data?.canReply === true;
+  useEffect(() => {
+    if (replyTo !== null && (replyCard.isError || (replyCard.data && !replyCard.data.canReply))) {
+      message.info("That card can't be replied to any more.");
+      setParams((current) => {
+        const next = new URLSearchParams(current);
+        next.delete("replyTo");
+        return next;
+      }, { replace: true });
+    }
+  }, [replyTo, replyCard.isError, replyCard.data, message, setParams]);
   // Recipients USPS refused. Lob would refuse them too, after payment, so the batch waits.
   const [blocked, setBlocked] = useState(0);
   const [startDate, setStartDate] = useState(todayIso);
@@ -93,7 +122,7 @@ export function CreatePage() {
 
   const abroad = recipients.filter(isInternational).length;
   const international = designs.length * abroad;
-  const domestic = designs.length * (recipients.length - abroad);
+  const domestic = designs.length * ((replying ? 1 : recipients.length) - abroad);
   const count = domestic + international;
   const totalCents = domestic * store.postcardPriceCents + international * (store.internationalPostcardPriceCents ?? 0);
   const price = (cents: number) => formatMoney(cents, store.currency, store.locale);
@@ -141,11 +170,16 @@ export function CreatePage() {
     setCustomDate(designId, mailDate);
   };
 
+  const line = () => ({
+    designs: scheduled.map(({ design, mailDate }) => ({ designId: design.id, mailDate })),
+    recipients: replying ? [] : recipients,
+    replyLink,
+    replyTo: replying ? replyTo : null,
+    replyToName: replying ? (replyCard.data?.senderName ?? null) : null,
+  });
+
   const addToCart = () => {
-    add({
-      designs: scheduled.map(({ design, mailDate }) => ({ designId: design.id, mailDate })),
-      recipients,
-    });
+    add(line());
     void navigate("/cart");
   };
 
@@ -155,7 +189,7 @@ export function CreatePage() {
 
       <section className={cx(styles.panel)} aria-labelledby="design-heading">
         <h2 id="design-heading">1. Create a postcard design</h2>
-        <DesignForm onSaved={addDesign} />
+        <DesignForm onSaved={addDesign} replyLink={replyLink} />
       </section>
 
       <section className={cx(styles.panel)} aria-labelledby="schedule-heading">
@@ -172,12 +206,23 @@ export function CreatePage() {
           onArriveBy={arriveBy}
           onRemove={(index) => setDesigns((current) => current.filter((_, i) => i !== index))}
           locale={store.locale}
+          replyLink={replyLink}
+          onReplyLinkChange={setReplyLink}
         />
       </section>
 
       <section className={cx(styles.panel)} aria-labelledby="recipients-heading">
         <h2 id="recipients-heading">3. Postcard recipients</h2>
-        <Recipients recipients={recipients} onChange={setRecipients} onBlockedChange={setBlocked} />
+        {replying ? (
+          <div className={cx(postcard.replyLock)} role="status">
+            <strong>To {replyCard.data?.senderName ?? "the sender"}</strong>
+            <span className={postcard.note}>
+              This is a reply to their postcard. Their address is kept private and added when you check out.
+            </span>
+          </div>
+        ) : (
+          <Recipients recipients={recipients} onChange={setRecipients} onBlockedChange={setBlocked} />
+        )}
       </section>
 
       <section className={cx(styles.panel)} aria-labelledby="total-heading">
@@ -190,7 +235,7 @@ export function CreatePage() {
           </span>
           <span>×</span>
           <span>
-            <span className={postcard.count}>{recipients.length}</span> recipient{recipients.length === 1 ? "" : "s"}
+            <span className={postcard.count}>{replying ? 1 : recipients.length}</span> recipient{(replying ? 1 : recipients.length) === 1 ? "" : "s"}
           </span>
           <span>×</span>
           <span>
@@ -211,10 +256,7 @@ export function CreatePage() {
               disabled={count === 0}
               loading={complimentary.isPending}
               onClick={() =>
-                complimentary.mutate({
-                  designs: scheduled.map(({ design, mailDate }) => ({ designId: design.id, mailDate })),
-                  recipients,
-                })
+                complimentary.mutate(line())
               }
             >
               Send for free (admin)

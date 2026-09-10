@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isInternational, mailDateSchema, recipientSchema } from "./postcards.js";
+import { isInternational, mailDateSchema, recipientSchema, replyCodeSchema } from "./postcards.js";
 
 /**
  * The cart.
@@ -21,17 +21,42 @@ export const scheduledDesignSchema = z.object({
   mailDate: mailDateSchema,
 });
 
-export const cartLineSchema = z.object({
-  designs: z.array(scheduledDesignSchema).min(1).max(50),
-  recipients: z.array(recipientSchema).min(1).max(500),
-});
+export const cartLineSchema = z
+  .object({
+    designs: z.array(scheduledDesignSchema).min(1).max(50),
+    recipients: z.array(recipientSchema).max(500).default([]),
+    /** Print a QR code on the back so the recipient can see the card online and send one back. */
+    replyLink: z.boolean().default(true),
+    /**
+     * A reply: the recipient is the sender of the card with this code, and
+     * is resolved on the server at checkout. The line carries no address.
+     */
+    replyTo: replyCodeSchema.nullable().default(null),
+    /** The sender's display name, for the cart to show. The server ignores it. */
+    replyToName: z.string().max(40).nullable().default(null),
+  })
+  .superRefine((line, ctx) => {
+    if (line.replyTo === null && line.recipients.length === 0) {
+      ctx.addIssue({ code: "custom", path: ["recipients"], message: "At least one recipient." });
+    }
+    if (line.replyTo !== null && line.recipients.length > 0) {
+      ctx.addIssue({ code: "custom", path: ["recipients"], message: "A reply goes to one person: the sender." });
+    }
+  });
 
 export type ScheduledDesign = z.infer<typeof scheduledDesignSchema>;
 export type CartLine = z.infer<typeof cartLineSchema>;
+/** A line before the schema's defaults: what a caller may build by hand. */
+export type CartLineInput = z.input<typeof cartLineSchema>;
+
+/** How many people a line goes to: its recipients, or the one sender it replies to. */
+export function lineRecipientCount(line: Pick<CartLineInput, "recipients" | "replyTo">): number {
+  return line.replyTo ? 1 : (line.recipients ?? []).length;
+}
 
 /** Postcards in a line, or across several. */
-export function countPostcards(lines: readonly Pick<CartLine, "designs" | "recipients">[]): number {
-  return lines.reduce((total, line) => total + line.designs.length * line.recipients.length, 0);
+export function countPostcards(lines: readonly Pick<CartLineInput, "designs" | "recipients" | "replyTo">[]): number {
+  return lines.reduce((total, line) => total + line.designs.length * lineRecipientCount(line), 0);
 }
 
 /**
@@ -39,14 +64,16 @@ export function countPostcards(lines: readonly Pick<CartLine, "designs" | "recip
  * Lob charges more to mail abroad and the store charges its own second price.
  */
 export function countPostcardsByDestination(
-  lines: readonly Pick<CartLine, "designs" | "recipients">[],
+  lines: readonly Pick<CartLineInput, "designs" | "recipients" | "replyTo">[],
 ): { domestic: number; international: number } {
   let domestic = 0;
   let international = 0;
   for (const line of lines) {
-    const abroad = line.recipients.filter(isInternational).length;
+    // A reply's recipient is resolved on the server; until then it counts as
+    // domestic, which is what a reply address is unless the shop mails abroad.
+    const abroad = (line.recipients ?? []).filter((r) => isInternational({ country: r.country ?? "US" })).length;
     international += line.designs.length * abroad;
-    domestic += line.designs.length * (line.recipients.length - abroad);
+    domestic += line.designs.length * (lineRecipientCount(line) - abroad);
   }
   return { domestic, international };
 }

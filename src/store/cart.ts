@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { cartLineSchema, countPostcards, type CartLine } from "@shared/cart";
+import { cartLineSchema, countPostcards, type CartLine, type CartLineInput } from "@shared/cart";
 
 /**
  * The cart: a list of batches, each some designs going to some recipients.
@@ -15,7 +15,8 @@ export type { CartLine } from "@shared/cart";
 
 interface CartState {
   lines: CartLine[];
-  add: (line: CartLine) => void;
+  /** Input shape: the reply fields default. The line is parsed on the way in. */
+  add: (line: CartLineInput) => void;
   remove: (index: number) => void;
   clear: () => void;
   /** Replaces the cart wholesale — used to repopulate it from a recovered cart. */
@@ -27,7 +28,7 @@ export const useCart = create<CartState>()(
     (set) => ({
       lines: [],
 
-      add: (line) => set((state) => ({ lines: [...state.lines, line] })),
+      add: (line) => set((state) => ({ lines: [...state.lines, cartLineSchema.parse(line)] })),
 
       // Guarded, unlike v1's `splice(findIndex(...), 1)`, which removed the
       // last item whenever the lookup missed.

@@ -144,7 +144,7 @@ for (const { name, context } of dialects) {
         unitPriceCents: 140,
         lines: [
           { designs: [{ designId: a.id, mailDate: "2026-10-01" }, { designId: b.id, mailDate: "2026-10-08" }], recipients: [RECIPIENT, { ...RECIPIENT, name: "Grandpa" }] },
-          { designs: [{ designId: a.id, mailDate: "2026-11-01" }], recipients: [RECIPIENT] },
+          { designs: [{ designId: a.id, mailDate: "2026-11-01" }], recipients: [RECIPIENT], replyLink: true, replyTo: null, replyToName: null },
         ],
       });
 
@@ -240,7 +240,7 @@ for (const { name, context } of dialects) {
         email: "buyer@example.com",
         currency: "USD",
         unitPriceCents: 140,
-        lines: [{ designs: [{ designId: a.id, mailDate: "2026-09-14" }], recipients: [RECIPIENT] }],
+        lines: [{ designs: [{ designId: a.id, mailDate: "2026-09-14" }], recipients: [RECIPIENT], replyLink: true, replyTo: null, replyToName: null }],
       });
       const card = (await db.orders.getOrder(orderId))!.postcards[0]!;
 
@@ -257,6 +257,49 @@ for (const { name, context } of dialects) {
       ]);
       expect(await db.orders.findPostcardForTracking(card.id, null)).toMatchObject({ id: card.id });
       expect(await db.orders.findPostcardForTracking(null, "psc_nope")).toBeNull();
+    });
+
+    it("gives each card a unique reply code, keeps a reaction and a reply address, on either engine", async () => {
+      const a = await design();
+      const orderId = randomUUID();
+      const { createCustomer } = await import("../server/auth.js");
+      const customerId = await createCustomer(`reply-${orderId}@example.com`, "a-sufficiently-long-password", "Rachel");
+      await db.orders.createPendingOrder({
+        id: orderId,
+        checkoutSessionId: `cs_${orderId}`,
+        email: "buyer@example.com",
+        currency: "USD",
+        unitPriceCents: 140,
+        customerId,
+        lines: [
+          { designs: [{ designId: a.id, mailDate: "2026-09-14" }], recipients: [RECIPIENT, { ...RECIPIENT, name: "Grandpa" }], replyLink: true, replyTo: null, replyToName: null },
+          { designs: [{ designId: a.id, mailDate: "2026-09-21" }], recipients: [RECIPIENT], replyLink: false, replyTo: null, replyToName: null },
+        ],
+      });
+      const cards = (await db.orders.getOrder(orderId))!.postcards;
+      const codes = cards.map((c) => c.replyCode);
+      expect(codes.filter(Boolean)).toHaveLength(2);
+      expect(new Set(codes.filter(Boolean)).size).toBe(2);
+      expect(codes[2]).toBeNull();
+
+      const code = codes[0]!;
+      const found = await db.orders.findPostcardByReplyCode(code);
+      expect(found).toMatchObject({ postcard: { id: cards[0]!.id }, order: { id: orderId, customerId } });
+      expect(await db.orders.findPostcardByReplyCode("NOTACODE")).toBeNull();
+
+      await db.orders.upsertReaction(cards[0]!.id, "❤️", "Fridge");
+      await db.orders.upsertReaction(cards[0]!.id, "😂", null);
+      expect((await db.orders.getOrder(orderId))!.postcards[0]!.reaction).toMatchObject({ emoji: "😂", note: null });
+
+      expect(await db.orders.disableReplyLink(orderId, cards[0]!.id, "someone-else")).toBe(false);
+      expect(await db.orders.disableReplyLink(orderId, cards[0]!.id, customerId)).toBe(true);
+      expect((await db.orders.getOrder(orderId))!.postcards[0]!.replyCode).toBeNull();
+      expect((await db.orders.findPostcardByReplyCode(code))?.postcard.replyDisabledAt).not.toBeNull();
+
+      await db.customers.setReplySettings(customerId, { displayName: "Rachel", address: RECIPIENT });
+      expect(await db.customers.getReplySettings(customerId)).toEqual({ displayName: "Rachel", address: RECIPIENT });
+      await db.customers.clearReplySettings(customerId);
+      expect(await db.customers.getReplySettings(customerId)).toEqual({ displayName: null, address: null });
     });
 
     it("keeps the address book's label, tags, birthday and notes, on either engine", async () => {
@@ -385,7 +428,7 @@ for (const { name, context } of dialects) {
     it("round-trips a cart's JSON lines", async () => {
       const { createCustomer } = await import("../server/auth.js");
       const customerId = await createCustomer(`cart-${randomUUID()}@example.com`, "a-sufficiently-long-password", null);
-      const line = { designs: [{ designId: "d1", mailDate: "2026-10-01" }], recipients: [RECIPIENT] };
+      const line = { designs: [{ designId: "d1", mailDate: "2026-10-01" }], recipients: [RECIPIENT], replyLink: true, replyTo: null, replyToName: null };
       const cart = await db.carts.upsertActiveCart(customerId, "x@example.com", "USD", [line]);
       expect(cart?.lines).toEqual([line]);
     });

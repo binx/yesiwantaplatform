@@ -33,6 +33,8 @@ import styles from "./Postcard.module.css";
  */
 interface DesignFormProps {
   onSaved: (design: PostcardDesign) => void;
+  /** Whether the back will carry the reply QR, so the preview shows its footprint. */
+  replyLink?: boolean;
 }
 
 interface Picked {
@@ -42,7 +44,7 @@ interface Picked {
   height: number;
 }
 
-export function DesignForm({ onSaved }: DesignFormProps) {
+export function DesignForm({ onSaved, replyLink = true }: DesignFormProps) {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [orientation, setOrientation] = useState<Orientation>("portrait");
   const [back, setBack] = useState<PostcardBack>(defaultPostcardBack);
@@ -315,7 +317,7 @@ export function DesignForm({ onSaved }: DesignFormProps) {
           </div>
         </div>
 
-        <PostcardBackMock back={back} />
+        <PostcardBackMock back={back} replyLink={replyLink} />
       </div>
 
       {save.isError ? (

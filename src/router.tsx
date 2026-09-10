@@ -106,6 +106,11 @@ export const router = createBrowserRouter([
         }),
       },
       {
+        // The page behind the QR on the back of a card. Public; its own chunk.
+        path: "r/:code",
+        lazy: async () => ({ Component: (await import("./pages/ReplyPage")).ReplyPage }),
+      },
+      {
         // A friend's "send me your address" link. Public, and its own small
         // chunk: the person opening it is not a customer and downloads none
         // of the account.

@@ -92,6 +92,9 @@ const CUSTOMER_MUTATIONS = [
   { method: "post", path: "/api/account/address-requests" },
   { method: "post", path: "/api/account/address-requests/some-request/renew" },
   { method: "delete", path: "/api/account/address-requests/some-request" },
+  { method: "put", path: "/api/account/reply-address" },
+  { method: "delete", path: "/api/account/reply-address" },
+  { method: "post", path: "/api/account/orders/some-order/postcards/some-card/reply/disable" },
   { method: "post", path: "/api/cart/sync" },
 ] as const;
 
@@ -105,7 +108,7 @@ const CUSTOMER_READS = [
 ] as const;
 
 const PUBLIC_CART_TOKEN_ROUTES = ["/api/cart/recover", "/api/cart/unsubscribe"] as const;
-const PUBLIC_WRITE_ROUTES = ["/api/recipients/verify", "/api/address-requests/some-token"] as const;
+const PUBLIC_WRITE_ROUTES = ["/api/recipients/verify", "/api/address-requests/some-token", "/api/r/NOTACODE1/reaction"] as const;
 const ADMIN_PASSWORD_RESET_ROUTES = ["/api/session/forgot-password", "/api/session/reset-password"] as const;
 
 describe("anonymous access", () => {

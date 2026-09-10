@@ -52,6 +52,8 @@ export const orderSchema = z.object({
   totalCents: centsSchema,
   /** Cumulative amount refunded. Below `totalCents` means partial. */
   refundedCents: centsSchema,
+  /** The card this order was sent back to, when it is a reply. */
+  replyToPostcardId: z.string().nullable().default(null),
   createdAt: z.number().int(),
   postcards: z.array(postcardSchema),
   designs: z.array(postcardDesignSchema),

@@ -216,6 +216,15 @@ export const requestRateLimit = rateLimit({
   message: { error: "Too many submissions. Try again in an hour." },
 });
 
+/** The card-code page and its reaction: a scan or two per card, not a scanner. */
+export const replyRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 60,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many requests. Try again in an hour." },
+});
+
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /**

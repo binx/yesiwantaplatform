@@ -1,17 +1,17 @@
 ---
 task: "06"
 title: Reply link
-status: todo
+status: done
 tier: 3
 size: L
 migration: columns on postcards, orders, customers + one table
 blocked_by: ["03", "05"]
 blocks: []
 touches: print/back.hbs · src/components/postcard/PostcardBackMock.tsx · shared/cart.ts:24 · server/routes/checkout.ts:37 · server/routes/account.ts:82 · db/orders-repository.ts:38
-completed:
+completed: 2026-09-10
 shipped_in:
 summary: >-
-  Every card gets a short code printed on the back. Holding the card is the credential:
+  Every card gets a QR code printed on the back. Holding the card is the credential:
   the code opens the card online, lets the recipient tap "it arrived" with a note the
   sender sees, and — when the sender has opted in with a return address — lets them send a
   postcard back without ever seeing that address. **A:** code, landing page, reaction.
@@ -24,6 +24,29 @@ Two phases. **A** needs brief 03B's tracking (the page goes live only once
 the card has arrived) and is worth shipping on its own — the reaction is
 the part most recipients will use. **B** needs brief 05's account surfaces
 and a return address on the sender's account.
+
+## Progress
+
+Built as one PR, both phases, with two amendments from review:
+
+- **The back carries a QR code, not a printed URL.** The code is still the
+  eight-character token and the page is still `/r/CODE`, but the only
+  thing on the card is a 0.6in QR (drawn server-side with `qrcode`, inline
+  SVG in `print/back.hbs`) and the caption "Scan to see this card online,
+  or to send one back." Stores on a Lob-hosted template get the URL as the
+  `reply_url` merge variable and draw their own.
+- **Opening the page records nothing.** There is no `first_viewed_at`, no
+  "seen online" event, and no timeline entry when the recipient looks. A
+  reader's visit is their own business; the sender learns something only
+  when the recipient chooses to tap a reaction.
+
+Everything else is as specified: the gate (sent, not disabled, tracking
+says landed or seven days since mailing), the per-batch checkbox (default
+on), the reaction upsert, the sender's "turn off the link", the reply
+address on the account, server-side resolution at checkout, the cap of
+three paid replies per card, and redaction in `toCustomerPostcard` and the
+emails. The e2e coverage is the accessibility sweep of `/r/…`; the full
+flow is covered in `server/reply.test.ts`.
 
 ## The idea, and the property it rests on
 

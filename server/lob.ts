@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import Handlebars from "handlebars";
+import QRCode from "qrcode";
 import sharp from "sharp";
 import { env, hasLob, lobMode } from "./env.js";
 import {
@@ -119,6 +120,8 @@ export interface SendPostcardInput {
   back: PostcardBack;
   /** Free text Lob shows in its dashboard. */
   description: string;
+  /** The card's reply link, printed as a QR on the back when the sender opted in. */
+  replyUrl?: string | null;
 }
 
 /* ----------------------------------------------------------------- the file */
@@ -211,7 +214,7 @@ function fontStack(fontName: string): string {
  * on their own postcard — which is not a security problem so much as a
  * printing one, since a stray `<` would otherwise vanish from the card.
  */
-export async function renderBack(back: PostcardBack): Promise<string> {
+export async function renderBack(back: PostcardBack, replyUrl: string | null = null): Promise<string> {
   backTemplate ??= Handlebars.compile(await readFile(path.resolve("print", "back.hbs"), "utf8"));
 
   return backTemplate({
@@ -222,20 +225,30 @@ export async function renderBack(back: PostcardBack): Promise<string> {
     // Lob renders at 300 dpi, and a point is the unit both agree on.
     fontSize: back.fontSize,
     fontColor: back.fontColor,
+    // A QR, not the URL: a code is scanned from paper, not typed. Inline SVG
+    // so the back needs nothing fetched. Marked safe: it is ours, not the buyer's.
+    replyQr: replyUrl ? new Handlebars.SafeString(await replyQrSvg(replyUrl)) : null,
   });
+}
+
+/** The reply link as an SVG QR, medium error correction so a coffee ring still scans. */
+export async function replyQrSvg(url: string): Promise<string> {
+  return QRCode.toString(url, { type: "svg", errorCorrectionLevel: "M", margin: 0, color: { dark: "#000000ff", light: "#ffffff00" } });
 }
 
 /**
  * The merge variables v1's Lob template expected, under the same names, so a
  * store that sets LOB_BACK_TEMPLATE_ID to its old template keeps working.
  */
-function mergeVariables(back: PostcardBack): Record<string, string> {
+function mergeVariables(back: PostcardBack, replyUrl: string | null): Record<string, string> {
   return {
     postcard_text: stripEmoji(back.text),
     postcard_valediction: stripEmoji(back.valediction),
     font_name: back.fontName,
     font_size: String(back.fontSize),
     font_color: back.fontColor,
+    // A store on v1's Lob template has to draw the QR itself: the URL is the merge variable.
+    reply_url: replyUrl ?? "",
   };
 }
 
@@ -354,11 +367,11 @@ export async function sendPostcard(input: SendPostcardInput): Promise<LobPostcar
 
   if (env.LOB_BACK_TEMPLATE_ID) {
     form.append("back", env.LOB_BACK_TEMPLATE_ID);
-    for (const [key, value] of Object.entries(mergeVariables(input.back))) {
+    for (const [key, value] of Object.entries(mergeVariables(input.back, input.replyUrl ?? null))) {
       form.append(`merge_variables[${key}]`, value);
     }
   } else {
-    form.append("back", await renderBack(input.back));
+    form.append("back", await renderBack(input.back, input.replyUrl ?? null));
   }
 
   form.append("metadata[postcard_id]", input.id);

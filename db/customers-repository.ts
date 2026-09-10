@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import type { AddressInput, AddressSource, CustomerAddress } from "../shared/account.js";
-import type { Recipient } from "../shared/postcards.js";
+import { recipientSchema, type Recipient } from "../shared/postcards.js";
 import { getDatabase } from "./client.js";
 import { jsonFor, nowFor, parseJson, toEpochMs } from "./repository.js";
 
@@ -265,4 +265,37 @@ export async function optOutOfCartRecoveryByTokenHash(tokenHash: string): Promis
     .where(eq(schema.customers.id, row.id));
 
   return true;
+}
+
+/* --------------------------------------------------------- reply settings */
+
+export interface ReplySettings {
+  displayName: string | null;
+  address: Recipient | null;
+}
+
+/** Where a reply to this customer is mailed, and the name a recipient is shown. */
+export async function getReplySettings(customerId: string): Promise<ReplySettings> {
+  const { drizzle: db, schema } = await getDatabase();
+  const rows = (await db
+    .select({ name: schema.customers.replyDisplayName, address: schema.customers.replyAddress })
+    .from(schema.customers)
+    .where(eq(schema.customers.id, customerId))
+    .limit(1)) as unknown as { name: string | null; address: unknown }[];
+  const row = rows[0];
+  if (!row) return { displayName: null, address: null };
+  return { displayName: row.name, address: recipientSchema.nullable().catch(null).parse(parseJson(row.address, null)) };
+}
+
+export async function setReplySettings(customerId: string, settings: { displayName: string; address: Recipient }): Promise<void> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+  await db
+    .update(schema.customers)
+    .set({ replyDisplayName: settings.displayName, replyAddress: jsonFor(dialect, settings.address) as never })
+    .where(eq(schema.customers.id, customerId));
+}
+
+export async function clearReplySettings(customerId: string): Promise<void> {
+  const { drizzle: db, schema } = await getDatabase();
+  await db.update(schema.customers).set({ replyDisplayName: null, replyAddress: null }).where(eq(schema.customers.id, customerId));
 }

@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "antd";
 import { formatMoney } from "@shared/money";
+import { DELIVERY_ESTIMATE } from "@shared/copy";
+import { COUNTRY_CODES } from "@shared/countries";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useStore } from "@/lib/useStore";
 import { assetUrl } from "@/lib/store-source";
@@ -38,6 +40,10 @@ export function LandingPage() {
   const store = useStore();
   const hero = store.hero;
   const price = formatMoney(store.postcardPriceCents, store.currency, store.locale);
+  const internationalPrice =
+    store.internationalPostcardPriceCents != null
+      ? formatMoney(store.internationalPostcardPriceCents, store.currency, store.locale)
+      : null;
   const image = hero.image ? assetUrl(hero.image.path) : "/hero.jpg";
 
   return (
@@ -86,11 +92,12 @@ export function LandingPage() {
               <dt>How much do these cost?</dt>
               <dd>Each postcard costs {price}. No add-ons, no upsells.</dd>
               <dt>How long do they take to be delivered?</dt>
-              <dd>Postcards are typically delivered about one week after the scheduled mailing date.</dd>
+              <dd>{DELIVERY_ESTIMATE}</dd>
               <dt>Where can I send them to?</dt>
               <dd>
-                Anywhere in the United States, thanks to the USPS! Apologies to our international
-                customers — we have yet to find a well-priced global postcard printing company.
+                {internationalPrice
+                  ? `Anywhere in the United States, and to ${COUNTRY_CODES.length - 1} other countries — international cards cost ${internationalPrice} and take about two weeks longer.`
+                  : "Anywhere in the United States, thanks to the USPS! Apologies to our international customers — we have yet to find a well-priced global postcard printing company."}
               </dd>
             </dl>
           </section>

@@ -271,14 +271,14 @@ export function DesignForm({ onSaved, replyLink = true }: DesignFormProps) {
             <Input
               value={back.valediction}
               maxLength={80}
-              placeholder="Love, Rachel"
+              placeholder="e.g. Love, Grandma"
               onChange={(event) => set("valediction", event.target.value)}
             />
           </label>
 
           <div className={styles.field}>
             <span className={styles.label} id="font-label">
-              Handwriting
+              Style
             </span>
             <Radio.Group
               aria-labelledby="font-label"

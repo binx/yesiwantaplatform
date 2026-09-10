@@ -57,7 +57,10 @@ export function AccountOrderDetailPage() {
         <tfoot>
           <tr>
             <td>
-              {data.postcardCount} postcard{data.postcardCount === 1 ? "" : "s"} × {price(data.unitPriceCents)}
+              {data.postcardCount - data.internationalCount} postcard{data.postcardCount - data.internationalCount === 1 ? "" : "s"} × {price(data.unitPriceCents)}
+              {data.internationalCount > 0 && data.internationalUnitPriceCents !== null
+                ? ` + ${data.internationalCount} abroad × ${price(data.internationalUnitPriceCents)}`
+                : ""}
             </td>
             <td className={cx(styles.amount)}>{price(data.subtotalCents)}</td>
           </tr>

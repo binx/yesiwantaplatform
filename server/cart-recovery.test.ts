@@ -18,7 +18,7 @@ vi.mock("./email.js", async (importOriginal) => ({
 
 let app: Express;
 const PASSWORD = "a-sufficiently-long-test-password";
-const RECIPIENT = { name: "Grandma", line1: "1 Test Street", line2: null, city: "Marfa", state: "TX", postalCode: "79843" };
+const RECIPIENT = { name: "Grandma", line1: "1 Test Street", line2: null, city: "Marfa", state: "TX", postalCode: "79843", country: "US" };
 
 async function bootstrap() {
   const agent = request.agent(app);

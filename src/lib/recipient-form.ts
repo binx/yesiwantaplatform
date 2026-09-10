@@ -8,7 +8,7 @@ import { describeVerification, verifyRecipient } from "./recipients";
  * that adds a recipient goes through. Kept apart from the components so the
  * component file exports only components (Vite's fast refresh wants that).
  */
-export const BLANK_RECIPIENT: Recipient = { name: "", line1: "", line2: null, city: "", state: "", postalCode: "" };
+export const BLANK_RECIPIENT: Recipient = { name: "", line1: "", line2: null, city: "", state: "", postalCode: "", country: "US" };
 
 export type RecipientErrors = Partial<Record<keyof Recipient, string>>;
 

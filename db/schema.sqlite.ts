@@ -42,6 +42,10 @@ export const storeSettings = sqliteTable("store_settings", {
    * enough: there is no Stripe Price to republish.
    */
   postcardPriceCents: integer("postcard_price_cents").notNull().default(140),
+  /** The price of a card mailed abroad. Null means the shop is US-only. */
+  internationalPostcardPriceCents: integer("international_postcard_price_cents"),
+  /** The shop's US address, JSON in the recipient shape. Lob prints it as the return address on international mail. */
+  returnAddress: text("return_address"),
   /**
    * Abandoned cart reminders. Off by default — the merchant must opt in, and
    * the email goes out under their own SMTP sending reputation.
@@ -144,7 +148,7 @@ export const customerAddresses = sqliteTable(
     city: text("city").notNull(),
     state: text("state").notNull(),
     postalCode: text("postal_code").notNull(),
-    /** Always "US": Lob's postcard product is domestic. Kept so the row says so. */
+    /** ISO 3166-1 alpha-2. */
     country: text("country").notNull().default("US"),
     /** When Lob's verification last called this address deliverable. Null: never, or edited since. */
     verifiedAt: integer("verified_at"),
@@ -243,6 +247,9 @@ export const orders = sqliteTable(
     unitPriceCents: integer("unit_price_cents").notNull(),
     /** How many postcards: every design × every recipient, summed over batches. */
     postcardCount: integer("postcard_count").notNull(),
+    /** How many of those went abroad, and the price each of them was charged at. */
+    internationalCount: integer("international_count").notNull().default(0),
+    internationalUnitPriceCents: integer("international_unit_price_cents"),
     subtotalCents: integer("subtotal_cents").notNull().default(0),
     /** Total discount applied at Stripe. Zero when no code was used. */
     discountCents: integer("discount_cents").notNull().default(0),
@@ -293,6 +300,8 @@ export const postcards = sqliteTable(
     recipientCity: text("recipient_city").notNull(),
     recipientState: text("recipient_state").notNull(),
     recipientPostalCode: text("recipient_postal_code").notNull(),
+    /** ISO 3166-1 alpha-2, what Lob's `address_country` takes. */
+    recipientCountry: text("recipient_country").notNull().default("US"),
     /** ISO date, YYYY-MM-DD, in the store's day — the day it goes to Lob. */
     mailDate: text("mail_date").notNull(),
     status: text("status").notNull().default("pending"),

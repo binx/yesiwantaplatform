@@ -20,7 +20,7 @@ export async function verifyRecipient(recipient: Recipient): Promise<Verificatio
 
 /** One recipient's identity in a list: the same person at the same address, however it was typed. */
 export function recipientKey(recipient: Recipient): string {
-  return [recipient.name, recipient.line1, recipient.line2 ?? "", recipient.city, recipient.state, recipient.postalCode.slice(0, 5)]
+  return [recipient.country, recipient.name, recipient.line1, recipient.line2 ?? "", recipient.city, recipient.state, recipient.postalCode.slice(0, 5)]
     .join("|")
     .toLowerCase()
     .replace(/[^a-z0-9|]/g, "");

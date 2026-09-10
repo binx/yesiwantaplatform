@@ -5,7 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import type { Order } from "@shared/orders";
 import { csrfPost } from "@/lib/api";
 import { useSession } from "@/lib/session";
-import { addDaysIso, todayIso, type PostcardDesign, type Recipient } from "@shared/postcards";
+import { addDaysIso, isInternational, todayIso, type PostcardDesign, type Recipient } from "@shared/postcards";
 import { formatMoney } from "@shared/money";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { DesignForm } from "@/components/postcard/DesignForm";
@@ -74,8 +74,11 @@ export function CreatePage() {
     [mode, designs, customDates, cadenceDates],
   );
 
-  const count = designs.length * recipients.length;
-  const totalCents = count * store.postcardPriceCents;
+  const abroad = recipients.filter(isInternational).length;
+  const international = designs.length * abroad;
+  const domestic = designs.length * (recipients.length - abroad);
+  const count = domestic + international;
+  const totalCents = domestic * store.postcardPriceCents + international * (store.internationalPostcardPriceCents ?? 0);
   const price = (cents: number) => formatMoney(cents, store.currency, store.locale);
 
   // A day that has passed while the tab sat open is not a day to mail on.
@@ -173,7 +176,11 @@ export function CreatePage() {
             <span className={postcard.count}>{recipients.length}</span> recipient{recipients.length === 1 ? "" : "s"}
           </span>
           <span>×</span>
-          <span>{price(store.postcardPriceCents)} each</span>
+          <span>
+            {international > 0 && store.internationalPostcardPriceCents !== null
+              ? `${price(store.postcardPriceCents)} each (${price(store.internationalPostcardPriceCents)} abroad)`
+              : `${price(store.postcardPriceCents)} each`}
+          </span>
           <span>=</span>
           <strong>{price(totalCents)}</strong>
         </p>

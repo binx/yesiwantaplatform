@@ -71,7 +71,7 @@ async function loadWith(databaseUrl: string) {
   return { ...repository, admin, orders, designs, pages, carts, customers, getDatabase, resetDatabase };
 }
 
-const RECIPIENT = { name: "Grandma", line1: "1 Test Street", line2: null, city: "Marfa", state: "TX", postalCode: "79843" };
+const RECIPIENT = { name: "Grandma", line1: "1 Test Street", line2: null, city: "Marfa", state: "TX", postalCode: "79843", country: "US" };
 
 const dialects = [
   { name: "sqlite", context: sqliteHarness() },
@@ -194,6 +194,39 @@ for (const { name, context } of dialects) {
       const edited = await db.customers.updateAddress(verified.id, customerId, { ...RECIPIENT, line1: "2 Test Street" });
       expect(edited.verifiedAt).toBeNull();
       expect((await db.customers.listAddresses(customerId)).find((a) => a.id === verified.id)?.verifiedAt).toBeNull();
+    });
+
+    it("round-trips the international price and the return address, on either engine", async () => {
+      const settings = (await db.getSettings())!;
+      const returnAddress = { name: "Postcard Gifts", line1: "185 Berry St", line2: null, city: "San Francisco", state: "CA", postalCode: "94107", country: "US" };
+      await db.admin.updateSettings({ ...settings, internationalPostcardPriceCents: 250, returnAddress });
+      const updated = (await db.getSettings())!;
+      expect(updated.internationalPostcardPriceCents).toBe(250);
+      expect(updated.returnAddress).toEqual(returnAddress);
+      expect((await db.getStoreSnapshot())?.internationalPostcardPriceCents).toBe(250);
+
+      await db.admin.updateSettings({ ...settings, internationalPostcardPriceCents: null, returnAddress: null });
+      expect((await db.getSettings())?.returnAddress).toBeNull();
+    });
+
+    it("keeps a recipient's country on the postcard, and the second price on the order", async () => {
+      const a = await design();
+      const orderId = randomUUID();
+      const abroad = { ...RECIPIENT, name: "Maya", state: "QC", postalCode: "H2X 1K4", country: "CA" };
+      await db.orders.createPendingOrder({
+        id: orderId,
+        checkoutSessionId: `cs_${orderId}`,
+        email: "buyer@example.com",
+        currency: "USD",
+        unitPriceCents: 140,
+        internationalUnitPriceCents: 250,
+        lines: [{ designs: [{ designId: a.id, mailDate: "2026-09-14" }], recipients: [RECIPIENT, abroad] }],
+      });
+      const order = (await db.orders.getOrder(orderId))!;
+      expect(order.internationalCount).toBe(1);
+      expect(order.internationalUnitPriceCents).toBe(250);
+      expect(order.subtotalCents).toBe(390);
+      expect(order.postcards.map((p) => p.recipient.country).sort()).toEqual(["CA", "US"]);
     });
 
     it("round-trips a page's booleans", async () => {

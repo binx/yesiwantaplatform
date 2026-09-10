@@ -18,7 +18,7 @@ function ok(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
 }
 
-const SENT = { name: "Grandma", line1: "185 berry street", line2: null, city: "san francisco", state: "CA", postalCode: "94107" };
+const SENT = { name: "Grandma", line1: "185 berry street", line2: null, city: "san francisco", state: "CA", postalCode: "94107", country: "US" };
 const PASSWORD = "a-sufficiently-long-test-password";
 
 beforeAll(async () => {
@@ -76,7 +76,7 @@ describe("verifyRecipient", () => {
     const { verifyRecipient } = await import("./lob.js");
     const result = await verifyRecipient(SENT);
     expect(result.changed).toBe(true);
-    expect(result.suggested).toEqual({ name: "Grandma", line1: "185 Berry St", line2: null, city: "San Francisco", state: "CA", postalCode: "94107-1728" });
+    expect(result.suggested).toEqual({ name: "Grandma", line1: "185 Berry St", line2: null, city: "San Francisco", state: "CA", postalCode: "94107-1728", country: "US" });
   });
 
   it("collapses Lob's sub-codes and keeps directionals upper-case", async () => {
@@ -90,7 +90,7 @@ describe("verifyRecipient", () => {
         primary_line: "12 NE 3RD AVE",
         components: { city: "PORTLAND", state: "OR", zip_code: "97232" },
       });
-    const missing = await verifyRecipient({ ...SENT, line1: "12 northeast 3rd avenue", city: "portland", state: "OR", postalCode: "97232" });
+    const missing = await verifyRecipient({ ...SENT, line1: "12 northeast 3rd avenue", city: "portland", state: "OR", postalCode: "97232", country: "US" });
     expect(missing.deliverability).toBe("deliverable_missing_unit");
     expect(missing.changed).toBe(true);
     expect(missing.suggested?.line1).toBe("12 NE 3rd Ave");
@@ -102,11 +102,29 @@ describe("verifyRecipient", () => {
     answer = () => new Response("bad gateway", { status: 502 });
     expect((await verifyRecipient(SENT)).deliverability).toBe("unknown");
     answer = () => new Response(JSON.stringify({ error: { message: "zip_code is invalid" } }), { status: 422 });
-    expect((await verifyRecipient({ ...SENT, postalCode: "94108" })).deliverability).toBe("unknown");
+    expect((await verifyRecipient({ ...SENT, postalCode: "94108", country: "US" })).deliverability).toBe("unknown");
     answer = () => {
       throw new TypeError("fetch failed");
     };
-    expect((await verifyRecipient({ ...SENT, postalCode: "94109" })).deliverability).toBe("unknown");
+    expect((await verifyRecipient({ ...SENT, postalCode: "94109", country: "US" })).deliverability).toBe("unknown");
+  });
+
+  it("asks Lob's international endpoint abroad, and offers no corrected form", async () => {
+    let url = "";
+    vi.stubGlobal("fetch", (input: string | URL | Request) => {
+      calls += 1;
+      url = input instanceof Request ? input.url : String(input);
+      return Promise.resolve(answer());
+    });
+    answer = () => ok({ deliverability: "deliverable" });
+    const { verifyRecipient } = await import("./lob.js");
+    const abroad = { name: "Maya", line1: "12 Rue Ste-Catherine", line2: null, city: "Montréal", state: "QC", postalCode: "H2X 1K4", country: "CA" };
+    const result = await verifyRecipient(abroad);
+    expect(url).toContain("/intl_verifications");
+    expect(result).toEqual({ deliverability: "deliverable", suggested: abroad, changed: false });
+
+    answer = () => ok({ deliverability: "undeliverable_unknown_entity" });
+    expect((await verifyRecipient({ ...abroad, postalCode: "H0H 0H0" })).deliverability).toBe("undeliverable");
   });
 
   it("asks Lob once per address", async () => {

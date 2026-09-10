@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Recipient, Verification } from "@shared/postcards";
 import type * as RecipientsLib from "@/lib/recipients";
+import { storeSchema } from "@shared/schema";
+import { demoStore } from "@shared/demo-store";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test-utils";
 import { Recipients } from "./Recipients";
 
@@ -14,7 +16,9 @@ vi.mock("@/lib/recipients", async (importOriginal) => {
   return { ...actual, verifyRecipient: (recipient: Recipient) => verifyRecipient(recipient) };
 });
 
-const TYPED: Recipient = { name: "Grandma", line1: "185 berry street", line2: null, city: "San Francisco", state: "CA", postalCode: "94107" };
+const store = storeSchema.parse(demoStore);
+
+const TYPED: Recipient = { name: "Grandma", line1: "185 berry street", line2: null, city: "San Francisco", state: "CA", postalCode: "94107", country: "US" };
 const USPS: Recipient = { ...TYPED, line1: "185 Berry St" };
 
 async function fillForm() {
@@ -30,7 +34,7 @@ describe("Recipients", () => {
   it("adds straight away when USPS agrees, or could not be asked", async () => {
     verifyRecipient.mockResolvedValue({ deliverability: "unknown", suggested: null, changed: false });
     const onChange = vi.fn();
-    renderWithProviders(<Recipients recipients={[]} onChange={onChange} />);
+    renderWithProviders(<Recipients recipients={[]} onChange={onChange} />, { store });
 
     await fillForm();
     await waitFor(() => expect(onChange).toHaveBeenCalledWith([TYPED]));
@@ -39,7 +43,7 @@ describe("Recipients", () => {
   it("offers USPS's form and adds it on 'Use this'", async () => {
     verifyRecipient.mockResolvedValue({ deliverability: "deliverable", suggested: USPS, changed: true });
     const onChange = vi.fn();
-    renderWithProviders(<Recipients recipients={[]} onChange={onChange} />);
+    renderWithProviders(<Recipients recipients={[]} onChange={onChange} />, { store });
 
     await fillForm();
     expect(await screen.findByText("USPS knows this address as:")).toBeInTheDocument();
@@ -53,7 +57,7 @@ describe("Recipients", () => {
   it("keeps the buyer's own on 'Keep mine'", async () => {
     verifyRecipient.mockResolvedValue({ deliverability: "deliverable", suggested: USPS, changed: true });
     const onChange = vi.fn();
-    renderWithProviders(<Recipients recipients={[]} onChange={onChange} />);
+    renderWithProviders(<Recipients recipients={[]} onChange={onChange} />, { store });
 
     await fillForm();
     await userEvent.click(await screen.findByRole("button", { name: "Keep mine" }));
@@ -63,7 +67,7 @@ describe("Recipients", () => {
   it("stops an address USPS does not know, and says why", async () => {
     verifyRecipient.mockResolvedValue({ deliverability: "undeliverable", suggested: null, changed: false });
     const onChange = vi.fn();
-    renderWithProviders(<Recipients recipients={[]} onChange={onChange} />);
+    renderWithProviders(<Recipients recipients={[]} onChange={onChange} />, { store });
 
     await fillForm();
     expect(await screen.findByText("USPS doesn't recognise this address.")).toBeInTheDocument();
@@ -83,6 +87,7 @@ describe("Recipients", () => {
     const onBlockedChange = vi.fn();
     renderWithProviders(
       <Recipients recipients={[TYPED, { ...TYPED, name: "Bad", line1: "1 Nowhere Rd" }]} onChange={() => {}} onBlockedChange={onBlockedChange} />,
+      { store },
     );
 
     expect(await screen.findByText("Verified")).toBeInTheDocument();

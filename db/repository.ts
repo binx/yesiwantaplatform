@@ -10,6 +10,7 @@ import {
   type Store,
   type Theme,
 } from "../shared/schema.js";
+import { recipientSchema, type Recipient } from "../shared/postcards.js";
 import { getDatabase } from "./client.js";
 import { listPageSummaries } from "./pages-repository.js";
 
@@ -59,6 +60,8 @@ interface SettingsRow {
   locale: string;
   stripePublishableKey: string | null;
   postcardPriceCents: number;
+  internationalPostcardPriceCents: number | null;
+  returnAddress: unknown;
   cartRecoveryEnabled: unknown;
   cartRecoveryDelayHours: number;
   themeColorPrimary: string;
@@ -88,6 +91,9 @@ export interface Settings {
   locale: string;
   stripePublishableKey: string | null;
   postcardPriceCents: number;
+  internationalPostcardPriceCents: number | null;
+  /** Null until the merchant sets one; international checkout refuses without it. */
+  returnAddress: Recipient | null;
   cartRecoveryEnabled: boolean;
   cartRecoveryDelayHours: number;
   theme: Theme;
@@ -109,6 +115,10 @@ export async function getSettings(): Promise<Settings | null> {
     locale: localeSchema.catch("en-US").parse(row.locale),
     stripePublishableKey: row.stripePublishableKey,
     postcardPriceCents: row.postcardPriceCents,
+    internationalPostcardPriceCents: row.internationalPostcardPriceCents,
+    // Parsed with a fallback: a hand-edited row that no longer passes reads
+    // as "no return address", which is the safe answer.
+    returnAddress: recipientSchema.nullable().catch(null).parse(parseJson(row.returnAddress, null)),
     cartRecoveryEnabled: toBool(row.cartRecoveryEnabled),
     cartRecoveryDelayHours: row.cartRecoveryDelayHours,
     theme: themeSchema.parse({
@@ -167,6 +177,7 @@ export async function getStoreSnapshot(): Promise<Store | null> {
     currency: settings.currency,
     locale: settings.locale,
     postcardPriceCents: settings.postcardPriceCents,
+    internationalPostcardPriceCents: settings.internationalPostcardPriceCents,
     theme: settings.theme,
     hero: settings.hero,
     pages,

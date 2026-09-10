@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { mailDateSchema, recipientSchema } from "./postcards.js";
+import { isInternational, mailDateSchema, recipientSchema } from "./postcards.js";
 
 /**
  * The cart.
@@ -32,6 +32,23 @@ export type CartLine = z.infer<typeof cartLineSchema>;
 /** Postcards in a line, or across several. */
 export function countPostcards(lines: readonly Pick<CartLine, "designs" | "recipients">[]): number {
   return lines.reduce((total, line) => total + line.designs.length * line.recipients.length, 0);
+}
+
+/**
+ * The same count split by destination, because the two are priced apart:
+ * Lob charges more to mail abroad and the store charges its own second price.
+ */
+export function countPostcardsByDestination(
+  lines: readonly Pick<CartLine, "designs" | "recipients">[],
+): { domestic: number; international: number } {
+  let domestic = 0;
+  let international = 0;
+  for (const line of lines) {
+    const abroad = line.recipients.filter(isInternational).length;
+    international += line.designs.length * abroad;
+    domestic += line.designs.length * (line.recipients.length - abroad);
+  }
+  return { domestic, international };
 }
 
 export const cartSyncInputSchema = z.object({

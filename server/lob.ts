@@ -8,6 +8,7 @@ import {
   PRINT_SIZES,
   cropRect,
   defaultCrop,
+  isInternational,
   recipientSchema,
   stripEmoji,
   unknownVerification,
@@ -89,8 +90,8 @@ export function retryAfterMs(header: string | null, now = Date.now()): number | 
 }
 
 export class LobNotConfiguredError extends Error {
-  constructor() {
-    super("Lob is not configured. Set LOB_API_KEY to send postcards.");
+  constructor(message = "Lob is not configured. Set LOB_API_KEY to send postcards.") {
+    super(message);
     this.name = "LobNotConfiguredError";
   }
 }
@@ -108,6 +109,11 @@ export interface SendPostcardInput {
   /** Our postcard id: Lob's idempotency key, so a retried request cannot mail two. */
   id: string;
   to: Recipient;
+  /**
+   * The shop's US address. Lob requires it on every international piece and
+   * prints it as the return address; on a domestic card it is not sent.
+   */
+  from?: Recipient | null;
   /** The print file, already at Lob's size and density. */
   front: Buffer;
   back: PostcardBack;
@@ -308,6 +314,17 @@ async function send<T>(endpoint: string, init: { headers: Record<string, string>
   return body as T;
 }
 
+/** One address block as Lob's multipart fields. State and postal code are sent only when there is one. */
+function appendAddress(form: FormData, field: "to" | "from", address: Recipient): void {
+  form.append(`${field}[name]`, address.name);
+  form.append(`${field}[address_line1]`, address.line1);
+  if (address.line2) form.append(`${field}[address_line2]`, address.line2);
+  form.append(`${field}[address_city]`, address.city);
+  if (address.state) form.append(`${field}[address_state]`, address.state);
+  if (address.postalCode) form.append(`${field}[address_zip]`, address.postalCode);
+  form.append(`${field}[address_country]`, address.country);
+}
+
 /**
  * Create one postcard at Lob.
  *
@@ -321,13 +338,15 @@ export async function sendPostcard(input: SendPostcardInput): Promise<LobPostcar
 
   const form = new FormData();
   form.append("description", input.description.slice(0, 255));
-  form.append("to[name]", input.to.name);
-  form.append("to[address_line1]", input.to.line1);
-  if (input.to.line2) form.append("to[address_line2]", input.to.line2);
-  form.append("to[address_city]", input.to.city);
-  form.append("to[address_state]", input.to.state);
-  form.append("to[address_zip]", input.to.postalCode);
-  form.append("to[address_country]", "US");
+  appendAddress(form, "to", input.to);
+
+  // Lob will not mail abroad without a US return address, and answers 422
+  // if asked to; the sweep checks before it gets here, but this is the last line.
+  if (isInternational(input.to)) {
+    if (!input.from) throw new LobNotConfiguredError("A return address is required to mail abroad. Add one in Settings → Printing.");
+    appendAddress(form, "from", input.from);
+  }
+
   form.append("size", "4x6");
   form.append("mail_type", "usps_first_class");
   form.append("use_type", env.LOB_USE_TYPE);
@@ -379,6 +398,7 @@ export async function sendTestPostcard(back: PostcardBack): Promise<LobPostcard>
       city: "San Francisco",
       state: "CA",
       postalCode: "94107",
+      country: "US",
     },
     front: sample,
     back,
@@ -417,7 +437,9 @@ export function resetVerificationCache(): void {
 const squash = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 function cacheKey(recipient: Recipient): string {
-  return [recipient.line1, recipient.line2 ?? "", recipient.city, recipient.state, recipient.postalCode.slice(0, 5)].map(squash).join("|");
+  return [recipient.country, recipient.line1, recipient.line2 ?? "", recipient.city, recipient.state, recipient.postalCode.slice(0, 5)]
+    .map(squash)
+    .join("|");
 }
 
 interface UsVerificationBody {
@@ -490,6 +512,7 @@ export function interpretVerification(sent: Recipient, body: UsVerificationBody)
     city: components.city ? titleCase(components.city) : sent.city,
     state: components.state ?? sent.state,
     postalCode: zip,
+    country: sent.country,
   });
   const suggested = parsed.success ? parsed.data : sent;
   const changed = !sameAddress(sent, suggested);
@@ -507,13 +530,25 @@ export async function verifyRecipient(recipient: Recipient): Promise<Verificatio
 
   let body: UsVerificationBody;
   try {
-    body = await postJson<UsVerificationBody>("/us_verifications", {
-      primary_line: recipient.line1,
-      secondary_line: recipient.line2 ?? "",
-      city: recipient.city,
-      state: recipient.state,
-      zip_code: recipient.postalCode,
-    });
+    // Abroad, Lob's international endpoint answers deliverable or not and
+    // offers no corrected form; the same reader copes, since it only ever
+    // suggests what Lob sends back.
+    body = isInternational(recipient)
+      ? await postJson<UsVerificationBody>("/intl_verifications", {
+          primary_line: recipient.line1,
+          secondary_line: recipient.line2 ?? "",
+          city: recipient.city,
+          state: recipient.state,
+          postal_code: recipient.postalCode,
+          country: recipient.country,
+        })
+      : await postJson<UsVerificationBody>("/us_verifications", {
+          primary_line: recipient.line1,
+          secondary_line: recipient.line2 ?? "",
+          city: recipient.city,
+          state: recipient.state,
+          zip_code: recipient.postalCode,
+        });
   } catch (error) {
     // An outage, a rate limit, or a refusal of the *request* — none is the
     // buyer's address being wrong, so none blocks them. A 4xx is logged: it

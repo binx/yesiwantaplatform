@@ -1,5 +1,6 @@
 import { recipientSchema, type Recipient } from "@shared/postcards";
 import { CsvStreamParser, detectCsvDelimiter, stripCsvBom, unguardCsvField } from "@shared/csv";
+import { COUNTRY_CODES, countryName, isCountryCode } from "@shared/countries";
 
 /**
  * A recipient list as a CSV, parsed in the browser.
@@ -16,8 +17,8 @@ import { CsvStreamParser, detectCsvDelimiter, stripCsvBom, unguardCsvField } fro
  * by hand, while the rows that passed are imported.
  */
 
-/** The fields a column can feed. `firstName` + `lastName` join into `name`; `country` waits for brief 02C. */
-type Target = keyof Recipient | "firstName" | "lastName" | "country";
+/** The fields a column can feed. `firstName` + `lastName` join into `name`. */
+type Target = keyof Recipient | "firstName" | "lastName";
 
 /** Keyed on the header with case, spaces and punctuation removed. */
 const ALIASES: Record<string, Target> = {
@@ -73,13 +74,13 @@ const FIELD_LABELS: Record<Target, string> = {
   line2: "the apartment or suite",
   city: "the city",
   state: "the state",
-  postalCode: "the ZIP",
-  country: "the country (not used yet)",
+  postalCode: "the ZIP or postal code",
+  country: "the country",
 };
 
 export const SAMPLE_CSV =
-  "name,address_line1,address_line2,address_city,address_state,address_zip\r\n" +
-  'Postcard Recipient,123 Anywhere St.,Apt 2,Anytown,CA,90210\r\n';
+  "name,address_line1,address_line2,address_city,address_state,address_zip,country\r\n" +
+  'Postcard Recipient,123 Anywhere St.,Apt 2,Anytown,CA,90210,US\r\n';
 
 export interface CsvProblem {
   line: number;
@@ -168,11 +169,12 @@ export function parseRecipientsCsv(rawText: string): CsvResult {
     let firstName = "";
     let lastName = "";
     columns.forEach((target, index) => {
-      if (!target || target === "country") return;
+      if (!target) return;
       const value = unguardCsvField(record.fields[index] ?? "").trim();
       if (target === "firstName") firstName = value;
       else if (target === "lastName") lastName = value;
       else if (target === "line2") draft.line2 = value === "" ? null : value;
+      else if (target === "country") draft.country = value === "" ? "US" : countryCode(value);
       else draft[target] = value;
     });
     if (!has("name")) draft.name = [firstName, lastName].filter(Boolean).join(" ");
@@ -190,5 +192,16 @@ export function parseRecipientsCsv(rawText: string): CsvResult {
 }
 
 function blankDraft(): Recipient {
-  return { name: "", line1: "", line2: null, city: "", state: "", postalCode: "" };
+  return { name: "", line1: "", line2: null, city: "", state: "", postalCode: "", country: "US" };
+}
+
+/** "Canada", "canada" or "CA" → "CA". A name that matches nothing is left for the schema to refuse. */
+function countryCode(value: string): string {
+  const upper = value.trim().toUpperCase();
+  if (isCountryCode(upper)) return upper;
+  const wanted = value.trim().toLowerCase();
+  if (wanted === "usa" || wanted === "united states" || wanted === "united states of america") return "US";
+  if (wanted === "uk" || wanted === "united kingdom" || wanted === "great britain") return "GB";
+  const match = COUNTRY_CODES.find((code) => countryName(code, "en").toLowerCase() === wanted);
+  return match ?? upper;
 }

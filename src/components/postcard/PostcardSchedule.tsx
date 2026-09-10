@@ -56,7 +56,7 @@ export function PostcardSchedule({
                 </td>
                 <td>
                   <div>{postcard.recipient.name}</div>
-                  <div className={styles.note}>{formatRecipient(postcard.recipient)}</div>
+                  <div className={styles.note}>{formatRecipient(postcard.recipient, locale)}</div>
                 </td>
                 <td className={styles.status}>{formatMailDate(postcard.mailDate, locale)}</td>
                 <td className={cx(styles.status, statusClass(postcard.status))}>

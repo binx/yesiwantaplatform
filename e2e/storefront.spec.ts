@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, request as playwrightRequest, test, type Page } from "@playwright/test";
+import { ADMIN_STORAGE_STATE } from "./fixtures/admin";
 
 /**
  * The buyer's path: design a card, schedule it, address it, put it in the
@@ -160,6 +161,49 @@ test("offers USPS's form of an address, and uses it on request", async ({ page }
   const list = page.getByRole("list", { name: "Recipients" });
   await expect(list).toContainText("185 Berry St, San Francisco, CA 94107");
   await expect(list).toContainText("Verified");
+});
+
+test("shows a country only once the shop mails abroad, then takes a recipient in Canada", async ({ page }) => {
+  // This test changes the shop's settings, which every worker shares; one project runs it.
+  test.skip(test.info().project.name !== "chromium", "settings are shared across workers");
+
+  // US only, as the fixture is set up: no country to choose.
+  await page.goto("/create");
+  await expect(page.getByLabel("Name")).toBeVisible();
+  await expect(page.getByLabel("Country")).toHaveCount(0);
+  await expect(page.getByLabel("ZIP")).toBeVisible();
+
+  // The owner sets a price and a return address, which is what turns international mail on.
+  const baseURL = test.info().project.use.baseURL;
+  const api = await playwrightRequest.newContext({ storageState: ADMIN_STORAGE_STATE, ...(baseURL ? { baseURL } : {}) });
+  const { csrfToken } = (await (await api.get("/api/session")).json()) as { csrfToken: string };
+  const current = (await (await api.get("/api/admin/settings")).json()) as Record<string, unknown>;
+  const returnAddress = { name: "Postcard Gifts", line1: "185 Berry St", line2: null, city: "San Francisco", state: "CA", postalCode: "94107", country: "US" };
+  const put = await api.put("/api/admin/settings", { headers: { "x-csrf-token": csrfToken }, data: { ...current, internationalPostcardPriceCents: 250, returnAddress } });
+  expect(put.ok()).toBe(true);
+
+  try {
+    await page.goto("/create");
+    const country = page.getByRole("combobox", { name: "Country" });
+    await expect(country).toBeVisible();
+    await country.fill("Canada");
+    await country.press("Enter");
+    await expect(page.getByLabel("Postal code")).toBeVisible();
+
+    await page.getByLabel("Name").fill("Maya");
+    await page.getByLabel("Street address").fill("12 Rue Ste-Catherine");
+    await page.getByLabel("City").fill("Montréal");
+    await page.getByLabel("State / province").fill("QC");
+    await page.getByLabel("Postal code").fill("H2X 1K4");
+    await page.getByRole("button", { name: "Add recipient" }).click();
+
+    const list = page.getByRole("list", { name: "Recipients" });
+    await expect(list).toContainText("12 Rue Ste-Catherine, Montréal, QC H2X 1K4, Canada");
+    await expect(page.getByText("International cards take about two weeks longer to arrive.")).toBeVisible();
+  } finally {
+    await api.put("/api/admin/settings", { headers: { "x-csrf-token": csrfToken }, data: { ...current, internationalPostcardPriceCents: null, returnAddress: null } });
+    await api.dispose();
+  }
 });
 
 test("refuses a recipient that would not fit on the card, before the cart", async ({ page }) => {

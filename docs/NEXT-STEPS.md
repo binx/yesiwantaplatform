@@ -73,8 +73,11 @@ instead of sent.
 - **Google Analytics was dropped.** v1's `UA-` property no longer exists.
   Add GA4 or a privacy-friendlier counter during the design pass if you want
   numbers.
-- **Postcards are US only**, as in v1; the recipient form enforces a
-  two-letter state and a 5-digit ZIP.
+- **Postcards are US only until you set an international price** in
+  Settings → Printing, together with the shop's own US return address, which
+  Lob prints on every card mailed abroad. Nothing has been sent abroad from
+  this codebase yet; Lob answers 422 for a destination under a postal
+  suspension, and that refusal lands on the card in the admin like any other.
 - **Old orders were not migrated** from the v1 Postgres database.
 
 ## 4. The design pass

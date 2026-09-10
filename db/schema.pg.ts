@@ -30,6 +30,10 @@ export const storeSettings = pgTable("store_settings", {
   locale: text("locale").notNull().default("en-US"),
   stripePublishableKey: text("stripe_publishable_key"),
   postcardPriceCents: integer("postcard_price_cents").notNull().default(140),
+  /** The price of a card mailed abroad. Null means the shop is US-only. */
+  internationalPostcardPriceCents: integer("international_postcard_price_cents"),
+  /** The shop's US address, in the recipient shape. Lob prints it as the return address on international mail. */
+  returnAddress: jsonb("return_address"),
   cartRecoveryEnabled: boolean("cart_recovery_enabled").notNull().default(false),
   cartRecoveryDelayHours: integer("cart_recovery_delay_hours").notNull().default(4),
   themeColorPrimary: text("theme_color_primary").notNull().default("#333333"),
@@ -159,6 +163,9 @@ export const orders = pgTable(
     currency: text("currency").notNull().default("USD"),
     unitPriceCents: integer("unit_price_cents").notNull(),
     postcardCount: integer("postcard_count").notNull(),
+    /** How many of those went abroad, and the price each of them was charged at. */
+    internationalCount: integer("international_count").notNull().default(0),
+    internationalUnitPriceCents: integer("international_unit_price_cents"),
     subtotalCents: integer("subtotal_cents").notNull().default(0),
     discountCents: integer("discount_cents").notNull().default(0),
     totalCents: integer("total_cents").notNull().default(0),
@@ -191,6 +198,8 @@ export const postcards = pgTable(
     recipientCity: text("recipient_city").notNull(),
     recipientState: text("recipient_state").notNull(),
     recipientPostalCode: text("recipient_postal_code").notNull(),
+    /** ISO 3166-1 alpha-2, what Lob's `address_country` takes. */
+    recipientCountry: text("recipient_country").notNull().default("US"),
     mailDate: text("mail_date").notNull(),
     status: text("status").notNull().default("pending"),
     lobId: text("lob_id"),

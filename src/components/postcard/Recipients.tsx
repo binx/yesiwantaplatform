@@ -2,9 +2,10 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Alert, Button, Checkbox, Modal, type InputRef } from "antd";
 import { DeleteOutlined, EditOutlined, UploadOutlined } from "@ant-design/icons";
-import { formatRecipient, type Recipient, type Verification } from "@shared/postcards";
+import { formatRecipient, isInternational, type Recipient, type Verification } from "@shared/postcards";
 import type { CustomerAddress } from "@shared/account";
 import { useAddresses, useCustomer } from "@/lib/account";
+import { useStore } from "@/lib/useStore";
 import { parseRecipientsCsv, SAMPLE_CSV, type CsvProblem, type CsvResult } from "@/lib/recipients-csv";
 import { describeVerification, recipientKey, verifyRecipient } from "@/lib/recipients";
 import { cx } from "@/lib/cx";
@@ -50,6 +51,7 @@ export function Recipients({ recipients, onChange, onBlockedChange }: Recipients
   const inFlight = useRef(new Set<string>());
   const nameRef = useRef<InputRef>(null);
   const customer = useCustomer();
+  const store = useStore();
   const check = useRecipientCheck();
 
   const set = (key: keyof Recipient, value: string) => {
@@ -178,7 +180,7 @@ export function Recipients({ recipients, onChange, onBlockedChange }: Recipients
           submit();
         }}
       >
-        <RecipientFields draft={draft} errors={errors} onChange={set} nameRef={nameRef} />
+        <RecipientFields draft={draft} errors={errors} onChange={set} nameRef={nameRef} locale={store.locale} allowInternational={store.internationalPostcardPriceCents !== null} />
         <div className={styles.recipientActions}>
           <Button type="primary" htmlType="submit" loading={check.verifying}>
             {editing === null ? "Add recipient" : "Save changes"}
@@ -198,7 +200,7 @@ export function Recipients({ recipients, onChange, onBlockedChange }: Recipients
             </span>
           )}
         </div>
-        {check.check ? <VerificationNotice check={check.check} onUse={check.useSuggested} onKeep={check.keepMine} onDismiss={check.dismiss} /> : null}
+        {check.check ? <VerificationNotice check={check.check} locale={store.locale} onUse={check.useSuggested} onKeep={check.keepMine} onDismiss={check.dismiss} /> : null}
       </form>
 
       <ol className={styles.recipientList} aria-label="Recipients">
@@ -210,7 +212,7 @@ export function Recipients({ recipients, onChange, onBlockedChange }: Recipients
               <span className={styles.badge}>{index + 1}</span>
               <span className={styles.recipientText}>
                 <strong>{recipient.name}</strong>
-                <span>{formatRecipient(recipient)}</span>
+                <span>{formatRecipient(recipient, store.locale)}</span>
                 {status?.deliverability === "deliverable" && !status.changed ? (
                   <span className={styles.verifiedChip}>Verified</span>
                 ) : note?.tone === "suggest" || note?.tone === "warn" ? (
@@ -225,6 +227,7 @@ export function Recipients({ recipients, onChange, onBlockedChange }: Recipients
                 {reviewing === index && reviewed && reviewedStatus ? (
                   <VerificationNotice
                     check={{ value: reviewed, verification: reviewedStatus }}
+                    locale={store.locale}
                     onUse={() => {
                       const suggested = reviewedStatus.suggested ?? reviewed;
                       onChange(recipients.map((r, i) => (i === index ? suggested : r)));
@@ -248,6 +251,10 @@ export function Recipients({ recipients, onChange, onBlockedChange }: Recipients
           );
         })}
       </ol>
+
+      {recipients.some(isInternational) ? (
+        <p className={styles.note}>International cards take about two weeks longer to arrive.</p>
+      ) : null}
 
       {suggestions > 1 ? (
         <p className={styles.recipientActions}>
@@ -303,7 +310,7 @@ export function Recipients({ recipients, onChange, onBlockedChange }: Recipients
           onAdd={(list) => {
             // Ones Lob already called deliverable are not asked about again.
             mark(list.filter((address) => address.verifiedAt !== null).map((address) => [recipientKey(address), VERIFIED]));
-            onChange([...recipients, ...list.map(({ name, line1, line2, city, state, postalCode }) => ({ name, line1, line2, city, state, postalCode }))]);
+            onChange([...recipients, ...list.map(({ name, line1, line2, city, state, postalCode, country }) => ({ name, line1, line2, city, state, postalCode, country }))]);
           }}
         />
       ) : null}

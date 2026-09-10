@@ -533,3 +533,7 @@
   align-self: flex-start;
   margin-top: 0.25rem;
 }
+
+.countrySelect {
+  width: 100%;
+}

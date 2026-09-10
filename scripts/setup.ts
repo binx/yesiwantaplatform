@@ -473,6 +473,8 @@ async function main(): Promise<void> {
       currency,
       locale: "en-US",
       stripePublishableKey: publishableKey?.startsWith("pk_") ? publishableKey : null,
+      internationalPostcardPriceCents: null,
+      returnAddress: null,
       postcardPriceCents: priceCents,
       // Off until the merchant opts in from Settings — see the Settings copy.
       cartRecoveryEnabled: false,

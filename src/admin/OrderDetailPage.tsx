@@ -151,7 +151,10 @@ export function OrderDetailPage() {
             <Descriptions column={1} size="small" bordered>
               <Descriptions.Item label="Email">{current.email}</Descriptions.Item>
               <Descriptions.Item label="Postcards">
-                {current.postcardCount} × {price(current.unitPriceCents)}
+                {current.postcardCount - current.internationalCount} × {price(current.unitPriceCents)}
+                {current.internationalCount > 0 && current.internationalUnitPriceCents !== null
+                  ? ` + ${current.internationalCount} abroad × ${price(current.internationalUnitPriceCents)}`
+                  : ""}
               </Descriptions.Item>
               <Descriptions.Item label="Subtotal">{price(current.subtotalCents)}</Descriptions.Item>
               {current.discountCents > 0 ? (

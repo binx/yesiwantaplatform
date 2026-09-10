@@ -4,6 +4,7 @@ import { formatRecipient, type Recipient } from "@shared/postcards";
 import type { AddressInput, CustomerAddress } from "@shared/account";
 import { useAddresses, useCreateAddress, useDeleteAddress, useUpdateAddress } from "@/lib/account";
 import { cx } from "@/lib/cx";
+import { useStore } from "@/lib/useStore";
 import { BLANK_RECIPIENT, useRecipientCheck, validateRecipient, type RecipientErrors } from "@/lib/recipient-form";
 import { RecipientFields, VerificationNotice } from "@/components/postcard/RecipientFields";
 import postcard from "@/components/postcard/Postcard.module.css";
@@ -34,6 +35,7 @@ function RecipientForm({
   const [draft, setDraft] = useState<Recipient>(initial);
   const [errors, setErrors] = useState<RecipientErrors>({});
   const check = useRecipientCheck();
+  const store = useStore();
 
   const set = (key: keyof Recipient, value: string) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -55,9 +57,9 @@ function RecipientForm({
     >
       {error ? <Alert className={cx(styles.alert)} type="error" showIcon title={error} /> : null}
 
-      <RecipientFields draft={draft} errors={errors} onChange={set} />
+      <RecipientFields draft={draft} errors={errors} onChange={set} locale={store.locale} allowInternational={store.internationalPostcardPriceCents !== null} />
 
-      {check.check ? <VerificationNotice check={check.check} onUse={check.useSuggested} onKeep={check.keepMine} onDismiss={check.dismiss} /> : null}
+      {check.check ? <VerificationNotice check={check.check} locale={store.locale} onUse={check.useSuggested} onKeep={check.keepMine} onDismiss={check.dismiss} /> : null}
 
       <div className={postcard.recipientActions}>
         <Button type="primary" htmlType="submit" loading={saving || check.verifying}>
@@ -73,6 +75,7 @@ function RecipientForm({
 
 export function AccountAddressesPage() {
   const addresses = useAddresses();
+  const store = useStore();
   const create = useCreateAddress();
   const update = useUpdateAddress();
   const remove = useDeleteAddress();
@@ -102,7 +105,7 @@ export function AccountAddressesPage() {
         editing === address.id ? (
           <div key={address.id} className={cx(styles.card)}>
             <RecipientForm
-              initial={{ name: address.name, line1: address.line1, line2: address.line2, city: address.city, state: address.state, postalCode: address.postalCode }}
+              initial={{ name: address.name, line1: address.line1, line2: address.line2, city: address.city, state: address.state, postalCode: address.postalCode, country: address.country }}
               saving={update.isPending}
               error={update.error instanceof Error ? update.error.message : null}
               onCancel={() => setEditing(null)}
@@ -113,6 +116,7 @@ export function AccountAddressesPage() {
           <RecipientCard
             key={address.id}
             address={address}
+            locale={store.locale}
             onEdit={() => setEditing(address.id)}
             onDelete={() => remove.mutate(address.id)}
             deleting={remove.isPending}
@@ -139,11 +143,13 @@ export function AccountAddressesPage() {
 
 function RecipientCard({
   address,
+  locale,
   onEdit,
   onDelete,
   deleting,
 }: {
   address: CustomerAddress;
+  locale: string;
   onEdit: () => void;
   onDelete: () => void;
   deleting: boolean;
@@ -155,7 +161,7 @@ function RecipientCard({
           <strong>{address.name}</strong>
           {address.verifiedAt ? <span className={cx(styles.default)}>Verified</span> : null}
           <br />
-          {formatRecipient(address)}
+          {formatRecipient(address, locale)}
         </p>
         <div className={cx(styles.cardActions)}>
           <Button size="small" onClick={onEdit}>

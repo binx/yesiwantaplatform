@@ -66,3 +66,9 @@
   margin: 0;
   font-weight: 600;
 }
+
+.returnAddress {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 32rem;
+}

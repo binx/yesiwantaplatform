@@ -21,7 +21,7 @@ let createSession: ReturnType<typeof vi.fn>;
 
 const WEBHOOK_SECRET = "whsec_postcards_fake_webhook_secret";
 
-const RECIPIENT = { name: "Grandma", line1: "1 Test Street", line2: null, city: "Marfa", state: "TX", postalCode: "79843" };
+const RECIPIENT = { name: "Grandma", line1: "1 Test Street", line2: null, city: "Marfa", state: "TX", postalCode: "79843", country: "US" };
 
 /** A saved design, through the real upload route. */
 async function design(): Promise<string> {
@@ -39,6 +39,19 @@ async function setPrice(cents: number) {
   const { getDatabase } = await import("../db/client.js");
   const { drizzle: db, schema } = await getDatabase();
   await db.update(schema.storeSettings).set({ postcardPriceCents: cents }).where(eq(schema.storeSettings.id, 1));
+}
+
+const ABROAD = { name: "Maya", line1: "12 Rue Ste-Catherine", line2: null, city: "Montréal", state: "QC", postalCode: "H2X 1K4", country: "CA" };
+const RETURN_ADDRESS = { name: "Postcard Gifts", line1: "185 Berry St", line2: null, city: "San Francisco", state: "CA", postalCode: "94107", country: "US" };
+
+async function setInternational(cents: number | null, returnAddress: typeof RETURN_ADDRESS | null) {
+  const { getDatabase } = await import("../db/client.js");
+  const { jsonFor } = await import("../db/repository.js");
+  const { drizzle: db, schema, dialect } = await getDatabase();
+  await db
+    .update(schema.storeSettings)
+    .set({ internationalPostcardPriceCents: cents, returnAddress: returnAddress ? jsonFor(dialect, returnAddress) : null })
+    .where(eq(schema.storeSettings.id, 1));
 }
 
 function signedEvent(event: Record<string, unknown>) {
@@ -146,6 +159,44 @@ describe("checkout", () => {
     const { params } = await startCheckout([{ designs: [{ designId, mailDate: todayIso() }], recipients: [RECIPIENT] }]);
     expect(params.line_items?.[0]?.price_data?.unit_amount).toBe(200);
     await setPrice(140);
+  });
+
+  it("prices a card mailed abroad on its own line, from settings", async () => {
+    await setPrice(140);
+    await setInternational(250, RETURN_ADDRESS);
+    const designId = await design();
+    const today = todayIso();
+
+    const { params, orderId } = await startCheckout([{ designs: [{ designId, mailDate: today }], recipients: [RECIPIENT, ABROAD, ABROAD] }]);
+    expect(params.line_items).toHaveLength(2);
+    expect(params.line_items?.[0]).toMatchObject({ quantity: 1, price_data: { unit_amount: 140 } });
+    expect(params.line_items?.[1]).toMatchObject({ quantity: 2, price_data: { unit_amount: 250, product_data: { name: "International postcards" } } });
+
+    const { getOrder } = await import("../db/orders-repository.js");
+    const order = (await getOrder(orderId))!;
+    expect(order.postcardCount).toBe(3);
+    expect(order.internationalCount).toBe(2);
+    expect(order.internationalUnitPriceCents).toBe(250);
+    expect(order.subtotalCents).toBe(140 + 500);
+    expect(order.postcards.filter((p) => p.recipient.country === "CA")).toHaveLength(2);
+
+    await setInternational(null, null);
+  });
+
+  it("refuses a foreign recipient when the shop has no international price or no return address", async () => {
+    const designId = await design();
+    const line = { designs: [{ designId, mailDate: todayIso() }], recipients: [ABROAD] };
+
+    await setInternational(null, RETURN_ADDRESS);
+    let response = await request(app).post("/api/checkout").send({ lines: [line] }).expect(409);
+    expect(response.body.error).toMatch(/outside the United States/);
+
+    await setInternational(250, null);
+    response = await request(app).post("/api/checkout").send({ lines: [line] }).expect(409);
+    expect(response.body.error).toMatch(/outside the United States/);
+    expect(createSession).not.toHaveBeenCalled();
+
+    await setInternational(null, null);
   });
 
   it("refuses a design that does not exist", async () => {

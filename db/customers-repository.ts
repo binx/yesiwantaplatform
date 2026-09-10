@@ -20,6 +20,7 @@ interface AddressRow {
   city: string;
   state: string;
   postalCode: string;
+  country: string;
   verifiedAt: unknown;
 }
 
@@ -32,6 +33,7 @@ function buildAddress(row: AddressRow): CustomerAddress {
     city: row.city,
     state: row.state,
     postalCode: row.postalCode,
+    country: row.country,
     verifiedAt: row.verifiedAt === null || row.verifiedAt === undefined ? null : toEpochMs(row.verifiedAt),
   };
 }
@@ -80,7 +82,7 @@ export async function createAddress(customerId: string, input: AddressInput, opt
     city: input.city,
     state: input.state,
     postalCode: input.postalCode,
-    country: "US",
+    country: input.country,
     verifiedAt,
   });
 
@@ -96,7 +98,7 @@ export async function createAddress(customerId: string, input: AddressInput, opt
 export async function saveRecipientsFromOrder(customerId: string, recipients: AddressInput[]): Promise<number> {
   const existing = await listAddresses(customerId);
   const key = (r: AddressInput) =>
-    [r.name, r.line1, r.line2 ?? "", r.city, r.state, r.postalCode].join("|").toLowerCase();
+    [r.name, r.line1, r.line2 ?? "", r.city, r.state, r.postalCode, r.country].join("|").toLowerCase();
   const seen = new Set(existing.map(key));
 
   let added = 0;
@@ -134,6 +136,7 @@ export async function updateAddress(id: string, customerId: string, input: Addre
       city: input.city,
       state: input.state,
       postalCode: input.postalCode,
+      country: input.country,
       verifiedAt,
     })
     .where(eq(schema.customerAddresses.id, id));

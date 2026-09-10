@@ -9,7 +9,7 @@ blocked_by: ["03", "05"]
 blocks: []
 touches: print/back.hbs · src/components/postcard/PostcardBackMock.tsx · shared/cart.ts:24 · server/routes/checkout.ts:37 · server/routes/account.ts:82 · db/orders-repository.ts:38
 completed: 2026-09-10
-shipped_in:
+shipped_in: "#13"
 summary: >-
   Every card gets a QR code printed on the back. Holding the card is the credential:
   the code opens the card online, lets the recipient tap "it arrived" with a note the

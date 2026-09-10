@@ -48,6 +48,35 @@ test("designs a card, adds a recipient and sees the right total in the cart", as
   await expect(page.getByText("$1.40").first()).toBeVisible();
 });
 
+test("mails two designs on two chosen dates", async ({ page }) => {
+  await designOne(page);
+
+  // A second design, saved on the same page so the first is still there.
+  await page.locator('input[type="file"][accept="image/*"]').setInputFiles({ name: "photo2.png", mimeType: "image/png", buffer: PNG });
+  await page.getByRole("button", { name: "Save this design" }).click();
+  await expect(page.getByRole("button", { name: "Remove design 2" })).toBeVisible();
+
+  await page.getByText("Pick each date").click();
+  const farOff = new Date();
+  farOff.setDate(farOff.getDate() + 40);
+  const target = farOff.toISOString().slice(0, 10);
+  await page.getByLabel("Mail date for design 2").fill(target);
+  await expect(page.getByLabel("Mail date for design 2")).toHaveValue(target);
+
+  await page.getByLabel("Name").fill("Grandma");
+  await page.getByLabel("Street address").fill("1 Test Street");
+  await page.getByLabel("City").fill("Marfa");
+  await page.getByLabel("State").fill("TX");
+  await page.getByLabel("ZIP").fill("79843");
+  await page.getByRole("button", { name: "Add recipient" }).click();
+
+  await page.getByRole("button", { name: "Add to cart" }).click();
+  await expect(page).toHaveURL(/\/cart$/);
+  await expect(page.getByText("2 designs to 1 recipient")).toBeVisible();
+  // Two dates, forty days apart, not one plus a cadence.
+  await expect(page.getByText(/Mailed .+ to .+/)).toBeVisible();
+});
+
 test("refuses a recipient that would not fit on the card, before the cart", async ({ page }) => {
   await page.goto("/create");
   await page.getByLabel("Name").fill("Grandma");

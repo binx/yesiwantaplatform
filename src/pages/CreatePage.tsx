@@ -10,7 +10,7 @@ import { formatMoney } from "@shared/money";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { DesignForm } from "@/components/postcard/DesignForm";
 import { Recipients } from "@/components/postcard/Recipients";
-import { Schedule } from "@/components/postcard/Schedule";
+import { Schedule, type ScheduleMode } from "@/components/postcard/Schedule";
 import { useStore } from "@/lib/useStore";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useCart } from "@/store/cart";
@@ -53,14 +53,23 @@ export function CreatePage() {
 
   const [designs, setDesigns] = useState<PostcardDesign[]>([]);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [mode, setMode] = useState<ScheduleMode>("cadence");
   const [startDate, setStartDate] = useState(todayIso);
   const [cadenceDays, setCadenceDays] = useState(7);
+  // Custom mode's dates, by design id. Kept even while cadence mode is showing,
+  // so flipping the toggle twice does not lose what was typed.
+  const [customDates, setCustomDates] = useState<Record<string, string>>({});
 
-  // The first design mails on the start date, each later one N days after
-  // the last. Derived, never stored, so changing the cadence moves every card.
-  const scheduled = useMemo(
+  // Cadence: the first design mails on the start date, each later one N days
+  // after the last. Derived, never stored, so changing the cadence moves every
+  // card. Custom: whatever was typed under each design.
+  const cadenceDates = useMemo(
     () => designs.map((design, index) => ({ design, mailDate: addDaysIso(startDate, index * cadenceDays) })),
     [designs, startDate, cadenceDays],
+  );
+  const scheduled = useMemo(
+    () => (mode === "custom" ? designs.map((design) => ({ design, mailDate: customDates[design.id] ?? todayIso() })) : cadenceDates),
+    [mode, designs, customDates, cadenceDates],
   );
 
   const count = designs.length * recipients.length;
@@ -69,8 +78,46 @@ export function CreatePage() {
 
   // A day that has passed while the tab sat open is not a day to mail on.
   useEffect(() => {
-    if (startDate < todayIso()) setStartDate(todayIso());
-  }, [startDate]);
+    const today = todayIso();
+    if (startDate < today) setStartDate(today);
+    setCustomDates((current) => {
+      const late = Object.entries(current).filter(([, date]) => date < today);
+      if (late.length === 0) return current;
+      return { ...current, ...Object.fromEntries(late.map(([id]) => [id, today])) };
+    });
+  }, [startDate, customDates]);
+
+  // Switching to custom starts from the dates the buyer could already see.
+  const changeMode = (next: ScheduleMode) => {
+    if (next === "custom" && mode !== "custom") {
+      setCustomDates(Object.fromEntries(cadenceDates.map(({ design, mailDate }) => [design.id, mailDate])));
+    }
+    setMode(next);
+  };
+
+  const setCustomDate = (designId: string, date: string) =>
+    setCustomDates((current) => ({ ...current, [designId]: date }));
+
+  // A design saved in custom mode picks up the latest date already chosen:
+  // the fifth card of a countdown moves on from the fourth, not from today.
+  const addDesign = (design: PostcardDesign) => {
+    setDesigns((current) => [...current, design]);
+    if (mode === "custom") {
+      setCustomDates((current) => {
+        const latest = Object.values(current).sort().at(-1) ?? todayIso();
+        return { ...current, [design.id]: latest };
+      });
+    }
+  };
+
+  const arriveBy = (designId: string, mailDate: string) => {
+    if (mode === "cadence" && designs.length === 1) {
+      setStartDate(mailDate);
+      return;
+    }
+    changeMode("custom");
+    setCustomDate(designId, mailDate);
+  };
 
   const addToCart = () => {
     add({
@@ -86,17 +133,21 @@ export function CreatePage() {
 
       <section className={cx(styles.panel)} aria-labelledby="design-heading">
         <h2 id="design-heading">1. Create a postcard design</h2>
-        <DesignForm onSaved={(design) => setDesigns((current) => [...current, design])} />
+        <DesignForm onSaved={addDesign} />
       </section>
 
       <section className={cx(styles.panel)} aria-labelledby="schedule-heading">
         <h2 id="schedule-heading">2. Postcard schedule</h2>
         <Schedule
           items={scheduled}
+          mode={mode}
           startDate={startDate}
           cadenceDays={cadenceDays}
+          onModeChange={changeMode}
           onStartDateChange={setStartDate}
           onCadenceChange={setCadenceDays}
+          onDateChange={setCustomDate}
+          onArriveBy={arriveBy}
           onRemove={(index) => setDesigns((current) => current.filter((_, i) => i !== index))}
           locale={store.locale}
         />

@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, Button, Skeleton } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
 import { useMutation } from "@tanstack/react-query";
-import { countPostcards } from "@shared/cart";
+import { countPostcards, countPostcardsByDestination, type CartLine } from "@shared/cart";
 import { formatMoney } from "@shared/money";
 import { formatRecipient } from "@shared/postcards";
 import { ApiError, apiPost } from "@/lib/api";
@@ -61,6 +61,11 @@ export function CartPage() {
 
   const price = (cents: number) => formatMoney(cents, store.currency, store.locale);
   const total = countPostcards(lines);
+  const cost = (of: CartLine[]) => {
+    const { domestic, international } = countPostcardsByDestination(of);
+    return domestic * store.postcardPriceCents + international * (store.internationalPostcardPriceCents ?? 0);
+  };
+  const abroad = countPostcardsByDestination(lines).international;
   const known = designs.data;
   const missing = known ? designIds.filter((id) => !known.has(id)).length : 0;
 
@@ -148,7 +153,7 @@ export function CartPage() {
                         {line.recipients.map((recipient, i) => (
                           <li key={i}>
                             <strong>{recipient.name}</strong>
-                            <span className={styles.meta}>{formatRecipient(recipient)}</span>
+                            <span className={styles.meta}>{formatRecipient(recipient, store.locale)}</span>
                           </li>
                         ))}
                       </ul>
@@ -156,9 +161,11 @@ export function CartPage() {
                   </div>
 
                   <div className={styles.lineTotal}>
-                    <span>{price(count * store.postcardPriceCents)}</span>
+                    <span>{price(cost([line]))}</span>
                     <span className={styles.meta}>
-                      {count} × {price(store.postcardPriceCents)}
+                      {countPostcardsByDestination([line]).international > 0
+                        ? `${count} postcards, ${countPostcardsByDestination([line]).international} abroad`
+                        : `${count} × ${price(store.postcardPriceCents)}`}
                     </span>
                   </div>
 
@@ -181,8 +188,9 @@ export function CartPage() {
             <div className={styles.subtotal}>
               <span>
                 Subtotal · {total} postcard{total === 1 ? "" : "s"}
+                {abroad > 0 ? ` (${abroad} abroad)` : ""}
               </span>
-              <strong>{price(total * store.postcardPriceCents)}</strong>
+              <strong>{price(cost(lines))}</strong>
             </div>
 
             <p className={styles.note}>Discount codes can be entered at checkout.</p>

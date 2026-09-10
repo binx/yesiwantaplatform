@@ -450,3 +450,90 @@
 .arriveBy p {
   margin: 0;
 }
+
+/* ---------------------------------------------------------- CSV import preview */
+
+.csvMapping {
+  margin: 0.75rem 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.8125rem;
+}
+
+.csvPreview {
+  width: 100%;
+  margin-top: 0.75rem;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.csvPreview th,
+.csvPreview td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--beluga-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.csvPreview th {
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.6875rem;
+  color: var(--beluga-muted);
+}
+
+.csvActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.pendingRows {
+  margin: 1rem 0 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--beluga-line);
+  border-left: 3px solid var(--beluga-accent);
+  font-size: 0.8125rem;
+}
+
+.pendingRows ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.pendingRows li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+/* ------------------------------------------------------- address verification */
+
+.verificationNotice {
+  margin-top: 1rem;
+}
+
+.suggestedAddress {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.verifiedChip {
+  display: inline-block;
+  margin-top: 0.15rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--beluga-muted);
+}
+
+.chipButton {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+}
+
+.countrySelect {
+  width: 100%;
+}

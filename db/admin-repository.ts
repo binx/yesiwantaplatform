@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { SettingsInput } from "../shared/api.js";
 import { getDatabase } from "./client.js";
+import { jsonFor } from "./repository.js";
 
 /**
  * Admin writes.
@@ -24,7 +25,7 @@ function blankToNull(value: string | null): string | null {
 }
 
 export async function updateSettings(input: SettingsInput): Promise<void> {
-  const { drizzle: db, schema } = await getDatabase();
+  const { drizzle: db, schema, dialect } = await getDatabase();
 
   const values = {
     name: input.name,
@@ -32,6 +33,8 @@ export async function updateSettings(input: SettingsInput): Promise<void> {
     locale: input.locale,
     stripePublishableKey: input.stripePublishableKey,
     postcardPriceCents: input.postcardPriceCents,
+    internationalPostcardPriceCents: input.internationalPostcardPriceCents,
+    returnAddress: input.returnAddress ? jsonFor(dialect, input.returnAddress) : null,
     cartRecoveryEnabled: input.cartRecoveryEnabled,
     cartRecoveryDelayHours: input.cartRecoveryDelayHours,
     themeColorPrimary: input.theme.colorPrimary,

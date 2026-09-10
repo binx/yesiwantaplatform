@@ -114,6 +114,8 @@ setupRouter.post("/setup", setupRateLimit, verifyCsrf, async (req, res) => {
       currency: input.currency.toUpperCase(),
       locale: "en-US",
       stripePublishableKey: input.stripePublishableKey,
+      internationalPostcardPriceCents: null,
+      returnAddress: null,
       // v1's price, and the one on the landing page copy. Settings is where
       // it changes.
       postcardPriceCents: existing?.postcardPriceCents ?? 140,

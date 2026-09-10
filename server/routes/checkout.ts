@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
+import type Stripe from "stripe";
 import { checkoutRequestSchema } from "../../shared/orders.js";
-import { countPostcards, type CartLine } from "../../shared/cart.js";
+import { countPostcardsByDestination, type CartLine } from "../../shared/cart.js";
 import { todayIso } from "../../shared/postcards.js";
-import { getSettings } from "../../db/repository.js";
+import { getSettings, type Settings } from "../../db/repository.js";
 import { findDesignsByIds } from "../../db/designs-repository.js";
 import { createPendingOrder, findOrderByCheckoutSession } from "../../db/orders-repository.js";
 import { env } from "../env.js";
@@ -58,6 +59,21 @@ export async function assertOrderable(lines: CartLine[]): Promise<void> {
   }
 }
 
+/**
+ * Whether the shop can mail where a cart is going.
+ *
+ * A foreign recipient needs two things the merchant sets: a price for the
+ * card and a US return address, which Lob requires on every international
+ * piece. Refused here, before Stripe, with one sentence a buyer can act on.
+ */
+export function assertMailable(lines: CartLine[], settings: Pick<Settings, "internationalPostcardPriceCents" | "returnAddress">): void {
+  const { international } = countPostcardsByDestination(lines);
+  if (international === 0) return;
+  if (settings.internationalPostcardPriceCents === null || !settings.returnAddress) {
+    throw httpError(409, "This shop can't mail postcards outside the United States yet. Remove the international recipients to continue.");
+  }
+}
+
 checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
   const stripe = getStripe();
   if (!stripe) {
@@ -79,9 +95,41 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
   // Every design has to exist, unordered, right now, and every date has to
   // be one Lob can still act on.
   await assertOrderable(lines);
+  assertMailable(lines, settings);
 
-  const quantity = countPostcards(lines);
+  const { domestic, international } = countPostcardsByDestination(lines);
   const unitPriceCents = settings.postcardPriceCents;
+  const internationalUnitPriceCents = international > 0 ? settings.internationalPostcardPriceCents : null;
+
+  // Two line items when the batch crosses a border, because the two are
+  // priced apart. Both prices come from settings, never from the cart.
+  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
+  if (domestic > 0) {
+    lineItems.push({
+      quantity: domestic,
+      price_data: {
+        currency,
+        unit_amount: unitPriceCents,
+        product_data: {
+          name: domestic === 1 ? "Postcard" : "Postcards",
+          description: `${domestic} custom postcard${domestic === 1 ? "" : "s"}, printed and mailed on the dates you chose.`,
+        },
+      },
+    });
+  }
+  if (international > 0 && internationalUnitPriceCents !== null) {
+    lineItems.push({
+      quantity: international,
+      price_data: {
+        currency,
+        unit_amount: internationalUnitPriceCents,
+        product_data: {
+          name: international === 1 ? "International postcard" : "International postcards",
+          description: `${international} custom postcard${international === 1 ? "" : "s"} mailed outside the United States, on the dates you chose.`,
+        },
+      },
+    });
+  }
 
   // Minted up front so it can travel in the session's metadata; the webhook
   // uses it to find this order without having to reconstruct the cart.
@@ -92,19 +140,7 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
   const session = await stripe.checkout.sessions.create(
     {
       mode: "payment",
-      line_items: [
-        {
-          quantity,
-          price_data: {
-            currency,
-            unit_amount: unitPriceCents,
-            product_data: {
-              name: quantity === 1 ? "Postcard" : "Postcards",
-              description: `${quantity} custom postcard${quantity === 1 ? "" : "s"}, printed and mailed on the dates you chose.`,
-            },
-          },
-        },
-      ],
+      line_items: lineItems,
       ...(customer ? { customer_email: customer.email } : {}),
       // Stripe hosts the whole promotion-code flow; codes are created in the
       // Stripe dashboard and this only records what came off.
@@ -129,6 +165,7 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
     email: session.customer_details?.email ?? customer?.email ?? "",
     currency: settings.currency,
     unitPriceCents,
+    internationalUnitPriceCents,
     lines,
     customerId: customer?.id ?? null,
   });

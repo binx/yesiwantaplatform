@@ -93,6 +93,7 @@ const CUSTOMER_MUTATIONS = [
 const CUSTOMER_READS = ["/api/account/orders", "/api/account/orders/some-order", "/api/account/addresses"] as const;
 
 const PUBLIC_CART_TOKEN_ROUTES = ["/api/cart/recover", "/api/cart/unsubscribe"] as const;
+const PUBLIC_WRITE_ROUTES = ["/api/recipients/verify"] as const;
 const ADMIN_PASSWORD_RESET_ROUTES = ["/api/session/forgot-password", "/api/session/reset-password"] as const;
 
 describe("anonymous access", () => {
@@ -260,6 +261,10 @@ describe("customer routes", () => {
 
   it.each(PUBLIC_CART_TOKEN_ROUTES)("still requires a CSRF token on %s", async (path) => {
     await request(app).post(path).send({ token: "not-a-real-token" }).expect(403);
+  });
+
+  it.each(PUBLIC_WRITE_ROUTES)("still requires a CSRF token on %s", async (path) => {
+    await request(app).post(path).send({}).expect(403);
   });
 });
 

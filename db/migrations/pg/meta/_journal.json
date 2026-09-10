@@ -8,6 +8,20 @@
       "when": 1788997627536,
       "tag": "0000_clever_jane_foster",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789018129170,
+      "tag": "0001_new_switch",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789018834587,
+      "tag": "0002_exotic_vulcan",
+      "breakpoints": true
     }
   ]
 }

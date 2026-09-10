@@ -1,15 +1,15 @@
 ---
 task: "02"
 title: "Recipients: CSV matching, address verification, international"
-status: todo
+status: done
 tier: 1
 size: L
 migration: columns on postcards, customer_addresses, store_settings, orders
 blocked_by: []
 blocks: ["04"]
 touches: src/lib/recipients-csv.ts · shared/csv.ts:78 · shared/postcards.ts:78 · server/lob.ts · src/components/postcard/Recipients.tsx · server/routes/checkout.ts
-completed:
-shipped_in:
+completed: 2026-09-10
+shipped_in: 5, 6, 7
 summary: >-
   Three things about who a card goes to. **A:** the CSV importer wants exact column names
   and refuses a whole file for one bad row; make it read what spreadsheets actually export.
@@ -20,6 +20,27 @@ summary: >-
 ---
 
 # 02 · Recipients: CSV matching, address verification, international
+
+## Progress
+
+- **A** built. Headers are normalised and matched against an alias table
+  (first + last name join), the byte-order mark is stripped, semicolons are
+  detected, the modal previews the mapping and the first rows before
+  importing, good rows import while bad ones are listed with Edit/Skip and
+  a four-digit ZIP gets the leading-zero message.
+- **B** built. `verifyRecipient` in `server/lob.ts` (US verifications, a
+  day's cache, `unknown` on any failure), `POST /api/recipients/verify`
+  behind `verifyRateLimit`, `customer_addresses.verified_at`, and the shared
+  `RecipientFields` + `VerificationNotice` used by the designer and the
+  account page. A refused address keeps the batch out of the cart.
+- **C** built. `country` on `recipientSchema` with US-only state/ZIP rules,
+  `recipient_country` on postcards, an international price and a US return
+  address in settings (Settings → Printing), a second Stripe line item, the
+  order's own international count and price, `from[…]` on every foreign card
+  in the sweep (parked in our words when the return address is missing),
+  Lob's `intl_verifications` for foreign addresses, a country select that
+  only appears once the shop has an international price, and the CSV's
+  `country` column live.
 
 Three parts. **A and B ship independently. C depends on both**: it adds a
 country column to the CSV and needs the verification call to pick Lob's

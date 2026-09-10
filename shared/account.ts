@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { recipientSchema } from "./postcards.js";
+import { normaliseRecipient, recipientFieldsSchema, recipientSchema, refineRecipient } from "./postcards.js";
 
 /**
  * Storefront customer accounts.
@@ -45,9 +45,14 @@ export const verifyEmailInputSchema = z.object({
  */
 export const addressInputSchema = recipientSchema;
 
-export const customerAddressSchema = addressInputSchema.extend({
-  id: z.string(),
-});
+export const customerAddressSchema = recipientFieldsSchema
+  .extend({
+    id: z.string(),
+    /** When Lob's verification last called it deliverable; the designer skips re-checking these. */
+    verifiedAt: z.number().int().nullable().default(null),
+  })
+  .superRefine(refineRecipient)
+  .transform(normaliseRecipient);
 
 /** A customer, as the client is allowed to see it. No hashes, no tokens. */
 export const customerProfileSchema = z.object({

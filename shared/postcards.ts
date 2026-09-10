@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { imageSchema } from "./schema.js";
+import { countryName, isCountryCode } from "./countries.js";
 
 /**
  * The postcard itself — everything the storefront, the API and the print
@@ -126,25 +127,75 @@ export const defaultPostcardBack: PostcardBack = {
  * The limits are Lob's: 40 characters for a name and 64 for an address line
  * is what fits on the card, and a longer value is refused by their API after
  * the money has been taken — so it is refused here first, while the buyer is
- * still looking at the field. US only, because Lob's postcard product is.
+ * still looking at the field.
+ *
+ * A US address needs a two-letter state and a five-digit ZIP. Anywhere else
+ * the state and postal code are whatever the country uses, and either may be
+ * empty; the country is an ISO 3166-1 alpha-2 code, which is what Lob's
+ * `address_country` takes. The fields and the rules are separate so a saved
+ * address can extend the fields and put the rules back on.
  */
-export const recipientSchema = z.object({
+export const recipientFieldsSchema = z.object({
   name: z.string().trim().min(1, "A name is required.").max(40, "40 characters at most."),
   line1: z.string().trim().min(1, "A street address is required.").max(64, "64 characters at most."),
   line2: z.string().trim().max(64, "64 characters at most.").nullable().default(null),
   city: z.string().trim().min(1, "A city is required.").max(200),
-  state: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .regex(/^[A-Z]{2}$/, "Use the two-letter state code, like CA."),
-  postalCode: z
-    .string()
-    .trim()
-    .regex(/^\d{5}(-\d{4})?$/, "Use a 5-digit ZIP code."),
+  state: z.string().trim().max(64, "64 characters at most.").default(""),
+  postalCode: z.string().trim().max(20, "20 characters at most.").default(""),
+  country: z.string().trim().toUpperCase().default("US"),
 });
 
+type RecipientFields = z.infer<typeof recipientFieldsSchema>;
+
+export function refineRecipient(recipient: RecipientFields, ctx: z.RefinementCtx): void {
+  if (!isCountryCode(recipient.country)) {
+    ctx.addIssue({ code: "custom", path: ["country"], message: "Use a two-letter country code, like CA." });
+  }
+  if (recipient.country !== "US") return;
+  if (!/^[A-Za-z]{2}$/.test(recipient.state)) {
+    ctx.addIssue({ code: "custom", path: ["state"], message: "Use the two-letter state code, like CA." });
+  }
+  if (!/^\d{5}(-\d{4})?$/.test(recipient.postalCode)) {
+    ctx.addIssue({ code: "custom", path: ["postalCode"], message: "Use a 5-digit ZIP code." });
+  }
+}
+
+/** A US state is stored in capitals, as it prints; elsewhere the buyer's own spelling stands. */
+export function normaliseRecipient<T extends RecipientFields>(recipient: T): T {
+  return recipient.country === "US" ? { ...recipient, state: recipient.state.toUpperCase() } : recipient;
+}
+
+export const recipientSchema = recipientFieldsSchema.superRefine(refineRecipient).transform(normaliseRecipient);
+
 export type Recipient = z.infer<typeof recipientSchema>;
+
+/**
+ * What Lob's address verification said about a recipient.
+ *
+ * Lob's own sub-codes (`undeliverable_no_match` and friends) collapse to
+ * `undeliverable`; `unknown` means Lob could not be asked — no key, an
+ * outage — and the buyer proceeds as if nothing had been checked.
+ */
+export const deliverabilitySchema = z.enum([
+  "deliverable",
+  "deliverable_unnecessary_unit",
+  "deliverable_incorrect_unit",
+  "deliverable_missing_unit",
+  "undeliverable",
+  "unknown",
+]);
+export type Deliverability = z.infer<typeof deliverabilitySchema>;
+
+export const verificationSchema = z.object({
+  deliverability: deliverabilitySchema,
+  /** The address in USPS's form, when Lob returned one. Null when undeliverable or unknown. */
+  suggested: recipientSchema.nullable(),
+  /** Whether `suggested` differs from what was sent, ignoring case, punctuation and ZIP+4. */
+  changed: z.boolean(),
+});
+export type Verification = z.infer<typeof verificationSchema>;
+
+export const unknownVerification: Verification = { deliverability: "unknown", suggested: null, changed: false };
 
 /** A calendar day, YYYY-MM-DD. The day the card goes to Lob, in the store's day. */
 export const mailDateSchema = z
@@ -212,10 +263,16 @@ export const postcardSchema = z.object({
 
 export type Postcard = z.infer<typeof postcardSchema>;
 
-/** One line of a recipient's address, the way it is read aloud. */
-export function formatRecipient(recipient: Recipient): string {
+export function isInternational(recipient: Pick<Recipient, "country">): boolean {
+  return recipient.country !== "US";
+}
+
+/** One line of a recipient's address, the way it is read aloud. Abroad, the country is named. */
+export function formatRecipient(recipient: Recipient, locale = "en"): string {
   const street = recipient.line2 ? `${recipient.line1}, ${recipient.line2}` : recipient.line1;
-  return `${street}, ${recipient.city}, ${recipient.state} ${recipient.postalCode}`;
+  const region = [recipient.state, recipient.postalCode].filter(Boolean).join(" ");
+  const local = region ? `${street}, ${recipient.city}, ${region}` : `${street}, ${recipient.city}`;
+  return isInternational(recipient) ? `${local}, ${countryName(recipient.country, locale)}` : local;
 }
 
 /**

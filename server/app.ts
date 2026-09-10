@@ -8,6 +8,7 @@ import { errorHandler, notFound, securityHeaders } from "./middleware.js";
 import { publicRouter } from "./routes/public.js";
 import { sessionRouter } from "./routes/session.js";
 import { accountRouter } from "./routes/account.js";
+import { recipientsRouter } from "./routes/recipients.js";
 import { setupRouter } from "./routes/setup.js";
 import { adminRouter } from "./routes/admin.js";
 import { checkoutRouter } from "./routes/checkout.js";
@@ -81,6 +82,7 @@ export function createApp(options: { schedulers?: boolean } = {}): Express {
 
   app.use("/api", publicRouter);
   app.use("/api", designsRouter);
+  app.use("/api", recipientsRouter);
   app.use("/api/account", accountRouter);
   app.use("/api", checkoutRouter);
   app.use("/api/cart", cartRouter);

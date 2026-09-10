@@ -58,6 +58,25 @@ export function unguardCsvField(value: string): string {
     : value;
 }
 
+/**
+ * Which delimiter a file uses, read off its first line.
+ *
+ * Excel in a locale whose decimal separator is a comma writes `;` between
+ * fields, and every other reader treats that as one wide column. Semicolons
+ * outnumbering commas on the header line is the tell; a tie is a comma.
+ */
+export function detectCsvDelimiter(text: string): "," | ";" {
+  const firstLine = text.slice(0, text.search(/\r?\n|$/));
+  const commas = (firstLine.match(/,/g) ?? []).length;
+  const semicolons = (firstLine.match(/;/g) ?? []).length;
+  return semicolons > commas ? ";" : ",";
+}
+
+/** Drop the byte-order mark Excel writes, so the first header is a header and not `\uFEFFname`. */
+export function stripCsvBom(text: string): string {
+  return text.startsWith(CSV_BOM) ? text.slice(CSV_BOM.length) : text;
+}
+
 /** One record, with the line it started on so an error can name it. */
 export interface CsvRecord {
   /** 1-based line in the file, header included, as a spreadsheet counts. */
@@ -76,6 +95,8 @@ export interface CsvRecord {
  * partial state is held on the instance rather than in a local.
  */
 export class CsvStreamParser {
+  /** Comma by default; a European Excel writes semicolons, and the importer detects which. */
+  readonly #delimiter: string;
   #fields: string[] = [];
   #field = "";
   #inQuotes = false;
@@ -87,6 +108,10 @@ export class CsvStreamParser {
   #started = false;
   #line = 1;
   #recordLine = 1;
+
+  constructor(options: { delimiter?: string } = {}) {
+    this.#delimiter = options.delimiter ?? ",";
+  }
 
   push(chunk: string): CsvRecord[] {
     const records: CsvRecord[] = [];
@@ -139,7 +164,7 @@ export class CsvStreamParser {
         continue;
       }
 
-      if (char === ",") {
+      if (char === this.#delimiter) {
         this.#endField();
         continue;
       }

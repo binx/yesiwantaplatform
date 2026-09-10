@@ -18,16 +18,35 @@ describe("dates", () => {
 
 describe("recipientSchema", () => {
   it("holds Lob's limits and normalises the state", () => {
-    const parsed = recipientSchema.parse({ name: " Grandma ", line1: "1 Main St", line2: "", city: "Marfa", state: "tx", postalCode: "79843-1234" });
+    const parsed = recipientSchema.parse({ name: " Grandma ", line1: "1 Main St", line2: "", city: "Marfa", state: "tx", postalCode: "79843-1234", country: "US" });
     expect(parsed.name).toBe("Grandma");
     expect(parsed.state).toBe("TX");
     // "" is kept as "" by trim; the form turns blanks into null before parsing.
     expect(formatRecipient({ ...parsed, line2: null })).toBe("1 Main St, Marfa, TX 79843-1234");
   });
 
+  it("asks for a state and a ZIP in the US, and for neither elsewhere", () => {
+    const canada = recipientSchema.parse({ name: "Maya", line1: "12 Rue Ste-Catherine", line2: null, city: "Montréal", state: "Québec", postalCode: "H2X 1K4", country: "ca" });
+    expect(canada.country).toBe("CA");
+    expect(canada.state).toBe("Québec");
+    const uk = recipientSchema.parse({ name: "Sam", line1: "10 Downing St", line2: null, city: "London", state: "", postalCode: "", country: "GB" });
+    expect(uk.postalCode).toBe("");
+    expect(recipientSchema.safeParse({ name: "A", line1: "1 Main St", line2: null, city: "A", state: "", postalCode: "", country: "US" }).success).toBe(false);
+    expect(recipientSchema.safeParse({ name: "A", line1: "1 Main St", line2: null, city: "A", state: "", postalCode: "", country: "ZZ" }).success).toBe(false);
+    expect(recipientSchema.parse({ name: "A", line1: "1 Main St", city: "A", state: "ca", postalCode: "90210" }).country).toBe("US");
+  });
+
+  it("names the country on an address abroad", () => {
+    const canada = recipientSchema.parse({ name: "Maya", line1: "12 Rue Ste-Catherine", line2: null, city: "Montréal", state: "QC", postalCode: "H2X 1K4", country: "CA" });
+    expect(formatRecipient(canada)).toBe("12 Rue Ste-Catherine, Montréal, QC H2X 1K4, Canada");
+    expect(formatRecipient(canada, "fr")).toBe("12 Rue Ste-Catherine, Montréal, QC H2X 1K4, Canada");
+    const uk = recipientSchema.parse({ name: "Sam", line1: "10 Downing St", line2: null, city: "London", state: "", postalCode: "", country: "GB" });
+    expect(formatRecipient(uk)).toBe("10 Downing St, London, United Kingdom");
+  });
+
   it("refuses what would not fit on the card", () => {
-    expect(recipientSchema.safeParse({ name: "x".repeat(41), line1: "1 Main St", line2: null, city: "A", state: "CA", postalCode: "90210" }).success).toBe(false);
-    expect(recipientSchema.safeParse({ name: "A", line1: "1 Main St", line2: null, city: "A", state: "California", postalCode: "90210" }).success).toBe(false);
+    expect(recipientSchema.safeParse({ name: "x".repeat(41), line1: "1 Main St", line2: null, city: "A", state: "CA", postalCode: "90210", country: "US" }).success).toBe(false);
+    expect(recipientSchema.safeParse({ name: "A", line1: "1 Main St", line2: null, city: "A", state: "California", postalCode: "90210", country: "US" }).success).toBe(false);
     expect(recipientSchema.safeParse({ name: "A", line1: "1 Main St", line2: null, city: "A", state: "CA", postalCode: "9021" }).success).toBe(false);
   });
 });

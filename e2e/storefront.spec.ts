@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, request as playwrightRequest, test, type Page } from "@playwright/test";
+import { ADMIN_STORAGE_STATE } from "./fixtures/admin";
 
 /**
  * The buyer's path: design a card, schedule it, address it, put it in the
@@ -98,6 +99,111 @@ test("repositions the photo with the arrow keys and saves that crop", async ({ p
 
   await page.getByRole("button", { name: "Save this design" }).click();
   await expect(page.getByRole("button", { name: "Saved!" })).toBeVisible();
+});
+
+test("imports a spreadsheet's CSV, previews the columns, and fixes a bad row by hand", async ({ page }) => {
+  await page.goto("/create");
+  await page.getByRole("button", { name: "Upload a list" }).click();
+
+  // What Excel exports in a European locale: a byte-order mark, semicolons, spaced headers.
+  const csv =
+    "﻿First Name;Last Name;Street Address;City;State;Zip Code\n" +
+    "Maya;Okafor;12 Elm St;Marfa;TX;79843\n" +
+    "Sam;Lee;3 Oak St;Boston;MA;2134\n";
+  await page.locator('input[type="file"][accept=".csv,text/csv"]').setInputFiles({ name: "friends.csv", mimeType: "text/csv", buffer: Buffer.from(csv, "utf8") });
+
+  const readout = page.getByRole("status", { name: "What was read from the file" });
+  await expect(readout).toContainText("1 recipient read, 1 row needs fixing");
+  await expect(readout).toContainText("We read Street Address as the street");
+  await page.getByRole("button", { name: "Import 1 recipient" }).click();
+
+  await expect(page.getByRole("list", { name: "Recipients" })).toContainText("Maya Okafor");
+  const fixes = page.getByRole("region", { name: "Rows that need fixing" });
+  await expect(fixes).toContainText("leading zero");
+
+  await fixes.getByRole("button", { name: "Fix line 3" }).click();
+  await expect(page.getByLabel("ZIP")).toHaveValue("2134");
+  await page.getByLabel("ZIP").fill("02134");
+  await page.getByRole("button", { name: "Add recipient" }).click();
+
+  await expect(page.getByRole("list", { name: "Recipients" })).toContainText("Sam Lee");
+  await expect(fixes).toHaveCount(0);
+});
+
+test("offers USPS's form of an address, and uses it on request", async ({ page }) => {
+  // Lob is not configured on the fixture, so USPS is played here.
+  await page.route("**/api/recipients/verify", async (route) => {
+    const sent = route.request().postDataJSON() as { line1: string };
+    await route.fulfill({
+      json:
+        sent.line1 === "185 berry street"
+          ? {
+              deliverability: "deliverable",
+              suggested: { name: "Grandma", line1: "185 Berry St", line2: null, city: "San Francisco", state: "CA", postalCode: "94107" },
+              changed: true,
+            }
+          : { deliverability: "unknown", suggested: null, changed: false },
+    });
+  });
+
+  await page.goto("/create");
+  await page.getByLabel("Name").fill("Grandma");
+  await page.getByLabel("Street address").fill("185 berry street");
+  await page.getByLabel("City").fill("San Francisco");
+  await page.getByLabel("State").fill("CA");
+  await page.getByLabel("ZIP").fill("94107");
+  await page.getByRole("button", { name: "Add recipient" }).click();
+
+  await expect(page.getByText("USPS knows this address as:")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Recipients" })).not.toContainText("Grandma");
+  await page.getByRole("button", { name: "Use this" }).click();
+
+  const list = page.getByRole("list", { name: "Recipients" });
+  await expect(list).toContainText("185 Berry St, San Francisco, CA 94107");
+  await expect(list).toContainText("Verified");
+});
+
+test("shows a country only once the shop mails abroad, then takes a recipient in Canada", async ({ page }) => {
+  // This test changes the shop's settings, which every worker shares; one project runs it.
+  test.skip(test.info().project.name !== "chromium", "settings are shared across workers");
+
+  // US only, as the fixture is set up: no country to choose.
+  await page.goto("/create");
+  await expect(page.getByLabel("Name")).toBeVisible();
+  await expect(page.getByLabel("Country")).toHaveCount(0);
+  await expect(page.getByLabel("ZIP")).toBeVisible();
+
+  // The owner sets a price and a return address, which is what turns international mail on.
+  const baseURL = test.info().project.use.baseURL;
+  const api = await playwrightRequest.newContext({ storageState: ADMIN_STORAGE_STATE, ...(baseURL ? { baseURL } : {}) });
+  const { csrfToken } = (await (await api.get("/api/session")).json()) as { csrfToken: string };
+  const current = (await (await api.get("/api/admin/settings")).json()) as Record<string, unknown>;
+  const returnAddress = { name: "Postcard Gifts", line1: "185 Berry St", line2: null, city: "San Francisco", state: "CA", postalCode: "94107", country: "US" };
+  const put = await api.put("/api/admin/settings", { headers: { "x-csrf-token": csrfToken }, data: { ...current, internationalPostcardPriceCents: 250, returnAddress } });
+  expect(put.ok()).toBe(true);
+
+  try {
+    await page.goto("/create");
+    const country = page.getByRole("combobox", { name: "Country" });
+    await expect(country).toBeVisible();
+    await country.fill("Canada");
+    await country.press("Enter");
+    await expect(page.getByLabel("Postal code")).toBeVisible();
+
+    await page.getByLabel("Name").fill("Maya");
+    await page.getByLabel("Street address").fill("12 Rue Ste-Catherine");
+    await page.getByLabel("City").fill("Montréal");
+    await page.getByLabel("State / province").fill("QC");
+    await page.getByLabel("Postal code").fill("H2X 1K4");
+    await page.getByRole("button", { name: "Add recipient" }).click();
+
+    const list = page.getByRole("list", { name: "Recipients" });
+    await expect(list).toContainText("12 Rue Ste-Catherine, Montréal, QC H2X 1K4, Canada");
+    await expect(page.getByText("International cards take about two weeks longer to arrive.")).toBeVisible();
+  } finally {
+    await api.put("/api/admin/settings", { headers: { "x-csrf-token": csrfToken }, data: { ...current, internationalPostcardPriceCents: null, returnAddress: null } });
+    await api.dispose();
+  }
 });
 
 test("refuses a recipient that would not fit on the card, before the cart", async ({ page }) => {

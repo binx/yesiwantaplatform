@@ -5,7 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import type { Order } from "@shared/orders";
 import { csrfPost } from "@/lib/api";
 import { useSession } from "@/lib/session";
-import { addDaysIso, todayIso, type PostcardDesign, type Recipient } from "@shared/postcards";
+import { addDaysIso, isInternational, todayIso, type PostcardDesign, type Recipient } from "@shared/postcards";
 import { formatMoney } from "@shared/money";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { DesignForm } from "@/components/postcard/DesignForm";
@@ -54,6 +54,8 @@ export function CreatePage() {
   const [designs, setDesigns] = useState<PostcardDesign[]>([]);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [mode, setMode] = useState<ScheduleMode>("cadence");
+  // Recipients USPS refused. Lob would refuse them too, after payment, so the batch waits.
+  const [blocked, setBlocked] = useState(0);
   const [startDate, setStartDate] = useState(todayIso);
   const [cadenceDays, setCadenceDays] = useState(7);
   // Custom mode's dates, by design id. Kept even while cadence mode is showing,
@@ -72,8 +74,11 @@ export function CreatePage() {
     [mode, designs, customDates, cadenceDates],
   );
 
-  const count = designs.length * recipients.length;
-  const totalCents = count * store.postcardPriceCents;
+  const abroad = recipients.filter(isInternational).length;
+  const international = designs.length * abroad;
+  const domestic = designs.length * (recipients.length - abroad);
+  const count = domestic + international;
+  const totalCents = domestic * store.postcardPriceCents + international * (store.internationalPostcardPriceCents ?? 0);
   const price = (cents: number) => formatMoney(cents, store.currency, store.locale);
 
   // A day that has passed while the tab sat open is not a day to mail on.
@@ -155,7 +160,7 @@ export function CreatePage() {
 
       <section className={cx(styles.panel)} aria-labelledby="recipients-heading">
         <h2 id="recipients-heading">3. Postcard recipients</h2>
-        <Recipients recipients={recipients} onChange={setRecipients} />
+        <Recipients recipients={recipients} onChange={setRecipients} onBlockedChange={setBlocked} />
       </section>
 
       <section className={cx(styles.panel)} aria-labelledby="total-heading">
@@ -171,12 +176,16 @@ export function CreatePage() {
             <span className={postcard.count}>{recipients.length}</span> recipient{recipients.length === 1 ? "" : "s"}
           </span>
           <span>×</span>
-          <span>{price(store.postcardPriceCents)} each</span>
+          <span>
+            {international > 0 && store.internationalPostcardPriceCents !== null
+              ? `${price(store.postcardPriceCents)} each (${price(store.internationalPostcardPriceCents)} abroad)`
+              : `${price(store.postcardPriceCents)} each`}
+          </span>
           <span>=</span>
           <strong>{price(totalCents)}</strong>
         </p>
         <div className={postcard.totalActions}>
-          <Button type="primary" size="large" disabled={count === 0} onClick={addToCart}>
+          <Button type="primary" size="large" disabled={count === 0 || blocked > 0} onClick={addToCart}>
             Add to cart
           </Button>
           {session.data?.isAdmin ? (
@@ -196,6 +205,10 @@ export function CreatePage() {
           ) : null}
           {count === 0 ? (
             <span className={postcard.note}>Save at least one design and add at least one recipient.</span>
+          ) : blocked > 0 ? (
+            <span className={postcard.note}>
+              {blocked} address{blocked === 1 ? "" : "es"} need{blocked === 1 ? "s" : ""} checking before this batch can go in the cart.
+            </span>
           ) : (
             <span className={postcard.note}>
               {count} postcard{count === 1 ? "" : "s"} in this batch. You can add another batch from the cart.

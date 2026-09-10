@@ -2,7 +2,8 @@ import { hasLob } from "./env.js";
 import { imageStore } from "./image-store.js";
 import { LobError, LobNotConfiguredError, sendPostcard } from "./lob.js";
 import { sendPostcardSentEmail } from "./email.js";
-import { todayIso } from "../shared/postcards.js";
+import { isInternational, todayIso } from "../shared/postcards.js";
+import { getSettings } from "../db/repository.js";
 import {
   claimPostcard,
   completeOrderIfDone,
@@ -43,6 +44,13 @@ import { deleteDesignFile } from "./uploads.js";
  * second instance — and the right response is to stop and let the next tick
  * try, not to add concurrency to "speed it up".
  */
+
+class ReturnAddressMissingError extends Error {
+  constructor() {
+    super("No return address is set; international mail needs one. Add it in Settings → Printing, then retry.");
+    this.name = "ReturnAddressMissingError";
+  }
+}
 
 const SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -146,6 +154,8 @@ export async function sendDuePostcards(today = todayIso(), options: SweepOptions
   const designById = new Map(designs.map((design) => [design.id, design]));
   const touchedOrders = new Set<string>();
   let pausedOnce = false;
+  // Read once per sweep: the return address goes on every international card.
+  const returnAddress = (await getSettings())?.returnAddress ?? null;
 
   for (const row of due) {
     if (!(await claimPostcard(row.id))) continue;
@@ -158,10 +168,17 @@ export async function sendDuePostcards(today = todayIso(), options: SweepOptions
       if (!design) throw new Error("The design for this postcard no longer exists.");
       if (!design.printPath) throw new Error("The print file for this design has already been removed.");
 
+      // Ours, not Lob's: there is no request to refuse yet. Parked for the
+      // admin, who can add the address in Settings → Printing and Retry.
+      if (isInternational(postcard.recipient) && !returnAddress) {
+        throw new ReturnAddressMissingError();
+      }
+
       const front = await imageStore.get(design.printPath);
       const input = {
         id: postcard.id,
         to: postcard.recipient,
+        from: returnAddress,
         front,
         back: design.back,
         description: `Order ${row.orderId.slice(0, 8)} → ${postcard.recipient.name}`,
@@ -199,7 +216,7 @@ export async function sendDuePostcards(today = todayIso(), options: SweepOptions
       }
 
       const retryable =
-        error instanceof LobError ? error.retryable : !(error instanceof LobNotConfiguredError);
+        error instanceof LobError ? error.retryable : !(error instanceof LobNotConfiguredError || error instanceof ReturnAddressMissingError);
       // `attempts` was incremented by the claim, so this is the count so far.
       const outcome = retryable && row.attempts + 1 < MAX_ATTEMPTS ? "retry" : "error";
 

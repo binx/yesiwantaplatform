@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import type { AddressInput, CustomerAddress } from "../shared/account.js";
 import { getDatabase } from "./client.js";
-import { nowFor } from "./repository.js";
+import { nowFor, toEpochMs } from "./repository.js";
 
 /**
  * Saved recipients, and the one customer lookup the checkout webhook needs.
@@ -20,6 +20,8 @@ interface AddressRow {
   city: string;
   state: string;
   postalCode: string;
+  country: string;
+  verifiedAt: unknown;
 }
 
 function buildAddress(row: AddressRow): CustomerAddress {
@@ -31,7 +33,14 @@ function buildAddress(row: AddressRow): CustomerAddress {
     city: row.city,
     state: row.state,
     postalCode: row.postalCode,
+    country: row.country,
+    verifiedAt: row.verifiedAt === null || row.verifiedAt === undefined ? null : toEpochMs(row.verifiedAt),
   };
+}
+
+/** Whether Lob's verification just called this address deliverable, so the designer can skip asking again. */
+export interface AddressOptions {
+  verified?: boolean;
 }
 
 export async function listAddresses(customerId: string): Promise<CustomerAddress[]> {
@@ -59,9 +68,10 @@ async function getOwnAddress(id: string, customerId: string): Promise<AddressRow
   return rows[0] ?? null;
 }
 
-export async function createAddress(customerId: string, input: AddressInput): Promise<CustomerAddress> {
-  const { drizzle: db, schema } = await getDatabase();
+export async function createAddress(customerId: string, input: AddressInput, options: AddressOptions = {}): Promise<CustomerAddress> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
   const id = randomUUID();
+  const verifiedAt = options.verified ? nowFor(dialect) : null;
 
   await db.insert(schema.customerAddresses).values({
     id,
@@ -72,10 +82,11 @@ export async function createAddress(customerId: string, input: AddressInput): Pr
     city: input.city,
     state: input.state,
     postalCode: input.postalCode,
-    country: "US",
+    country: input.country,
+    verifiedAt,
   });
 
-  return { id, ...input };
+  return { id, ...input, verifiedAt: verifiedAt === null ? null : toEpochMs(verifiedAt) };
 }
 
 /**
@@ -87,7 +98,7 @@ export async function createAddress(customerId: string, input: AddressInput): Pr
 export async function saveRecipientsFromOrder(customerId: string, recipients: AddressInput[]): Promise<number> {
   const existing = await listAddresses(customerId);
   const key = (r: AddressInput) =>
-    [r.name, r.line1, r.line2 ?? "", r.city, r.state, r.postalCode].join("|").toLowerCase();
+    [r.name, r.line1, r.line2 ?? "", r.city, r.state, r.postalCode, r.country].join("|").toLowerCase();
   const seen = new Set(existing.map(key));
 
   let added = 0;
@@ -107,11 +118,14 @@ export class AddressNotFoundError extends Error {
   }
 }
 
-export async function updateAddress(id: string, customerId: string, input: AddressInput): Promise<CustomerAddress> {
-  const { drizzle: db, schema } = await getDatabase();
+export async function updateAddress(id: string, customerId: string, input: AddressInput, options: AddressOptions = {}): Promise<CustomerAddress> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
 
   const existing = await getOwnAddress(id, customerId);
   if (!existing) throw new AddressNotFoundError();
+
+  // An edit is a new address as far as USPS is concerned: verified again or not at all.
+  const verifiedAt = options.verified ? nowFor(dialect) : null;
 
   await db
     .update(schema.customerAddresses)
@@ -122,10 +136,12 @@ export async function updateAddress(id: string, customerId: string, input: Addre
       city: input.city,
       state: input.state,
       postalCode: input.postalCode,
+      country: input.country,
+      verifiedAt,
     })
     .where(eq(schema.customerAddresses.id, id));
 
-  return { id, ...input };
+  return { id, ...input, verifiedAt: verifiedAt === null ? null : toEpochMs(verifiedAt) };
 }
 
 export async function deleteAddress(id: string, customerId: string): Promise<void> {

@@ -37,6 +37,7 @@ import {
   verifyCustomerLogin,
 } from "../auth.js";
 import { sendAccountEmail } from "../email.js";
+import { verifyRecipient } from "../lob.js";
 import type { Order } from "../../shared/orders.js";
 import { env } from "../env.js";
 import {
@@ -267,7 +268,10 @@ meRouter.post("/addresses", async (req, res) => {
     throw httpError(400, parsed.error.issues[0]?.message ?? "That address could not be used.");
   }
 
-  const address = await createAddress(req.session.customerId!, parsed.data);
+  // Verified here rather than trusting a flag from the client: the cache
+  // makes the second look-up free, and "verified" then means Lob said so.
+  const verification = await verifyRecipient(parsed.data);
+  const address = await createAddress(req.session.customerId!, parsed.data, { verified: verification.deliverability === "deliverable" });
   res.status(201).json(address);
 });
 
@@ -278,7 +282,8 @@ meRouter.put("/addresses/:id", async (req, res) => {
   }
 
   try {
-    res.json(await updateAddress(req.params.id, req.session.customerId!, parsed.data));
+    const verification = await verifyRecipient(parsed.data);
+    res.json(await updateAddress(req.params.id, req.session.customerId!, parsed.data, { verified: verification.deliverability === "deliverable" }));
   } catch (error) {
     if (error instanceof AddressNotFoundError) throw httpError(404, error.message);
     throw error;

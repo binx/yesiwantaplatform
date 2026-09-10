@@ -3,6 +3,9 @@ import { Alert, App, Button, Card, Input, InputNumber, Select, Skeleton, Space, 
 import { UploadOutlined } from "@ant-design/icons";
 import type { SettingsInput } from "@shared/api";
 import { formatMoney, parseCents } from "@shared/money";
+import type { Recipient } from "@shared/postcards";
+import { BLANK_RECIPIENT, validateRecipient, type RecipientErrors } from "@/lib/recipient-form";
+import { RecipientFields } from "@/components/postcard/RecipientFields";
 import { defaultHero, defaultTheme, heroHrefSchema, localeSchema, type Hero, type Theme } from "@shared/schema";
 import { cx } from "@/lib/cx";
 import {
@@ -68,6 +71,11 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
   const [locale, setLocale] = useState(initial.locale);
   const [publishableKey, setPublishableKey] = useState(initial.stripePublishableKey ?? "");
   const [price, setPrice] = useState((initial.postcardPriceCents / 100).toFixed(2));
+  const [internationalPrice, setInternationalPrice] = useState(
+    initial.internationalPostcardPriceCents === null ? "" : (initial.internationalPostcardPriceCents / 100).toFixed(2),
+  );
+  const [returnAddress, setReturnAddress] = useState<Recipient>(initial.returnAddress ?? BLANK_RECIPIENT);
+  const [returnAddressErrors, setReturnAddressErrors] = useState<RecipientErrors>({});
   const [cartRecoveryEnabled, setCartRecoveryEnabled] = useState(initial.cartRecoveryEnabled);
   const [cartRecoveryDelayHours, setCartRecoveryDelayHours] = useState(initial.cartRecoveryDelayHours);
   const [theme, setTheme] = useState<Theme>(initial.theme ?? defaultTheme);
@@ -77,12 +85,24 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
   const priceCents = parseCents(price);
   const priceWrong = priceCents === null || priceCents < 50;
 
+  // International is on when there is a price. Empty means "US only", and
+  // then the return address is optional — Lob only needs it to mail abroad.
+  const internationalCents = internationalPrice.trim() === "" ? null : parseCents(internationalPrice);
+  const internationalWrong = internationalPrice.trim() !== "" && (internationalCents === null || internationalCents < 50);
+  const returnAddressTyped = [returnAddress.name, returnAddress.line1, returnAddress.city, returnAddress.state, returnAddress.postalCode].some((v) => v.trim() !== "");
+  const returnAddressResult = returnAddressTyped ? validateRecipient({ ...returnAddress, country: "US" }) : null;
+  const returnAddressWrong = returnAddressResult !== null && !returnAddressResult.ok;
+  const returnAddressMissing = internationalCents !== null && !returnAddressTyped;
+  const returnAddressValue = returnAddressResult?.ok ? returnAddressResult.value : null;
+
   const dirty =
     name !== saved.current.name ||
     currency !== saved.current.currency ||
     locale !== saved.current.locale ||
     publishableKey !== (saved.current.stripePublishableKey ?? "") ||
     priceCents !== saved.current.postcardPriceCents ||
+    internationalCents !== saved.current.internationalPostcardPriceCents ||
+    JSON.stringify(returnAddressValue) !== JSON.stringify(saved.current.returnAddress) ||
     cartRecoveryEnabled !== saved.current.cartRecoveryEnabled ||
     cartRecoveryDelayHours !== saved.current.cartRecoveryDelayHours ||
     JSON.stringify(theme) !== JSON.stringify(saved.current.theme) ||
@@ -92,7 +112,8 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
   const heroHrefWrong =
     (hero.buttonHref ?? "").trim() !== "" && !heroHrefSchema.safeParse((hero.buttonHref ?? "").trim()).success;
   const localeWrong = !localeSchema.safeParse(locale).success;
-  const blocked = !dirty || keyLooksSecret || heroHrefWrong || localeWrong || priceWrong || name.trim() === "";
+  const blocked =
+    !dirty || keyLooksSecret || heroHrefWrong || localeWrong || priceWrong || internationalWrong || returnAddressWrong || returnAddressMissing || name.trim() === "";
 
   const submit = () => {
     if (priceCents === null) return;
@@ -102,6 +123,8 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
       locale,
       stripePublishableKey: publishableKey.trim() || null,
       postcardPriceCents: priceCents,
+      internationalPostcardPriceCents: internationalCents,
+      returnAddress: returnAddressValue,
       cartRecoveryEnabled,
       cartRecoveryDelayHours,
       hero,
@@ -202,6 +225,53 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
           hasLob={environment.data?.hasLob ?? false}
           lobMode={environment.data?.lobMode ?? null}
         />
+
+        <Field
+          label="Price of a postcard mailed abroad"
+          {...(internationalWrong
+            ? { error: "Enter a price of at least 0.50, or leave it empty to mail within the United States only." }
+            : { help: "Leave empty to mail within the United States only. Lob charges more to mail abroad, and international cards take about two weeks longer." })}
+        >
+          {(control) => (
+            <Input
+              {...control}
+              className={cx(styles.currency)}
+              prefix={currency === "USD" ? "$" : currency}
+              inputMode="decimal"
+              value={internationalPrice}
+              placeholder="US only"
+              status={internationalWrong ? "error" : ""}
+              onChange={(event) => setInternationalPrice(event.target.value)}
+            />
+          )}
+        </Field>
+
+        <p className={cx(styles.help)}>
+          <strong>Return address.</strong> Lob prints it on every card mailed abroad and will not send one
+          without it, so international postcards need it. It must be in the United States.
+          {returnAddressMissing ? " Add it below to turn international mail on." : ""}
+        </p>
+        <div className={cx(styles.returnAddress)}>
+          <RecipientFields
+            draft={returnAddress}
+            errors={returnAddressErrors}
+            locale={locale}
+            allowInternational={false}
+            onChange={(key, value) => {
+              setReturnAddress((current) => ({ ...current, [key]: value }));
+              if (returnAddressErrors[key]) setReturnAddressErrors((current) => ({ ...current, [key]: undefined }));
+            }}
+          />
+        </div>
+        {returnAddressWrong && returnAddressResult && !returnAddressResult.ok ? (
+          <Alert
+            className={cx(styles.notice)}
+            type="error"
+            showIcon
+            title="The return address is incomplete"
+            description={Object.values(returnAddressResult.errors).filter(Boolean).join(" ")}
+          />
+        ) : null}
       </Card>
 
       <Card title="Landing page" className={cx(styles.card)}>

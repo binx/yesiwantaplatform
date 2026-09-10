@@ -39,6 +39,9 @@ export const orderSchema = z.object({
   /** What one card cost on this order — a snapshot, in case the price moves. */
   unitPriceCents: centsSchema,
   postcardCount: z.number().int().min(0),
+  /** How many of those went abroad, and what each of them cost. Zero and null on a domestic order. */
+  internationalCount: z.number().int().min(0).default(0),
+  internationalUnitPriceCents: centsSchema.nullable().default(null),
   subtotalCents: centsSchema,
   /**
    * What a promotion code took off, as a positive number. Stored, not

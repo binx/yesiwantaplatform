@@ -4,7 +4,7 @@ import { renderHook } from "@testing-library/react";
 
 const line = {
   designs: [{ designId: "d1", mailDate: "2026-10-01" }],
-  recipients: [{ name: "Grandma", line1: "1 Main St", line2: null, city: "Marfa", state: "TX", postalCode: "79843" }],
+  recipients: [{ name: "Grandma", line1: "1 Main St", line2: null, city: "Marfa", state: "TX", postalCode: "79843", country: "US" }],
 };
 
 beforeEach(() => {

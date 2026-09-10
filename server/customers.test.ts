@@ -102,14 +102,14 @@ describe("order access", () => {
     const created = await agent
       .post("/api/account/addresses")
       .set("x-csrf-token", csrf)
-      .send({ name: "Grandma", line1: "1 Test St", line2: null, city: "Marfa", state: "tx", postalCode: "79843" })
+      .send({ name: "Grandma", line1: "1 Test St", line2: null, city: "Marfa", state: "tx", postalCode: "79843", country: "US" })
       .expect(201);
     expect(created.body.state).toBe("TX");
 
     await agent
       .post("/api/account/addresses")
       .set("x-csrf-token", csrf)
-      .send({ name: "Grandma", line1: "1 Test St", line2: null, city: "Marfa", state: "Texas", postalCode: "79843" })
+      .send({ name: "Grandma", line1: "1 Test St", line2: null, city: "Marfa", state: "Texas", postalCode: "79843", country: "US" })
       .expect(400);
 
     const list = await agent.get("/api/account/addresses").expect(200);

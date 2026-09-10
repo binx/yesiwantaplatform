@@ -3,7 +3,7 @@ import request from "supertest";
 import type { Express } from "express";
 import type Stripe from "stripe";
 import sharp from "sharp";
-import { addDaysIso, todayIso } from "../shared/postcards.js";
+import { addDaysIso, todayIso, type Recipient } from "../shared/postcards.js";
 
 /**
  * The fulfilment sweep, against a fake Lob.
@@ -33,7 +33,7 @@ let stripe: Stripe;
 let createSession: ReturnType<typeof vi.fn>;
 
 const WEBHOOK_SECRET = "whsec_postcards_fake_webhook_secret";
-const RECIPIENT = { name: "Grandma", line1: "1 Test Street", line2: "Apt 2", city: "Marfa", state: "TX", postalCode: "79843" };
+const RECIPIENT = { name: "Grandma", line1: "1 Test Street", line2: "Apt 2", city: "Marfa", state: "TX", postalCode: "79843", country: "US" };
 
 beforeAll(async () => {
   process.env.LOB_API_KEY = "test_abcdef123456";
@@ -72,7 +72,7 @@ beforeEach(() => {
   );
 });
 
-async function paidOrder(mailDate: string, recipients = [RECIPIENT]) {
+async function paidOrder(mailDate: string, recipients: Recipient[] = [RECIPIENT]) {
   const png = await sharp({ create: { width: 300, height: 200, channels: 3, background: "#00ffff" } }).png().toBuffer();
   const uploaded = await request(app)
     .post("/api/designs")
@@ -82,7 +82,8 @@ async function paidOrder(mailDate: string, recipients = [RECIPIENT]) {
     .expect(201);
   const designId = uploaded.body.id as string;
 
-  await request(app).post("/api/checkout").send({ lines: [{ designs: [{ designId, mailDate }], recipients }] }).expect(200);
+  const checkout = await request(app).post("/api/checkout").send({ lines: [{ designs: [{ designId, mailDate }], recipients }] });
+  if (checkout.status !== 200) throw new Error(`checkout answered ${checkout.status}: ${JSON.stringify(checkout.body)}`);
   const session = createSession.mock.results.at(-1)?.value as { id: string };
   const params = createSession.mock.calls.at(-1)?.[0] as Stripe.Checkout.SessionCreateParams;
   const orderId = params.metadata?.postcards_order_id as string;
@@ -301,6 +302,43 @@ describe("sendDuePostcards", () => {
 
     const { getOrder } = await import("../db/orders-repository.js");
     expect((await getOrder(orderId))?.postcards[0]?.status).toBe("sent");
+  });
+
+  it("sends the shop's return address with a card mailed abroad, and parks one when there is none", async () => {
+    const { getDatabase } = await import("../db/client.js");
+    const { jsonFor } = await import("../db/repository.js");
+    const { eq } = await import("drizzle-orm");
+    const { drizzle: db, schema, dialect } = await getDatabase();
+    const abroad = { name: "Maya", line1: "12 Rue Ste-Catherine", line2: null, city: "Montréal", state: "QC", postalCode: "H2X 1K4", country: "CA" };
+    const returnAddress = { name: "Postcard Gifts", line1: "185 Berry St", line2: null, city: "San Francisco", state: "CA", postalCode: "94107", country: "US" };
+
+    await db.update(schema.storeSettings).set({ internationalPostcardPriceCents: 250, returnAddress: jsonFor(dialect, returnAddress) }).where(eq(schema.storeSettings.id, 1));
+    const { orderId } = await paidOrder(todayIso(), [abroad]);
+    const { sendDuePostcards } = await import("./fulfilment.js");
+
+    await sendDuePostcards();
+    const call = sent.find((s) => s.url.endsWith("/v1/postcards") && s.form.get("to[address_country]") === "CA");
+    expect(call).toBeDefined();
+    expect(call!.form.get("to[address_state]")).toBe("QC");
+    expect(call!.form.get("from[address_line1]")).toBe("185 Berry St");
+    expect(call!.form.get("from[address_country]")).toBe("US");
+
+    const { getOrder } = await import("../db/orders-repository.js");
+    expect((await getOrder(orderId))?.postcards[0]?.status).toBe("sent");
+
+    // Return address removed after the order was paid: the card is parked in
+    // our words, not sent. (Checkout itself refuses the case up front.)
+    const { orderId: second } = await paidOrder(todayIso(), [abroad]);
+    await db.update(schema.storeSettings).set({ returnAddress: null }).where(eq(schema.storeSettings.id, 1));
+    sent.length = 0;
+    const result = await sendDuePostcards();
+    expect(result.parked).toBeGreaterThanOrEqual(1);
+    const parked = (await getOrder(second))?.postcards[0];
+    expect(parked?.status).toBe("error");
+    expect(parked?.lastError).toMatch(/return address/);
+    expect(sent.some((s) => s.form.get("to[address_country]") === "CA")).toBe(false);
+
+    await db.update(schema.storeSettings).set({ internationalPostcardPriceCents: null }).where(eq(schema.storeSettings.id, 1));
   });
 
   it("only ever claims a card once, even when two sweeps race", async () => {

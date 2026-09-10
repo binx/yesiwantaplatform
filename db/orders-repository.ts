@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
 import { orderReference, orderSchema, type Order, type OrderStatus } from "../shared/orders.js";
-import type { CartLine } from "../shared/cart.js";
+import { countPostcardsByDestination, type CartLine } from "../shared/cart.js";
 import type { Postcard, PostcardStatus } from "../shared/postcards.js";
 import { getDatabase } from "./client.js";
 import { affectedRows, findDesignsByIds, toPublicDesign } from "./designs-repository.js";
@@ -21,6 +21,8 @@ export interface CreatePendingOrderInput {
   email: string;
   currency: string;
   unitPriceCents: number;
+  /** What a card mailed abroad costs. Null when the cart has none, or the shop is US-only. */
+  internationalUnitPriceCents?: number | null;
   /** The cart, validated: every design id already checked against the table. */
   lines: CartLine[];
   /** Set only when the buyer was signed in at checkout. Null for a guest. */
@@ -38,10 +40,14 @@ export interface CreatePendingOrderInput {
 export async function createPendingOrder(input: CreatePendingOrderInput): Promise<string> {
   const { drizzle: db, schema } = await getDatabase();
 
-  let postcardCount = 0;
-  for (const line of input.lines) postcardCount += line.designs.length * line.recipients.length;
+  const { domestic, international } = countPostcardsByDestination(input.lines);
+  const postcardCount = domestic + international;
+  const internationalUnitPriceCents = international > 0 ? (input.internationalUnitPriceCents ?? null) : null;
+  if (international > 0 && internationalUnitPriceCents === null) {
+    throw new Error("An order with international postcards needs an international price.");
+  }
 
-  const subtotalCents = postcardCount * input.unitPriceCents;
+  const subtotalCents = domestic * input.unitPriceCents + international * (internationalUnitPriceCents ?? 0);
 
   await db.insert(schema.orders).values({
     id: input.id,
@@ -51,6 +57,8 @@ export async function createPendingOrder(input: CreatePendingOrderInput): Promis
     currency: input.currency,
     unitPriceCents: input.unitPriceCents,
     postcardCount,
+    internationalCount: international,
+    internationalUnitPriceCents,
     subtotalCents,
     totalCents: subtotalCents,
     customerId: input.customerId ?? null,
@@ -70,6 +78,7 @@ export async function createPendingOrder(input: CreatePendingOrderInput): Promis
           recipientCity: recipient.city,
           recipientState: recipient.state,
           recipientPostalCode: recipient.postalCode,
+          recipientCountry: recipient.country,
           mailDate: design.mailDate,
           status: "pending",
         });
@@ -88,6 +97,8 @@ interface OrderRow {
   currency: string;
   unitPriceCents: number;
   postcardCount: number;
+  internationalCount: number;
+  internationalUnitPriceCents: number | null;
   subtotalCents: number;
   discountCents: number;
   totalCents: number;
@@ -106,6 +117,7 @@ export interface PostcardRow {
   recipientCity: string;
   recipientState: string;
   recipientPostalCode: string;
+  recipientCountry: string;
   mailDate: string;
   status: string;
   lobId: string | null;
@@ -128,6 +140,7 @@ export function buildPostcard(row: PostcardRow): Postcard {
       city: row.recipientCity,
       state: row.recipientState,
       postalCode: row.recipientPostalCode,
+      country: row.recipientCountry,
     },
     mailDate: row.mailDate,
     status: row.status as PostcardStatus,
@@ -165,6 +178,8 @@ async function buildOrders(rows: OrderRow[]): Promise<Order[]> {
       currency: row.currency,
       unitPriceCents: row.unitPriceCents,
       postcardCount: row.postcardCount,
+      internationalCount: row.internationalCount,
+      internationalUnitPriceCents: row.internationalUnitPriceCents,
       subtotalCents: row.subtotalCents,
       discountCents: row.discountCents,
       totalCents: row.totalCents,

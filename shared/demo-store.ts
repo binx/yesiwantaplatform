@@ -11,6 +11,7 @@ export const demoStore: Store = {
   currency: "USD",
   locale: "en-US",
   postcardPriceCents: 140,
+  internationalPostcardPriceCents: null,
   theme: { ...defaultTheme, fontUrl: null },
   hero: defaultHero,
   pages: [],

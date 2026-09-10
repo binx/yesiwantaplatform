@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Form, Input, Popconfirm, Skeleton } from "antd";
-import { formatRecipient } from "@shared/postcards";
+import { Alert, Button, Popconfirm, Skeleton } from "antd";
+import { formatRecipient, type Recipient } from "@shared/postcards";
 import type { AddressInput, CustomerAddress } from "@shared/account";
 import { useAddresses, useCreateAddress, useDeleteAddress, useUpdateAddress } from "@/lib/account";
 import { cx } from "@/lib/cx";
+import { useStore } from "@/lib/useStore";
+import { BLANK_RECIPIENT, useRecipientCheck, validateRecipient, type RecipientErrors } from "@/lib/recipient-form";
+import { RecipientFields, VerificationNotice } from "@/components/postcard/RecipientFields";
+import postcard from "@/components/postcard/Postcard.module.css";
 import styles from "./Account.module.css";
 
 /**
@@ -11,19 +15,10 @@ import styles from "./Account.module.css";
  *
  * Filled in automatically when an order is paid, and editable here. The
  * designer offers this list, so a second batch to the same friends starts
- * from a picker rather than a blank form.
+ * from a picker rather than a blank form. The form is the designer's own,
+ * verification included: an address saved here has already been through
+ * USPS, and the designer does not ask again.
  */
-interface RecipientFormValues {
-  name: string;
-  line1: string;
-  line2?: string | null;
-  city: string;
-  state: string;
-  postalCode: string;
-}
-
-const BLANK: RecipientFormValues = { name: "", line1: "", line2: "", city: "", state: "", postalCode: "" };
-
 function RecipientForm({
   initial,
   saving,
@@ -31,63 +26,56 @@ function RecipientForm({
   onSave,
   onCancel,
 }: {
-  initial: RecipientFormValues;
+  initial: Recipient;
   saving: boolean;
   error: string | null;
   onSave: (values: AddressInput) => void;
   onCancel: () => void;
 }) {
+  const [draft, setDraft] = useState<Recipient>(initial);
+  const [errors, setErrors] = useState<RecipientErrors>({});
+  const check = useRecipientCheck();
+  const store = useStore();
+
+  const set = (key: keyof Recipient, value: string) => {
+    setDraft((current) => ({ ...current, [key]: value }));
+    if (errors[key]) setErrors((current) => ({ ...current, [key]: undefined }));
+  };
+
   return (
-    <Form
-      layout="vertical"
-      requiredMark={false}
-      disabled={saving}
-      className={cx(styles.form)}
-      initialValues={initial}
-      onFinish={(values: RecipientFormValues) =>
-        onSave({
-          name: values.name.trim(),
-          line1: values.line1.trim(),
-          line2: values.line2?.trim() || null,
-          city: values.city.trim(),
-          state: values.state.trim().toUpperCase(),
-          postalCode: values.postalCode.trim(),
-        })
-      }
+    <form
+      className={cx(styles.form, postcard.recipientForm)}
+      onSubmit={(event) => {
+        event.preventDefault();
+        const result = validateRecipient(draft);
+        if (!result.ok) {
+          setErrors(result.errors);
+          return;
+        }
+        void check.run(result.value, (value) => onSave(value));
+      }}
     >
       {error ? <Alert className={cx(styles.alert)} type="error" showIcon title={error} /> : null}
 
-      <Form.Item name="name" label="Name" rules={[{ required: true, message: "Enter a name." }, { max: 40, message: "40 characters at most." }]}>
-        <Input autoComplete="off" />
-      </Form.Item>
-      <Form.Item name="line1" label="Street address" rules={[{ required: true, message: "Enter a street address." }, { max: 64, message: "64 characters at most." }]}>
-        <Input autoComplete="off" />
-      </Form.Item>
-      <Form.Item name="line2" label="Apartment, suite, etc." rules={[{ max: 64, message: "64 characters at most." }]}>
-        <Input autoComplete="off" />
-      </Form.Item>
-      <Form.Item name="city" label="City" rules={[{ required: true, message: "Enter a city." }]}>
-        <Input autoComplete="off" />
-      </Form.Item>
-      <Form.Item name="state" label="State" rules={[{ required: true, pattern: /^[A-Za-z]{2}$/, message: "Use the two-letter state code." }]}>
-        <Input autoComplete="off" maxLength={2} />
-      </Form.Item>
-      <Form.Item name="postalCode" label="ZIP" rules={[{ required: true, pattern: /^\d{5}(-\d{4})?$/, message: "Use a 5-digit ZIP code." }]}>
-        <Input autoComplete="off" inputMode="numeric" />
-      </Form.Item>
+      <RecipientFields draft={draft} errors={errors} onChange={set} locale={store.locale} allowInternational={store.internationalPostcardPriceCents !== null} />
 
-      <Button type="primary" htmlType="submit" loading={saving}>
-        Save recipient
-      </Button>{" "}
-      <Button onClick={onCancel} disabled={saving}>
-        Cancel
-      </Button>
-    </Form>
+      {check.check ? <VerificationNotice check={check.check} locale={store.locale} onUse={check.useSuggested} onKeep={check.keepMine} onDismiss={check.dismiss} /> : null}
+
+      <div className={postcard.recipientActions}>
+        <Button type="primary" htmlType="submit" loading={saving || check.verifying}>
+          Save recipient
+        </Button>
+        <Button onClick={onCancel} disabled={saving}>
+          Cancel
+        </Button>
+      </div>
+    </form>
   );
 }
 
 export function AccountAddressesPage() {
   const addresses = useAddresses();
+  const store = useStore();
   const create = useCreateAddress();
   const update = useUpdateAddress();
   const remove = useDeleteAddress();
@@ -117,7 +105,7 @@ export function AccountAddressesPage() {
         editing === address.id ? (
           <div key={address.id} className={cx(styles.card)}>
             <RecipientForm
-              initial={{ ...address, line2: address.line2 ?? "" }}
+              initial={{ name: address.name, line1: address.line1, line2: address.line2, city: address.city, state: address.state, postalCode: address.postalCode, country: address.country }}
               saving={update.isPending}
               error={update.error instanceof Error ? update.error.message : null}
               onCancel={() => setEditing(null)}
@@ -128,6 +116,7 @@ export function AccountAddressesPage() {
           <RecipientCard
             key={address.id}
             address={address}
+            locale={store.locale}
             onEdit={() => setEditing(address.id)}
             onDelete={() => remove.mutate(address.id)}
             deleting={remove.isPending}
@@ -138,7 +127,7 @@ export function AccountAddressesPage() {
       {editing === "new" ? (
         <div className={cx(styles.card)}>
           <RecipientForm
-            initial={BLANK}
+            initial={BLANK_RECIPIENT}
             saving={create.isPending}
             error={create.error instanceof Error ? create.error.message : null}
             onCancel={() => setEditing(null)}
@@ -154,11 +143,13 @@ export function AccountAddressesPage() {
 
 function RecipientCard({
   address,
+  locale,
   onEdit,
   onDelete,
   deleting,
 }: {
   address: CustomerAddress;
+  locale: string;
   onEdit: () => void;
   onDelete: () => void;
   deleting: boolean;
@@ -168,8 +159,9 @@ function RecipientCard({
       <div className={cx(styles.cardHeader)}>
         <p className={cx(styles.meta)}>
           <strong>{address.name}</strong>
+          {address.verifiedAt ? <span className={cx(styles.default)}>Verified</span> : null}
           <br />
-          {formatRecipient(address)}
+          {formatRecipient(address, locale)}
         </p>
         <div className={cx(styles.cardActions)}>
           <Button size="small" onClick={onEdit}>

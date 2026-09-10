@@ -161,6 +161,8 @@ export const storeSchema = z.object({
   locale: localeSchema.default("en-US"),
   /** What one postcard costs. The storefront shows it; the server charges it. */
   postcardPriceCents: centsSchema,
+  /** What one postcard mailed abroad costs. Null: the shop mails within the US only. */
+  internationalPostcardPriceCents: centsSchema.nullable().default(null),
   theme: themeSchema,
   hero: heroSchema.default(defaultHero),
   /** Live pages, as summaries only; bodies come from `/api/pages/:slug`. */

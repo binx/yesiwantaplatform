@@ -9,7 +9,7 @@ import {
   heroSchema,
   defaultHero,
 } from "./schema.js";
-import { cropSchema, defaultCrop, orientationSchema, postcardBackSchema } from "./postcards.js";
+import { cropSchema, defaultCrop, orientationSchema, postcardBackSchema, recipientSchema } from "./postcards.js";
 
 /**
  * Request and response contracts, validated on both sides of the wire.
@@ -58,6 +58,17 @@ export const settingsInputSchema = z.object({
     .default(null),
   /** The price of one postcard. Stripe's floor for a charge is 50 cents. */
   postcardPriceCents: centsSchema.min(50, "Stripe cannot charge less than 50 cents."),
+  /** The price of one postcard mailed abroad. Null keeps the shop US-only. */
+  internationalPostcardPriceCents: centsSchema.min(50, "Stripe cannot charge less than 50 cents.").nullable().default(null),
+  /**
+   * The shop's own US address. Lob requires one on every international
+   * piece — it is printed as the return address — so international mail
+   * cannot be turned on without it.
+   */
+  returnAddress: recipientSchema
+    .refine((address) => address.country === "US", "The return address must be in the United States.")
+    .nullable()
+    .default(null),
   hero: heroSchema.default(defaultHero),
   cartRecoveryEnabled: z.boolean().default(false),
   cartRecoveryDelayHours: z.number().int().min(1).max(168).default(4),

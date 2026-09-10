@@ -9,7 +9,7 @@ blocked_by: []
 blocks: []
 touches: vite.config.ts:66 · server/uploads.ts:205
 completed: 2026-09-10
-shipped_in:
+shipped_in: 17
 summary: >-
   In `npm run dev`, the thumbnail of a design saved seconds ago shows as a broken
   image in the schedule. The Vite proxy's bypass sees the new file on disk and lets

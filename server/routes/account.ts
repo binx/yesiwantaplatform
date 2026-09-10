@@ -153,8 +153,10 @@ accountRouter.post("/register", emailRateLimit, async (req, res) => {
   try {
     const id = await createCustomer(parsed.data.email, parsed.data.password, parsed.data.name);
     const token = await createEmailVerificationToken(id);
-    const verifyUrl = new URL(`/account/verify?token=${token}`, env.PUBLIC_URL).toString();
-    void sendAccountEmail("VerifyEmail", parsed.data.email, verifyUrl);
+    const verifyUrl = new URL("/account/verify", env.PUBLIC_URL);
+    verifyUrl.searchParams.set("token", token);
+    if (parsed.data.next) verifyUrl.searchParams.set("next", parsed.data.next);
+    void sendAccountEmail("VerifyEmail", parsed.data.email, verifyUrl.toString());
   } catch (error) {
     // Not re-thrown: the caller learns nothing different than the success
     // path below. See the enumeration note above.

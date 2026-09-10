@@ -308,3 +308,61 @@ test("the footer sits at the bottom of a short page, not above a band of page-gr
   expect(box).not.toBeNull();
   expect(box!.y + box!.height).toBeCloseTo(800, 0);
 });
+
+test("registering from the cart returns there, without waiting for the email", async ({ page }) => {
+  await designOne(page);
+  await page.getByLabel("Name").fill("Grandma");
+  await page.getByLabel("Street address").fill("1 Test Street");
+  await page.getByLabel("City").fill("Marfa");
+  await selectState(page, "TX");
+  await page.getByLabel("ZIP").fill("79843");
+  await page.getByRole("button", { name: "Add recipient" }).click();
+  await page.getByRole("button", { name: "Add to cart" }).click();
+  await expect(page).toHaveURL(/\/cart$/);
+  await expect(page.getByText("1 design to 1 recipient")).toBeVisible();
+
+  await page.getByText(/keep your recipients for next time/).getByRole("link", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/account\/login$/);
+
+  await page.getByRole("link", { name: "Create an account" }).click();
+  await expect(page).toHaveURL(/\/account\/register$/);
+
+  await page.route("**/api/account/register", async (route) => {
+    expect((route.request().postDataJSON() as { next: string | null }).next).toBe("/cart");
+    await route.fulfill({ status: 204, body: "" });
+  });
+
+  await page.getByLabel("Email").fill("checkout-signup@example.com");
+  await page.getByLabel("Password").fill("a-sufficiently-long-test-password");
+  await page.getByRole("button", { name: "Create account" }).click();
+
+  await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
+  await page.getByRole("button", { name: "Back to your cart" }).click();
+  await expect(page).toHaveURL(/\/cart$/);
+  await expect(page.getByText("1 design to 1 recipient")).toBeVisible();
+});
+
+test("an emailed verification link returns the shopper to where they registered from", async ({ page }) => {
+  await page.route("**/api/account/verify", async (route) => {
+    await route.fulfill({ json: { csrfToken: "e2e-test-csrf-token" } });
+  });
+  await page.route("**/api/account", async (route) => {
+    await route.fulfill({
+      json: {
+        customer: {
+          id: "e2e-test-customer",
+          email: "verified@example.com",
+          name: null,
+          emailVerified: true,
+          createdAt: Date.now(),
+          replyDisplayName: null,
+          replyAddress: null,
+        },
+      },
+    });
+  });
+
+  await page.goto("/account/verify?token=does-not-matter-its-stubbed&next=%2Fcart");
+  await expect(page).toHaveURL(/\/cart$/);
+  await expect(page.getByText(/keep your recipients for next time/)).not.toBeVisible();
+});

@@ -202,7 +202,9 @@ export function CartPage() {
                 <Link to="/account/login" state={{ from: "/cart" }}>
                   Sign in
                 </Link>{" "}
-                to keep your recipients for next time and follow your orders.
+                to keep your recipients for next time and follow your orders. No account?{" "}
+                Check out as a guest — your order is attached to any account you make with the
+                same email later.
               </p>
             ) : null}
 

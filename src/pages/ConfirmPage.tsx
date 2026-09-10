@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Result, Skeleton } from "antd";
 import { orderSchema, type Order } from "@shared/orders";
@@ -8,6 +8,7 @@ import { PageWrapper } from "@/components/layout/PageWrapper";
 import { PostcardSchedule } from "@/components/postcard/PostcardSchedule";
 import { apiGet } from "@/lib/api";
 import { cx } from "@/lib/cx";
+import { useCustomer } from "@/lib/account";
 import { useCart } from "@/store/cart";
 import { useStore } from "@/lib/useStore";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
@@ -22,10 +23,12 @@ import styles from "./ConfirmPage.module.css";
  * later and see which cards have gone out.
  */
 export function ConfirmPage() {
+  const location = useLocation();
   const [params] = useSearchParams();
   const sessionId = params.get("session_id");
   const clear = useCart((s) => s.clear);
   const store = useStore();
+  const customer = useCustomer();
   useDocumentTitle("Your order");
 
   const { data, error, isPending } = useQuery({
@@ -118,6 +121,15 @@ export function ConfirmPage() {
       <p className={styles.note}>Bookmark this page to follow your postcards' progress.</p>
 
       <PostcardSchedule order={data} locale={store.locale} />
+
+      {!customer.isPending && !customer.data && data.email ? (
+        <p className={styles.note}>
+          <Link to="/account/register" state={{ from: `${location.pathname}${location.search}` }}>
+            Make an account
+          </Link>{" "}
+          with {data.email} to follow these cards and reuse the addresses next time.
+        </p>
+      ) : null}
 
       <table className={styles.table}>
         <tfoot>

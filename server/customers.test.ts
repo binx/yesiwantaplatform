@@ -1,11 +1,21 @@
 import { randomUUID } from "node:crypto";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
+import type * as EmailModule from "./email.js";
 
 /**
  * Customer accounts: the verification gate, the IDOR, and enumeration.
+ *
+ * Every `/register` and `/password/forgot` call in this file shares one
+ * `emailRateLimit` bucket (10 per 15 minutes, keyed by IP) for the lifetime
+ * of `app` — keep the running total across this file's tests at or under 10.
  */
+
+vi.mock("./email.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof EmailModule>()),
+  sendAccountEmail: vi.fn(),
+}));
 
 let app: Express;
 const PASSWORD = "a-sufficiently-long-test-password";
@@ -62,17 +72,58 @@ describe("registration and verification", () => {
     expect((orders.body as { id: string }[]).some((o) => o.id === orderId)).toBe(true);
   });
 
-  it("does not create a second account or change the password for a taken email", async () => {
+  it("does not create a second account, change the password, or send a `next` for a taken email", async () => {
     const email = "taken@example.com";
     const first = await bootstrap();
     await first.agent.post("/api/account/register").set("x-csrf-token", first.csrf).send({ email, password: PASSWORD }).expect(204);
 
+    const { sendAccountEmail } = vi.mocked(await import("./email.js"));
+    sendAccountEmail.mockClear();
+
     const second = await bootstrap();
-    const response = await second.agent.post("/api/account/register").set("x-csrf-token", second.csrf).send({ email, password: "a-totally-different-password" }).expect(204);
+    const response = await second.agent
+      .post("/api/account/register")
+      .set("x-csrf-token", second.csrf)
+      .send({ email, password: "a-totally-different-password", next: "/cart" })
+      .expect(204);
     expect(response.body).toEqual({});
+    expect(sendAccountEmail).not.toHaveBeenCalled();
 
     const third = await bootstrap();
     await third.agent.post("/api/account/session").set("x-csrf-token", third.csrf).send({ email, password: PASSWORD }).expect(200);
+  });
+});
+
+describe("carrying `next` through registration", () => {
+  it("puts a same-site `next` on the verification link for a new email", async () => {
+    const { sendAccountEmail } = vi.mocked(await import("./email.js"));
+    sendAccountEmail.mockClear();
+
+    const { agent, csrf } = await bootstrap();
+    await agent
+      .post("/api/account/register")
+      .set("x-csrf-token", csrf)
+      .send({ email: "cart-return@example.com", password: PASSWORD, next: "/cart" })
+      .expect(204);
+
+    expect(sendAccountEmail).toHaveBeenCalledTimes(1);
+    const [, , verifyUrl] = sendAccountEmail.mock.calls[0]!;
+    expect(new URL(verifyUrl).searchParams.get("next")).toBe("/cart");
+  });
+
+  it("drops an off-site `next` rather than sending it", async () => {
+    const { sendAccountEmail } = vi.mocked(await import("./email.js"));
+    sendAccountEmail.mockClear();
+
+    const { agent, csrf } = await bootstrap();
+    await agent
+      .post("/api/account/register")
+      .set("x-csrf-token", csrf)
+      .send({ email: "offsite-next@example.com", password: PASSWORD, next: "https://evil.example" })
+      .expect(204);
+
+    const [, , verifyUrl] = sendAccountEmail.mock.calls[0]!;
+    expect(new URL(verifyUrl).searchParams.has("next")).toBe(false);
   });
 });
 

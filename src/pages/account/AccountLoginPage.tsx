@@ -87,7 +87,7 @@ export function AccountLoginPage() {
         <Link to="/account/forgot-password">Forgot your password?</Link>
       </p>
       <p className={cx(styles.footer)}>
-        New here? <Link to="/account/register">Create an account</Link>
+        New here? <Link to="/account/register" state={from ? { from } : undefined}>Create an account</Link>
       </p>
     </PageWrapper>
   );

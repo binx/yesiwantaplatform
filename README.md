@@ -146,7 +146,11 @@ one-click groups, a birthday, notes and when each was last sent to. The
 designer's picker searches it and adds a whole tag at once; the page exports it
 as a CSV the designer's importer reads back. Orders are linked to an account
 only after the email is verified, so registering with a stranger's address
-cannot read their order history.
+cannot read their order history. Registering mid-checkout does not sign
+the shopper in — nor does it have to: checkout works while signed out, and
+"Check your email" sends them back to the cart or the designer to carry on
+as a guest, with the order attaching to their account once they click the
+verification link.
 
 **Your postcards** is a gallery of everything a customer has designed, newest
 first, with where each card got to. Opening one shows the front, the back as

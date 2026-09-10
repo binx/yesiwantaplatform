@@ -135,6 +135,12 @@ const schema = z.object({
    * operational; a store using Lob differently can say so here.
    */
   LOB_USE_TYPE: z.enum(["operational", "marketing"]).default("operational"),
+  /**
+   * The signing secret of the Lob webhook pointed at /api/webhooks/lob, from
+   * the webhook's page in the Lob dashboard. Absent, tracking events are
+   * refused with 503 and the admin overview says so; nothing else changes.
+   */
+  LOB_WEBHOOK_SECRET: z.string().min(1).optional(),
 });
 
 export type Env = Omit<z.infer<typeof schema>, "SESSION_SECRET" | "TRUST_PROXY"> & {
@@ -274,6 +280,8 @@ export const hasStripe = Boolean(env.STRIPE_SECRET_KEY);
 
 /** Nothing goes to print until a Lob key is present. */
 export const hasLob = Boolean(env.LOB_API_KEY);
+/** Delivery tracking arrives only through a signed webhook. */
+export const hasLobWebhook = Boolean(env.LOB_WEBHOOK_SECRET);
 export const lobMode: "test" | "live" | null = env.LOB_API_KEY
   ? env.LOB_API_KEY.startsWith("live_")
     ? "live"

@@ -47,7 +47,7 @@ import {
   verifyCsrf,
   writeRateLimit,
 } from "../middleware.js";
-import { env, hasLob, hasStripe, isProduction, isSqlite, lobMode } from "../env.js";
+import { env, hasLob, hasLobWebhook, hasStripe, isProduction, isSqlite, lobMode } from "../env.js";
 import { mapUploadError, storeImage, uploadMiddleware } from "../uploads.js";
 import { StripeNotConfiguredError, classifyStripeError, getStripeKeyCheck, requireStripe } from "../stripe.js";
 import { renderMarkdown } from "../markdown.js";
@@ -105,6 +105,7 @@ adminRouter.get("/environment", (_req, res) => {
     hasEmail: Boolean(env.SMTP_URL),
     hasLob,
     lobMode,
+    hasLobWebhook,
     database: isSqlite ? "sqlite" : "postgres",
     publicUrl: env.PUBLIC_URL,
     production: isProduction,

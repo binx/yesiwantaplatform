@@ -229,6 +229,34 @@ for (const { name, context } of dialects) {
       expect(order.postcards.map((p) => p.recipient.country).sort()).toEqual(["CA", "US"]);
     });
 
+    it("keeps tracking events per card and moves the status only forward, on either engine", async () => {
+      const a = await design();
+      const orderId = randomUUID();
+      await db.orders.createPendingOrder({
+        id: orderId,
+        checkoutSessionId: `cs_${orderId}`,
+        email: "buyer@example.com",
+        currency: "USD",
+        unitPriceCents: 140,
+        lines: [{ designs: [{ designId: a.id, mailDate: "2026-09-14" }], recipients: [RECIPIENT] }],
+      });
+      const card = (await db.orders.getOrder(orderId))!.postcards[0]!;
+
+      expect(await db.orders.recordTrackingEvent(card.id, { id: `evt_${orderId}_2`, type: "postcard.delivered", occurredAt: Date.parse("2026-09-18T15:00:00Z"), location: null })).toBe(true);
+      expect(await db.orders.recordTrackingEvent(card.id, { id: `evt_${orderId}_1`, type: "postcard.in_transit", occurredAt: Date.parse("2026-09-15T10:00:00Z"), location: "MARFA TX" })).toBe(true);
+      expect(await db.orders.recordTrackingEvent(card.id, { id: `evt_${orderId}_1`, type: "postcard.in_transit", occurredAt: Date.parse("2026-09-15T10:00:00Z"), location: "MARFA TX" })).toBe(false);
+      expect(await db.orders.recordTrackingEvent(card.id, { id: `evt_${orderId}_3`, type: "postcard.rendered_pdf", occurredAt: Date.parse("2026-09-19T10:00:00Z"), location: null })).toBe(true);
+
+      const tracked = (await db.orders.getOrder(orderId))!.postcards[0]!;
+      expect(tracked.trackingStatus).toBe("postcard.delivered");
+      expect(tracked.tracking).toEqual([
+        { type: "postcard.in_transit", occurredAt: Date.parse("2026-09-15T10:00:00Z"), location: "MARFA TX" },
+        { type: "postcard.delivered", occurredAt: Date.parse("2026-09-18T15:00:00Z"), location: null },
+      ]);
+      expect(await db.orders.findPostcardForTracking(card.id, null)).toMatchObject({ id: card.id });
+      expect(await db.orders.findPostcardForTracking(null, "psc_nope")).toBeNull();
+    });
+
     it("round-trips a page's booleans", async () => {
       const id = await db.pages.createPage({ slug: "dialect-page", title: "Dialect Page", body: "# Hello", isLive: true, inNav: true });
       const page = await db.pages.findPageBySlug("dialect-page");

@@ -241,6 +241,39 @@ export const postcardStatusSchema = z.enum([
 export type PostcardStatus = z.infer<typeof postcardStatusSchema>;
 
 /**
+ * Lob's tracking events, in the order they happen. Only the ones a person
+ * would want to hear about are shown; the rest (`created`, `rendered_pdf`,
+ * `mailed`) are stored and kept quiet. "Processed for delivery" means the
+ * card is at the recipient's post office and arrives within a business
+ * day; "delivered" follows when USPS reports it.
+ */
+export const SHOWN_TRACKING_EVENTS = [
+  "postcard.international_exit",
+  "postcard.in_transit",
+  "postcard.in_local_area",
+  "postcard.processed_for_delivery",
+  "postcard.re-routed",
+  "postcard.returned_to_sender",
+  "postcard.delivered",
+] as const;
+
+export type ShownTrackingEvent = (typeof SHOWN_TRACKING_EVENTS)[number];
+
+export function isShownTrackingEvent(type: string): type is ShownTrackingEvent {
+  return (SHOWN_TRACKING_EVENTS as readonly string[]).includes(type);
+}
+
+export const trackingEventSchema = z.object({
+  /** Lob's `event_type.id`, verbatim. */
+  type: z.string(),
+  /** Epoch milliseconds. */
+  occurredAt: z.number().int(),
+  location: z.string().nullable(),
+});
+
+export type TrackingEvent = z.infer<typeof trackingEventSchema>;
+
+/**
  * One physical card on an order.
  *
  * `lastError` is Lob's own words and is here for the admin. The account
@@ -259,6 +292,10 @@ export const postcardSchema = z.object({
   sentAt: z.number().int().nullable(),
   attempts: z.number().int().min(0),
   lastError: z.string().nullable(),
+  /** The latest shown tracking event, or null before the first scan. */
+  trackingStatus: z.string().nullable().default(null),
+  /** Every shown event so far, oldest first. */
+  tracking: z.array(trackingEventSchema).default([]),
 });
 
 export type Postcard = z.infer<typeof postcardSchema>;

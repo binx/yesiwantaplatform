@@ -10,6 +10,7 @@ const wired = {
   hasEmail: true,
   hasLob: true,
   lobMode: "test" as const,
+  hasLobWebhook: true,
   database: "sqlite" as const,
   publicUrl: "https://shop.example.com",
   production: true,

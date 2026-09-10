@@ -314,6 +314,8 @@ export const postcards = sqliteTable(
     /** How many times the sweep has tried. A transient failure retries; a refusal does not. */
     attempts: integer("attempts").notNull().default(0),
     lastError: text("last_error"),
+    /** The latest tracking event Lob reported, as its `event_type.id` — `postcard.in_transit`. Denormalised from the events table. */
+    trackingStatus: text("tracking_status"),
     ...timestamps,
   },
   (t) => [
@@ -321,6 +323,32 @@ export const postcards = sqliteTable(
     index("postcards_design_idx").on(t.designId),
     index("postcards_due_idx").on(t.status, t.mailDate),
   ],
+);
+
+/**
+ * Where a card is, from Lob's tracking webhook: one row per event, keyed
+ * by Lob's event id so a redelivery is a no-op. Shown as a timeline on the
+ * order pages; never emailed.
+ */
+export const postcardTrackingEvents = sqliteTable(
+  "postcard_tracking_events",
+  {
+    /** Lob's event id, `evt_…`. */
+    id: text("id").primaryKey(),
+    postcardId: text("postcard_id")
+      .notNull()
+      .references(() => postcards.id, { onDelete: "cascade" }),
+    /** Lob's `event_type.id`, verbatim. */
+    type: text("type").notNull(),
+    /** When it happened, unix seconds. */
+    occurredAt: integer("occurred_at").notNull(),
+    /** The scan's location, when Lob includes one. */
+    location: text("location"),
+    createdAt: integer("created_at")
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (t) => [index("postcard_tracking_postcard_idx").on(t.postcardId, t.occurredAt)],
 );
 
 /**

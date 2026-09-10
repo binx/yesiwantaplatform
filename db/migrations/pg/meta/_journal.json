@@ -22,6 +22,13 @@
       "when": 1789018834587,
       "tag": "0002_exotic_vulcan",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789044125918,
+      "tag": "0003_sturdy_madame_masque",
+      "breakpoints": true
     }
   ]
 }

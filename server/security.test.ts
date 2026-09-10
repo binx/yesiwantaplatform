@@ -268,6 +268,14 @@ describe("customer routes", () => {
   });
 });
 
+describe("Lob tracking webhook", () => {
+  it("refuses an unsigned event", async () => {
+    const response = await request(app).post("/api/webhooks/lob").set("content-type", "application/json").send("{}");
+    // 503 with no secret configured, 400 with one; never accepted.
+    expect([400, 503]).toContain(response.status);
+  });
+});
+
 describe("admin password reset", () => {
   it.each(ADMIN_PASSWORD_RESET_ROUTES)("still requires a CSRF token on %s", async (path) => {
     await request(app).post(path).send({}).expect(403);

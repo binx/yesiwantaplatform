@@ -27,3 +27,25 @@ export function customerStatusLabel(status: PostcardStatus): string {
       return "Cancelled";
   }
 }
+
+/** What a scan is called on the page. Never Lob's own type string. */
+export function trackingLabel(type: string): string {
+  switch (type) {
+    case "postcard.international_exit":
+      return "Left the country";
+    case "postcard.in_transit":
+      return "In transit";
+    case "postcard.in_local_area":
+      return "Near its destination";
+    case "postcard.processed_for_delivery":
+      return "Out for delivery";
+    case "postcard.delivered":
+      return "Delivered";
+    case "postcard.re-routed":
+      return "Re-routed";
+    case "postcard.returned_to_sender":
+      return "Returned to sender — check the address";
+    default:
+      return type.replace(/^postcard\./, "").replaceAll("_", " ");
+  }
+}

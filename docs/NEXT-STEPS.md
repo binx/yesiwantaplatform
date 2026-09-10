@@ -102,8 +102,9 @@ persistent disk:
   client to `dist/`; `npm start` runs it.
 - `.env` in production needs `SESSION_SECRET`, `PUBLIC_URL`, the Stripe
   keys, the Stripe webhook secret (a real endpoint in the Stripe dashboard
-  pointed at `/api/webhooks/stripe`), `LOB_API_KEY` (a `live_` key), and
-  `SMTP_URL` plus `EMAIL_FROM`.
+  pointed at `/api/webhooks/stripe`), `LOB_API_KEY` (a `live_` key),
+  `LOB_WEBHOOK_SECRET` (a Lob webhook pointed at `/api/webhooks/lob`, for
+  delivery tracking), and `SMTP_URL` plus `EMAIL_FROM`.
 - Two things must persist: the SQLite file in `data/` (or set
   `DATABASE_URL` to Postgres) and `ASSETS_DIR`, which holds every design's
   print file. Or use the `ASSETS_S3_*` bucket settings.

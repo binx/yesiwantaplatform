@@ -172,6 +172,7 @@ interface WiringProps {
     hasEmail: boolean;
     hasLob: boolean;
     lobMode: "test" | "live" | null;
+    hasLobWebhook: boolean;
     database: "sqlite" | "postgres";
     publicUrl: string;
     production: boolean;
@@ -236,6 +237,15 @@ export function Wiring({ environment }: WiringProps) {
     });
   } else if (environment.lobMode === "live") {
     notices.push({ type: "warning", title: "Lob live mode", description: "Every card the sweep sends is printed and mailed, and costs money." });
+  }
+
+  if (environment.hasLob && !environment.hasLobWebhook) {
+    notices.push({
+      type: "info",
+      title: "Lob tracking is not connected",
+      description:
+        "Cards still print and mail; the order pages just stop at \"Mailed\". Create a webhook in the Lob dashboard pointed at /api/webhooks/lob, subscribe it to the postcard events, and set LOB_WEBHOOK_SECRET.",
+    });
   }
 
   if (!environment.hasEmail) {

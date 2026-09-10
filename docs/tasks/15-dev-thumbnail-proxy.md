@@ -1,14 +1,14 @@
 ---
 task: "15"
 title: "Dev only: freshly saved thumbnails render broken in the schedule"
-status: todo
+status: done
 tier: 3
 size: S
 migration: none
 blocked_by: []
 blocks: []
 touches: vite.config.ts:66 · server/uploads.ts:205
-completed:
+completed: 2026-09-10
 shipped_in:
 summary: >-
   In `npm run dev`, the thumbnail of a design saved seconds ago shows as a broken

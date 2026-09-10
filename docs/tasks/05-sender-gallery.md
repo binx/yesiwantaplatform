@@ -9,7 +9,7 @@ blocked_by: ["03"]
 blocks: ["06"]
 touches: server/fulfilment.ts:189 · db/designs-repository.ts · server/routes/account.ts · src/pages/CreatePage.tsx · src/pages/account/AccountNav.tsx
 completed: 2026-09-10
-shipped_in:
+shipped_in: 12
 summary: >-
   A customer's designs are already theirs (`postcard_designs.customer_id`), but there is
   nowhere to see them: order history is a list of receipts. Add a gallery of everything

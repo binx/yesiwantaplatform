@@ -140,10 +140,13 @@ dashboard's webhook debugger can post samples.
 
 ### Customer accounts
 
-Sign in, order history, password reset — and **saved recipients**: the people a
-customer has sent to are saved when an order is paid, and the designer offers
-them again. Orders are linked to an account only after the email is verified,
-so registering with a stranger's address cannot read their order history.
+Sign in, order history, password reset — and an **address book**: the people a
+customer has sent to are saved when an order is paid, with a label, tags for
+one-click groups, a birthday, notes and when each was last sent to. The
+designer's picker searches it and adds a whole tag at once; the page exports it
+as a CSV the designer's importer reads back. Orders are linked to an account
+only after the email is verified, so registering with a stranger's address
+cannot read their order history.
 
 ### Abandoned cart reminders
 

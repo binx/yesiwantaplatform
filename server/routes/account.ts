@@ -271,7 +271,7 @@ meRouter.post("/addresses", async (req, res) => {
   // Verified here rather than trusting a flag from the client: the cache
   // makes the second look-up free, and "verified" then means Lob said so.
   const verification = await verifyRecipient(parsed.data);
-  const address = await createAddress(req.session.customerId!, parsed.data, { verified: verification.deliverability === "deliverable" });
+  const address = await createAddress(req.session.customerId!, parsed.data, { verified: verification.deliverability === "deliverable", source: "manual" });
   res.status(201).json(address);
 });
 

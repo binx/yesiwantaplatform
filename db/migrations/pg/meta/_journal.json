@@ -29,6 +29,13 @@
       "when": 1789044125918,
       "tag": "0003_sturdy_madame_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789044291809,
+      "tag": "0004_silent_valeria_richards",
+      "breakpoints": true
     }
   ]
 }

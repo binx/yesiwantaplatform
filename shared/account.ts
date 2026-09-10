@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { normaliseRecipient, recipientFieldsSchema, recipientSchema, refineRecipient } from "./postcards.js";
+import { normaliseRecipient, recipientFieldsSchema, refineRecipient } from "./postcards.js";
 
 /**
  * Storefront customer accounts.
@@ -40,16 +40,43 @@ export const verifyEmailInputSchema = z.object({
 });
 
 /**
- * A saved recipient. The same shape a postcard is addressed with, so what a
- * customer saves is exactly what the designer can pick up again.
+ * A saved recipient: the same shape a postcard is addressed with, so what a
+ * customer saves is exactly what the designer can pick up again — plus what
+ * makes a list into an address book: a label, tags for one-click groups, a
+ * birthday, notes.
  */
-export const addressInputSchema = recipientSchema;
+const addressBookFields = {
+  /** "Mom", "the Okafors". Shown in the book; the card prints `name`. */
+  label: z.string().trim().max(80).nullable().default(null),
+  /** Lowercase, short, at most ten. `holiday`, `family`. */
+  tags: z.array(z.string().trim().toLowerCase().min(1).max(24)).max(10).default([]),
+  /** MM-DD, or YYYY-MM-DD when the year is known. */
+  birthday: z
+    .string()
+    .trim()
+    .regex(/^(\d{4}-)?\d{2}-\d{2}$/, "Use a date like 10-14, or 1985-10-14.")
+    .nullable()
+    .default(null),
+  notes: z.string().trim().max(500).nullable().default(null),
+};
+
+export const addressInputSchema = recipientFieldsSchema
+  .extend(addressBookFields)
+  .superRefine(refineRecipient)
+  .transform(normaliseRecipient);
+
+export const addressSourceSchema = z.enum(["order", "manual", "request"]);
 
 export const customerAddressSchema = recipientFieldsSchema
+  .extend(addressBookFields)
   .extend({
     id: z.string(),
     /** When Lob's verification last called it deliverable; the designer skips re-checking these. */
     verifiedAt: z.number().int().nullable().default(null),
+    /** How it arrived: a paid order, typed by hand, or a request link. */
+    source: addressSourceSchema.default("order"),
+    /** The most recent paid order that mailed here, epoch milliseconds. */
+    lastSentAt: z.number().int().nullable().default(null),
   })
   .superRefine(refineRecipient)
   .transform(normaliseRecipient);
@@ -78,3 +105,4 @@ export type VerifyEmailInput = z.infer<typeof verifyEmailInputSchema>;
 export type AddressInput = z.infer<typeof addressInputSchema>;
 export type CustomerAddress = z.infer<typeof customerAddressSchema>;
 export type CustomerProfile = z.infer<typeof customerProfileSchema>;
+export type AddressSource = z.infer<typeof addressSourceSchema>;

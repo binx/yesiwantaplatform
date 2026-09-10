@@ -257,6 +257,44 @@ for (const { name, context } of dialects) {
       expect(await db.orders.findPostcardForTracking(null, "psc_nope")).toBeNull();
     });
 
+    it("keeps the address book's label, tags, birthday and notes, on either engine", async () => {
+      const { drizzle, schema } = await db.getDatabase();
+      const customerId = randomUUID();
+      await drizzle.insert(schema.customers).values({ id: customerId, email: `${customerId}@example.com`, passwordHash: null, name: null });
+
+      const saved = await db.customers.createAddress(
+        customerId,
+        { ...RECIPIENT, label: "Mom", tags: ["family", "holiday"], birthday: "10-14", notes: "Likes the beach ones." },
+        { source: "manual" },
+      );
+      const listed = (await db.customers.listAddresses(customerId)).find((a) => a.id === saved.id)!;
+      expect(listed).toMatchObject({ label: "Mom", tags: ["family", "holiday"], birthday: "10-14", notes: "Likes the beach ones.", source: "manual", lastSentAt: null });
+    });
+
+    it("updates 'last sent' for a known address and keeps a namesake's new address beside the old", async () => {
+      const { drizzle, schema } = await db.getDatabase();
+      const customerId = randomUUID();
+      await drizzle.insert(schema.customers).values({ id: customerId, email: `${customerId}@example.com`, passwordHash: null, name: null });
+      const grandma = { ...RECIPIENT, label: null, tags: [], birthday: null, notes: null };
+
+      expect(await db.customers.saveRecipientsFromOrder(customerId, [grandma])).toBe(1);
+      const first = (await db.customers.listAddresses(customerId))[0]!;
+      expect(first.source).toBe("order");
+      expect(first.lastSentAt).toBeTypeOf("number");
+
+      await db.customers.updateAddress(first.id, customerId, { ...grandma, label: "Grandma B" });
+      expect(await db.customers.saveRecipientsFromOrder(customerId, [grandma])).toBe(0);
+      const again = await db.customers.listAddresses(customerId);
+      expect(again).toHaveLength(1);
+      expect(again[0]?.label).toBe("Grandma B");
+
+      // She moved: two entries, the label carried over, nothing guessed.
+      expect(await db.customers.saveRecipientsFromOrder(customerId, [{ ...grandma, line1: "9 New Road" }])).toBe(1);
+      const both = await db.customers.listAddresses(customerId);
+      expect(both).toHaveLength(2);
+      expect(both.every((a) => a.label === "Grandma B")).toBe(true);
+    });
+
     it("round-trips a page's booleans", async () => {
       const id = await db.pages.createPage({ slug: "dialect-page", title: "Dialect Page", body: "# Hello", isLive: true, inNav: true });
       const page = await db.pages.findPageBySlug("dialect-page");

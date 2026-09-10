@@ -1,7 +1,7 @@
 import { access, mkdir } from "node:fs/promises";
 import { constants } from "node:fs";
 import { createApp } from "./app.js";
-import { env } from "./env.js";
+import { env, hasLob, lobMode } from "./env.js";
 import { ASSETS_ROOT } from "./uploads.js";
 import { imageStore } from "./image-store.js";
 import { runMigrations } from "../db/migrate.js";
@@ -28,7 +28,12 @@ async function main(): Promise<void> {
   const app = createApp();
 
   const server = app.listen(env.API_PORT, env.API_HOST, () => {
-    console.log(`Beluga API listening on http://${env.API_HOST}:${env.API_PORT}`);
+    console.log(`Postcards API listening on http://${env.API_HOST}:${env.API_PORT}`);
+    console.log(
+      hasLob
+        ? `Printing: Lob, ${lobMode} key${env.LOB_BACK_TEMPLATE_ID ? ` with back template ${env.LOB_BACK_TEMPLATE_ID}` : ", back rendered from print/back.hbs"}`
+        : "Printing: LOB_API_KEY is not set, so scheduled postcards will wait.",
+    );
     // Where uploads go, in the deploy log, next to where the API is: the two
     // things an operator checks first when a deploy looks wrong.
     console.log(imageStore.describe());

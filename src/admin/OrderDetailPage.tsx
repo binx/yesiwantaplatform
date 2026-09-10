@@ -1,73 +1,47 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import {
-  Alert,
-  App,
-  Button,
-  Card,
-  Checkbox,
-  Descriptions,
-  Empty,
-  Input,
-  Popconfirm,
-  Select,
-  Skeleton,
-  Table,
-} from "antd";
-import type { Order, OrderItem, OrderStatus, RefundReason } from "@shared/orders";
+import { Alert, App, Button, Card, Checkbox, Descriptions, Empty, Input, Popconfirm, Select, Skeleton } from "antd";
+import type { Order, RefundReason } from "@shared/orders";
+import { summarisePostcards } from "@shared/orders";
 import { formatMoney, parseCents } from "@shared/money";
-import { taxLineLabel } from "@shared/tax";
+import type { Postcard } from "@shared/postcards";
 import { ApiError } from "@/lib/api";
 import { cx } from "@/lib/cx";
+import { PostcardSchedule } from "@/components/postcard/PostcardSchedule";
 import {
+  useCancelOrder,
+  useCancelPostcard,
   useEnvironment,
   useOrder,
   useRefundOrder,
-  useSettings,
+  useRetryPostcard,
   useStoreLocale,
-  useUpdateFulfilment,
-
 } from "./queries";
 import { Field } from "./Field";
 import { PageHeader } from "./RequireAdmin";
 import { OrderStatusTag } from "./OrderStatusTag";
-import { ORDER_STATUSES, formatOrderDate, statusLabel } from "./orderPresentation";
+import { formatOrderDate, postcardStatusLabel } from "./orderPresentation";
 import styles from "./OrderDetailPage.module.css";
 
 /**
- * One order.
+ * One order, card by card.
  *
- * Fulfilment lives entirely in our database. Stripe's Orders API — which v1
- * used for exactly this — no longer exists and has no server-side
- * replacement, so status, carrier and tracking are ours to store. Stripe
- * remains the authority on payment and nothing else.
+ * The thing this page exists for is the failed card: Lob's refusal, in Lob's
+ * own words, next to a Retry button. v1 logged the error to a console nobody
+ * was watching and set the row to `error`, and that was the end of it.
  */
 export function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
 
   const order = useOrder(id);
-  const environment = useEnvironment();
-  const settings = useSettings();
   const locale = useStoreLocale();
-  const save = useUpdateFulfilment();
-
-  const [status, setStatus] = useState<OrderStatus | null>(null);
-  const [carrier, setCarrier] = useState("");
-  const [tracking, setTracking] = useState("");
-  const [notify, setNotify] = useState(false);
-
-  // Adopt the server's values once, then leave the form alone.
-  useEffect(() => {
-    if (!order.data || status !== null) return;
-
-    setStatus(order.data.status);
-    setCarrier(order.data.carrier ?? "");
-    setTracking(order.data.trackingNumber ?? "");
-  }, [order.data, status]);
+  const cancel = useCancelOrder();
+  const retry = useRetryPostcard();
+  const cancelCard = useCancelPostcard();
 
   useEffect(() => {
-    document.title = order.data ? `Order ${order.data.reference} · Beluga` : "Order · Beluga";
+    document.title = order.data ? `Order ${order.data.reference} · Admin` : "Order · Admin";
   }, [order.data]);
 
   if (order.isPending) return <Skeleton active paragraph={{ rows: 10 }} />;
@@ -84,10 +58,59 @@ export function OrderDetailPage() {
   }
 
   const current = order.data;
-  const changed =
-    status !== current.status ||
-    carrier !== (current.carrier ?? "") ||
-    tracking !== (current.trackingNumber ?? "");
+  const counts = summarisePostcards(current);
+  const price = (cents: number) => formatMoney(cents, current.currency, locale);
+  const canCancel = current.status === "paid" || current.status === "pending";
+
+  const fail = (fallback: string) => (error: unknown) =>
+    void message.error(error instanceof Error ? error.message : fallback);
+
+  const renderStatus = (postcard: Postcard) => (
+    <div className={cx(styles.postcardStatus)}>
+      <span>{postcardStatusLabel(postcard.status)}</span>
+      {postcard.status === "sent" && postcard.lobUrl ? (
+        <a href={postcard.lobUrl} target="_blank" rel="noreferrer">
+          Proof
+        </a>
+      ) : null}
+      {postcard.status === "sent" && postcard.expectedDeliveryDate ? (
+        <span className={cx(styles.muted)}>expected {postcard.expectedDeliveryDate}</span>
+      ) : null}
+      {postcard.status === "error" && postcard.lastError ? (
+        <span className={cx(styles.errorText)}>{postcard.lastError}</span>
+      ) : null}
+      {postcard.status === "error" || postcard.status === "cancelled" ? (
+        <Button
+          size="small"
+          loading={retry.isPending}
+          onClick={() =>
+            retry.mutate(
+              { orderId: current.id, postcardId: postcard.id },
+              { onSuccess: () => void message.success("Back on the schedule."), onError: fail("Could not retry.") },
+            )
+          }
+        >
+          Retry
+        </Button>
+      ) : null}
+      {postcard.status === "scheduled" || postcard.status === "error" ? (
+        <Popconfirm
+          title="Withdraw this postcard?"
+          description="It will not be printed. The money is not refunded by this."
+          onConfirm={() =>
+            cancelCard.mutate(
+              { orderId: current.id, postcardId: postcard.id },
+              { onSuccess: () => void message.success("Withdrawn."), onError: fail("Could not withdraw it.") },
+            )
+          }
+        >
+          <Button size="small" danger loading={cancelCard.isPending}>
+            Withdraw
+          </Button>
+        </Popconfirm>
+      ) : null}
+    </div>
+  );
 
   return (
     <>
@@ -105,176 +128,72 @@ export function OrderDetailPage() {
         }
       />
 
-      {current.oversold ? (
+      {counts.error > 0 ? (
         <Alert
           className={cx(styles.alert)}
           type="error"
           showIcon
-          title="Paid, but stock had run out"
-          description="Payment succeeded after the last unit was sold. The money has been taken, so this needs a refund or a restock before it can be fulfilled — it was recorded rather than dropped so it could not be missed. Note that stock was not fully deducted for this order, so refunding or cancelling it will put back more than it took: check the counts afterwards."
+          title={`${counts.error} postcard${counts.error === 1 ? "" : "s"} failed to send`}
+          description="Lob's reason is shown on each. Fix what it names — usually the address — then Retry; the next sweep sends it. Or withdraw the card and refund the buyer for it."
         />
       ) : null}
 
       <div className={cx(styles.columns)}>
         <div className={cx(styles.main)}>
-          <Card title="Items" className={cx(styles.card)}>
-            <Table<OrderItem>
-              dataSource={current.items}
-              rowKey="id"
-              pagination={false}
-              size="middle"
-              scroll={{ x: "max-content" }}
-              columns={[
-                {
-                  title: "Product",
-                  dataIndex: "productName",
-                  render: (name: string, item) => (
-                    <>
-                      <div>{name}</div>
-                      {item.variantLabel ? (
-                        <div className={cx(styles.variant)}>{item.variantLabel}</div>
-                      ) : null}
-                      {Object.entries(item.options).map(([key, value]) => (
-                        <div key={key} className={cx(styles.variant)}>
-                          {key}: {value}
-                        </div>
-                      ))}
-                    </>
-                  ),
-                },
-                { title: "Qty", dataIndex: "quantity", align: "right" },
-                {
-                  title: "Unit",
-                  dataIndex: "unitPriceCents",
-                  align: "right",
-                  render: (cents: number) => formatMoney(cents, current.currency, locale),
-                },
-                {
-                  title: "Line",
-                  key: "line",
-                  align: "right",
-                  render: (_value, item) =>
-                    formatMoney(item.unitPriceCents * item.quantity, current.currency, locale),
-                },
-              ]}
-              summary={() => (
-                <Table.Summary>
-                  <Total label="Subtotal" cents={current.subtotalCents} order={current} />
-                  {current.discountCents > 0 ? (
-                    <Total
-                      label="Discount"
-                      cents={current.discountCents}
-                      order={current}
-                      negative
-                    />
-                  ) : null}
-                  <Total label="Shipping" cents={current.shippingCents} order={current} />
-                  {/* "Includes tax" when the store quotes inclusive prices,
-                      so the column does not read as a second charge. */}
-                  <Total
-                    label={taxLineLabel(settings.data?.taxBehavior ?? "exclusive")}
-                    cents={current.taxCents}
-                    order={current}
-                  />
-                  <Total label="Total" cents={current.totalCents} order={current} strong />
-                </Table.Summary>
-              )}
-            />
+          <Card title="Postcards" className={cx(styles.card)}>
+            <PostcardSchedule order={current} locale={locale} renderStatus={renderStatus} />
             <p className={cx(styles.snapshotNote)}>
-              Names and prices are a snapshot taken at purchase, so an order still renders as it was
-              bought even after the product is renamed, repriced, or deleted.
+              {counts.sent} sent · {counts.scheduled} scheduled · {counts.error} failed · {counts.cancelled} cancelled
             </p>
           </Card>
 
           <Card title="Customer" className={cx(styles.card)}>
             <Descriptions column={1} size="small" bordered>
               <Descriptions.Item label="Email">{current.email}</Descriptions.Item>
-              <Descriptions.Item label="Ship to">
-                <Address order={current} />
+              <Descriptions.Item label="Postcards">
+                {current.postcardCount} × {price(current.unitPriceCents)}
               </Descriptions.Item>
+              <Descriptions.Item label="Subtotal">{price(current.subtotalCents)}</Descriptions.Item>
+              {current.discountCents > 0 ? (
+                <Descriptions.Item label="Discount">−{price(current.discountCents)}</Descriptions.Item>
+              ) : null}
+              <Descriptions.Item label="Total">{price(current.totalCents)}</Descriptions.Item>
+              {current.refundedCents > 0 ? (
+                <Descriptions.Item label="Refunded">{price(current.refundedCents)}</Descriptions.Item>
+              ) : null}
             </Descriptions>
           </Card>
         </div>
 
         <div className={cx(styles.side)}>
-          <Card title="Fulfilment" className={cx(styles.card)}>
-            <Field label="Status">
-              {(control) => (
-                <Select<OrderStatus>
-                  {...control}
-                  className={cx(styles.control)}
-                  value={status ?? current.status}
-                  onChange={setStatus}
-                  options={ORDER_STATUSES.map((value) => ({ label: statusLabel(value), value }))}
-                />
-              )}
-            </Field>
-
-            <Field label="Carrier">
-              {(control) => (
-                <Input
-                  {...control}
-                  value={carrier}
-                  placeholder="Royal Mail"
-                  onChange={(event) => setCarrier(event.target.value)}
-                />
-              )}
-            </Field>
-
-            <Field label="Tracking number">
-              {(control) => (
-                <Input
-                  {...control}
-                  value={tracking}
-                  onChange={(event) => setTracking(event.target.value)}
-                />
-              )}
-            </Field>
-
-            <Checkbox
-              className={cx(styles.notify)}
-              checked={notify}
-              disabled={!environment.data?.hasEmail}
-              onChange={(event) => setNotify(event.target.checked)}
-            >
-              Email the customer about this change
-            </Checkbox>
+          <Card title="Order" className={cx(styles.card)}>
             <p className={cx(styles.help)}>
-              {environment.data?.hasEmail
-                ? "Off by default, so correcting a typo does not send another email."
-                : "No email provider configured — set SMTP_URL to enable this."}
+              Cancelling withdraws every postcard that has not gone to print. Cards already at Lob
+              are not recalled, and no money moves — refund below if it should.
             </p>
-
             <Button
-              type="primary"
+              danger
               block
-              disabled={!changed}
-              loading={save.isPending}
-              onClick={() =>
-                save.mutate(
-                  {
-                    id: current.id,
-                    input: {
-                      status: status ?? current.status,
-                      carrier: carrier.trim() || null,
-                      trackingNumber: tracking.trim() || null,
-                      notify,
-                    },
-                  },
-                  {
-                    onSuccess: (result) => {
-                      setNotify(false);
-                      message.success(
-                        result.emailed ? "Saved, and the customer was emailed." : "Saved.",
-                      );
-                    },
-                    onError: (error: unknown) =>
-                      void message.error(error instanceof Error ? error.message : "Could not save."),
-                  },
-                )
-              }
+              disabled={!canCancel}
+              loading={cancel.isPending}
+              onClick={() => {
+                modal.confirm({
+                  title: "Cancel this order?",
+                  content: `${counts.scheduled + counts.error} postcard${counts.scheduled + counts.error === 1 ? "" : "s"} will be withdrawn.`,
+                  okText: "Cancel the order",
+                  okButtonProps: { danger: true },
+                  onOk: () =>
+                    cancel.mutateAsync(current.id).then(
+                      (result) => void message.success(`Cancelled. ${result.order.postcardCount - counts.sent} postcards withdrawn.`),
+                      (error: unknown) => {
+                        fail("Could not cancel.")(error);
+                        throw error;
+                      },
+                    ),
+                });
+              }}
             >
-              Save
+              Cancel order
             </Button>
           </Card>
 
@@ -295,9 +214,8 @@ const REFUND_REASONS: { label: string; value: RefundReason }[] = [
  * Refunding, in whole or in part.
  *
  * The order does not change when this succeeds: `charge.refunded` is what
- * writes the new figures, exactly as `checkout.session.completed` is what marks
- * an order paid. So the message says the refund is on its way rather than
- * claiming it has landed, and the page picks up the real total on the refetch.
+ * writes the new figures, exactly as `checkout.session.completed` is what
+ * marks an order paid. A full refund also withdraws every unsent card.
  */
 function RefundCard({ order }: { order: Order }) {
   const { message } = App.useApp();
@@ -313,19 +231,25 @@ function RefundCard({ order }: { order: Order }) {
   const amountCents = parseCents(amount);
   const error =
     amountCents === null
-      ? "Enter an amount like 12.50."
+      ? "Enter an amount like 1.40."
       : amountCents <= 0
         ? "A refund has to be for more than zero."
         : amountCents > remaining
           ? `That is more than the ${formatMoney(remaining, order.currency, locale)} still refundable.`
           : null;
 
+  if (order.status === "pending") {
+    return (
+      <Card title="Refund" className={cx(styles.card)}>
+        <p className={cx(styles.help)}>Nothing has been paid yet.</p>
+      </Card>
+    );
+  }
+
   if (remaining <= 0) {
     return (
       <Card title="Refund" className={cx(styles.card)}>
-        <p className={cx(styles.help)}>
-          Refunded in full — {formatMoney(order.refundedCents, order.currency, locale)}.
-        </p>
+        <p className={cx(styles.help)}>Refunded in full — {formatMoney(order.refundedCents, order.currency, locale)}.</p>
       </Card>
     );
   }
@@ -335,7 +259,7 @@ function RefundCard({ order }: { order: Order }) {
       <p className={cx(styles.help)}>
         {order.refundedCents > 0
           ? `${formatMoney(order.refundedCents, order.currency, locale)} already refunded; ${formatMoney(remaining, order.currency, locale)} still refundable.`
-          : `${formatMoney(remaining, order.currency, locale)} refundable.`}
+          : `${formatMoney(remaining, order.currency, locale)} refundable. A full refund withdraws every postcard that has not gone to print.`}
       </p>
 
       <Field label="Amount" error={error}>
@@ -351,13 +275,7 @@ function RefundCard({ order }: { order: Order }) {
 
       <Field label="Reason">
         {(control) => (
-          <Select<RefundReason>
-            {...control}
-            className={cx(styles.control)}
-            value={reason}
-            onChange={setReason}
-            options={REFUND_REASONS}
-          />
+          <Select<RefundReason> {...control} className={cx(styles.control)} value={reason} onChange={setReason} options={REFUND_REASONS} />
         )}
       </Field>
 
@@ -386,13 +304,7 @@ function RefundCard({ order }: { order: Order }) {
           refund.mutate(
             {
               id: order.id,
-              // A full refund is sent as null so Stripe refunds the remainder
-              // itself, rather than us racing a concurrent partial.
-              input: {
-                amountCents: amountCents === remaining ? null : amountCents,
-                reason,
-                notify,
-              },
+              input: { amountCents: amountCents === remaining ? null : amountCents, reason, notify },
             },
             {
               onSuccess: (result) => {
@@ -404,9 +316,7 @@ function RefundCard({ order }: { order: Order }) {
                 );
               },
               onError: (mutationError: unknown) =>
-                void message.error(
-                  mutationError instanceof Error ? mutationError.message : "Could not refund.",
-                ),
+                void message.error(mutationError instanceof Error ? mutationError.message : "Could not refund."),
             },
           );
         }}
@@ -416,61 +326,5 @@ function RefundCard({ order }: { order: Order }) {
         </Button>
       </Popconfirm>
     </Card>
-  );
-}
-
-function Total({
-  label,
-  cents,
-  order,
-  strong,
-  negative,
-}: {
-  label: string;
-  cents: number;
-  order: Order;
-  strong?: boolean;
-  /** Render as a deduction. The stored figure is positive either way. */
-  negative?: boolean;
-}) {
-  const locale = useStoreLocale();
-  const amount = `${negative ? "\u2212" : ""}${formatMoney(cents, order.currency, locale)}`;
-
-  return (
-    <Table.Summary.Row>
-      <Table.Summary.Cell index={0} colSpan={3} align="right">
-        {strong ? <strong>{label}</strong> : label}
-      </Table.Summary.Cell>
-      <Table.Summary.Cell index={1} align="right">
-        {strong ? <strong>{amount}</strong> : amount}
-      </Table.Summary.Cell>
-    </Table.Summary.Row>
-  );
-}
-
-/**
- * A shipping address, tolerating missing lines.
- *
- * Every field is nullable — Stripe does not always collect one, and a digital
- * order has none at all — so each is checked rather than concatenated blindly.
- */
-function Address({ order }: { order: Order }) {
-  const lines = [
-    order.shipping.name,
-    order.shipping.line1,
-    order.shipping.line2,
-    [order.shipping.city, order.shipping.state].filter(Boolean).join(", ") || null,
-    order.shipping.postalCode,
-    order.shipping.country,
-  ].filter((line): line is string => Boolean(line && line.trim()));
-
-  if (lines.length === 0) return <span className={cx(styles.muted)}>No address collected</span>;
-
-  return (
-    <address className={cx(styles.address)}>
-      {lines.map((line) => (
-        <div key={line}>{line}</div>
-      ))}
-    </address>
   );
 }

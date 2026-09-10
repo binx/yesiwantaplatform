@@ -1,23 +1,17 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "antd";
-import { getFeaturedProducts, getVisibleCollections } from "@shared/catalog";
+import { formatMoney } from "@shared/money";
 import { PageWrapper } from "@/components/layout/PageWrapper";
-import { ProductList } from "@/components/product/ProductList";
-import { CollectionTile } from "@/components/product/CollectionTile";
 import { useStore } from "@/lib/useStore";
 import { assetUrl } from "@/lib/store-source";
 import { cx } from "@/lib/cx";
 import styles from "./LandingPage.module.css";
 
 /**
- * The hero's call to action.
- *
- * A router `Link` for a path and a plain anchor for an absolute URL: handing
- * `https://…` to `Link` makes react-router try to resolve it as an in-app
- * route, which lands on the 404 page rather than the destination.
- * `heroHrefSchema` has already refused everything that is neither of those, so
- * this is a two-way branch and not a validation.
+ * The hero's call to action: a router `Link` for a path and a plain anchor
+ * for an absolute URL. `heroHrefSchema` has already refused everything that
+ * is neither, so this is a two-way branch and not a validation.
  */
 function HeroButton({ href, children }: { href: string; children: ReactNode }) {
   const button = (
@@ -35,68 +29,92 @@ function HeroButton({ href, children }: { href: string; children: ReactNode }) {
   );
 }
 
+/**
+ * The front page: v1's copy, with the parts the admin can edit read from
+ * settings. The price is never typed into prose — it is the same setting
+ * checkout charges, formatted the same way.
+ */
 export function LandingPage() {
   const store = useStore();
   const hero = store.hero;
-  const featured = getFeaturedProducts(store);
-  const collections = getVisibleCollections(store);
+  const price = formatMoney(store.postcardPriceCents, store.currency, store.locale);
+  const image = hero.image ? assetUrl(hero.image.path) : "/hero.jpg";
 
   return (
     <>
-      {/*
-        * Every field falls back, so a store that has set none of this renders
-        * exactly what it rendered before the hero was editable: the store
-        * name, no paragraph, and a Shop everything button. The copy that used
-        * to sit here promised an admin field that did not exist; it does now,
-        * under Settings → Landing page.
-        */}
-      <section
-        className={cx(styles.hero, hero.image && styles.hasImage)}
-        {...(hero.image
-          ? { style: { backgroundImage: `url(${assetUrl(hero.image.path)})` } }
-          : {})}
-      >
+      <section className={cx(styles.hero)}>
         <div className={styles.heroInner}>
-          <h1 className={styles.heroTitle}>{hero.heading ?? store.name}</h1>
-          {hero.text ? <p className={styles.heroText}>{hero.text}</p> : null}
-          <HeroButton href={hero.buttonHref ?? "/shop"}>
-            {hero.buttonLabel ?? "Shop everything"}
-          </HeroButton>
+          <div className={styles.heroCopy}>
+            <h1 className={styles.heroTitle}>{hero.heading ?? store.name}</h1>
+            <p className={styles.heroText}>
+              {hero.text ?? "Design your own postcards, send them to the people you love, and schedule them to arrive every few days."}
+            </p>
+            <ul className={styles.points}>
+              <li className={styles.magenta}>
+                <strong>Create and send a postcard for {price}.</strong>
+              </li>
+              <li className={styles.cyan}>
+                <strong>Upload your photos for the postcard designs.</strong> Write a personalized note on the back, too!
+              </li>
+              <li className={styles.magenta}>
+                <strong>Send your cards to multiple addresses.</strong> Share photos with your friends and family!
+              </li>
+              <li className={styles.cyan}>
+                <strong>Schedule how often to send your postcards.</strong> What's the fun in sending everything at once? Set them up to ship every few days, weeks, or months.
+              </li>
+            </ul>
+            <HeroButton href={hero.buttonHref ?? "/create"}>
+              {hero.buttonLabel ?? "Let's go, I'm sold already"}
+            </HeroButton>
+          </div>
+          <img
+            className={styles.heroImage}
+            src={image}
+            alt={hero.image?.alt ?? "A stack of printed postcards"}
+            width={hero.image?.width ?? 400}
+            height={hero.image?.height ?? 600}
+            fetchPriority="high"
+          />
         </div>
       </section>
 
-      <PageWrapper width="wide">
-        {featured.length > 0 && (
-          <section className={styles.section}>
-            <header className={styles.sectionHead}>
-              <h2>Featured</h2>
-              <Link to="/shop" className={styles.more}>
-                View all →
-              </Link>
-            </header>
-            <ProductList
-              products={featured}
-              collection="Featured"
-              currency={store.currency}
-              locale={store.locale}
-            />
+      <PageWrapper>
+        <div className={styles.columns}>
+          <section className={styles.column}>
+            <h2 className={styles.script}>Information</h2>
+            <dl className={styles.faq}>
+              <dt>How much do these cost?</dt>
+              <dd>Each postcard costs {price}. No add-ons, no upsells.</dd>
+              <dt>How long do they take to be delivered?</dt>
+              <dd>Postcards are typically delivered about one week after the scheduled mailing date.</dd>
+              <dt>Where can I send them to?</dt>
+              <dd>
+                Anywhere in the United States, thanks to the USPS! Apologies to our international
+                customers — we have yet to find a well-priced global postcard printing company.
+              </dd>
+            </dl>
           </section>
-        )}
+          <section className={styles.column}>
+            <h2 className={styles.script}>Inspiration</h2>
+            <p>Why would you want to schedule postcards?</p>
+            <p>
+              Well, the reason I built this site is that my grandmother doesn't have the internet! If I
+              want to share updates about my life, I need to print and mail photos for her. I thought
+              it would be more fun for her to receive a postcard every few days, rather than all of
+              them at once. And thus was born the idea for a postcard batch scheduler!
+            </p>
+          </section>
+        </div>
 
-        {collections.length > 0 && (
-          <section className={styles.section}>
-            <header className={styles.sectionHead}>
-              <h2>Collections</h2>
-            </header>
-            <ul className={styles.collections}>
-              {collections.map((collection) => (
-                <li key={collection.id}>
-                  <CollectionTile collection={collection} sizes="(max-width: 700px) 100vw, 33vw" />
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <p className={styles.cta}>
+          <Link to="/create">
+            <Button type="primary" size="large">
+              Get started on your postcards
+            </Button>
+          </Link>
+        </p>
+
+        <img className={styles.table} src="/table.jpg" alt="" width={1600} height={600} loading="lazy" />
       </PageWrapper>
     </>
   );

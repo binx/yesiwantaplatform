@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 750 1000" width="750" height="1000" role="img" aria-label="Enamel mug, filled">
-  <rect width="750" height="1000" fill="#ded7cf"/>
-  <circle cx="375" cy="500" r="200" fill="none" stroke="#57534e" stroke-width="3" opacity=".55"/>
-  <rect x="125" y="300" width="500" height="500" fill="none" stroke="#57534e" stroke-width="3" opacity=".35"/>
-  <text x="375" y="972" fill="#57534e" opacity=".7" font-family="system-ui, sans-serif" font-size="40" text-anchor="middle">Enamel mug, filled</text>
-</svg>

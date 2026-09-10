@@ -32,6 +32,7 @@ export interface SelectBuilder extends PromiseLike<Row[]> {
   innerJoin(table: unknown, condition: unknown): SelectBuilder;
   where(condition?: unknown): SelectBuilder;
   orderBy(...columns: unknown[]): SelectBuilder;
+  groupBy(...columns: unknown[]): SelectBuilder;
   limit(count: number): SelectBuilder;
   offset(count: number): SelectBuilder;
 }

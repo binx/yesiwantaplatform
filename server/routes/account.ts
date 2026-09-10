@@ -37,6 +37,7 @@ import {
   verifyCustomerLogin,
 } from "../auth.js";
 import { sendAccountEmail } from "../email.js";
+import type { Order } from "../../shared/orders.js";
 import { env } from "../env.js";
 import {
   csrfToken,
@@ -70,6 +71,24 @@ accountRouter.use(writeRateLimit, verifyCsrf);
 
 const meRouter: Router = Router();
 meRouter.use(requireCustomer);
+
+/**
+ * An order as its buyer sees it: the same shape, minus Lob's error text and
+ * attempt counts. Those are for the person who can act on them — the admin —
+ * and a buyer whose card is stuck needs "we're looking into it", which is
+ * what an `error` status renders as on the storefront, not a stack of
+ * printer jargon.
+ */
+export function toCustomerOrder(order: Order): Order {
+  return {
+    ...order,
+    postcards: order.postcards.map((postcard) => ({
+      ...postcard,
+      lastError: null,
+      attempts: 0,
+    })),
+  };
+}
 
 function toEpochMs(value: unknown): number {
   if (value instanceof Date) return value.getTime();
@@ -222,7 +241,7 @@ meRouter.put("/", async (req, res) => {
 /** This customer's orders only — never a query parameter, never another id. */
 meRouter.get("/orders", async (req, res) => {
   const page = await listOrdersForCustomer(req.session.customerId!);
-  res.json(page.orders);
+  res.json(page.orders.map(toCustomerOrder));
 });
 
 /**
@@ -233,7 +252,7 @@ meRouter.get("/orders", async (req, res) => {
 meRouter.get("/orders/:id", async (req, res) => {
   const order = await getOrderForCustomer(req.params.id, req.session.customerId!);
   if (!order) throw httpError(404, "No order found.");
-  res.json(order);
+  res.json(toCustomerOrder(order));
 });
 
 /* --------------------------------------------------------------- addresses */

@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { eq as eqFor } from "drizzle-orm";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -8,14 +7,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 /**
  * The same repository assertions against both dialects.
  *
- * This is the test that makes "SQLite by default, Postgres when you outgrow
- * it" a claim rather than an aspiration: the query layer is written once, and
- * a divergence between the two schemas shows up here as a zod parse failure or
- * a wrong result, not on someone's production storefront.
- *
- * Postgres runs from `embedded-postgres`, so no system install is required.
- * If those binaries are unavailable the Postgres block skips rather than
- * failing the suite.
+ * The query layer is written once, and a divergence between the two schemas
+ * shows up here as a zod parse failure or a wrong result. Postgres runs from
+ * `embedded-postgres`; if those binaries are unavailable that half skips.
  */
 
 interface Harness {
@@ -24,7 +18,7 @@ interface Harness {
 }
 
 function sqliteHarness(): Harness {
-  const directory = mkdtempSync(path.join(tmpdir(), "beluga-sqlite-"));
+  const directory = mkdtempSync(path.join(tmpdir(), "postcards-sqlite-"));
   return {
     databaseUrl: `file:${path.join(directory, "test.sqlite")}`,
     cleanup: () => {
@@ -37,24 +31,14 @@ function sqliteHarness(): Harness {
 async function postgresHarness(): Promise<Harness | null> {
   try {
     const { default: EmbeddedPostgres } = await import("embedded-postgres");
-    const directory = mkdtempSync(path.join(tmpdir(), "beluga-pg-"));
-    // A high, unusual port so a developer's own Postgres is never touched.
+    const directory = mkdtempSync(path.join(tmpdir(), "postcards-pg-"));
     const port = 54329;
-
-    const pg = new EmbeddedPostgres({
-      databaseDir: path.join(directory, "data"),
-      user: "beluga",
-      password: "beluga",
-      port,
-      persistent: false,
-    });
-
+    const pg = new EmbeddedPostgres({ databaseDir: path.join(directory, "data"), user: "postcards", password: "postcards", port, persistent: false });
     await pg.initialise();
     await pg.start();
-    await pg.createDatabase("beluga_test");
-
+    await pg.createDatabase("postcards_test");
     return {
-      databaseUrl: `postgres://beluga:beluga@localhost:${port}/beluga_test`,
+      databaseUrl: `postgres://postcards:postcards@localhost:${port}/postcards_test`,
       cleanup: async () => {
         await pg.stop();
         rmSync(directory, { recursive: true, force: true });
@@ -66,12 +50,6 @@ async function postgresHarness(): Promise<Harness | null> {
   }
 }
 
-/**
- * Load the data layer with a specific DATABASE_URL.
- *
- * `server/env.ts` snapshots process.env on first import, so the module graph
- * has to be reset between dialects.
- */
 async function loadWith(databaseUrl: string) {
   process.env.DATABASE_URL = databaseUrl;
   vi.resetModules();
@@ -81,21 +59,19 @@ async function loadWith(databaseUrl: string) {
   const repository = await import("./repository.js");
   const admin = await import("./admin-repository.js");
   const orders = await import("./orders-repository.js");
+  const designs = await import("./designs-repository.js");
   const pages = await import("./pages-repository.js");
-  const webhooks = await import("./webhooks-repository.js");
+  const carts = await import("./carts-repository.js");
   const { getDatabase, resetDatabase } = await import("./client.js");
 
   await runMigrations();
   await seedIfEmpty();
 
-  return { ...repository, admin, orders, pages, webhooks, getDatabase, resetDatabase };
+  return { ...repository, admin, orders, designs, pages, carts, getDatabase, resetDatabase };
 }
 
-/**
- * Harnesses are resolved before collection, so `describe.skipIf` can make a
- * real decision — a `runIf` inside `beforeAll` would always see the initial
- * value and never skip.
- */
+const RECIPIENT = { name: "Grandma", line1: "1 Test Street", line2: null, city: "Marfa", state: "TX", postalCode: "79843" };
+
 const dialects = [
   { name: "sqlite", context: sqliteHarness() },
   { name: "postgres", context: await postgresHarness() },
@@ -114,919 +90,113 @@ for (const { name, context } of dialects) {
       await context?.cleanup();
     });
 
-    async function stockOf(variantId: string): Promise<number> {
-      const product = await db.findProductBySlug("canvas-tote");
-      const variant = product?.variants.find((v) => v.id === variantId);
-      return variant?.inventory.type === "finite" ? variant.inventory.quantity : -1;
+    async function design() {
+      return db.designs.createDesign({
+        customerId: null,
+        orientation: "portrait",
+        printPath: "designs/x/print.png",
+        thumbnailPath: "designs/x/thumb.webp",
+        thumbnailWidth: 400,
+        thumbnailHeight: 588,
+        back: { text: "Hi", valediction: "Love", fontName: "Sacramento", fontSize: 16, fontColor: "#112233" },
+      });
     }
 
-    it("round-trips a page's booleans on either engine", async () => {
-      const id = await db.pages.createPage({
-        slug: "dialect-page",
-        title: "Dialect Page",
-        body: "# Hello",
-        isLive: true,
-        inNav: true,
+    it("returns a schema-valid store snapshot with the price", async () => {
+      const store = await db.getStoreSnapshot();
+      expect(store?.postcardPriceCents).toBe(140);
+      expect(store?.pages).toEqual([]);
+    });
+
+    it("round-trips settings, the hero and the price", async () => {
+      const settings = (await db.getSettings())!;
+      await db.admin.updateSettings({
+        ...settings,
+        postcardPriceCents: 175,
+        hero: { heading: "Hello", text: null, buttonLabel: null, buttonHref: "/create", image: null },
+      });
+      const updated = await db.getSettings();
+      expect(updated?.postcardPriceCents).toBe(175);
+      expect(updated?.hero.heading).toBe("Hello");
+      expect(updated?.hero.buttonHref).toBe("/create");
+    });
+
+    it("round-trips a design's JSON back on either engine", async () => {
+      const created = await design();
+      const found = await db.designs.getDesign(created.id);
+      expect(found?.back).toEqual({ text: "Hi", valediction: "Love", fontName: "Sacramento", fontSize: 16, fontColor: "#112233" });
+      expect(found?.orientation).toBe("portrait");
+      expect(db.designs.toPublicDesign(found!).thumbnail.path).toBe("designs/x/thumb.webp");
+    });
+
+    it("writes one postcard per design per recipient, and schedules them on payment", async () => {
+      const a = await design();
+      const b = await design();
+      const orderId = randomUUID();
+      await db.orders.createPendingOrder({
+        id: orderId,
+        checkoutSessionId: `cs_${orderId}`,
+        email: "buyer@example.com",
+        currency: "USD",
+        unitPriceCents: 140,
+        lines: [
+          { designs: [{ designId: a.id, mailDate: "2026-10-01" }, { designId: b.id, mailDate: "2026-10-08" }], recipients: [RECIPIENT, { ...RECIPIENT, name: "Grandpa" }] },
+          { designs: [{ designId: a.id, mailDate: "2026-11-01" }], recipients: [RECIPIENT] },
+        ],
       });
 
-      const page = await db.pages.findPageBySlug("dialect-page");
+      let order = (await db.orders.getOrder(orderId))!;
+      expect(order.postcardCount).toBe(5);
+      expect(order.subtotalCents).toBe(700);
+      expect(order.postcards).toHaveLength(5);
+      expect(order.designs.map((d) => d.id).sort()).toEqual([a.id, b.id].sort());
+      expect(order.postcards.map((p) => p.batchIndex)).toEqual([0, 0, 0, 0, 1]);
 
-      // SQLite stores 0/1 and Postgres a real boolean; both must arrive as one.
+      await db.orders.markOrderPaid(orderId, { paymentIntentId: "pi_1", email: "buyer@example.com", subtotalCents: 700, discountCents: 0, totalCents: 700, currency: "USD" });
+      order = (await db.orders.getOrder(orderId))!;
+      expect(order.status).toBe("paid");
+      expect(order.postcards.every((p) => p.status === "scheduled")).toBe(true);
+
+      // Due on the 8th: the first batch's two cards for design b only.
+      const due = await db.orders.findDuePostcards("2026-10-08", 50);
+      expect(due.filter((row) => row.orderId === orderId)).toHaveLength(4);
+      expect(await db.orders.claimPostcard(due[0]!.id)).toBe(true);
+      expect(await db.orders.claimPostcard(due[0]!.id)).toBe(false);
+
+      await db.orders.markPostcardSent(due[0]!.id, { id: "psc_1", url: null, expectedDeliveryDate: "2026-10-14" });
+      order = (await db.orders.getOrder(orderId))!;
+      const sent = order.postcards.find((p) => p.id === due[0]!.id)!;
+      expect(sent.status).toBe("sent");
+      expect(sent.sentAt).toBeTypeOf("number");
+      expect(await db.orders.completeOrderIfDone(orderId)).toBe(false);
+
+      expect(await db.orders.cancelOrder(orderId)).toBe(4);
+      order = (await db.orders.getOrder(orderId))!;
+      expect(order.status).toBe("cancelled");
+      expect(order.postcards.filter((p) => p.status === "cancelled")).toHaveLength(4);
+    });
+
+    it("round-trips a page's booleans", async () => {
+      const id = await db.pages.createPage({ slug: "dialect-page", title: "Dialect Page", body: "# Hello", isLive: true, inNav: true });
+      const page = await db.pages.findPageBySlug("dialect-page");
       expect(page?.id).toBe(id);
       expect(page?.isLive).toBe(true);
       expect(page?.inNav).toBe(true);
-      expect(page?.body).toBe("# Hello");
-
-      // A draft is invisible to the storefront on both engines.
-      await db.pages.updatePage(id, {
-        slug: "dialect-page",
-        title: "Dialect Page",
-        body: "# Hello",
-        isLive: false,
-        inNav: true,
-      });
-
-      expect(await db.pages.findPageBySlug("dialect-page")).toBeNull();
-      expect(await db.pages.findPageBySlug("dialect-page", false)).not.toBeNull();
-
-      await db.pages.deletePage(id);
     });
 
-    /*
-     * The `aboutText` column is the whole reason this table exists, and a
-     * migration that runs on every boot has to be able to run twice. The seed
-     * writes an `aboutText` and no page, which is exactly the shape of an
-     * install that predates pages.
-     */
-    it("adopts aboutText as a page exactly once", async () => {
-      expect(await db.pages.adoptAboutTextAsPage()).toBe(true);
-      expect(await db.pages.adoptAboutTextAsPage()).toBe(false);
-
-      const summaries = await db.pages.listPageSummaries({ liveOnly: true });
-      const about = summaries.filter((page) => page.slug === "about");
-
-      expect(about).toHaveLength(1);
-      expect(about[0]?.title).toBe("About");
-      expect(about[0]?.inNav).toBe(true);
-
-      // Paragraphs survive: the old column was newline-separated plain text,
-      // and a single newline is a soft break in Markdown, not a new paragraph.
-      const page = await db.pages.findPageBySlug("about");
-      expect(page?.body).toContain("\n\n");
-    });
-
-    it("round-trips the hero columns on either engine", async () => {
-      const settings = (await db.getSettings())!;
-
-      await db.admin.updateSettings({
-        ...settings,
-        hero: {
-          heading: "Small runs",
-          text: "Made in batches of forty.",
-          buttonLabel: "Browse",
-          buttonHref: "/collection/home-goods",
-          image: { path: "hero/one.png", width: 2400, height: 1200, alt: "", widths: [], variantId: null },
-        },
-      });
-
-      const updated = await db.getSettings();
-
-      expect(updated?.hero).toMatchObject({
-        heading: "Small runs",
-        text: "Made in batches of forty.",
-        buttonLabel: "Browse",
-        buttonHref: "/collection/home-goods",
-      });
-      expect(updated?.hero.image).toMatchObject({ path: "hero/one.png", width: 2400 });
-
-      // Cleared means null, not "": the reader falls back on null, and an
-      // empty heading would render an empty <h1> on both engines alike.
-      await db.admin.updateSettings({
-        ...settings,
-        hero: { heading: "", text: "  ", buttonLabel: null, buttonHref: null, image: null },
-      });
-
-      const cleared = await db.getSettings();
-      expect(cleared?.hero).toEqual({
-        heading: null,
-        text: null,
-        buttonLabel: null,
-        buttonHref: null,
-        image: null,
-      });
-    });
-
-    it("round-trips a collection description on either engine", async () => {
-      const collections = await db.admin.listCollectionDrafts();
-      const first = collections[0]!;
-
-      await db.admin.updateCollection(first.id, {
-        slug: first.slug,
-        name: first.name,
-        cover: first.cover,
-        description: "Things for the **table**.",
-        productIds: first.productIds,
-      });
-
-      // The admin shape keeps the source; the storefront shape renders it.
-      const drafts = await db.admin.listCollectionDrafts();
-      expect(drafts.find((c) => c.id === first.id)?.description).toBe(
-        "Things for the **table**.",
-      );
-
-      const shown = await db.listCollections();
-      expect(shown.find((c) => c.id === first.id)?.descriptionHtml).toContain(
-        "<strong>table</strong>",
-      );
-    });
-
-    it("round-trips the tax settings on either engine", async () => {
-      const settings = (await db.getSettings())!;
-
-      await db.admin.updateSettings({
-        name: settings.name,
-        currency: settings.currency,
-        locale: settings.locale,
-        stripePublishableKey: settings.stripePublishableKey,
-        aboutText: settings.aboutText,
-        taxEnabled: true,
-        taxBehavior: "inclusive",
-        defaultTaxCode: "txcd_20030000",
-        cartRecoveryEnabled: settings.cartRecoveryEnabled,
-        cartRecoveryDelayHours: settings.cartRecoveryDelayHours,
-        hero: settings.hero,
-        theme: settings.theme,
-      });
-
-      const updated = await db.getSettings();
-
-      // taxEnabled is 0/1 on SQLite and a real boolean on Postgres.
-      expect(updated?.taxEnabled).toBe(true);
-      expect(updated?.taxBehavior).toBe("inclusive");
-      expect(updated?.defaultTaxCode).toBe("txcd_20030000");
-
-      await db.admin.updateSettings({
-        name: settings.name,
-        currency: settings.currency,
-        locale: settings.locale,
-        stripePublishableKey: settings.stripePublishableKey,
-        aboutText: settings.aboutText,
-        taxEnabled: settings.taxEnabled,
-        taxBehavior: settings.taxBehavior,
-        defaultTaxCode: settings.defaultTaxCode,
-        cartRecoveryEnabled: settings.cartRecoveryEnabled,
-        cartRecoveryDelayHours: settings.cartRecoveryDelayHours,
-        hero: settings.hero,
-        theme: settings.theme,
-      });
-    });
-
-    it("returns a schema-valid store snapshot", async () => {
-      const store = await db.getStoreSnapshot();
-
-      expect(store).not.toBeNull();
-      expect(store?.name).toBe("Beluga Demo");
-      // Only live products; the demo seeds four, all live.
-      expect(store?.products.length).toBeGreaterThan(0);
-    });
-
-    it("round-trips JSON columns identically", async () => {
-      const product = await db.findProductBySlug("canvas-tote");
-
-      // bulletPoints is TEXT on SQLite and jsonb on Postgres.
-      expect(product?.bulletPoints).toEqual([
-        "16 oz cotton canvas",
-        "38 × 40 × 12 cm",
-        "Machine washable, cold",
-      ]);
-      expect(product?.optionGroups[0]?.choices).toEqual(["No", "Yes"]);
-    });
-
-    it("round-trips booleans identically", async () => {
-      const rows = await db.admin.listAllProductsForAdmin();
-
-      // SQLite stores 0/1; both must surface as real booleans.
-      expect(rows.every((r) => typeof r.isLive === "boolean")).toBe(true);
-    });
-
-    it("keeps money as integer cents", async () => {
-      const product = await db.findProductBySlug("canvas-tote");
-      const prices = product?.variants.map((v) => v.priceCents) ?? [];
-
-      expect(prices).toContain(3400);
-      expect(prices.every((p) => Number.isInteger(p))).toBe(true);
-    });
-
-    it("preserves a collection's curated order", async () => {
-      const page = await db.listProducts({ liveOnly: true, collectionSlug: "featured-products" });
-
-      expect(page.products.map((p) => p.slug)).toEqual([
-        "canvas-tote",
-        "risograph-print",
-        "enamel-mug",
-      ]);
-    });
-
-    it("paginates consistently", async () => {
-      const first = await db.listProducts({ liveOnly: true, limit: 2, offset: 0 });
-      const second = await db.listProducts({ liveOnly: true, limit: 2, offset: 2 });
-
-      expect(first.products).toHaveLength(2);
-      expect(first.total).toBe(5);
-      expect(second.products[0]?.slug).not.toBe(first.products[0]?.slug);
-    });
-
-    it("finds products by id, drafts included unless liveOnly", async () => {
-      const live = (await db.findProductBySlug("canvas-tote"))!;
-
-      const draftId = await db.admin.createProduct({
-        slug: "draft-by-id-test",
-        name: "Draft By Id Test",
-        kind: "physical",
-        description: "",
-        bulletPoints: [],
-        seoTitle: null,
-        seoDescription: null,
-        taxCode: null,
-        variants: [
-          {
-            label: "",
-            priceCents: 100,
-            sku: null,
-            compareAtPriceCents: null,
-            inventory: { type: "infinite" },
-            weightGrams: 0,
-            optionValues: [],
-          },
-        ],
-        options: [],
-        optionGroups: [],
-        isLive: false,
-      });
-
-      const unknownId = randomUUID();
-
-      const withDrafts = await db.findProductsByIds([live.id, draftId, unknownId], false);
-      expect(withDrafts.map((p) => p.id).sort()).toEqual([live.id, draftId].sort());
-
-      const liveOnly = await db.findProductsByIds([live.id, draftId, unknownId], true);
-      expect(liveOnly.map((p) => p.id)).toEqual([live.id]);
-
-      expect(await db.findProductsByIds([unknownId], false)).toEqual([]);
-
-      await db.admin.deleteProduct(draftId);
-    });
-
-    it("cascades variants and images on delete", async () => {
-
-      const id = await db.admin.createProduct({
-        slug: "cascade-test",
-        name: "Cascade Test",
-        kind: "physical",
-        description: "",
-        bulletPoints: [],
-        seoTitle: null,
-        seoDescription: null,
-        taxCode: null,
-        variants: [
-          {
-            label: "",
-            priceCents: 100,
-            sku: null,
-            compareAtPriceCents: null,
-            inventory: { type: "infinite" },
-            weightGrams: 0,
-            optionValues: [],
-          },
-        ],
-        options: [],
-        optionGroups: [],
-        isLive: true,
-      });
-
-      expect(await db.findProductBySlug("cascade-test")).not.toBeNull();
-
-      await db.admin.deleteProduct(id);
-      expect(await db.findProductBySlug("cascade-test")).toBeNull();
-    });
-
-    it("round-trips a product's kind, and defaults it to physical", async () => {
-      const id = await db.admin.createProduct({
-        slug: "downloadable-thing",
-        name: "Downloadable Thing",
-        kind: "digital",
-        description: "",
-        bulletPoints: [],
-        seoTitle: null,
-        seoDescription: null,
-        taxCode: null,
-        variants: [
-          {
-            label: "",
-            priceCents: 100,
-            sku: null,
-            compareAtPriceCents: null,
-            inventory: { type: "infinite" },
-            weightGrams: 0,
-            optionValues: [],
-          },
-        ],
-        options: [],
-        optionGroups: [],
-        isLive: true,
-      });
-
-      expect((await db.findProductBySlug("downloadable-thing"))?.kind).toBe("digital");
-
-      // Both dialects default the column, so a row written before it existed
-      // reads back physical rather than undefined.
-      expect((await db.findProductBySlug("canvas-tote"))?.kind).toBe("physical");
-
-      await db.admin.deleteProduct(id);
-    });
-
-    it("returns only the requested order's items", async () => {
-      const product = (await db.findProductBySlug("canvas-tote"))!;
-      const variant = product.variants[0]!;
-      const line = (quantity: number) => ({
-        productId: product.id,
-        variantId: variant.id,
-        productName: "Canvas Tote",
-        variantLabel: variant.label,
-        sku: variant.sku,
-        unitPriceCents: variant.priceCents,
-        quantity,
-        options: {},
-      });
-
-      const a = randomUUID();
-      const b = randomUUID();
-      await db.orders.createPendingOrder({
-        id: a,
-        checkoutSessionId: `cs_${a}`,
-        email: "a@example.com",
-        currency: "usd",
-        subtotalCents: variant.priceCents,
-        lines: [line(1)],
-      });
-      await db.orders.createPendingOrder({
-        id: b,
-        checkoutSessionId: `cs_${b}`,
-        email: "b@example.com",
-        currency: "usd",
-        subtotalCents: variant.priceCents * 5,
-        lines: [line(2), line(3)],
-      });
-
-      // The bug this guards: loadItems used to select the whole table, so
-      // every order's detail page saw every other order's lines.
-      const orderA = await db.orders.getOrder(a);
-      expect(orderA?.items).toHaveLength(1);
-      expect(orderA?.items.every((i) => i.quantity === 1)).toBe(true);
-
-      expect((await db.orders.getOrder(b))?.items).toHaveLength(2);
-    });
-
-    it("returns an order's items in a stable order", async () => {
-      const product = (await db.findProductBySlug("canvas-tote"))!;
-      const variant = product.variants[0]!;
-
-      const id = randomUUID();
-      await db.orders.createPendingOrder({
-        id,
-        checkoutSessionId: `cs_${id}`,
-        email: "stable@example.com",
-        currency: "usd",
-        subtotalCents: variant.priceCents * 6,
-        lines: [1, 2, 3].map((quantity) => ({
-          productId: product.id,
-          variantId: variant.id,
-          productName: "Canvas Tote",
-          variantLabel: variant.label,
-          sku: variant.sku,
-          unitPriceCents: variant.priceCents,
-          quantity,
-          options: {},
-        })),
-      });
-
-      const first = await db.orders.getOrder(id);
-      const second = await db.orders.getOrder(id);
-
-      expect(first?.items).toHaveLength(3);
-      expect(second?.items.map((i) => i.id)).toEqual(first?.items.map((i) => i.id));
-    });
-
-    it("loads items for more ids than the SQLite parameter limit", async () => {
-      // 600 exceeds no limit on its own, but the chunking guard is what keeps
-      // it under SQLite's 999 bound parameters as callers grow.
-      const ids = Array.from({ length: 600 }, () => randomUUID());
-      const items = await db.orders.loadItems(ids);
-
-      expect(items.size).toBe(0);
-    });
-
-    it("restocks a refunded order exactly once", async () => {
-      const product = (await db.findProductBySlug("canvas-tote"))!;
-      const variant = product.variants.find((v) => v.inventory.type === "finite")!;
-      const before = variant.inventory.type === "finite" ? variant.inventory.quantity : 0;
-
-      const id = randomUUID();
-      await db.orders.createPendingOrder({
-        id,
-        checkoutSessionId: `cs_${id}`,
-        email: "restock@example.com",
-        currency: "usd",
-        subtotalCents: variant.priceCents * 2,
-        lines: [
-          {
-            productId: product.id,
-            variantId: variant.id,
-            productName: product.name,
-            variantLabel: variant.label,
-            sku: variant.sku,
-            unitPriceCents: variant.priceCents,
-            quantity: 2,
-            options: {},
-          },
-        ],
-      });
-
-      await db.orders.decrementInventoryForOrder(id);
-      expect(await stockOf(variant.id)).toBe(before - 2);
-
-      expect(await db.orders.restockInventoryForOrder(id)).toBe(true);
-      expect(await stockOf(variant.id)).toBe(before);
-
-      // A refund can arrive as several webhooks; the second must be a no-op.
-      expect(await db.orders.restockInventoryForOrder(id)).toBe(false);
-      expect(await stockOf(variant.id)).toBe(before);
-    });
-
-    it("leaves infinite-inventory variants alone when restocking", async () => {
-      const product = (await db.findProductBySlug("canvas-tote"))!;
-      const infinite = product.variants.find((v) => v.inventory.type !== "finite");
-      if (!infinite) return;
-
-      const id = randomUUID();
-      await db.orders.createPendingOrder({
-        id,
-        checkoutSessionId: `cs_${id}`,
-        email: "infinite@example.com",
-        currency: "usd",
-        subtotalCents: infinite.priceCents,
-        lines: [
-          {
-            productId: product.id,
-            variantId: infinite.id,
-            productName: product.name,
-            variantLabel: infinite.label,
-            sku: infinite.sku,
-            unitPriceCents: infinite.priceCents,
-            quantity: 1,
-            options: {},
-          },
-        ],
-      });
-
-      expect(await db.orders.restockInventoryForOrder(id)).toBe(true);
-    });
-
-    it("restocks the remaining lines when a variant has been deleted", async () => {
-      const product = (await db.findProductBySlug("canvas-tote"))!;
-      const variant = product.variants.find((v) => v.inventory.type === "finite")!;
-      const before = variant.inventory.type === "finite" ? variant.inventory.quantity : 0;
-
-      const id = randomUUID();
-      await db.orders.createPendingOrder({
-        id,
-        checkoutSessionId: `cs_${id}`,
-        email: "gone@example.com",
-        currency: "usd",
-        subtotalCents: variant.priceCents * 2,
-        lines: [
-          {
-            productId: product.id,
-            variantId: variant.id,
-            productName: product.name,
-            variantLabel: variant.label,
-            sku: variant.sku,
-            unitPriceCents: variant.priceCents,
-            quantity: 1,
-            options: {},
-          },
-          // The variant is gone, as it would be after the product was deleted.
-          {
-            productId: product.id,
-            variantId: "deleted-variant",
-            productName: "Deleted",
-            variantLabel: "",
-            sku: null,
-            unitPriceCents: variant.priceCents,
-            quantity: 1,
-            options: {},
-          },
-        ],
-      });
-
-      expect(await db.orders.restockInventoryForOrder(id)).toBe(true);
-      expect(await stockOf(variant.id)).toBe(before + 1);
+    it("round-trips a cart's JSON lines", async () => {
+      const { createCustomer } = await import("../server/auth.js");
+      const customerId = await createCustomer(`cart-${randomUUID()}@example.com`, "a-sufficiently-long-password", null);
+      const line = { designs: [{ designId: "d1", mailDate: "2026-10-01" }], recipients: [RECIPIENT] };
+      const cart = await db.carts.upsertActiveCart(customerId, "x@example.com", "USD", [line]);
+      expect(cart?.lines).toEqual([line]);
     });
 
     it("bounds a listing by date on either engine", async () => {
-      const { drizzle: drizzleDb, schema, dialect } = await db.getDatabase();
-
-      const id = randomUUID();
-      await db.orders.createPendingOrder({
-        id,
-        checkoutSessionId: `cs_${id}`,
-        email: "dated@example.com",
-        currency: "usd",
-        subtotalCents: 100,
-        lines: [],
-      });
-
-      const placed = Date.UTC(2021, 5, 15);
-      await drizzleDb
-        .update(schema.orders)
-        .set({ createdAt: dialect === "pg" ? new Date(placed) : Math.floor(placed / 1000) })
-        .where(eqFor(schema.orders.id, id));
-
-      // createdAt is unix seconds on one engine and a timestamptz on the other,
-      // so a raw millisecond bound would match nothing on SQLite.
-      const inside = await db.orders.listOrders({
-        from: Date.UTC(2021, 0, 1),
-        to: Date.UTC(2022, 0, 1),
-      });
-      expect(inside.orders.map((o) => o.id)).toContain(id);
-
-      const after = await db.orders.listOrders({ from: Date.UTC(2023, 0, 1) });
-      expect(after.orders.map((o) => o.id)).not.toContain(id);
-
-      const before = await db.orders.listOrders({ to: Date.UTC(2020, 0, 1) });
-      expect(before.orders.map((o) => o.id)).not.toContain(id);
-    });
-
-    it("rejects a duplicate slug", async () => {
-
-      await expect(
-        db.admin.createProduct({
-          slug: "canvas-tote",
-          name: "Clash",
-          kind: "physical",
-          description: "",
-          bulletPoints: [],
-          seoTitle: null,
-          seoDescription: null,
-          taxCode: null,
-          variants: [
-            {
-            label: "",
-            priceCents: 100,
-            sku: null,
-            compareAtPriceCents: null,
-            inventory: { type: "infinite" },
-            weightGrams: 0,
-            optionValues: [],
-          },
-          ],
-          options: [],
-          optionGroups: [],
-          isLive: true,
-        }),
-      ).rejects.toThrow(/already in use/i);
-    });
-
-    it("rejects a duplicate SKU and names the other product", async () => {
-      await db.admin.createProduct({
-        slug: "sku-owner",
-        name: "SKU Owner",
-        kind: "physical",
-        description: "",
-        bulletPoints: [],
-        seoTitle: null,
-        seoDescription: null,
-        taxCode: null,
-        variants: [
-          {
-            label: "",
-            priceCents: 100,
-            sku: "DUP-SKU",
-            compareAtPriceCents: null,
-            inventory: { type: "infinite" },
-            weightGrams: 0,
-            optionValues: [],
-          },
-        ],
-        options: [],
-        optionGroups: [],
-        isLive: true,
-      });
-
-      await expect(
-        db.admin.createProduct({
-          slug: "sku-clash",
-          name: "SKU Clash",
-          kind: "physical",
-          description: "",
-          bulletPoints: [],
-          seoTitle: null,
-          seoDescription: null,
-          taxCode: null,
-          variants: [
-            {
-              label: "",
-              priceCents: 200,
-              sku: "DUP-SKU",
-              compareAtPriceCents: null,
-              inventory: { type: "infinite" },
-              weightGrams: 0,
-              optionValues: [],
-            },
-          ],
-          options: [],
-          optionGroups: [],
-          isLive: true,
-        }),
-      ).rejects.toThrow(/SKU Owner/);
-    });
-
-    // The partial unique index is the part invariant 6 flags as most likely
-    // to differ between engines — this proves it is genuinely partial on
-    // both, not merely permissive by accident.
-    it("keeps two variants with no SKU, on either engine", async () => {
-      const id = await db.admin.createProduct({
-        slug: "no-sku-pair",
-        name: "No SKU Pair",
-        kind: "physical",
-        description: "",
-        bulletPoints: [],
-        seoTitle: null,
-        seoDescription: null,
-        taxCode: null,
-        variants: [
-          {
-            label: "A",
-            priceCents: 100,
-            sku: null,
-            compareAtPriceCents: null,
-            inventory: { type: "infinite" },
-            weightGrams: 0,
-            optionValues: ["A"],
-          },
-          {
-            label: "B",
-            priceCents: 150,
-            sku: null,
-            compareAtPriceCents: null,
-            inventory: { type: "infinite" },
-            weightGrams: 0,
-            optionValues: ["B"],
-          },
-        ],
-        options: [{ name: "Label", values: ["A", "B"] }],
-        optionGroups: [],
-        isLive: true,
-      });
-
-      const product = await db.findProductBySlug("no-sku-pair");
-      expect(product?.variants).toHaveLength(2);
-      expect(product?.variants.every((v) => v.sku === null)).toBe(true);
-
-      await db.admin.deleteProduct(id);
-    });
-
-    it("sets an image back to the whole product when its variant is deleted", async () => {
-      const id = await db.admin.createProduct({
-        slug: "image-orphan-test",
-        name: "Image Orphan Test",
-        kind: "physical",
-        description: "",
-        bulletPoints: [],
-        seoTitle: null,
-        seoDescription: null,
-        taxCode: null,
-        variants: [
-          {
-            label: "Keep",
-            priceCents: 100,
-            sku: null,
-            compareAtPriceCents: null,
-            inventory: { type: "infinite" },
-            weightGrams: 0,
-            optionValues: ["Keep"],
-          },
-          {
-            label: "Drop",
-            priceCents: 100,
-            sku: null,
-            compareAtPriceCents: null,
-            inventory: { type: "infinite" },
-            weightGrams: 0,
-            optionValues: ["Drop"],
-          },
-        ],
-        options: [{ name: "Choice", values: ["Keep", "Drop"] }],
-        optionGroups: [],
-        isLive: true,
-      });
-
-      const before = (await db.findProductBySlug("image-orphan-test"))!;
-      const keep = before.variants.find((v) => v.label === "Keep")!;
-      const drop = before.variants.find((v) => v.label === "Drop")!;
-
-      await db.admin.addProductImage(id, {
-        path: "orphan-test.png",
-        width: 10,
-        height: 10,
-        alt: "",
-      });
-      await db.admin.updateProductImage(id, "orphan-test.png", { variantId: drop.id });
-
-      await db.admin.updateProduct(id, {
-        slug: "image-orphan-test",
-        name: "Image Orphan Test",
-        kind: "physical",
-        description: "",
-        bulletPoints: [],
-        seoTitle: null,
-        seoDescription: null,
-        taxCode: null,
-        // Only "Keep" survives — "Drop" is removed, the way trimming an
-        // option's values in the editor removes the variant behind it.
-        variants: [
-          {
-            id: keep.id,
-            label: "Keep",
-            priceCents: 100,
-            sku: null,
-            compareAtPriceCents: null,
-            inventory: { type: "infinite" },
-            weightGrams: 0,
-            optionValues: ["Keep"],
-          },
-        ],
-        options: [{ name: "Choice", values: ["Keep"] }],
-        optionGroups: [],
-        isLive: true,
-      });
-
-      const after = (await db.findProductBySlug("image-orphan-test"))!;
-      expect(after.variants.map((v) => v.id)).toEqual([keep.id]);
-
-      // The image survives, unassigned, rather than being deleted along with
-      // the variant it pointed at.
-      const image = after.images.find((i) => i.path === "orphan-test.png");
-      expect(image).toBeDefined();
-      expect(image?.variantId).toBeNull();
-
-      await db.admin.deleteProduct(id);
-    });
-
-    /*
-     * The backfill turns v1-shaped data — a `variantName` and labelled
-     * variants, no `product_options` row — into the options/values shape. It
-     * runs on every boot, so it has to be a no-op the second time.
-     */
-    it("backfills a pre-migration product's variants into one option, exactly once", async () => {
-      const { drizzle: drizzleDb, schema } = await db.getDatabase();
-
-      const productId = randomUUID();
-      await drizzleDb.insert(schema.products).values({
-        id: productId,
-        slug: "legacy-hat",
-        name: "Legacy Hat",
-        variantName: "size",
-      });
-
-      const smallId = randomUUID();
-      const largeId = randomUUID();
-      await drizzleDb.insert(schema.variants).values({
-        id: smallId,
-        productId,
-        label: "Small",
-        priceCents: 1000,
-        position: 0,
-      });
-      await drizzleDb.insert(schema.variants).values({
-        id: largeId,
-        productId,
-        label: "Large",
-        priceCents: 1200,
-        position: 1,
-      });
-
-      expect(await db.admin.backfillProductOptions()).toBeGreaterThan(0);
-      expect(await db.admin.backfillProductOptions()).toBe(0);
-
-      const product = await db.findProductBySlug("legacy-hat", false);
-      expect(product?.options).toHaveLength(1);
-      expect(product?.options[0]).toMatchObject({ name: "size", values: ["Small", "Large"] });
-
-      const small = product?.variants.find((v) => v.id === smallId);
-      const large = product?.variants.find((v) => v.id === largeId);
-      expect(small?.optionValues).toEqual(["Small"]);
-      expect(large?.optionValues).toEqual(["Large"]);
-    });
-
-    it("round-trips a webhook endpoint and its queued delivery", async () => {
-      // The columns most likely to diverge: a JSON array and a JSON object,
-      // which are TEXT on SQLite and jsonb on Postgres.
-      const endpoint = await db.webhooks.createEndpoint({
-        url: "https://example.com/hooks/dialect",
-        description: "Dialect probe",
-        eventTypes: ["order.paid", "inventory.low"],
-        enabled: true,
-        secret: "bwhsec_dialect",
-      });
-
-      expect(endpoint.eventTypes).toEqual(["order.paid", "inventory.low"]);
-      expect(endpoint.enabled).toBe(true);
-
-      const deliveryId = await db.webhooks.enqueueDelivery({
-        endpointId: endpoint.id,
-        eventId: "evt_dialect",
-        eventType: "order.paid",
-        payload: { id: "evt_dialect", type: "order.paid", data: { totalCents: 3400 } },
-      });
-
-      const [queued] = await db.webhooks.listDeliveries(endpoint.id, 10);
-      expect(queued?.id).toBe(deliveryId);
-      expect(queued?.payload).toEqual({
-        id: "evt_dialect",
-        type: "order.paid",
-        data: { totalCents: 3400 },
-      });
-
-      // `next_attempt_at` defaults to now, and "due" is a timestamp comparison
-      // against a unix integer on one engine and a timestamptz on the other.
-      const due = await db.webhooks.findDueDeliveries(10);
-      expect(due.map((row) => row.id)).toContain(deliveryId);
-
-      // Only the first of two racing claims may win.
-      expect(await db.webhooks.claimDelivery(deliveryId, 0, 60_000)).toBe(true);
-      expect(await db.webhooks.claimDelivery(deliveryId, 0, 60_000)).toBe(false);
-
-      // And the lease took it out of the due set.
-      const stillDue = await db.webhooks.findDueDeliveries(10);
-      expect(stillDue.map((row) => row.id)).not.toContain(deliveryId);
-
-      await db.webhooks.markDelivered(deliveryId, 200);
-      const [settled] = await db.webhooks.listDeliveries(endpoint.id, 10);
-      expect(settled?.deliveredAt).not.toBeNull();
-      expect(settled?.responseStatus).toBe(200);
-    });
-
-    it("disables a webhook endpoint only once the failure run reaches the cap", async () => {
-      const endpoint = await db.webhooks.createEndpoint({
-        url: "https://example.com/hooks/failing",
-        description: "",
-        eventTypes: ["order.paid"],
-        enabled: true,
-        secret: "bwhsec_failing",
-      });
-
-      // The increment is done in SQL rather than read-modify-write, so this is
-      // the assertion that the expression compiles on both engines.
-      expect(await db.webhooks.recordEndpointFailure(endpoint.id, "503", 3)).toBe(false);
-      expect(await db.webhooks.recordEndpointFailure(endpoint.id, "503", 3)).toBe(false);
-      expect(await db.webhooks.recordEndpointFailure(endpoint.id, "503", 3)).toBe(true);
-
-      const disabled = await db.webhooks.findEndpoint(endpoint.id);
-      expect(disabled?.enabled).toBe(false);
-      expect(disabled?.consecutiveFailures).toBe(3);
-
-      // Only the crossing reports true; a later failure is not a second event.
-      expect(await db.webhooks.recordEndpointFailure(endpoint.id, "503", 3)).toBe(false);
-
-      await db.webhooks.recordEndpointSuccess(endpoint.id);
-      const healthy = await db.webhooks.findEndpoint(endpoint.id);
-      expect(healthy?.consecutiveFailures).toBe(0);
-      expect(healthy?.lastSuccessAt).not.toBeNull();
-    });
-
-    it("leaves a single unlabelled variant with no options", async () => {
-      const { drizzle: drizzleDb, schema } = await db.getDatabase();
-
-      const productId = randomUUID();
-      await drizzleDb.insert(schema.products).values({
-        id: productId,
-        slug: "legacy-simple",
-        name: "Legacy Simple",
-      });
-
-      await drizzleDb.insert(schema.variants).values({
-        id: randomUUID(),
-        productId,
-        label: "",
-        priceCents: 500,
-        position: 0,
-      });
-
-      await db.admin.backfillProductOptions();
-
-      const product = await db.findProductBySlug("legacy-simple", false);
-      expect(product?.options).toEqual([]);
+      const page = await db.orders.listOrders({ from: Date.now() - 60_000, to: Date.now() + 60_000, limit: 100 });
+      expect(page.orders.length).toBeGreaterThan(0);
+      const empty = await db.orders.listOrders({ from: Date.now() + 60_000 });
+      expect(empty.orders).toHaveLength(0);
     });
   });
 }

@@ -1,26 +1,17 @@
-<h1 style="margin:0 0 12px;font-size:24px;font-weight:600;">You left something in your cart</h1>
+<h1 style="margin:0 0 12px;font-size:24px;font-weight:600;">Your postcards are still waiting</h1>
 <p style="margin:0 0 8px;color:#52525b;line-height:1.6;">
-  Your cart at {{store.name}} is still waiting for you.
+  You designed some postcards at {{store.name}} and didn't finish sending them. They're still here.
 </p>
 
 {{#if items}}
 <table style="width:100%;border-collapse:collapse;font-size:14px;margin:24px 0;">
-  <thead>
-    <tr style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#71717a;">
-      <th style="text-align:left;padding:0 0 8px;border-bottom:1px solid #e4e4e7;">Item</th>
-      <th style="text-align:right;padding:0 0 8px;border-bottom:1px solid #e4e4e7;">Qty</th>
-      <th style="text-align:right;padding:0 0 8px;border-bottom:1px solid #e4e4e7;">Total</th>
-    </tr>
-  </thead>
   <tbody>
     {{#each items}}
     <tr>
       <td style="padding:12px 0;border-bottom:1px solid #f4f4f5;">
-        {{this.productName}}
-        {{#if this.variantLabel}}<div style="color:#71717a;font-size:12px;">{{this.variantLabel}}</div>{{/if}}
-        {{#if this.optionsText}}<div style="color:#71717a;font-size:12px;">{{this.optionsText}}</div>{{/if}}
+        {{this.summary}}
+        <div style="color:#71717a;font-size:12px;">{{this.count}} postcard{{#unless (eq this.count 1)}}s{{/unless}}</div>
       </td>
-      <td style="padding:12px 0;border-bottom:1px solid #f4f4f5;text-align:right;">{{this.quantity}}</td>
       <td style="padding:12px 0;border-bottom:1px solid #f4f4f5;text-align:right;">{{this.lineTotal}}</td>
     </tr>
     {{/each}}
@@ -34,12 +25,12 @@
 
 {{#if droppedCount}}
 <p style="margin:16px 0 0;color:#71717a;font-size:13px;line-height:1.6;">
-  {{droppedCount}} item(s) in your cart are no longer available and weren't included above.
+  {{droppedCount}} design(s) in your cart have since been cleaned up and weren't included above.
 </p>
 {{/if}}
 
 <p style="margin:24px 0;">
-  <a href="{{recoverUrl}}" style="display:inline-block;background:{{store.colorAccent}};color:#ffffff;text-decoration:none;padding:10px 20px;border-radius:2px;font-weight:600;">Recover your cart</a>
+  <a href="{{recoverUrl}}" style="display:inline-block;background:{{store.colorAccent}};color:#18181b;text-decoration:none;padding:10px 20px;border-radius:2px;font-weight:600;">Pick up where you left off</a>
 </p>
 
 <p style="margin:0;color:#71717a;font-size:13px;line-height:1.6;">

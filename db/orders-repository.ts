@@ -1,56 +1,18 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
-import {
-  orderReference,
-  orderSchema,
-  type Order,
-  type OrderStatus,
-} from "../shared/orders.js";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
+import { orderReference, orderSchema, type Order, type OrderStatus } from "../shared/orders.js";
+import type { CartLine } from "../shared/cart.js";
+import type { Postcard, PostcardStatus } from "../shared/postcards.js";
 import { getDatabase } from "./client.js";
+import { affectedRows, findDesignsByIds, toPublicDesign } from "./designs-repository.js";
+import { nowFor, toEpochMs } from "./repository.js";
 
 /**
- * Orders.
+ * Orders and the postcards on them.
  *
- * Stripe's Orders API is gone, so this is where order state lives. Stripe is
- * still the authority on payment; fulfilment is entirely ours.
+ * Stripe is still the authority on payment; fulfilment — which card goes to
+ * Lob on which day, and whether it did — is entirely ours.
  */
-
-function parseJson<T>(value: unknown, fallback: T): T {
-  if (value === null || value === undefined) return fallback;
-  if (typeof value !== "string") return value as T;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function toBool(value: unknown): boolean {
-  return value === true || value === 1;
-}
-
-/** SQLite stores unix seconds; Postgres a timestamptz. Normalise to ms. */
-function toEpochMs(value: unknown): number {
-  if (value instanceof Date) return value.getTime();
-  if (typeof value === "number") return value * 1000;
-  return Date.now();
-}
-
-function jsonFor(isPg: boolean, value: unknown): unknown {
-  return isPg ? value : JSON.stringify(value);
-}
-
-export interface PendingOrderLine {
-  productId: string;
-  variantId: string;
-  productName: string;
-  variantLabel: string;
-  sku: string | null;
-  /** Read from the database, never from the client. */
-  unitPriceCents: number;
-  quantity: number;
-  options: Record<string, string>;
-}
 
 export interface CreatePendingOrderInput {
   /** Minted by the caller so it can go into the Stripe session's metadata. */
@@ -58,216 +20,228 @@ export interface CreatePendingOrderInput {
   checkoutSessionId: string;
   email: string;
   currency: string;
-  subtotalCents: number;
-  lines: PendingOrderLine[];
+  unitPriceCents: number;
+  /** The cart, validated: every design id already checked against the table. */
+  lines: CartLine[];
   /** Set only when the buyer was signed in at checkout. Null for a guest. */
   customerId?: string | null;
 }
 
+/**
+ * Record an order and its postcards before the buyer reaches Stripe.
+ *
+ * Postcards are written now, as `pending`, rather than reconstructed from the
+ * cart later: the webhook that confirms payment gets a Stripe session and an
+ * order id, and nothing else — so everything it needs to schedule has to be
+ * here already.
+ */
 export async function createPendingOrder(input: CreatePendingOrderInput): Promise<string> {
-  const { drizzle: db, schema, dialect } = await getDatabase();
-  const json = (v: unknown) => jsonFor(dialect === "pg", v);
+  const { drizzle: db, schema } = await getDatabase();
 
-  const id = input.id;
+  let postcardCount = 0;
+  for (const line of input.lines) postcardCount += line.designs.length * line.recipients.length;
+
+  const subtotalCents = postcardCount * input.unitPriceCents;
 
   await db.insert(schema.orders).values({
-    id,
+    id: input.id,
     stripeCheckoutSessionId: input.checkoutSessionId,
     email: input.email,
     status: "pending",
     currency: input.currency,
-    subtotalCents: input.subtotalCents,
-    totalCents: input.subtotalCents,
+    unitPriceCents: input.unitPriceCents,
+    postcardCount,
+    subtotalCents,
+    totalCents: subtotalCents,
     customerId: input.customerId ?? null,
   });
 
-  for (const line of input.lines) {
-    await db.insert(schema.orderItems).values({
-      id: randomUUID(),
-      orderId: id,
-      productId: line.productId,
-      variantId: line.variantId,
-      productName: line.productName,
-      variantLabel: line.variantLabel,
-      sku: line.sku,
-      unitPriceCents: line.unitPriceCents,
-      quantity: line.quantity,
-      options: json(line.options),
-    });
+  for (const [batchIndex, line] of input.lines.entries()) {
+    for (const design of line.designs) {
+      for (const recipient of line.recipients) {
+        await db.insert(schema.postcards).values({
+          id: randomUUID(),
+          orderId: input.id,
+          designId: design.designId,
+          batchIndex,
+          recipientName: recipient.name,
+          recipientLine1: recipient.line1,
+          recipientLine2: recipient.line2,
+          recipientCity: recipient.city,
+          recipientState: recipient.state,
+          recipientPostalCode: recipient.postalCode,
+          mailDate: design.mailDate,
+          status: "pending",
+        });
+      }
+    }
   }
 
-  return id;
+  return input.id;
 }
 
 interface OrderRow {
   id: string;
+  stripeCheckoutSessionId: string;
   email: string;
   status: string;
   currency: string;
+  unitPriceCents: number;
+  postcardCount: number;
   subtotalCents: number;
-  shippingCents: number;
-  taxCents: number;
   discountCents: number;
   totalCents: number;
-  shippingName: string | null;
-  shippingLine1: string | null;
-  shippingLine2: string | null;
-  shippingCity: string | null;
-  shippingState: string | null;
-  shippingPostalCode: string | null;
-  shippingCountry: string | null;
-  carrier: string | null;
-  trackingNumber: string | null;
-  oversold: unknown;
   refundedCents: number;
   createdAt: unknown;
 }
 
-interface OrderItemRow {
+export interface PostcardRow {
   id: string;
   orderId: string;
-  productId: string | null;
-  variantId: string | null;
-  productName: string;
-  variantLabel: string;
-  sku: string | null;
-  unitPriceCents: number;
-  quantity: number;
-  options: unknown;
+  designId: string;
+  batchIndex: number;
+  recipientName: string;
+  recipientLine1: string;
+  recipientLine2: string | null;
+  recipientCity: string;
+  recipientState: string;
+  recipientPostalCode: string;
+  mailDate: string;
+  status: string;
+  lobId: string | null;
+  lobUrl: string | null;
+  expectedDeliveryDate: string | null;
+  sentAt: unknown;
+  attempts: number;
+  lastError: string | null;
 }
 
-function buildOrder(row: OrderRow, items: OrderItemRow[]): Order {
-  return orderSchema.parse({
+export function buildPostcard(row: PostcardRow): Postcard {
+  return {
     id: row.id,
-    reference: orderReference(row.id),
-    email: row.email,
-    status: row.status,
-    currency: row.currency,
-    subtotalCents: row.subtotalCents,
-    shippingCents: row.shippingCents,
-    taxCents: row.taxCents,
-    discountCents: row.discountCents,
-    totalCents: row.totalCents,
-    shipping: {
-      name: row.shippingName,
-      line1: row.shippingLine1,
-      line2: row.shippingLine2,
-      city: row.shippingCity,
-      state: row.shippingState,
-      postalCode: row.shippingPostalCode,
-      country: row.shippingCountry,
+    designId: row.designId,
+    batchIndex: row.batchIndex,
+    recipient: {
+      name: row.recipientName,
+      line1: row.recipientLine1,
+      line2: row.recipientLine2,
+      city: row.recipientCity,
+      state: row.recipientState,
+      postalCode: row.recipientPostalCode,
     },
-    carrier: row.carrier,
-    trackingNumber: row.trackingNumber,
-    oversold: toBool(row.oversold),
-    refundedCents: row.refundedCents,
-    createdAt: toEpochMs(row.createdAt),
-    items: items.map((i) => ({
-      id: i.id,
-      productId: i.productId,
-      variantId: i.variantId,
-      productName: i.productName,
-      variantLabel: i.variantLabel,
-      sku: i.sku,
-      unitPriceCents: i.unitPriceCents,
-      quantity: i.quantity,
-      options: parseJson<Record<string, string>>(i.options, {}),
-    })),
+    mailDate: row.mailDate,
+    status: row.status as PostcardStatus,
+    lobId: row.lobId,
+    lobUrl: row.lobUrl,
+    expectedDeliveryDate: row.expectedDeliveryDate,
+    sentAt: row.sentAt === null || row.sentAt === undefined ? null : toEpochMs(row.sentAt),
+    attempts: row.attempts,
+    lastError: row.lastError,
+  };
+}
+
+async function buildOrders(rows: OrderRow[]): Promise<Order[]> {
+  if (rows.length === 0) return [];
+
+  const postcardsByOrder = await loadPostcards(rows.map((r) => r.id));
+
+  const designIds = new Set<string>();
+  for (const list of postcardsByOrder.values()) for (const p of list) designIds.add(p.designId);
+  const designs = await findDesignsByIds([...designIds]);
+  const designById = new Map(designs.map((d) => [d.id, toPublicDesign(d)]));
+
+  return rows.map((row) => {
+    const postcards = postcardsByOrder.get(row.id) ?? [];
+    const used = [...new Set(postcards.map((p) => p.designId))]
+      .map((id) => designById.get(id))
+      .filter((d): d is NonNullable<typeof d> => d !== undefined);
+
+    return orderSchema.parse({
+      id: row.id,
+      reference: orderReference(row.id),
+      checkoutSessionId: row.stripeCheckoutSessionId,
+      email: row.email,
+      status: row.status,
+      currency: row.currency,
+      unitPriceCents: row.unitPriceCents,
+      postcardCount: row.postcardCount,
+      subtotalCents: row.subtotalCents,
+      discountCents: row.discountCents,
+      totalCents: row.totalCents,
+      refundedCents: row.refundedCents,
+      createdAt: toEpochMs(row.createdAt),
+      postcards,
+      designs: used,
+    });
   });
 }
 
-/**
- * SQLite's default limit is 999 bound parameters, so a single `inArray` over a
- * long id list fails with SQLITE_ERROR. `listOrders` clamps to 100 today, but
- * chunking here means a future caller with a bigger list doesn't have to know.
- */
-const ITEM_ID_CHUNK = 500;
-
-/** Exported so the dialect tests can exercise the chunking guard directly. */
-export async function loadItems(orderIds: string[]): Promise<Map<string, OrderItemRow[]>> {
+/** SQLite's default limit is 999 bound parameters, so long id lists are chunked. */
+async function loadPostcards(orderIds: string[]): Promise<Map<string, Postcard[]>> {
   const { drizzle: db, schema } = await getDatabase();
-  if (orderIds.length === 0) return new Map();
+  const map = new Map<string, Postcard[]>();
 
-  const map = new Map<string, OrderItemRow[]>();
+  for (let start = 0; start < orderIds.length; start += 500) {
+    const chunk = orderIds.slice(start, start + 500);
 
-  for (let start = 0; start < orderIds.length; start += ITEM_ID_CHUNK) {
-    const chunk = orderIds.slice(start, start + ITEM_ID_CHUNK);
-
-    // v1 selected the whole table and filtered in JS, with an includes() in the
-    // loop — quadratic, and on the payment webhook's path via getOrder.
-    // order_items has no position column, so sort by id: without it the engine
-    // is free to return the same order's lines in a different order each call.
     const rows = (await db
       .select()
-      .from(schema.orderItems)
-      .where(inArray(schema.orderItems.orderId, chunk))
-      .orderBy(asc(schema.orderItems.id))) as unknown as OrderItemRow[];
+      .from(schema.postcards)
+      .where(inArray(schema.postcards.orderId, chunk))
+      // A stable order: by mail date, then batch, then the recipient's name.
+      .orderBy(
+        asc(schema.postcards.mailDate),
+        asc(schema.postcards.batchIndex),
+        asc(schema.postcards.recipientName),
+        asc(schema.postcards.id),
+      )) as unknown as PostcardRow[];
 
     for (const row of rows) {
       const existing = map.get(row.orderId);
-      if (existing) existing.push(row);
-      else map.set(row.orderId, [row]);
+      const postcard = buildPostcard(row);
+      if (existing) existing.push(postcard);
+      else map.set(row.orderId, [postcard]);
     }
   }
 
   return map;
 }
 
-export async function getOrder(id: string): Promise<Order | null> {
+async function findOne(where: unknown): Promise<Order | null> {
   const { drizzle: db, schema } = await getDatabase();
 
-  const rows = (await db
-    .select()
-    .from(schema.orders)
-    .where(eq(schema.orders.id, id))
-    .limit(1)) as unknown as OrderRow[];
+  const rows = (await db.select().from(schema.orders).where(where).limit(1)) as unknown as OrderRow[];
+  const [order] = await buildOrders(rows);
+  return order ?? null;
+}
 
-  const row = rows[0];
-  if (!row) return null;
-
-  const items = await loadItems([row.id]);
-  return buildOrder(row, items.get(row.id) ?? []);
+export async function getOrder(id: string): Promise<Order | null> {
+  const { schema } = await getDatabase();
+  return findOne(eq(schema.orders.id, id));
 }
 
 export async function findOrderByCheckoutSession(sessionId: string): Promise<Order | null> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  const rows = (await db
-    .select()
-    .from(schema.orders)
-    .where(eq(schema.orders.stripeCheckoutSessionId, sessionId))
-    .limit(1)) as unknown as OrderRow[];
-
-  const row = rows[0];
-  if (!row) return null;
-
-  const items = await loadItems([row.id]);
-  return buildOrder(row, items.get(row.id) ?? []);
+  const { schema } = await getDatabase();
+  return findOne(eq(schema.orders.stripeCheckoutSessionId, sessionId));
 }
 
 /**
  * An order, but only if it belongs to this customer.
  *
- * Filtering by `customerId` in the query itself — rather than fetching by id
- * and comparing afterwards — is what makes another customer's order a 404
- * instead of a bug waiting for someone to remove the comparison. See the
- * acceptance criteria in docs/tasks/11-customer-accounts.md: this is the IDOR
- * this route exists to close.
+ * Filtering by `customerId` in the query itself is what makes another
+ * customer's order a 404 rather than a bug waiting for someone to remove the
+ * comparison.
  */
 export async function getOrderForCustomer(id: string, customerId: string): Promise<Order | null> {
-  const { drizzle: db, schema } = await getDatabase();
+  const { schema } = await getDatabase();
+  return findOne(and(eq(schema.orders.id, id), eq(schema.orders.customerId, customerId)));
+}
 
-  const rows = (await db
-    .select()
-    .from(schema.orders)
-    .where(and(eq(schema.orders.id, id), eq(schema.orders.customerId, customerId)))
-    .limit(1)) as unknown as OrderRow[];
-
-  const row = rows[0];
-  if (!row) return null;
-
-  const items = await loadItems([row.id]);
-  return buildOrder(row, items.get(row.id) ?? []);
+export interface OrderPage {
+  orders: Order[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export async function listOrdersForCustomer(
@@ -288,54 +262,27 @@ export async function listOrdersForCustomer(
       .orderBy(desc(schema.orders.createdAt))
       .limit(limit)
       .offset(offset) as unknown as Promise<OrderRow[]>,
-    db.select({ value: count() }).from(schema.orders).where(where) as unknown as Promise<
-      { value: number }[]
-    >,
+    db.select({ value: count() }).from(schema.orders).where(where) as unknown as Promise<{ value: number }[]>,
   ]);
 
-  const items = await loadItems(rows.map((r) => r.id));
-
-  return {
-    orders: rows.map((row) => buildOrder(row, items.get(row.id) ?? [])),
-    total: totals[0]?.value ?? 0,
-    limit,
-    offset,
-  };
+  return { orders: await buildOrders(rows), total: totals[0]?.value ?? 0, limit, offset };
 }
 
 /**
  * Link every unclaimed order for an email to a customer account.
  *
- * Callers only ever pass a *verified* customer's id — see
- * `consumeEmailVerificationToken` and the webhook's `findVerifiedCustomerByEmail`
- * lookup — so this function does not re-check verification itself. The `IS
- * NULL` guard means an order already claimed by someone else (or by this same
- * customer, on a retry) is simply left alone rather than reassigned.
+ * Callers only ever pass a *verified* customer's id, so this function does not
+ * re-check verification itself.
  */
 export async function claimOrdersForCustomer(customerId: string, email: string): Promise<number> {
   const { drizzle: db, schema } = await getDatabase();
 
-  // Stripe returns an email in whatever case the buyer typed it; the
-  // customer's own address is normalised lower-case at registration. Compare
-  // case-insensitively so those two never silently fail to match.
   const result = await db
     .update(schema.orders)
     .set({ customerId })
-    .where(
-      and(
-        eq(sql`lower(${schema.orders.email})`, email.toLowerCase()),
-        isNull(schema.orders.customerId),
-      ),
-    );
+    .where(and(eq(sql`lower(${schema.orders.email})`, email.toLowerCase()), isNull(schema.orders.customerId)));
 
   return affectedRows(result);
-}
-
-export interface OrderPage {
-  orders: Order[];
-  total: number;
-  limit: number;
-  offset: number;
 }
 
 export async function listOrders(
@@ -352,11 +299,8 @@ export async function listOrders(
   const limit = Math.min(Math.max(options.limit ?? 25, 1), 100);
   const offset = Math.max(options.offset ?? 0, 0);
 
-  // createdAt is unix *seconds* on SQLite and a timestamptz on Postgres, so a
-  // raw millisecond bound would land tens of thousands of years out on one of
-  // them. See toEpochMs, which reads the same difference back.
-  const bound = (epochMs: number) =>
-    dialect === "pg" ? new Date(epochMs) : Math.floor(epochMs / 1000);
+  // createdAt is unix *seconds* on SQLite and a timestamptz on Postgres.
+  const bound = (epochMs: number) => (dialect === "pg" ? new Date(epochMs) : Math.floor(epochMs / 1000));
 
   const where = and(
     options.status ? eq(schema.orders.status, options.status) : undefined,
@@ -372,42 +316,25 @@ export async function listOrders(
       .orderBy(desc(schema.orders.createdAt))
       .limit(limit)
       .offset(offset) as unknown as Promise<OrderRow[]>,
-    db.select({ value: count() }).from(schema.orders).where(where) as unknown as Promise<
-      { value: number }[]
-    >,
+    db.select({ value: count() }).from(schema.orders).where(where) as unknown as Promise<{ value: number }[]>,
   ]);
 
-  const items = await loadItems(rows.map((r) => r.id));
-
-  return {
-    orders: rows.map((row) => buildOrder(row, items.get(row.id) ?? [])),
-    total: totals[0]?.value ?? 0,
-    limit,
-    offset,
-  };
+  return { orders: await buildOrders(rows), total: totals[0]?.value ?? 0, limit, offset };
 }
 
 export interface PaymentDetails {
   paymentIntentId: string | null;
   email: string;
   subtotalCents: number;
-  shippingCents: number;
-  taxCents: number;
-  /** What a promotion code took off, as a positive number. */
   discountCents: number;
   totalCents: number;
   currency: string;
-  shipping: {
-    name: string | null;
-    line1: string | null;
-    line2: string | null;
-    city: string | null;
-    state: string | null;
-    postalCode: string | null;
-    country: string | null;
-  };
 }
 
+/**
+ * Confirm payment: the order becomes `paid` and every card on it becomes
+ * `scheduled`, which is what the fulfilment sweep looks for.
+ */
 export async function markOrderPaid(orderId: string, details: PaymentDetails): Promise<void> {
   const { drizzle: db, schema } = await getDatabase();
 
@@ -418,45 +345,45 @@ export async function markOrderPaid(orderId: string, details: PaymentDetails): P
       stripePaymentIntentId: details.paymentIntentId,
       email: details.email,
       subtotalCents: details.subtotalCents,
-      shippingCents: details.shippingCents,
-      taxCents: details.taxCents,
       discountCents: details.discountCents,
       totalCents: details.totalCents,
       currency: details.currency,
-      shippingName: details.shipping.name,
-      shippingLine1: details.shipping.line1,
-      shippingLine2: details.shipping.line2,
-      shippingCity: details.shipping.city,
-      shippingState: details.shipping.state,
-      shippingPostalCode: details.shipping.postalCode,
-      shippingCountry: details.shipping.country,
     })
     .where(eq(schema.orders.id, orderId));
-}
-
-export async function updateFulfilment(
-  orderId: string,
-  input: { status: OrderStatus; carrier: string | null; trackingNumber: string | null },
-): Promise<void> {
-  const { drizzle: db, schema } = await getDatabase();
 
   await db
-    .update(schema.orders)
-    .set({
-      status: input.status,
-      carrier: input.carrier,
-      trackingNumber: input.trackingNumber,
-    })
-    .where(eq(schema.orders.id, orderId));
+    .update(schema.postcards)
+    .set({ status: "scheduled" })
+    .where(and(eq(schema.postcards.orderId, orderId), eq(schema.postcards.status, "pending")));
+}
+
+export async function setOrderStatus(orderId: string, status: OrderStatus): Promise<void> {
+  const { drizzle: db, schema } = await getDatabase();
+  await db.update(schema.orders).set({ status }).where(eq(schema.orders.id, orderId));
 }
 
 /**
- * The Stripe payment intent for an order.
- *
- * Deliberately not on the `Order` schema. Only the refund path needs it, and
- * `Order` is serialised to buyers on the confirmation page — a field that never
- * enters the shared type cannot leak from a response someone forgets to narrow.
+ * Cancel an order: whatever has not gone to print yet is withdrawn. Cards
+ * already at Lob are left as they are — the mail has gone.
  */
+export async function cancelOrder(orderId: string, status: "cancelled" | "refunded" = "cancelled"): Promise<number> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const result = await db
+    .update(schema.postcards)
+    .set({ status: "cancelled" })
+    .where(
+      and(
+        eq(schema.postcards.orderId, orderId),
+        inArray(schema.postcards.status, ["pending", "scheduled", "error"]),
+      ),
+    );
+
+  await setOrderStatus(orderId, status);
+  return affectedRows(result);
+}
+
+/** Deliberately not on the `Order` schema: only the refund path needs it. */
 export async function getOrderPaymentIntentId(orderId: string): Promise<string | null> {
   const { drizzle: db, schema } = await getDatabase();
 
@@ -469,14 +396,6 @@ export async function getOrderPaymentIntentId(orderId: string): Promise<string |
   return rows[0]?.paymentIntentId ?? null;
 }
 
-/**
- * Whether an order already belongs to a customer.
- *
- * Deliberately not on the `Order` schema — same reasoning as
- * `getOrderPaymentIntentId` just above: `Order` is serialised to buyers on
- * the confirmation page, and a field that never enters that type cannot leak
- * from a response someone forgets to narrow.
- */
 export async function getOrderCustomerId(orderId: string): Promise<string | null> {
   const { drizzle: db, schema } = await getDatabase();
 
@@ -490,217 +409,236 @@ export async function getOrderCustomerId(orderId: string): Promise<string | null
 }
 
 /**
- * Record a refund. Additive, because Stripe allows several partial refunds
- * against one charge and each arrives as its own webhook.
- *
- * The increment happens in SQL rather than as a read-modify-write, so two
+ * Record a refund. Additive, in SQL rather than read-modify-write, so two
  * webhooks landing at once cannot lose one of the amounts.
  */
 export async function recordRefund(orderId: string, amountCents: number): Promise<void> {
   if (amountCents <= 0) return;
 
   const { drizzle: db, schema } = await getDatabase();
-
   await db
     .update(schema.orders)
     .set({ refundedCents: sql`${schema.orders.refundedCents} + ${amountCents}` })
     .where(eq(schema.orders.id, orderId));
 }
 
-async function flagOversold(orderId: string): Promise<void> {
-  const { drizzle: db, schema } = await getDatabase();
-  await db.update(schema.orders).set({ oversold: true }).where(eq(schema.orders.id, orderId));
-}
+/* --------------------------------------------------------------- postcards */
 
 /**
- * Decrement stock for a paid order.
- *
- * The update is guarded (`quantity >= n`) so it can never drive stock negative
- * under concurrent checkouts, without needing a transaction API that differs
- * between the two dialects. If a line cannot be satisfied the payment has
- * already succeeded, so the order is still recorded and flagged `oversold` for
- * the owner — refusing it silently or dropping it would be worse.
+ * Cards due to go to Lob: scheduled, on a paid order, with a mail date on or
+ * before `today` (an ISO date). Stale claims are included: a card that has
+ * sat in `sending` for longer than the stale window belonged to a sweep that
+ * crashed, and nothing else will ever pick it up again.
  */
-export async function decrementInventoryForOrder(orderId: string): Promise<string[]> {
+export async function findDuePostcards(today: string, limit: number): Promise<PostcardRow[]> {
   const { drizzle: db, schema } = await getDatabase();
 
-  const order = await getOrder(orderId);
-  if (!order) return [];
+  const rows = (await db
+    .select()
+    .from(schema.postcards)
+    .where(and(eq(schema.postcards.status, "scheduled"), lte(schema.postcards.mailDate, today)))
+    .orderBy(asc(schema.postcards.mailDate), asc(schema.postcards.id))
+    .limit(limit)) as unknown as PostcardRow[];
 
-  const shortfalls: string[] = [];
+  // The order has to still be paid: a cancelled order's cards are already
+  // `cancelled`, but a refund that landed between the query and the send is
+  // the case this guards.
+  if (rows.length === 0) return [];
+  const orderIds = [...new Set(rows.map((r) => r.orderId))];
+  const orders = (await db
+    .select({ id: schema.orders.id, status: schema.orders.status })
+    .from(schema.orders)
+    .where(inArray(schema.orders.id, orderIds))) as unknown as { id: string; status: string }[];
+  const paid = new Set(orders.filter((o) => o.status === "paid").map((o) => o.id));
 
-  for (const item of order.items) {
-    if (!item.variantId) continue;
-
-    const before = (await db
-      .select({
-        quantity: schema.variants.inventoryQuantity,
-        type: schema.variants.inventoryType,
-      })
-      .from(schema.variants)
-      .where(eq(schema.variants.id, item.variantId))
-      .limit(1)) as unknown as { quantity: number; type: string }[];
-
-    const current = before[0];
-    // Unlimited stock, or the variant is gone: nothing to decrement.
-    if (!current || current.type !== "finite") continue;
-
-    await db
-      .update(schema.variants)
-      .set({
-        inventoryQuantity: sql`${schema.variants.inventoryQuantity} - ${item.quantity}`,
-      })
-      .where(
-        and(
-          eq(schema.variants.id, item.variantId),
-          eq(schema.variants.inventoryType, "finite"),
-          // The guard: only decrement if there is genuinely enough.
-          gte(schema.variants.inventoryQuantity, item.quantity),
-        ),
-      );
-
-    const after = (await db
-      .select({ quantity: schema.variants.inventoryQuantity })
-      .from(schema.variants)
-      .where(eq(schema.variants.id, item.variantId))
-      .limit(1)) as unknown as { quantity: number }[];
-
-    if ((after[0]?.quantity ?? 0) === current.quantity) {
-      shortfalls.push(item.productName);
-    }
-  }
-
-  if (shortfalls.length > 0) await flagOversold(orderId);
-
-  return shortfalls;
+  return rows.filter((row) => paid.has(row.orderId));
 }
 
 /**
- * Rows changed by an update, across both drivers.
- *
- * better-sqlite3 reports `changes`, node-postgres reports `rowCount`. Neither
- * is in Drizzle's public type for a dialect-agnostic call, hence the probing.
+ * Claim a card for sending — the guard that makes two API instances send one
+ * card. `UPDATE ... WHERE status = 'scheduled'` means only the first of two
+ * racing claims can ever win.
  */
-function affectedRows(result: unknown): number {
-  const shape = result as { changes?: number; rowCount?: number } | null;
-  return shape?.changes ?? shape?.rowCount ?? 0;
-}
-
-/**
- * Return an order's stock to the catalogue.
- *
- * Mirrors `decrementInventoryForOrder`: finite variants only, and skipping
- * lines whose variant has since been deleted. Unguarded on the way up, because
- * unlike the decrement, putting stock back can never drive a count negative.
- *
- * Returns false if this order had already been restocked. Nothing here is
- * per-line, so calling it twice would silently inflate the catalogue — a refund
- * can arrive as several webhooks, and a merchant can also cancel by hand.
- */
-export async function restockInventoryForOrder(orderId: string): Promise<boolean> {
+export async function claimPostcard(id: string): Promise<boolean> {
   const { drizzle: db, schema, dialect } = await getDatabase();
 
-  const order = await getOrder(orderId);
-  if (!order) return false;
+  const result = await db
+    .update(schema.postcards)
+    .set({
+      status: "sending",
+      attempts: sql`${schema.postcards.attempts} + 1`,
+      updatedAt: nowFor(dialect),
+    })
+    .where(and(eq(schema.postcards.id, id), eq(schema.postcards.status, "scheduled")));
 
-  // Claim the order with a conditional update rather than a read-then-write,
-  // so two webhooks arriving together cannot both proceed. Same reasoning as
-  // the decrement's guard: the transaction API differs between the dialects,
-  // and a WHERE clause does not.
-  const now = dialect === "pg" ? new Date() : Math.floor(Date.now() / 1000);
-
-  const claim = await db
-    .update(schema.orders)
-    .set({ restockedAt: now })
-    .where(and(eq(schema.orders.id, orderId), isNull(schema.orders.restockedAt)));
-
-  // Comparing the stamp we wrote against the one now in the row would look
-  // like a claim check but isn't: two callers a millisecond apart write the
-  // same whole second on SQLite, and both would think they won.
-  if (affectedRows(claim) !== 1) return false;
-
-  for (const item of order.items) {
-    if (!item.variantId) continue;
-
-    await db
-      .update(schema.variants)
-      .set({
-        inventoryQuantity: sql`${schema.variants.inventoryQuantity} + ${item.quantity}`,
-      })
-      .where(
-        and(
-          eq(schema.variants.id, item.variantId),
-          eq(schema.variants.inventoryType, "finite"),
-        ),
-      );
-  }
-
-  return true;
+  return affectedRows(result) === 1;
 }
 
-export interface LowStockVariant {
-  productId: string | null;
-  productName: string;
-  variantId: string;
-  variantLabel: string;
-  remaining: number;
+/** Cards a crashed sweep left claimed. Put back so the next sweep retries them. */
+export async function releaseStalePostcards(olderThan: Date): Promise<number> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+  const bound = dialect === "pg" ? olderThan : Math.floor(olderThan.getTime() / 1000);
+
+  const result = await db
+    .update(schema.postcards)
+    .set({ status: "scheduled" })
+    .where(and(eq(schema.postcards.status, "sending"), lte(schema.postcards.updatedAt, bound)));
+
+  return affectedRows(result);
+}
+
+export async function markPostcardSent(
+  id: string,
+  lob: { id: string; url: string | null; expectedDeliveryDate: string | null },
+): Promise<void> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+
+  await db
+    .update(schema.postcards)
+    .set({
+      status: "sent",
+      lobId: lob.id,
+      lobUrl: lob.url,
+      expectedDeliveryDate: lob.expectedDeliveryDate,
+      sentAt: nowFor(dialect),
+      lastError: null,
+      updatedAt: nowFor(dialect),
+    })
+    .where(eq(schema.postcards.id, id));
 }
 
 /**
- * Finite variants an order has left at or below `threshold`.
+ * A send that did not happen.
  *
- * Read after the decrement rather than derived from it: the decrement is
- * guarded and can decline to move a count at all, so the only trustworthy
- * figure is the one now in the row. Feeds the `inventory.low` webhook — see
- * docs/tasks/14-outbound-webhooks.md.
+ * `retry` puts the card back to `scheduled` so the next sweep tries again —
+ * for a rate limit, a network blip, a 5xx. `error` parks it for a person:
+ * Lob refused the card, and the reason is stored in Lob's own words, which is
+ * the thing v1 never kept and the reason its failures could not be debugged.
  */
-export async function findLowStockAfterOrder(
-  orderId: string,
-  threshold: number,
-): Promise<LowStockVariant[]> {
+export async function markPostcardFailed(
+  id: string,
+  message: string,
+  outcome: "retry" | "error",
+): Promise<void> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+
+  await db
+    .update(schema.postcards)
+    .set({
+      status: outcome === "retry" ? "scheduled" : "error",
+      lastError: message.slice(0, 2000),
+      updatedAt: nowFor(dialect),
+    })
+    .where(eq(schema.postcards.id, id));
+}
+
+/** A postcard by id and order — the order is the scope an admin acts within. */
+export async function getPostcard(orderId: string, id: string): Promise<Postcard | null> {
   const { drizzle: db, schema } = await getDatabase();
 
-  const order = await getOrder(orderId);
-  if (!order) return [];
+  const rows = (await db
+    .select()
+    .from(schema.postcards)
+    .where(and(eq(schema.postcards.id, id), eq(schema.postcards.orderId, orderId)))
+    .limit(1)) as unknown as PostcardRow[];
 
-  const low: LowStockVariant[] = [];
-  // One variant can appear on two lines of the same order; report it once.
-  const seen = new Set<string>();
+  const row = rows[0];
+  return row ? buildPostcard(row) : null;
+}
 
-  for (const item of order.items) {
-    if (!item.variantId || seen.has(item.variantId)) continue;
-    seen.add(item.variantId);
+/** Put an errored (or cancelled) card back on the schedule. Returns false if it was not one. */
+export async function requeuePostcard(orderId: string, id: string): Promise<boolean> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
 
-    const rows = (await db
-      .select({
-        quantity: schema.variants.inventoryQuantity,
-        type: schema.variants.inventoryType,
-      })
-      .from(schema.variants)
-      .where(eq(schema.variants.id, item.variantId))
-      .limit(1)) as unknown as { quantity: number; type: string }[];
+  const result = await db
+    .update(schema.postcards)
+    .set({ status: "scheduled", lastError: null, attempts: 0, updatedAt: nowFor(dialect) })
+    .where(
+      and(
+        eq(schema.postcards.id, id),
+        eq(schema.postcards.orderId, orderId),
+        inArray(schema.postcards.status, ["error", "cancelled"]),
+      ),
+    );
 
-    const variant = rows[0];
-    if (!variant || variant.type !== "finite" || variant.quantity > threshold) continue;
+  return affectedRows(result) === 1;
+}
 
-    low.push({
-      productId: item.productId,
-      productName: item.productName,
-      variantId: item.variantId,
-      variantLabel: item.variantLabel,
-      remaining: variant.quantity,
-    });
-  }
+/** Withdraw one card that has not gone out. Returns false if it already had. */
+export async function cancelPostcard(orderId: string, id: string): Promise<boolean> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
 
-  return low;
+  const result = await db
+    .update(schema.postcards)
+    .set({ status: "cancelled", updatedAt: nowFor(dialect) })
+    .where(
+      and(
+        eq(schema.postcards.id, id),
+        eq(schema.postcards.orderId, orderId),
+        inArray(schema.postcards.status, ["scheduled", "error"]),
+      ),
+    );
+
+  return affectedRows(result) === 1;
 }
 
 /**
- * Record a Stripe event id, returning false if it has been seen before.
+ * Move a paid order to `completed` once nothing on it is still waiting.
  *
- * Stripe delivers webhooks at least once, so without this a retry would create
- * a second order and decrement stock twice.
+ * "Waiting" is scheduled, sending or error — an errored card is still owed,
+ * which is why an order with one stays open on the admin's list until someone
+ * retries or cancels it.
  */
+export async function completeOrderIfDone(orderId: string): Promise<boolean> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const waiting = (await db
+    .select({ value: count() })
+    .from(schema.postcards)
+    .where(
+      and(
+        eq(schema.postcards.orderId, orderId),
+        inArray(schema.postcards.status, ["pending", "scheduled", "sending", "error"]),
+      ),
+    )) as unknown as { value: number }[];
+
+  if ((waiting[0]?.value ?? 0) > 0) return false;
+
+  const result = await db
+    .update(schema.orders)
+    .set({ status: "completed" })
+    .where(and(eq(schema.orders.id, orderId), eq(schema.orders.status, "paid")));
+
+  return affectedRows(result) === 1;
+}
+
+/** Whether a design still has a card that has not gone out. */
+export async function designHasUnsentPostcards(designId: string): Promise<boolean> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const rows = (await db
+    .select({ value: count() })
+    .from(schema.postcards)
+    .where(and(eq(schema.postcards.designId, designId), ne(schema.postcards.status, "sent"), ne(schema.postcards.status, "cancelled")))) as unknown as { value: number }[];
+
+  return (rows[0]?.value ?? 0) > 0;
+}
+
+/** For the admin overview: how many cards are in each state right now. */
+export async function countPostcardsByStatus(): Promise<Record<string, number>> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const rows = (await db
+    .select({ status: schema.postcards.status, value: count() })
+    .from(schema.postcards)
+    .groupBy(schema.postcards.status)) as unknown as { status: string; value: number }[];
+
+  return Object.fromEntries(rows.map((row) => [row.status, row.value]));
+}
+
+/* ---------------------------------------------------------------- webhooks */
+
+/** Record a Stripe event id, returning false if it has been seen before. */
 export async function recordWebhookEvent(id: string, type: string): Promise<boolean> {
   const { drizzle: db, schema } = await getDatabase();
 
@@ -716,12 +654,7 @@ export async function recordWebhookEvent(id: string, type: string): Promise<bool
   return true;
 }
 
-/**
- * Release a recorded event id.
- *
- * Called when handling failed and we answered 500: Stripe will retry, and the
- * retry must be allowed to process rather than being dismissed as a duplicate.
- */
+/** Release a recorded event id, so Stripe's retry is processed rather than dismissed. */
 export async function forgetWebhookEvent(id: string): Promise<void> {
   const { drizzle: db, schema } = await getDatabase();
   await db.delete(schema.webhookEvents).where(eq(schema.webhookEvents.id, id));

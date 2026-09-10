@@ -1,1 +1,0 @@
-ALTER TABLE `products` ADD `kind` text DEFAULT 'physical' NOT NULL;

@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Quicksand:wght@400;600&family=Sacramento&display=swap" rel="stylesheet" />
+    <style>
+      /*
+       * The back of a 4×6 postcard, as Lob prints it.
+       *
+       * The page is 6.25in × 4.25in including bleed. Lob overlays the address
+       * block and the postage on the right-hand half and the bottom edge, so
+       * everything of ours stays in the left column: a safe area 1/8in inside
+       * the trim, and a column 2.8in wide. Sizes are in inches and points so
+       * the renderer's DPI does not change the layout.
+       */
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; width: 6.25in; height: 4.25in; }
+      body { background: #ffffff; position: relative; }
+      .safe {
+        position: absolute;
+        top: 0.25in;
+        left: 0.25in;
+        width: 2.8in;
+        height: 3.75in;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        border-right: 2px dotted #888;
+        padding-right: 0.1in;
+        font-family: {{fontFamily}};
+        font-size: {{fontSize}}pt;
+        line-height: 1.4;
+        color: {{fontColor}};
+        overflow: hidden;
+        word-wrap: break-word;
+      }
+      .text { white-space: pre-wrap; }
+      .valediction { text-align: right; margin-top: 0.15in; }
+    </style>
+  </head>
+  <body>
+    <div class="safe">
+      <div class="text">{{text}}</div>
+      {{#if valediction}}<div class="valediction">{{valediction}}</div>{{/if}}
+    </div>
+  </body>
+</html>

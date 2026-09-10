@@ -1,4 +1,4 @@
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { RequestHandler } from "express";
 import { AwsClient } from "aws4fetch";
@@ -29,6 +29,8 @@ import { env, isProduction, objectStorage } from "./env.js";
 export interface ImageStore {
   readonly driver: "local" | "s3";
   put(relativePath: string, bytes: Buffer, contentType: string): Promise<void>;
+  /** The bytes back — the fulfilment sweep sends the print file to Lob from here. */
+  get(relativePath: string): Promise<Buffer>;
   delete(relativePath: string): Promise<void>;
   /** Where a browser fetches the file: relative under `local`, absolute under `s3`. */
   publicUrl(relativePath: string): string;
@@ -82,6 +84,10 @@ function createLocalStore(root: string): ImageStore {
       const target = resolve(relativePath);
       await mkdir(path.dirname(target), { recursive: true });
       await writeFile(target, bytes);
+    },
+
+    get(relativePath) {
+      return readFile(resolve(relativePath));
     },
 
     async delete(relativePath) {
@@ -139,7 +145,7 @@ export function createS3Store(options: S3StoreOptions): ImageStore {
     return relativePath.split("/").map(encodeURIComponent).join("/");
   };
 
-  const request = async (method: "PUT" | "DELETE", relativePath: string, init?: RequestInit) => {
+  const request = async (method: "PUT" | "DELETE" | "GET", relativePath: string, init?: RequestInit) => {
     const signed = await client.sign(`${objectBase}/${key(relativePath)}`, { ...init, method });
     return send(signed);
   };
@@ -167,6 +173,12 @@ export function createS3Store(options: S3StoreOptions): ImageStore {
         },
       });
       if (!response.ok) throw await failure("upload", relativePath, response);
+    },
+
+    async get(relativePath) {
+      const response = await request("GET", relativePath);
+      if (!response.ok) throw await failure("read", relativePath, response);
+      return Buffer.from(await response.arrayBuffer());
     },
 
     async delete(relativePath) {

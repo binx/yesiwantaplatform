@@ -16,14 +16,6 @@ declare module "express-session" {
      */
     customerId?: string;
     csrfToken?: string;
-    /**
-     * The `storefront_access_version` this session was granted under, by
-     * `POST /api/storefront/unlock`. Compared against the live value on every
-     * request — see `requireStorefrontAccess` in server/storefront-gate.ts —
-     * so changing the password or rotating the share link ends every session
-     * that does not match, without touching `adminId`.
-     */
-    storefrontAccess?: number;
   }
 }
 
@@ -179,19 +171,19 @@ export const emailRateLimit = rateLimit({
 });
 
 /**
- * The storefront password gate.
+ * Public image uploads — the postcard designer.
  *
- * Shaped like the login limiters but deliberately without `skipSuccessfulRequests`:
- * a login only ever needs to be tried by its one owner, but a shared storefront
- * password has no account to lock and no owner to notice repeated guessing, so
- * a *valid* guess still has to count towards the ceiling.
+ * Anyone can save a design without an account, which is the whole point of
+ * guest checkout, and every save is a decode, two resizes and a write. The
+ * ceiling is what a person trying a few photos needs; a script gets 429 and
+ * the disk stays the operator's.
  */
-export const storefrontUnlockRateLimit = rateLimit({
+export const uploadRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  limit: 40,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  message: { error: "Too many attempts. Try again in a few minutes." },
+  message: { error: "Too many uploads. Try again in a few minutes." },
 });
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);

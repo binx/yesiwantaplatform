@@ -6,7 +6,7 @@ import { SlugTakenError } from "./admin-repository.js";
 import { getDatabase } from "./client.js";
 
 /**
- * Store pages — reads and writes together, as with shipping.
+ * Store pages — reads and writes together.
  *
  * Bodies are Markdown and leave here as Markdown. Rendering happens in the
  * route layer (`server/markdown.ts`), which keeps the parser and the sanitiser
@@ -183,59 +183,4 @@ export async function reorderPages(ids: string[]): Promise<void> {
   for (const [index, id] of ids.entries()) {
     await db.update(schema.pages).set({ position: index }).where(eq(schema.pages.id, id));
   }
-}
-
-/**
- * Carry an existing store's `aboutText` over into a page.
- *
- * Two systems for one thing is how the About copy ends up edited in the place
- * that is no longer read. This runs after every migration rather than inside a
- * SQL file, because it has to behave identically on both dialects, and it is
- * guarded on the page not existing rather than on a version marker — so a
- * merchant who deletes the generated page does not get it back on next boot,
- * and running migrations twice makes one page, not two.
- *
- * Returns true when a page was created, which is what the test asserts once.
- */
-export async function adoptAboutTextAsPage(): Promise<boolean> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  const settings = (await db
-    .select({ aboutText: schema.storeSettings.aboutText })
-    .from(schema.storeSettings)
-    .limit(1)) as unknown as { aboutText: string | null }[];
-
-  const aboutText = settings[0]?.aboutText;
-  if (!aboutText || aboutText.trim() === "") return false;
-
-  const existing = (await db
-    .select({ id: schema.pages.id })
-    .from(schema.pages)
-    .where(eq(schema.pages.slug, "about"))
-    .limit(1)) as unknown as { id: string }[];
-
-  if (existing.length > 0) return false;
-
-  const positions = (await db
-    .select({ value: max(schema.pages.position) })
-    .from(schema.pages)) as unknown as { value: number | null }[];
-
-  await db.insert(schema.pages).values({
-    id: randomUUID(),
-    slug: "about",
-    title: "About",
-    // The old field was plain text split on newlines. Markdown treats a single
-    // newline as a soft break, so the paragraphs are separated here rather
-    // than silently collapsing into one block.
-    body: aboutText
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line !== "")
-      .join("\n\n"),
-    isLive: true,
-    inNav: true,
-    position: (positions[0]?.value ?? -1) + 1,
-  });
-
-  return true;
 }

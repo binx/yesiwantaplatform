@@ -1,49 +1,38 @@
-import { Tag, Tooltip } from "antd";
+import { Tag } from "antd";
 import type { Order } from "@shared/orders";
+import { summarisePostcards } from "@shared/orders";
 import { formatMoney } from "@shared/money";
-import { STATUS_LABELS } from "./orderPresentation";
+import { statusLabel } from "./orderPresentation";
 
 /**
- * A status badge that cannot throw.
- *
- * `oversold` rides along because it is the one flag an owner must not miss:
- * payment succeeded after stock ran out, so the money is taken and the order
- * cannot be fulfilled as placed.
- *
- * A partial refund gets its own tag because the status does not move: an order
- * refunded for one damaged item of three is still `shipped`, and without this
- * the only trace would be a total that no longer matches what was charged.
+ * An order's status, with the one detail that matters beside it: how many
+ * cards are still to go, or how much has come back.
  */
-export function OrderStatusTag({
-  order,
-  locale = "en-US",
-}: {
-  order: Pick<Order, "status" | "oversold" | "refundedCents" | "totalCents" | "currency">;
-  /**
-   * The store's language tag. A prop rather than a hook because this badge is
-   * rendered on both sides of the app — the admin reads it from the settings
-   * query, the account pages from the store config — and a hook would tie it
-   * to one of them.
-   */
-  locale?: string;
-}) {
-  const entry = STATUS_LABELS[order.status];
-  const partiallyRefunded = order.refundedCents > 0 && order.refundedCents < order.totalCents;
+export function OrderStatusTag({ order, locale }: { order: Order; locale: string }) {
+  const counts = summarisePostcards(order);
 
-  return (
-    <>
-      <Tag color={entry?.color ?? "default"}>{entry?.label ?? order.status ?? "Unknown"}</Tag>
-      {order.oversold ? (
-        <Tooltip title="Paid, but stock had run out. Refund it or restock before fulfilling.">
-          <Tag color="red">Oversold</Tag>
-        </Tooltip>
-      ) : null}
-      {partiallyRefunded ? (
-        <Tag color="orange">
-          Partially refunded — {formatMoney(order.refundedCents, order.currency, locale)} of{" "}
-          {formatMoney(order.totalCents, order.currency, locale)}
-        </Tag>
-      ) : null}
-    </>
-  );
+  if (order.status === "refunded" || order.refundedCents > 0) {
+    const partial = order.refundedCents < order.totalCents;
+    return (
+      <Tag color={partial ? "gold" : "default"}>
+        {partial
+          ? `${formatMoney(order.refundedCents, order.currency, locale)} refunded`
+          : statusLabel("refunded")}
+      </Tag>
+    );
+  }
+
+  if (order.status === "paid") {
+    if (counts.error > 0) return <Tag color="volcano">{counts.error} failed</Tag>;
+    return (
+      <Tag color="blue">
+        {counts.sent} of {counts.sent + counts.scheduled} sent
+      </Tag>
+    );
+  }
+
+  const color =
+    order.status === "completed" ? "green" : order.status === "cancelled" ? "default" : "orange";
+
+  return <Tag color={color}>{statusLabel(order.status)}</Tag>;
 }

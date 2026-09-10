@@ -6,7 +6,6 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { adminEmailSchema } from "../shared/api.js";
-import { isLocalOrigin } from "../src/lib/publicUrl.js";
 
 /**
  * `npm run setup` — the first-run path.
@@ -228,7 +227,7 @@ async function checkStripeKey(key: string): Promise<StripeCheck> {
 /* --------------------------------------------------------------------- main */
 
 async function main(): Promise<void> {
-  console.log(`\n${bold("🎷🐋  Beluga setup")}`);
+  console.log(`\n${bold("✉️  Postcards setup")}`);
   console.log(dim("Nothing is written until the end, and existing values are kept.\n"));
 
   if (!stdin.isTTY) {
@@ -264,7 +263,7 @@ async function main(): Promise<void> {
 
   const databaseUrl = await ask(
     "Database URL",
-    currentValue(lines, "DATABASE_URL") ?? "file:./data/beluga.sqlite",
+    currentValue(lines, "DATABASE_URL") ?? "file:./data/postcards.sqlite",
   );
   lines = setEnvValue(lines, "DATABASE_URL", databaseUrl);
 
@@ -374,35 +373,6 @@ async function main(): Promise<void> {
   }
   lines = setEnvValue(lines, "PUBLIC_URL", publicUrl);
 
-  /* --- 5. storefront visibility -------------------------------------------- */
-
-  heading("5. Storefront visibility");
-  console.log(
-    dim(
-      "Deploying is not the same as being ready to show customers. A fresh\n" +
-        "public address is port-scanned within minutes, so this defaults to\n" +
-        "locked once the address above is not localhost.\n",
-    ),
-  );
-
-  let storefrontPassword: string | null = null;
-
-  if (
-    await confirm(
-      "Put a password on the storefront until you're ready to launch?",
-      !isLocalOrigin(publicUrl),
-    )
-  ) {
-    for (;;) {
-      const value = await askSecret("Storefront password (8+ characters, input hidden)");
-      if (value.length >= 8) {
-        storefrontPassword = value;
-        break;
-      }
-      console.log(red("  Too short — use at least 8 characters."));
-    }
-  }
-
   /* --- write .env before anything reads it -------------------------------- */
 
   writeEnv(lines);
@@ -418,26 +388,15 @@ async function main(): Promise<void> {
 
   /* --- 6. migrations ------------------------------------------------------ */
 
-  heading("6. Database schema");
+  heading("5. Database schema");
 
   const { runMigrations } = await import("../db/migrate.js");
   await runMigrations();
   console.log(`${green("✓")} Migrations applied.`);
 
-  if (storefrontPassword) {
-    const { setStorefrontAccess, setStorefrontPassword: writeStorefrontPassword } = await import(
-      "../db/admin-repository.js"
-    );
-    const { hashPassword } = await import("../server/auth.js");
-
-    await writeStorefrontPassword(await hashPassword(storefrontPassword));
-    await setStorefrontAccess("password");
-    console.log(`${green("✓")} The storefront requires a password.`);
-  }
-
   /* --- 7. admin account --------------------------------------------------- */
 
-  heading("7. Administrator");
+  heading("6. Administrator");
 
   const { countAdmins, createAdmin } = await import("../server/auth.js");
 
@@ -458,7 +417,7 @@ async function main(): Promise<void> {
         break;
       }
       console.log(red("  That is not an email address. You sign in with it, and it receives"));
-      console.log(red("  password resets and staff invitations."));
+      console.log(red("  password resets."));
     }
 
     let password = "";
@@ -484,7 +443,7 @@ async function main(): Promise<void> {
 
   /* --- 8. store + demo data ----------------------------------------------- */
 
-  heading("8. Your store");
+  heading("7. Your store");
 
   const { getSettings } = await import("../db/repository.js");
   const settings = await getSettings();
@@ -492,34 +451,29 @@ async function main(): Promise<void> {
   if (settings) {
     console.log(`${green("✓")} "${settings.name}" already exists — leaving it alone.`);
   } else {
-    const name = await ask("Store name", "My Store");
+    const name = await ask("Store name", "Postcard Gifts");
     const currency = (await ask("Currency (ISO 4217)", "USD")).toUpperCase();
 
-    const seed = await confirm("Load the demo catalogue so there's something to look at?", true);
-
-    if (seed) {
-      const { seedIfEmpty } = await import("../db/seed.js");
-      await seedIfEmpty();
+    let priceCents = 140;
+    for (;;) {
+      const { parseCents } = await import("../shared/money.js");
+      const answer = parseCents(await ask("Price of one postcard", "1.40"));
+      if (answer !== null && answer >= 50) {
+        priceCents = answer;
+        break;
+      }
+      console.log(red("  Enter an amount like 1.40. Stripe cannot charge less than 0.50."));
     }
 
-    const { defaultTheme, defaultHero, DEFAULT_TAX_CODE } = await import("../shared/schema.js");
+    const { defaultTheme, defaultHero } = await import("../shared/schema.js");
     const { updateSettings } = await import("../db/admin-repository.js");
 
     await updateSettings({
       name,
       currency,
-      // As in the browser wizard: the terminal path does not ask, and Settings
-      // → Identity is where a store that is not `en-US` says so.
       locale: "en-US",
       stripePublishableKey: publishableKey?.startsWith("pk_") ? publishableKey : null,
-      aboutText: null,
-      // Tax stays off until the merchant has activated Stripe Tax and
-      // registered their obligations. Nothing here can do that for them, and a
-      // store that silently starts collecting would be worse than one that
-      // does not — see the Settings copy.
-      taxEnabled: false,
-      taxBehavior: "exclusive",
-      defaultTaxCode: DEFAULT_TAX_CODE,
+      postcardPriceCents: priceCents,
       // Off until the merchant opts in from Settings — see the Settings copy.
       cartRecoveryEnabled: false,
       cartRecoveryDelayHours: 4,
@@ -527,7 +481,7 @@ async function main(): Promise<void> {
       theme: defaultTheme,
     });
 
-    console.log(`${green("✓")} ${seed ? "Seeded the demo catalogue and set" : "Created"} "${name}".`);
+    console.log(`${green("✓")} Created "${name}".`);
   }
 
   /* --- done --------------------------------------------------------------- */
@@ -538,11 +492,6 @@ async function main(): Promise<void> {
   // use, so printing anything else here would be printing a second answer.
   console.log(`  Storefront:     ${publicUrl}`);
   console.log(`  Admin:          ${publicUrl}/admin`);
-  if (storefrontPassword) {
-    console.log(
-      dim("  The storefront is locked. Change or remove the password under Settings → Visibility."),
-    );
-  }
   console.log();
 }
 

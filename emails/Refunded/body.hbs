@@ -1,5 +1,6 @@
-<h1 style="margin:0 0 12px;font-size:24px;font-weight:600;">Your order has been refunded</h1>
+<h1 style="margin:0 0 12px;font-size:24px;font-weight:600;">Your refund is on its way</h1>
 <p style="margin:0 0 8px;color:#52525b;line-height:1.6;">
-  We've issued a refund. It can take a few business days to appear on your statement.
+  {{order.refunded}} has been refunded to your original payment method. It can take a few days to appear.
+  Any postcards that had not yet gone to print have been withdrawn.
 </p>
-{{> items}}
+{{> postcards}}

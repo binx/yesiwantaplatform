@@ -21,10 +21,10 @@ export function NotFoundPage() {
         </div>
         <h1 className={styles.title}>Not found</h1>
         <p className={styles.text}>
-          That page doesn't exist, or the product is no longer available.
+          That page doesn't exist.
         </p>
         <Link to="/">
-          <Button type="primary">Back to the shop</Button>
+          <Button type="primary">Back home</Button>
         </Link>
       </div>
     </PageWrapper>

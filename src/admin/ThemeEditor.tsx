@@ -23,7 +23,6 @@ import {
   toAntdTheme,
 } from "@/lib/theme";
 import { assetUrl } from "@/lib/store-source";
-import { ProductCard } from "@/components/product/ProductCard";
 import { cx } from "@/lib/cx";
 import { useUploadLogo } from "./queries";
 import styles from "./ThemeEditor.module.css";
@@ -84,6 +83,7 @@ export function ThemeEditor({ value, onChange, storeName, savedFontUrl }: ThemeE
   const uploadLogo = useUploadLogo();
   const typefaceId = useId();
   const fontUrlId = useId();
+  const fontStackId = useId();
 
   const preset = FONT_STACKS.find((stack) => stack.value === value.fontFamily);
   const set = <K extends keyof Theme>(key: K, next: Theme[K]) => onChange({ ...value, [key]: next });
@@ -250,8 +250,9 @@ export function ThemeEditor({ value, onChange, storeName, savedFontUrl }: ThemeE
           </Form.Item>
 
           {preset ? null : (
-            <Form.Item label="Font stack" help="A CSS font-family list. Always end with a generic.">
+            <Form.Item label="Font stack" htmlFor={fontStackId} help="A CSS font-family list. Always end with a generic.">
               <Input
+                id={fontStackId}
                 value={value.fontFamily}
                 onChange={(event) => set("fontFamily", event.target.value)}
               />
@@ -381,7 +382,13 @@ export function ThemeEditor({ value, onChange, storeName, savedFontUrl }: ThemeE
               <p className={cx(styles.previewStore)}>{storeName || "Your store"}</p>
             )}
 
-            <ProductCard href="#" name="Canvas Tote" price="$42.00" onSale />
+            <div className={cx(styles.previewCard)}>
+              <p className={cx(styles.previewHeading)}>Make a postcard</p>
+              <p className={cx(styles.previewText)}>
+                Upload a photo, write a note, and pick the days it goes out.
+              </p>
+              <span className={cx(styles.previewAccent)}>$1.40 each</span>
+            </div>
 
             <div className={cx(styles.previewAction)}>
               <Button type="primary" block>

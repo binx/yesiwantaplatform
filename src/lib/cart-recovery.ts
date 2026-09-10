@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import type { CartLine } from "@/store/cart";
+import type { CartLine } from "@shared/cart";
 import { csrfPost } from "@/lib/api";
 
 /** Redeem a `/cart?recover=` link. See src/pages/CartPage.tsx. */

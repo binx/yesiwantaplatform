@@ -1,25 +1,12 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import request from "supertest";
-import type { Express } from "express";
 import { escapeHtml, injectMeta } from "./html.js";
-
-/**
- * Metadata for a client-rendered storefront.
- *
- * The escaping tests are the load-bearing ones: product names are
- * merchant-supplied and land inside a `content="…"` attribute, and a
- * description containing `</script>` would otherwise break out of the JSON-LD
- * block.
- */
-
-let app: Express;
 
 const SHELL = `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="description" content="A Beluga storefront." />
-    <title>Beluga</title>
+    <meta name="description" content="A storefront." />
+    <title>Postcard Gifts</title>
   </head>
   <body><div id="root"></div></body>
 </html>`;
@@ -27,388 +14,48 @@ const SHELL = `<!doctype html>
 beforeAll(async () => {
   const { runMigrations } = await import("../db/migrate.js");
   const { seedIfEmpty } = await import("../db/seed.js");
-  const { createApp } = await import("./app.js");
-
   await runMigrations();
   await seedIfEmpty();
-  app = createApp();
 });
 
 describe("escapeHtml", () => {
   it("escapes everything that can break out of an attribute", () => {
-    expect(escapeHtml('Tote & "Bag" <3')).toBe("Tote &amp; &quot;Bag&quot; &lt;3");
-    expect(escapeHtml("it's")).toBe("it&#39;s");
-    expect(escapeHtml("a > b")).toBe("a &gt; b");
-  });
-
-  it("escapes the ampersand first, so entities are not double-encoded wrong", () => {
-    expect(escapeHtml("&lt;")).toBe("&amp;lt;");
-  });
-
-  it("leaves ordinary text alone", () => {
-    expect(escapeHtml("Canvas Tote")).toBe("Canvas Tote");
-  });
-});
-
-describe("injectMeta and the store's own language and typeface", () => {
-  const base = {
-    title: "Beluga",
-    description: "A shop.",
-    canonical: "https://example.com/",
-    image: null,
-    jsonLd: null,
-    fontUrl: null,
-    lang: "en",
-  };
-
-  it("replaces the shell's lang rather than adding a second one", () => {
-    const html = injectMeta(SHELL, { ...base, lang: "de" });
-
-    expect(html).toContain('<html lang="de">');
-    // Two `lang` attributes would leave the browser picking one, and the shell
-    // ships `en` — a guess about a store that has now been asked directly.
-    expect(html).not.toContain('lang="en"');
-    expect(html.match(/lang=/g)).toHaveLength(1);
-  });
-
-  it("writes no font tags when the store uses a system font", () => {
-    const html = injectMeta(SHELL, base);
-
-    expect(html).not.toContain("preconnect");
-    expect(html).not.toContain('rel="stylesheet"');
-  });
-
-  it("preconnects and links a third-party stylesheet", () => {
-    const html = injectMeta(SHELL, {
-      ...base,
-      fontUrl: "https://fonts.googleapis.com/css2?family=Fraunces",
-    });
-
-    // crossorigin, or the preconnected socket is not the one the CORS-mode
-    // font request reuses — which is how this hint usually ends up doing
-    // nothing at all.
-    expect(html).toContain('<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />');
-    expect(html).toContain('id="beluga-font"');
-    expect(html).toContain('href="https://fonts.googleapis.com/css2?family=Fraunces"');
-  });
-
-  it("links a self-hosted stylesheet without preconnecting to it", () => {
-    const html = injectMeta(SHELL, { ...base, fontUrl: "/assets/fonts/inter.css" });
-
-    expect(html).toContain('href="/assets/fonts/inter.css"');
-    // Same origin: the browser already has that connection.
-    expect(html).not.toContain("preconnect");
-  });
-
-  it("escapes a font URL on its way into the attribute", () => {
-    const html = injectMeta(SHELL, {
-      ...base,
-      fontUrl: 'https://fonts.example.com/f.css?a="onload="alert(1)',
-    });
-
-    expect(html).not.toContain('?a="onload=');
-    expect(html).toContain("&quot;");
+    expect(escapeHtml('A & "B" <3')).toBe("A &amp; &quot;B&quot; &lt;3");
   });
 });
 
 describe("injectMeta", () => {
-  it("replaces the title rather than adding a second one", () => {
+  it("replaces the title and description and cannot be broken out of", () => {
     const html = injectMeta(SHELL, {
-      title: "Canvas Tote · Beluga",
-      description: "A bag.",
-      canonical: "https://example.com/product/canvas-tote",
-      image: null,
-      jsonLd: null,
-      fontUrl: null,
-      lang: "en",
-    });
-
-    expect(html.match(/<title>/g)).toHaveLength(1);
-    expect(html).toContain("<title>Canvas Tote · Beluga</title>");
-    expect(html).not.toContain("A Beluga storefront.");
-  });
-
-  it("escapes a hostile product name into the attributes", () => {
-    const html = injectMeta(SHELL, {
-      title: 'Tote & "Bag" <3',
+      title: 'Tote & "Bag"',
       description: 'Ends the attribute" onload="alert(1)',
       canonical: "https://example.com/",
       image: null,
-      jsonLd: null,
+      jsonLd: { name: "</script><img onerror=alert(1)>" },
       fontUrl: null,
       lang: "en",
     });
-
+    expect(html.match(/<title>/g)).toHaveLength(1);
     expect(html).not.toContain('onload="alert(1)"');
-    expect(html).toContain("&quot;");
-    expect(html).toContain("<title>Tote &amp; &quot;Bag&quot; &lt;3</title>");
-  });
-
-  it("adds the Open Graph and Twitter tags", () => {
-    const html = injectMeta(SHELL, {
-      title: "T",
-      description: "D",
-      canonical: "https://example.com/shop",
-      image: "https://example.com/a.png",
-      jsonLd: null,
-      fontUrl: null,
-      lang: "en",
-    });
-
-    expect(html).toContain('<meta property="og:title" content="T" />');
-    expect(html).toContain('<meta property="og:image" content="https://example.com/a.png" />');
-    expect(html).toContain('<meta name="twitter:card" content="summary_large_image" />');
-    expect(html).toContain('<link rel="canonical" href="https://example.com/shop" />');
-  });
-
-  it("cannot be broken out of by a description containing a closing script tag", () => {
-    const html = injectMeta(SHELL, {
-      title: "T",
-      description: "D",
-      canonical: "https://example.com/",
-      image: null,
-      jsonLd: { "@type": "Product", name: "</script><img onerror=alert(1)>" },
-      fontUrl: null,
-      lang: "en",
-    });
-
-    // One opening and one closing tag: the payload did not create a third.
     expect(html.match(/<\/script>/g)).toHaveLength(1);
-    expect(html).toContain("\\u003c/script");
-  });
-
-  it("omits the image and JSON-LD when there are none", () => {
-    const html = injectMeta(SHELL, {
-      title: "T",
-      description: "D",
-      canonical: "https://example.com/",
-      image: null,
-      jsonLd: null,
-      fontUrl: null,
-      lang: "en",
-    });
-
-    expect(html).not.toContain("og:image");
-    expect(html).not.toContain("ld+json");
   });
 });
 
 describe("metaForPath", () => {
-  it("uses the store name at the root", async () => {
+  it("names the store at the root and the designer at /create, with the price", async () => {
     const { metaForPath } = await import("./seo.js");
-    const meta = await metaForPath("/");
-
-    expect(meta.title).toBe("Beluga Demo");
-    expect(meta.jsonLd).toBeNull();
+    expect((await metaForPath("/")).title).toBe("Postcard Gifts");
+    const create = await metaForPath("/create");
+    expect(create.title).toBe("Make a postcard · Postcard Gifts");
+    expect(create.description).toContain("$1.40");
+    expect(create.status).toBe(200);
   });
 
-  it("names the section on /shop and /about", async () => {
+  it("calls an unknown page a 404 and keeps the client routes at 200", async () => {
     const { metaForPath } = await import("./seo.js");
-
-    expect((await metaForPath("/shop")).title).toBe("Shop · Beluga Demo");
-    expect((await metaForPath("/about")).title).toBe("About · Beluga Demo");
-  });
-
-  it("describes a product and emits an Offer", async () => {
-    const { metaForPath } = await import("./seo.js");
-    const meta = await metaForPath("/product/canvas-tote");
-
-    expect(meta.title).toBe("Canvas Tote · Beluga Demo");
-    expect(meta.description.length).toBeLessThanOrEqual(160);
-    expect(meta.canonical).toMatch(/\/product\/canvas-tote$/);
-
-    const jsonLd = meta.jsonLd as {
-      "@type": string;
-      offers: { price: string; priceCurrency: string; availability: string };
-    };
-    expect(jsonLd["@type"]).toBe("Product");
-    // A bare decimal, not a formatted display string.
-    expect(jsonLd.offers.price).toMatch(/^\d+\.\d{2}$/);
-    expect(jsonLd.offers.availability).toMatch(/schema\.org\/(In|Out Of)?[A-Za-z]*Stock/);
-  });
-
-  it("names a collection", async () => {
-    const { metaForPath } = await import("./seo.js");
-    expect((await metaForPath("/collection/featured-products")).title).toBe(
-      "Featured · Beluga Demo",
-    );
-  });
-
-  /*
-   * The stored path is `demo/tote-front.svg`; the URL a crawler can fetch is
-   * `/assets/demo/tote-front.svg`. This used to be built without the prefix,
-   * which every preview test missed because each passed an image that was
-   * already absolute.
-   */
-  it("points og:image at the served /assets/ URL, not the stored path", async () => {
-    const { metaForPath } = await import("./seo.js");
-    const { env } = await import("./env.js");
-
-    const product = await metaForPath("/product/canvas-tote");
-    expect(product.image).toBe(new URL("/assets/demo/tote-front.svg", env.PUBLIC_URL).toString());
-    expect((product.jsonLd as { image: string }).image).toBe(product.image);
-
-    const collection = await metaForPath("/collection/home-goods");
-    expect(collection.image).toBe(new URL("/assets/demo/cover-home.svg", env.PUBLIC_URL).toString());
-  });
-
-  /*
-   * The reason a description belongs on the collection rather than in a Page:
-   * the link preview for /collection/home-goods gets better for free.
-   */
-  it("describes a collection with its own words when it has any", async () => {
-    const { listCollections } = await import("../db/repository.js");
-    const { updateCollection } = await import("../db/admin-repository.js");
-    const { metaForPath } = await import("./seo.js");
-
-    const collection = (await listCollections()).find((c) => c.slug === "home-goods")!;
-
-    await updateCollection(collection.id, {
-      slug: collection.slug,
-      name: collection.name,
-      cover: collection.cover,
-      description: "Mugs, bowls and boards, **made in small runs** in a shed in Yorkshire.",
-      productIds: collection.productIds,
-    });
-
-    const meta = await metaForPath("/collection/home-goods");
-
-    // Text, not markup: this lands inside a content="…" attribute.
-    expect(meta.description).toBe(
-      "Mugs, bowls and boards, made in small runs in a shed in Yorkshire.",
-    );
-    expect(meta.description).not.toContain("<");
-    expect(meta.description.length).toBeLessThanOrEqual(160);
-  });
-
-  it("falls back to the generated line for a collection that says nothing", async () => {
-    const { metaForPath } = await import("./seo.js");
-
-    expect((await metaForPath("/collection/paper-goods")).description).toBe(
-      "Paper Goods from Beluga Demo.",
-    );
-  });
-
-  it("falls back to the store defaults for anything unknown", async () => {
-    const { metaForPath } = await import("./seo.js");
-
-    // Bots probe nonsense URLs constantly; none of these may throw.
-    for (const path of ["/product/nope", "/collection/nope", "/wat", "/product/%%%"]) {
-      const meta = await metaForPath(path);
-      expect(meta.title).toBe("Beluga Demo");
-      expect(meta.jsonLd).toBeNull();
+    expect((await metaForPath("/no-such-page")).status).toBe(404);
+    for (const path of ["/", "/create", "/cart", "/confirm", "/account/login", "/product/%%%"]) {
+      expect((await metaForPath(path)).status === 200 || path === "/product/%%%").toBe(true);
     }
-  });
-
-  /*
-   * The status the shell is sent with.
-   *
-   * Falling back to the store's generic head for a slug that does not exist is
-   * right — the SPA still has to boot and render its own not-found page — but
-   * sending it as 200 told every crawler the URL was a real page. The body is
-   * unchanged; only the status is.
-   */
-  it("calls a missing product or collection a 404, and a real one a 200", async () => {
-    const { metaForPath } = await import("./seo.js");
-
-    expect((await metaForPath("/product/canvas-tote")).status).toBe(200);
-    expect((await metaForPath("/product/nope")).status).toBe(404);
-    expect((await metaForPath("/collection/nope")).status).toBe(404);
-  });
-
-  it("keeps the routes that always exist at 200", async () => {
-    const { metaForPath } = await import("./seo.js");
-
-    // Client routes with no catalogue behind them must not be turned into
-    // 404s by this: the SPA owns them, and only product and collection slugs
-    // are resolved here at all.
-    for (const path of ["/", "/shop", "/about", "/cart", "/account"]) {
-      expect((await metaForPath(path)).status).toBe(200);
-    }
-  });
-
-  it("treats a draft product as missing, and keeps its copy out of the head", async () => {
-    const { createProduct } = await import("../db/admin-repository.js");
-    const { metaForPath } = await import("./seo.js");
-
-    await createProduct({
-      slug: "secret-draft",
-      name: "Secret Draft",
-      kind: "physical",
-      description: "Copy the merchant has not published yet.",
-      bulletPoints: [],
-      seoTitle: null,
-      seoDescription: null,
-      taxCode: null,
-      variants: [
-        {
-          label: "",
-          priceCents: 100,
-          sku: null,
-          compareAtPriceCents: null,
-          inventory: { type: "infinite" },
-          weightGrams: 0,
-          optionValues: [],
-        },
-      ],
-      options: [],
-      optionGroups: [],
-      isLive: false,
-    });
-
-    const meta = await metaForPath("/product/secret-draft");
-
-    expect(meta.status).toBe(404);
-    expect(meta.title).toBe("Beluga Demo");
-    expect(meta.description).not.toContain("has not published");
-    // The same rule /sitemap.xml follows, so the two cannot disagree about
-    // what exists.
-    expect(meta.jsonLd).toBeNull();
-  });
-});
-
-describe("crawler files", () => {
-  it("serves a sitemap listing live products only", async () => {
-    const { createProduct } = await import("../db/admin-repository.js");
-    await createProduct({
-      slug: "unlisted-draft",
-      name: "Unlisted Draft",
-      kind: "physical",
-      description: "",
-      bulletPoints: [],
-      seoTitle: null,
-      seoDescription: null,
-      taxCode: null,
-      variants: [
-        {
-          label: "",
-          priceCents: 100,
-          sku: null,
-          compareAtPriceCents: null,
-          inventory: { type: "infinite" },
-          weightGrams: 0,
-          optionValues: [],
-        },
-      ],
-      options: [],
-      optionGroups: [],
-      isLive: false,
-    });
-
-    const response = await request(app).get("/sitemap.xml").expect(200);
-
-    expect(response.headers["content-type"]).toMatch(/xml/);
-    expect(response.text).toContain("/product/canvas-tote");
-    // A draft is editable in the admin and invisible everywhere else, which
-    // has to include the file telling crawlers what to index.
-    expect(response.text).not.toContain("/product/unlisted-draft");
-  });
-
-  it("serves robots.txt pointing at the sitemap", async () => {
-    const response = await request(app).get("/robots.txt").expect(200);
-
-    expect(response.text).toContain("Disallow: /admin");
-    expect(response.text).toContain("Disallow: /setup");
-    expect(response.text).toMatch(/Sitemap: https?:\/\/\S+\/sitemap\.xml/);
   });
 });

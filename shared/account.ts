@@ -1,19 +1,14 @@
 import { z } from "zod";
+import { recipientSchema } from "./postcards.js";
 
 /**
  * Storefront customer accounts.
  *
- * Distinct from `shared/api.ts`'s admin schemas: this is a public,
- * unauthenticated-facing surface, so every input here is validated as
- * carefully as the admin login is — see `docs/tasks/11-customer-accounts.md`
- * for the posture this is held to.
+ * A public, unauthenticated-facing surface, so every input here is validated
+ * as carefully as the admin login is.
  */
 
-/**
- * Same bar as `setupInputSchema` in shared/api.ts — reused rather than
- * reinvented, per the brief. Existing accounts (there are none yet, but the
- * pattern matches admin login) are never re-checked against this at sign-in.
- */
+/** Same bar as `setupInputSchema` in shared/api.ts. */
 const NEW_PASSWORD_MIN = 12;
 
 export const customerRegisterInputSchema = z.object({
@@ -44,35 +39,17 @@ export const verifyEmailInputSchema = z.object({
   token: z.string().min(1),
 });
 
-/** Two-letter ISO 3166-1 alpha-2. Case-folded rather than rejected, since a
- * buyer's keyboard is not the place to enforce that. */
-const addressCountrySchema = z
-  .string()
-  .trim()
-  .toUpperCase()
-  .regex(/^[A-Z]{2}$/, "must be a two-letter country code, like US or GB");
-
-export const addressInputSchema = z.object({
-  name: z.string().max(200).nullable().default(null),
-  line1: z.string().min(1).max(200),
-  line2: z.string().max(200).nullable().default(null),
-  city: z.string().max(120).nullable().default(null),
-  state: z.string().max(120).nullable().default(null),
-  postalCode: z.string().max(30).nullable().default(null),
-  country: addressCountrySchema,
-  isDefault: z.boolean().default(false),
-});
+/**
+ * A saved recipient. The same shape a postcard is addressed with, so what a
+ * customer saves is exactly what the designer can pick up again.
+ */
+export const addressInputSchema = recipientSchema;
 
 export const customerAddressSchema = addressInputSchema.extend({
   id: z.string(),
 });
 
-/**
- * A customer, as the client is allowed to see it.
- *
- * No `passwordHash`, no token columns — the same discipline as
- * `AdminSummary` in shared/api.ts, for the same reason.
- */
+/** A customer, as the client is allowed to see it. No hashes, no tokens. */
 export const customerProfileSchema = z.object({
   id: z.string(),
   email: z.string(),
@@ -81,16 +58,7 @@ export const customerProfileSchema = z.object({
   createdAt: z.number().int(),
 });
 
-/**
- * Who is signed in, if anyone.
- *
- * A probe, so it answers 200 either way: "nobody is signed in" is the normal
- * state of a storefront visitor, not an error. It used to be a 401, which
- * `fetchCustomer` caught and turned into `null` — correct behaviour that still
- * printed a red failed request in the console of every page load, on a store
- * where nothing was wrong. Every other `/api/account/*` route keeps
- * `requireCustomer`'s 401, because there a missing session really is a refusal.
- */
+/** Who is signed in, if anyone. Answers 200 either way. */
 export const customerSessionSchema = z.object({
   customer: customerProfileSchema.nullable(),
 });

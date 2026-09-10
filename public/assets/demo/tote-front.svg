@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" role="img" aria-label="Tote, front">
-  <rect width="900" height="1200" fill="#e7e5e4"/>
-  <circle cx="450" cy="600" r="180" fill="none" stroke="#44403c" stroke-width="3" opacity=".55"/>
-  <rect x="225" y="300" width="450" height="600" fill="none" stroke="#44403c" stroke-width="3" opacity=".35"/>
-  <text x="450" y="1172" fill="#44403c" opacity=".7" font-family="system-ui, sans-serif" font-size="40" text-anchor="middle">Tote, front</text>
-</svg>

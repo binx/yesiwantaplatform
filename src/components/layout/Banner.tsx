@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { Badge, Button, Drawer } from "antd";
 import { MenuOutlined, ShoppingOutlined, UserOutlined } from "@ant-design/icons";
-import { getVisibleCollections } from "@shared/catalog";
 import { useStore } from "@/lib/useStore";
 import { assetUrl } from "@/lib/store-source";
 import { useCustomer } from "@/lib/account";
@@ -11,12 +10,8 @@ import { cx } from "@/lib/cx";
 import styles from "./Banner.module.css";
 
 /**
- * Site header.
- *
- * v1 chose between the desktop bar and the mobile drawer with MUI's `withWidth`
- * HOC — a JS breakpoint that was removed in MUI v5 and that re-rendered the
- * whole header on resize. Both navigations render here and CSS decides, so
- * there is no width state and no layout flash.
+ * Site header. Both navigations render and CSS decides which shows, so there
+ * is no width state and no layout flash.
  */
 export function Banner() {
   const store = useStore();
@@ -24,33 +19,15 @@ export function Banner() {
   const customer = useCustomer();
   const [open, setOpen] = useState(false);
 
-  // Signed-in goes straight to order history; signed-out goes to sign-in
-  // rather than a dead-end profile page it cannot show.
   const accountHref = customer.data ? "/account" : "/account/login";
   const accountLabel = customer.data ? "Your account" : "Sign in";
 
-  // The About page is a page like any other once a store has migrated. Until
-  // then `aboutText` still drives the link — but only when no page has claimed
-  // the slug, or the header would carry the same destination twice.
-  const hasAboutPage = store.pages.some((page) => page.slug === "about");
-
   const links = [
-    { to: "/shop", label: "Shop" },
-    ...getVisibleCollections(store).map((c) => ({
-      to: `/collection/${c.slug}`,
-      label: c.name,
-    })),
-    ...store.pages
-      .filter((page) => page.inNav)
-      .map((page) => ({ to: `/${page.slug}`, label: page.title })),
-    ...(store.aboutText && !hasAboutPage ? [{ to: "/about", label: "About" }] : []),
+    { to: "/create", label: "Make a postcard" },
+    ...store.pages.filter((page) => page.inNav).map((page) => ({ to: `/${page.slug}`, label: page.title })),
   ];
 
-  // Two labels for two jobs. The icon has no text, so its aria-label has to
-  // read as a whole sentence — "Cart, 2 items". The drawer's entry is visible
-  // text in a list of one-word links, and that sentence read as shouted
-  // boilerplate there once the drawer's uppercase styling got hold of it.
-  const cartLabel = count > 0 ? `Cart, ${count} item${count === 1 ? "" : "s"}` : "Cart";
+  const cartLabel = count > 0 ? `Cart, ${count} postcard${count === 1 ? "" : "s"}` : "Cart";
   const cartText = count > 0 ? `Cart (${count})` : "Cart";
 
   return (
@@ -98,12 +75,7 @@ export function Banner() {
         aria-expanded={open}
       />
 
-      <Drawer
-        title={store.name}
-        placement="right"
-        open={open}
-        onClose={() => setOpen(false)}
-      >
+      <Drawer title={store.name} placement="right" open={open} onClose={() => setOpen(false)}>
         <nav className={styles.drawerNav} aria-label="Main">
           <Link to="/" onClick={() => setOpen(false)}>
             Home

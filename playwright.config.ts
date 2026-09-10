@@ -18,35 +18,8 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   projects: [
-    /*
-     * Locks the one shared store for the run of e2e/storefront-lock.spec.ts,
-     * then restores it — see the comment at the top of that file. It has to
-     * run with nothing else touching the storefront at the same time, and
-     * `fullyParallel` schedules every other spec file onto its own worker
-     * regardless of what any one file's own `describe.configure({ mode:
-     * "serial" })` says, so file-local serialisation cannot provide that by
-     * itself. `dependencies` is Playwright's project-level ordering — normally
-     * used for an auth setup project — repurposed here to guarantee this
-     * project starts, finishes, and unlocks the store before `chromium` or
-     * `mobile` runs anything that assumes a public one.
-     */
-    {
-      name: "storefront-lock",
-      testMatch: /storefront-lock\.spec\.ts/,
-      use: { ...devices["Desktop Chrome"] },
-    },
-    {
-      name: "chromium",
-      testIgnore: /storefront-lock\.spec\.ts/,
-      use: { ...devices["Desktop Chrome"] },
-      dependencies: ["storefront-lock"],
-    },
-    {
-      name: "mobile",
-      testIgnore: /storefront-lock\.spec\.ts/,
-      use: { ...devices["Pixel 7"] },
-      dependencies: ["storefront-lock"],
-    },
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    { name: "mobile", use: { ...devices["Pixel 7"] } },
   ],
   // The storefront reads from the API, so both have to be up.
   webServer: {
@@ -61,7 +34,7 @@ export default defineConfig({
       // Deliberately ignore the developer's .env so the suite is deterministic
       // — otherwise having Stripe keys locally changes what the tests see.
       ENV_FILE: ".env.e2e-does-not-exist",
-      // Its own database, never the developer's `data/beluga.sqlite` — that
+      // Its own database, never the developer's `data/postcards.sqlite` — that
       // file's admin account and its password are whatever the developer's
       // machine happens to have, which `global-setup.ts` cannot sign into.
       // Delete `data/e2e.sqlite*` for a clean reseed; otherwise a local rerun

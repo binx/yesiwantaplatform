@@ -1,20 +1,41 @@
 import { z } from "zod";
+import { mailDateSchema, recipientSchema } from "./postcards.js";
 
 /**
- * Cart persistence and recovery — see docs/tasks/12-abandoned-cart.md.
+ * The cart.
  *
- * `cartLineSchema` mirrors the line shape inline in `checkoutRequestSchema`
- * (shared/orders.ts): identifiers and a quantity, never a price.
+ * A line is a *batch*: some designs, each with a day to mail it, going to
+ * some recipients. Every design goes to every recipient, so a line of three
+ * designs and four recipients is twelve postcards. That product is the whole
+ * pricing model, and it is computed from the line's shape rather than stored
+ * — the same rule Beluga applied to prices, applied to quantity.
+ *
+ * Designs are referenced by id: the image and the message live server-side
+ * from the moment a design is saved, so the cart holds nothing displayable
+ * and re-resolves each design against the API on render. Recipients are held
+ * inline — they exist nowhere else until checkout.
  */
-export const cartLineSchema = z.object({
-  productId: z.string().min(1),
-  variantId: z.string().min(1),
-  quantity: z.number().int().min(1).max(999),
-  options: z.record(z.string(), z.string()).default({}),
+
+export const scheduledDesignSchema = z.object({
+  designId: z.string().min(1),
+  mailDate: mailDateSchema,
 });
 
+export const cartLineSchema = z.object({
+  designs: z.array(scheduledDesignSchema).min(1).max(50),
+  recipients: z.array(recipientSchema).min(1).max(500),
+});
+
+export type ScheduledDesign = z.infer<typeof scheduledDesignSchema>;
+export type CartLine = z.infer<typeof cartLineSchema>;
+
+/** Postcards in a line, or across several. */
+export function countPostcards(lines: readonly Pick<CartLine, "designs" | "recipients">[]): number {
+  return lines.reduce((total, line) => total + line.designs.length * line.recipients.length, 0);
+}
+
 export const cartSyncInputSchema = z.object({
-  lines: z.array(cartLineSchema).max(100),
+  lines: z.array(cartLineSchema).max(20),
 });
 
 export const cartRecoverInputSchema = z.object({
@@ -25,7 +46,6 @@ export const cartUnsubscribeInputSchema = z.object({
   token: z.string().min(1),
 });
 
-export type CartLine = z.infer<typeof cartLineSchema>;
 export type CartSyncInput = z.infer<typeof cartSyncInputSchema>;
 export type CartRecoverInput = z.infer<typeof cartRecoverInputSchema>;
 export type CartUnsubscribeInput = z.infer<typeof cartUnsubscribeInputSchema>;

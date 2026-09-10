@@ -1,7 +1,7 @@
 import { getSettings } from "../db/repository.js";
 import { fontUrlSchema } from "../shared/schema.js";
 import { httpError, setCspFontOrigins } from "./middleware.js";
-import { assertPublicHostname } from "./webhooks.js";
+import { assertPublicHostname } from "./net.js";
 
 /**
  * Where a theme's font is allowed to come from.

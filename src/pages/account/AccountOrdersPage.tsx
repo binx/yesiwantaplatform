@@ -22,7 +22,7 @@ export function AccountOrdersPage() {
   if (!orders.data || orders.data.length === 0) {
     return (
       <p className={cx(styles.empty)}>
-        No orders yet. <Link to="/shop">Start shopping</Link>.
+        No orders yet. <Link to="/create">Make a postcard</Link>.
       </p>
     );
   }
@@ -33,6 +33,7 @@ export function AccountOrdersPage() {
         <tr>
           <th scope="col">Order</th>
           <th scope="col">Date</th>
+          <th scope="col">Postcards</th>
           <th scope="col">Status</th>
           <th scope="col">Total</th>
         </tr>
@@ -44,6 +45,7 @@ export function AccountOrdersPage() {
               <Link to={`/account/orders/${order.id}`}>{order.reference}</Link>
             </td>
             <td className={cx(styles.meta)}>{new Date(order.createdAt).toLocaleDateString(locale)}</td>
+            <td>{order.postcardCount}</td>
             <td>
               <OrderStatusTag order={order} locale={locale} />
             </td>

@@ -17,14 +17,14 @@ export function ForgotPasswordPage() {
   const forgot = useForgotPassword();
 
   useEffect(() => {
-    document.title = "Forgot password · Beluga";
+    document.title = "Forgot password · Admin";
   }, []);
 
   return (
     <main className={cx(styles.page)}>
       <Card className={cx(styles.card)}>
         <Typography.Title level={1} className={cx(styles.title)}>
-          <span aria-hidden="true">🎷🐋</span> Beluga
+          <span aria-hidden="true">✉️</span> Postcards
         </Typography.Title>
 
         {forgot.isSuccess ? (

@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-label="Paper goods">
-  <rect width="1600" height="900" fill="#e2e6e4"/>
-  <circle cx="800" cy="450" r="320" fill="none" stroke="#3f4a44" stroke-width="3" opacity=".55"/>
-  <rect x="400" y="225" width="800" height="450" fill="none" stroke="#3f4a44" stroke-width="3" opacity=".35"/>
-  <text x="800" y="872" fill="#3f4a44" opacity=".7" font-family="system-ui, sans-serif" font-size="72" text-anchor="middle">Paper goods</text>
-</svg>

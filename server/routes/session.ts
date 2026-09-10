@@ -1,6 +1,5 @@
 import { Router } from "express";
 import {
-  acceptInviteInputSchema,
   forgotPasswordInputSchema,
   loginInputSchema,
   resetPasswordInputSchema,
@@ -8,10 +7,7 @@ import {
 } from "../../shared/api.js";
 import { isConfigured } from "../../db/repository.js";
 import {
-  EmailTakenError,
-  InviteNotUsableError,
   TokenNotUsableError,
-  acceptInvite,
   consumeAdminPasswordResetToken,
   createAdminPasswordResetToken,
   destroySessionsForUser,
@@ -81,46 +77,9 @@ sessionRouter.delete("/session", verifyCsrf, async (req, res) => {
 
 
 /**
- * Redeem an invitation.
- *
- * Public by necessity — the invitee has no account yet, so this cannot live
- * behind `requireAdmin`. It is rate-limited with the login limiter for the same
- * reason a login is: it accepts a secret and says whether it was right.
- *
- * The token is looked up by its hash, so there is no comparison to time and a
- * tampered token simply finds nothing.
- */
-sessionRouter.post("/invites/accept", adminLoginRateLimit, verifyCsrf, async (req, res) => {
-  const parsed = acceptInviteInputSchema.safeParse(req.body);
-  if (!parsed.success) {
-    throw httpError(400, parsed.error.issues[0]?.message ?? "That invitation could not be used.");
-  }
-
-  let adminId: string;
-  try {
-    adminId = await acceptInvite(parsed.data.token, parsed.data.password);
-  } catch (error) {
-    // 410 rather than 404: the link was real, and saying so is the difference
-    // between "you mistyped" and "this one is spent, ask for another".
-    if (error instanceof InviteNotUsableError) throw httpError(410, error.message);
-    // Someone signed up with this address between the invite and the accept.
-    if (error instanceof EmailTakenError) throw httpError(409, error.message);
-    throw error;
-  }
-
-  await sessionOp((done) => req.session.regenerate(done));
-
-  req.session.adminId = adminId;
-  const token = csrfToken(req);
-  await sessionOp((done) => req.session.save(done));
-
-  res.status(201).json({ isAdmin: true, csrfToken: token, isConfigured: true } satisfies SessionResponse);
-});
-
-/**
  * Request a reset link for a forgotten admin password.
  *
- * Public by necessity, like the invite-accept route above: an administrator
+ * Public by necessity: an administrator
  * who has lost their password cannot sign in to ask for one. Reuses the
  * customer flow's shape from server/routes/account.ts — 204 always, an email
  * sent only when the address belongs to an administrator, and every response

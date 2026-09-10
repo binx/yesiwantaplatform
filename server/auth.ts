@@ -1,8 +1,7 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { hash, verify } from "@node-rs/argon2";
-import { and, count, eq, isNull, like, ne, sql } from "drizzle-orm";
+import { and, count, eq, like, ne, sql } from "drizzle-orm";
 import { getDatabase } from "../db/client.js";
-import type { AdminRole, AdminSummary } from "../shared/api.js";
 
 /**
  * Admin authentication.
@@ -79,11 +78,7 @@ function isUniqueViolation(error: unknown): boolean {
   return /UNIQUE constraint failed|duplicate key value|23505/i.test(message);
 }
 
-export async function createAdmin(
-  email: string,
-  password: string,
-  role: AdminRole = "owner",
-): Promise<string> {
+export async function createAdmin(email: string, password: string): Promise<string> {
   const { drizzle: db, schema } = await getDatabase();
 
   const id = randomUUID();
@@ -93,7 +88,6 @@ export async function createAdmin(
     await db.insert(schema.adminUsers).values({
       id,
       email: normalised,
-      role,
       passwordHash: await hashPassword(password),
     });
   } catch (error) {
@@ -111,62 +105,16 @@ function toEpochMs(value: unknown): number | null {
   return null;
 }
 
-/**
- * Every administrator, without their hashes.
- *
- * The columns are named explicitly rather than `select()`-ing the row: a
- * `passwordHash` reaching a response is the failure this whole module exists to
- * prevent, and a narrowed select makes it impossible rather than unlikely.
- */
-export async function listAdmins(currentId: string): Promise<AdminSummary[]> {
+export async function findAdminById(id: string): Promise<{ id: string; email: string } | null> {
   const { drizzle: db, schema } = await getDatabase();
 
   const rows = (await db
-    .select({
-      id: schema.adminUsers.id,
-      email: schema.adminUsers.email,
-      role: schema.adminUsers.role,
-      lastLoginAt: schema.adminUsers.lastLoginAt,
-      createdAt: schema.adminUsers.createdAt,
-    })
-    .from(schema.adminUsers)
-    .orderBy(schema.adminUsers.createdAt)) as unknown as {
-    id: string;
-    email: string;
-    role: string;
-    lastLoginAt: unknown;
-    createdAt: unknown;
-  }[];
-
-  return rows.map((row) => ({
-    id: row.id,
-    email: row.email,
-    role: row.role === "staff" ? "staff" : "owner",
-    lastLoginAt: toEpochMs(row.lastLoginAt),
-    createdAt: toEpochMs(row.createdAt) ?? Date.now(),
-    isSelf: row.id === currentId,
-  }));
-}
-
-export async function findAdminById(
-  id: string,
-): Promise<{ id: string; email: string; role: AdminRole } | null> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  const rows = (await db
-    .select({
-      id: schema.adminUsers.id,
-      email: schema.adminUsers.email,
-      role: schema.adminUsers.role,
-    })
+    .select({ id: schema.adminUsers.id, email: schema.adminUsers.email })
     .from(schema.adminUsers)
     .where(eq(schema.adminUsers.id, id))
-    .limit(1)) as unknown as { id: string; email: string; role: string }[];
+    .limit(1)) as unknown as { id: string; email: string }[];
 
-  const row = rows[0];
-  return row
-    ? { id: row.id, email: row.email, role: row.role === "staff" ? "staff" : "owner" }
-    : null;
+  return rows[0] ?? null;
 }
 
 export async function emailIsTaken(email: string): Promise<boolean> {
@@ -179,22 +127,6 @@ export async function emailIsTaken(email: string): Promise<boolean> {
     .limit(1)) as unknown as { id: string }[];
 
   return rows.length > 0;
-}
-
-export async function countOwners(): Promise<number> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  const rows = (await db
-    .select({ value: count() })
-    .from(schema.adminUsers)
-    .where(eq(schema.adminUsers.role, "owner"))) as unknown as { value: number }[];
-
-  return rows[0]?.value ?? 0;
-}
-
-export async function deleteAdmin(id: string): Promise<void> {
-  const { drizzle: db, schema } = await getDatabase();
-  await db.delete(schema.adminUsers).where(eq(schema.adminUsers.id, id));
 }
 
 /**
@@ -230,150 +162,14 @@ export async function verifyPasswordFor(id: string, password: string): Promise<b
   return verify(row.passwordHash, password).catch(() => false);
 }
 
-/* ----------------------------------------------------------------- invites */
-
-export interface PendingInvite {
-  id: string;
-  email: string;
-  role: AdminRole;
-}
-
-/**
- * Create an invitation, returning the raw token exactly once.
- *
- * Only the hash is stored. This is the same reasoning as a password reset: the
- * link in someone's inbox is a credential, and a database dump must not be one.
- */
-export async function createInvite(
-  email: string,
-  role: AdminRole,
-): Promise<{ id: string; token: string }> {
-  const { drizzle: db, schema, dialect } = await getDatabase();
-
-  const id = randomUUID();
-  const token = randomBytes(32).toString("base64url");
-  const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
-
-  await db.insert(schema.adminInvites).values({
-    id,
-    email: email.toLowerCase().trim(),
-    role,
-    tokenHash: hashToken(token),
-    expiresAt: dialect === "pg" ? expiresAt : Math.floor(expiresAt.getTime() / 1000),
-  });
-
-  return { id, token };
-}
-
-/** 72 hours: long enough to survive a weekend, short enough to expire. */
-const INVITE_TTL_MS = 72 * 60 * 60 * 1000;
-
 /**
  * SHA-256 rather than argon2: the token is 256 bits of entropy we generated,
  * not a human-chosen password, so there is nothing for a slow hash to defend.
- *
- * Exported so the customer email-verification and password-reset tokens below
- * share this rather than a second implementation of the same reasoning.
+ * Shared by every single-use token in this file, and by the cart recovery
+ * links in server/cart-recovery.ts.
  */
 export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
-}
-
-export class InviteNotUsableError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "InviteNotUsableError";
-  }
-}
-
-/**
- * Redeem an invitation.
- *
- * The lookup is by token hash, so a tampered token simply finds nothing. The
- * invite is marked accepted with a conditional update before the account is
- * created — claiming first means two simultaneous accepts cannot both win.
- */
-export async function acceptInvite(token: string, password: string): Promise<string> {
-  const { drizzle: db, schema, dialect } = await getDatabase();
-
-  const rows = (await db
-    .select()
-    .from(schema.adminInvites)
-    .where(eq(schema.adminInvites.tokenHash, hashToken(token)))
-    .limit(1)) as unknown as {
-    id: string;
-    email: string;
-    role: string;
-    expiresAt: unknown;
-    acceptedAt: unknown;
-  }[];
-
-  const invite = rows[0];
-  if (!invite) throw new InviteNotUsableError("That invitation is not valid.");
-
-  if (invite.acceptedAt !== null && invite.acceptedAt !== undefined) {
-    throw new InviteNotUsableError("That invitation has already been used.");
-  }
-  if ((toEpochMs(invite.expiresAt) ?? 0) < Date.now()) {
-    throw new InviteNotUsableError("That invitation has expired. Ask for a new one.");
-  }
-
-  /*
-   * Checked before the invite is claimed, so an address that gained an account
-   * in the meantime does not also burn the invitation on its way to failing.
-   *
-   * Deliberately after the used/expired checks: a second use of one invitation
-   * is a spent invitation, not a name clash, and should say so.
-   */
-  if (await emailIsTaken(invite.email)) {
-    throw new EmailTakenError(invite.email);
-  }
-
-  const now = new Date();
-  const claim = await db
-    .update(schema.adminInvites)
-    .set({ acceptedAt: dialect === "pg" ? now : Math.floor(now.getTime() / 1000) })
-    .where(and(eq(schema.adminInvites.id, invite.id), isNull(schema.adminInvites.acceptedAt)));
-
-  const changed = (claim as { changes?: number; rowCount?: number } | null) ?? {};
-  if ((changed.changes ?? changed.rowCount ?? 0) !== 1) {
-    throw new InviteNotUsableError("That invitation has already been used.");
-  }
-
-  return createAdmin(invite.email, password, invite.role === "owner" ? "owner" : "staff");
-}
-
-/** Invitations that have not been used and have not run out. */
-export async function listPendingInvites(): Promise<PendingInvite[]> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  const rows = (await db
-    .select({
-      id: schema.adminInvites.id,
-      email: schema.adminInvites.email,
-      role: schema.adminInvites.role,
-      expiresAt: schema.adminInvites.expiresAt,
-    })
-    .from(schema.adminInvites)
-    .where(isNull(schema.adminInvites.acceptedAt))) as unknown as {
-    id: string;
-    email: string;
-    role: string;
-    expiresAt: unknown;
-  }[];
-
-  return rows
-    .filter((row) => (toEpochMs(row.expiresAt) ?? 0) >= Date.now())
-    .map((row) => ({
-      id: row.id,
-      email: row.email,
-      role: row.role === "owner" ? ("owner" as const) : ("staff" as const),
-    }));
-}
-
-export async function revokeInvite(id: string): Promise<void> {
-  const { drizzle: db, schema } = await getDatabase();
-  await db.delete(schema.adminInvites).where(eq(schema.adminInvites.id, id));
 }
 
 /**
@@ -497,7 +293,7 @@ export async function consumeAdminPasswordResetToken(
   return row.id;
 }
 
-/** Stamp a successful sign-in, for the staff list. */
+/** Stamp a successful sign-in. */
 export async function recordLogin(id: string): Promise<void> {
   const { drizzle: db, schema, dialect } = await getDatabase();
   const now = new Date();

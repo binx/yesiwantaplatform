@@ -20,7 +20,7 @@ export function ResetPasswordPage() {
   const reset = useResetPassword();
 
   useEffect(() => {
-    document.title = "Reset password · Beluga";
+    document.title = "Reset password · Admin";
   }, []);
 
   if (!token) return <Navigate to="/admin/forgot-password" replace />;
@@ -29,7 +29,7 @@ export function ResetPasswordPage() {
     <main className={cx(styles.page)}>
       <Card className={cx(styles.card)}>
         <Typography.Title level={1} className={cx(styles.title)}>
-          <span aria-hidden="true">🎷🐋</span> Beluga
+          <span aria-hidden="true">✉️</span> Postcards
         </Typography.Title>
 
         {reset.isSuccess ? (

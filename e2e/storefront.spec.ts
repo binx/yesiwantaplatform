@@ -1,151 +1,103 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 /**
- * Phase 1 smoke: the storefront browses and the cart holds its state.
- * The purchase leg arrives in Phase 3, once Checkout Sessions exist.
+ * The buyer's path: design a card, schedule it, address it, put it in the
+ * cart, and find out at checkout that Stripe is not configured — which is
+ * the honest end of the road on a fixture with no keys.
  */
 
-test("browses from the landing page to a product", async ({ page }) => {
+/** A 1×1 PNG, enough for the upload route to accept as a photo. */
+const PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+async function designOne(page: Page) {
+  await page.goto("/create");
+  await expect(page.getByRole("heading", { name: "Make a postcard", level: 1 })).toBeVisible();
+
+  await page.locator('input[type="file"][accept="image/*"]').setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: PNG });
+  await page.getByLabel("Note for the back").fill("Wish you were here");
+  await page.getByRole("button", { name: "Save this design" }).click();
+  await expect(page.getByRole("button", { name: "Saved!" })).toBeVisible();
+}
+
+test("browses from the landing page to the designer", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Beluga Demo", level: 1 })).toBeVisible();
-
-  await page.getByRole("link", { name: "Shop everything" }).click();
-  await expect(page).toHaveURL(/\/shop$/);
-
-  await page.getByRole("link", { name: /Home Goods/ }).first().click();
-  await expect(page.getByRole("heading", { name: "Home Goods" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Postcard Gifts", level: 1 })).toBeVisible();
+  await page.getByRole("link", { name: /sold already/i }).click();
+  await expect(page).toHaveURL(/\/create$/);
 });
 
-test("adds a variant to the cart and shows the right subtotal", async ({ page }) => {
-  await page.goto("/product/canvas-tote");
+test("designs a card, adds a recipient and sees the right total in the cart", async ({ page }) => {
+  await designOne(page);
 
-  // The picker must be present for a single-axis product.
-  const picker = page.getByRole("combobox").first();
-  await expect(picker).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove design 1" })).toBeVisible();
 
-  await picker.click();
-  await page.getByTitle("Large").click();
-  await expect(page.getByText("$42.00")).toBeVisible();
+  await page.getByLabel("Name").fill("Grandma");
+  await page.getByLabel("Street address").fill("1 Test Street");
+  await page.getByLabel("City").fill("Marfa");
+  await page.getByLabel("State").fill("TX");
+  await page.getByLabel("ZIP").fill("79843");
+  await page.getByRole("button", { name: "Add recipient" }).click();
+  await expect(page.getByRole("list", { name: "Recipients" })).toContainText("Grandma");
 
   await page.getByRole("button", { name: "Add to cart" }).click();
   await expect(page).toHaveURL(/\/cart$/);
-
-  await expect(page.getByRole("cell", { name: "$42.00" })).toBeVisible();
-  await expect(page.getByText("Subtotal")).toBeVisible();
+  await expect(page.getByText("1 design to 1 recipient")).toBeVisible();
+  await expect(page.getByText("$1.40").first()).toBeVisible();
 });
 
-test("buys a two-axis product by choosing across both selectors", async ({ page }) => {
-  await page.goto("/product/zip-hoodie");
-
-  const size = page.getByRole("combobox").nth(0);
-  const colour = page.getByRole("combobox").nth(1);
-  await expect(size).toBeVisible();
-  await expect(colour).toBeVisible();
-
-  await expect(page.getByText("$58.00")).toBeVisible();
-
-  await size.click();
-  await page.getByTitle("Large").click();
-  await expect(page.getByText("$62.00")).toBeVisible();
-
-  await colour.click();
-  await page.getByTitle("Navy").click();
-  await expect(page.getByText("$62.00")).toBeVisible();
-
-  await page.getByRole("button", { name: "Add to cart" }).click();
-  await expect(page).toHaveURL(/\/cart$/);
-  await expect(page.getByRole("cell", { name: "$62.00" })).toBeVisible();
-});
-
-test("clamps the cart quantity to available stock", async ({ page }) => {
-  await page.goto("/product/canvas-tote");
-
-  await page.getByRole("combobox").first().click();
-  await page.getByTitle("Large").click(); // 2 in stock
-  await page.getByRole("button", { name: "Add to cart" }).click();
-
-  const quantity = page.getByRole("spinbutton", { name: /Quantity for/ });
-  await quantity.fill("999");
-  await quantity.blur();
-
-  await expect(quantity).toHaveValue("2");
-  await expect(page.getByRole("cell", { name: "$84.00" })).toBeVisible();
+test("refuses a recipient that would not fit on the card, before the cart", async ({ page }) => {
+  await page.goto("/create");
+  await page.getByLabel("Name").fill("Grandma");
+  await page.getByLabel("Street address").fill("1 Test Street");
+  await page.getByLabel("City").fill("Marfa");
+  await page.getByLabel("State").fill("TX");
+  await page.getByLabel("ZIP").fill("9784");
+  await page.getByRole("button", { name: "Add recipient" }).click();
+  await expect(page.getByRole("alert")).toContainText("5-digit ZIP");
 });
 
 test("survives a reload without losing the cart", async ({ page }) => {
-  await page.goto("/product/enamel-mug");
+  await designOne(page);
+  await page.getByLabel("Name").fill("Grandma");
+  await page.getByLabel("Street address").fill("1 Test Street");
+  await page.getByLabel("City").fill("Marfa");
+  await page.getByLabel("State").fill("TX");
+  await page.getByLabel("ZIP").fill("79843");
+  await page.getByRole("button", { name: "Add recipient" }).click();
   await page.getByRole("button", { name: "Add to cart" }).click();
   await expect(page).toHaveURL(/\/cart$/);
 
   await page.reload();
-  await expect(page.getByRole("cell", { name: "$18.00" })).toBeVisible();
-});
+  await expect(page.getByText("1 design to 1 recipient")).toBeVisible();
 
-test("a sold-out product cannot be purchased", async ({ page }) => {
-  await page.goto("/product/risograph-print");
-  await expect(page.getByRole("button", { name: "Sold out" })).toBeDisabled();
-});
-
-test("removing the only line empties the cart", async ({ page }) => {
-  await page.goto("/product/enamel-mug");
-  await page.getByRole("button", { name: "Add to cart" }).click();
-
-  // A real button, so it is reachable by keyboard.
-  await page.getByRole("button", { name: /Remove Enamel Mug/ }).click();
-  await expect(page.getByText("Your cart is empty.")).toBeVisible();
-});
-
-test("unknown routes render the 404 page", async ({ page }) => {
-  await page.goto("/product/does-not-exist");
-  await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible();
+  await page.getByRole("button", { name: /Remove batch 1/ }).click();
+  await expect(page.getByText("nothing in your cart yet")).toBeVisible();
 });
 
 test("checkout explains itself when Stripe is not configured", async ({ page }) => {
-  // A store owner hits this before adding keys; it must not be a dead button.
-  await page.goto("/product/enamel-mug");
+  await designOne(page);
+  await page.getByLabel("Name").fill("Grandma");
+  await page.getByLabel("Street address").fill("1 Test Street");
+  await page.getByLabel("City").fill("Marfa");
+  await page.getByLabel("State").fill("TX");
+  await page.getByLabel("ZIP").fill("79843");
+  await page.getByRole("button", { name: "Add recipient" }).click();
   await page.getByRole("button", { name: "Add to cart" }).click();
   await expect(page).toHaveURL(/\/cart$/);
 
-  await page.getByRole("button", { name: "Checkout" }).click();
+  await page.getByRole("button", { name: "Check out" }).click();
   await expect(page.getByText(/Stripe is not configured/i)).toBeVisible();
+});
+
+test("unknown routes render the 404 page", async ({ page }) => {
+  await page.goto("/no-such-page");
+  await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible();
 });
 
 test("the confirmation page handles being opened without an order", async ({ page }) => {
   await page.goto("/confirm");
   await expect(page.getByRole("heading", { name: "No order to show" })).toBeVisible();
-});
-
-test("the carousel is operable by keyboard and opens a lightbox", async ({ page }) => {
-  await page.goto("/product/canvas-tote");
-
-  const thumbs = page.getByRole("tab");
-  await expect(thumbs).toHaveCount(3);
-  await expect(thumbs.first()).toHaveAttribute("aria-selected", "true");
-
-  // Arrow keys move the carousel without a mouse.
-  await page.getByRole("group", { name: /Canvas Tote images/ }).focus();
-  await page.keyboard.press("ArrowRight");
-  await expect(thumbs.nth(1)).toHaveAttribute("aria-selected", "true");
-
-  await page.keyboard.press("End");
-  await expect(thumbs.nth(2)).toHaveAttribute("aria-selected", "true");
-
-  // Every slide carries real alt text, so none of it is invisible to
-  // assistive tech — v1 painted these as CSS background images.
-  await expect(page.getByAltText("Canvas tote, front view")).toBeAttached();
-
-  // Clicking a slide opens the zoom view, and Escape closes it.
-  await page.getByAltText("Canvas tote, front view").click({ force: true });
-  await expect(page.locator(".ant-image-preview-img")).toBeVisible();
-  // The lightbox brings its own prev/next, so zooming does not trap the user.
-  await expect(page.locator(".ant-image-preview-switch-next")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(page.locator(".ant-image-preview-img")).toBeHidden();
-});
-
-test("a single-image product renders without carousel chrome", async ({ page }) => {
-  await page.goto("/product/risograph-print");
-  // No thumbnails or arrows for one image.
-  await expect(page.getByRole("tab")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Next image" })).toHaveCount(0);
 });

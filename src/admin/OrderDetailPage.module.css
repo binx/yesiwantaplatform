@@ -73,3 +73,18 @@
     grid-template-columns: 1fr;
   }
 }
+
+.postcardStatus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 24rem;
+}
+
+.errorText {
+  flex-basis: 100%;
+  font-size: 0.8125rem;
+  color: #b45309;
+  white-space: normal;
+}

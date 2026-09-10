@@ -1,47 +1,41 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Checkbox, Form, Input, Popconfirm, Select, Skeleton } from "antd";
-import { SHIPPABLE_COUNTRIES, countryName } from "@shared/shipping";
+import { Alert, Button, Form, Input, Popconfirm, Skeleton } from "antd";
+import { formatRecipient } from "@shared/postcards";
 import type { AddressInput, CustomerAddress } from "@shared/account";
-import { useStore } from "@/lib/useStore";
-import {
-  useAddresses,
-  useCreateAddress,
-  useDeleteAddress,
-  useUpdateAddress,
-} from "@/lib/account";
+import { useAddresses, useCreateAddress, useDeleteAddress, useUpdateAddress } from "@/lib/account";
 import { cx } from "@/lib/cx";
 import styles from "./Account.module.css";
 
-interface AddressFormValues {
-  name?: string | null;
+/**
+ * Saved recipients: the people this customer sends postcards to.
+ *
+ * Filled in automatically when an order is paid, and editable here. The
+ * designer offers this list, so a second batch to the same friends starts
+ * from a picker rather than a blank form.
+ */
+interface RecipientFormValues {
+  name: string;
   line1: string;
   line2?: string | null;
-  city?: string | null;
-  state?: string | null;
-  postalCode?: string | null;
-  country: string;
-  isDefault: boolean;
+  city: string;
+  state: string;
+  postalCode: string;
 }
 
-function blank(country?: string): AddressFormValues {
-  return { line1: "", country: country ?? "US", isDefault: false };
-}
+const BLANK: RecipientFormValues = { name: "", line1: "", line2: "", city: "", state: "", postalCode: "" };
 
-function AddressForm({
+function RecipientForm({
   initial,
   saving,
   error,
   onSave,
   onCancel,
-  locale,
 }: {
-  initial: AddressFormValues;
+  initial: RecipientFormValues;
   saving: boolean;
   error: string | null;
   onSave: (values: AddressInput) => void;
   onCancel: () => void;
-  /** The store's language tag, so the country list reads in it. */
-  locale: string;
 }) {
   return (
     <Form
@@ -50,52 +44,40 @@ function AddressForm({
       disabled={saving}
       className={cx(styles.form)}
       initialValues={initial}
-      onFinish={(values: AddressFormValues) =>
+      onFinish={(values: RecipientFormValues) =>
         onSave({
-          name: values.name?.trim() || null,
-          line1: values.line1,
+          name: values.name.trim(),
+          line1: values.line1.trim(),
           line2: values.line2?.trim() || null,
-          city: values.city?.trim() || null,
-          state: values.state?.trim() || null,
-          postalCode: values.postalCode?.trim() || null,
-          country: values.country,
-          isDefault: values.isDefault,
+          city: values.city.trim(),
+          state: values.state.trim().toUpperCase(),
+          postalCode: values.postalCode.trim(),
         })
       }
     >
       {error ? <Alert className={cx(styles.alert)} type="error" showIcon title={error} /> : null}
 
-      <Form.Item name="name" label="Name">
-        <Input autoComplete="name" />
+      <Form.Item name="name" label="Name" rules={[{ required: true, message: "Enter a name." }, { max: 40, message: "40 characters at most." }]}>
+        <Input autoComplete="off" />
       </Form.Item>
-      <Form.Item name="line1" label="Address" rules={[{ required: true, message: "Enter an address." }]}>
-        <Input autoComplete="address-line1" />
+      <Form.Item name="line1" label="Street address" rules={[{ required: true, message: "Enter a street address." }, { max: 64, message: "64 characters at most." }]}>
+        <Input autoComplete="off" />
       </Form.Item>
-      <Form.Item name="line2" label="Apartment, suite, etc.">
-        <Input autoComplete="address-line2" />
+      <Form.Item name="line2" label="Apartment, suite, etc." rules={[{ max: 64, message: "64 characters at most." }]}>
+        <Input autoComplete="off" />
       </Form.Item>
-      <Form.Item name="city" label="City">
-        <Input autoComplete="address-level2" />
+      <Form.Item name="city" label="City" rules={[{ required: true, message: "Enter a city." }]}>
+        <Input autoComplete="off" />
       </Form.Item>
-      <Form.Item name="state" label="State / province">
-        <Input autoComplete="address-level1" />
+      <Form.Item name="state" label="State" rules={[{ required: true, pattern: /^[A-Za-z]{2}$/, message: "Use the two-letter state code." }]}>
+        <Input autoComplete="off" maxLength={2} />
       </Form.Item>
-      <Form.Item name="postalCode" label="Postal code">
-        <Input autoComplete="postal-code" />
-      </Form.Item>
-      <Form.Item name="country" label="Country" rules={[{ required: true }]}>
-        <Select
-          showSearch
-          optionFilterProp="label"
-          options={SHIPPABLE_COUNTRIES.map((code) => ({ label: countryName(code, locale), value: code }))}
-        />
-      </Form.Item>
-      <Form.Item name="isDefault" valuePropName="checked">
-        <Checkbox>Use as my default address</Checkbox>
+      <Form.Item name="postalCode" label="ZIP" rules={[{ required: true, pattern: /^\d{5}(-\d{4})?$/, message: "Use a 5-digit ZIP code." }]}>
+        <Input autoComplete="off" inputMode="numeric" />
       </Form.Item>
 
       <Button type="primary" htmlType="submit" loading={saving}>
-        Save address
+        Save recipient
       </Button>{" "}
       <Button onClick={onCancel} disabled={saving}>
         Cancel
@@ -109,13 +91,11 @@ export function AccountAddressesPage() {
   const create = useCreateAddress();
   const update = useUpdateAddress();
   const remove = useDeleteAddress();
-  // "new" is a sentinel for the add-address form; anything else is an address id.
+  // "new" is a sentinel for the add form; anything else is a recipient id.
   const [editing, setEditing] = useState<string | null>(null);
-  // One language for the whole shop — the same one its prices are written in.
-  const { locale } = useStore();
 
   useEffect(() => {
-    document.title = "Addresses · Your account";
+    document.title = "Recipients · Your account";
   }, []);
 
   if (addresses.isPending) return <Skeleton active paragraph={{ rows: 4 }} />;
@@ -124,32 +104,30 @@ export function AccountAddressesPage() {
 
   return (
     <div>
+      <p className={cx(styles.meta)}>
+        Everyone you have sent a postcard to. They are saved when an order is paid, and the
+        designer can pick them again.
+      </p>
+
       {list.length === 0 && editing !== "new" ? (
-        <p className={cx(styles.empty)}>You haven't saved an address yet.</p>
+        <p className={cx(styles.empty)}>No saved recipients yet.</p>
       ) : null}
 
       {list.map((address) =>
         editing === address.id ? (
           <div key={address.id} className={cx(styles.card)}>
-            <AddressForm
-              initial={address}
-              locale={locale}
+            <RecipientForm
+              initial={{ ...address, line2: address.line2 ?? "" }}
               saving={update.isPending}
               error={update.error instanceof Error ? update.error.message : null}
               onCancel={() => setEditing(null)}
-              onSave={(input) =>
-                update.mutate(
-                  { id: address.id, input },
-                  { onSuccess: () => setEditing(null) },
-                )
-              }
+              onSave={(input) => update.mutate({ id: address.id, input }, { onSuccess: () => setEditing(null) })}
             />
           </div>
         ) : (
-          <AddressCard
+          <RecipientCard
             key={address.id}
             address={address}
-            locale={locale}
             onEdit={() => setEditing(address.id)}
             onDelete={() => remove.mutate(address.id)}
             deleting={remove.isPending}
@@ -159,9 +137,8 @@ export function AccountAddressesPage() {
 
       {editing === "new" ? (
         <div className={cx(styles.card)}>
-          <AddressForm
-            initial={blank()}
-            locale={locale}
+          <RecipientForm
+            initial={BLANK}
             saving={create.isPending}
             error={create.error instanceof Error ? create.error.message : null}
             onCancel={() => setEditing(null)}
@@ -169,49 +146,36 @@ export function AccountAddressesPage() {
           />
         </div>
       ) : (
-        <Button onClick={() => setEditing("new")}>Add an address</Button>
+        <Button onClick={() => setEditing("new")}>Add a recipient</Button>
       )}
     </div>
   );
 }
 
-function AddressCard({
+function RecipientCard({
   address,
   onEdit,
   onDelete,
   deleting,
-  locale,
 }: {
   address: CustomerAddress;
   onEdit: () => void;
   onDelete: () => void;
   deleting: boolean;
-  /** The store's language tag, so the country reads in it. */
-  locale: string;
 }) {
   return (
     <div className={cx(styles.card)}>
       <div className={cx(styles.cardHeader)}>
         <p className={cx(styles.meta)}>
-          {address.name ? (
-            <>
-              {address.name}
-              <br />
-            </>
-          ) : null}
-          {address.line1}
-          {address.line2 ? `, ${address.line2}` : ""}
+          <strong>{address.name}</strong>
           <br />
-          {[address.city, address.state, address.postalCode].filter(Boolean).join(", ")}
-          <br />
-          {countryName(address.country, locale)}
-          {address.isDefault ? <span className={cx(styles.default)}>Default</span> : null}
+          {formatRecipient(address)}
         </p>
         <div className={cx(styles.cardActions)}>
           <Button size="small" onClick={onEdit}>
             Edit
           </Button>
-          <Popconfirm title="Remove this address?" onConfirm={onDelete}>
+          <Popconfirm title="Remove this recipient?" onConfirm={onDelete}>
             <Button size="small" danger loading={deleting}>
               Remove
             </Button>

@@ -1,34 +1,28 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, isNotNull, ne } from "drizzle-orm";
-import type { AddressInput } from "../shared/account.js";
+import { and, asc, eq, isNotNull } from "drizzle-orm";
+import type { AddressInput, CustomerAddress } from "../shared/account.js";
 import { getDatabase } from "./client.js";
+import { nowFor } from "./repository.js";
 
 /**
- * Customer addresses, and the one customer lookup the checkout webhook needs.
+ * Saved recipients, and the one customer lookup the checkout webhook needs.
  *
- * Everything password- or token-shaped lives in server/auth.ts, next to the
- * admin equivalent; this is the plain data layer, matching the split between
- * that file and db/admin-repository.ts.
+ * Everything password- or token-shaped lives in server/auth.ts; this is the
+ * plain data layer.
  */
-
-function toBool(value: unknown): boolean {
-  return value === true || value === 1;
-}
 
 interface AddressRow {
   id: string;
   customerId: string;
-  name: string | null;
+  name: string;
   line1: string;
   line2: string | null;
-  city: string | null;
-  state: string | null;
-  postalCode: string | null;
-  country: string;
-  isDefault: unknown;
+  city: string;
+  state: string;
+  postalCode: string;
 }
 
-function buildAddress(row: AddressRow) {
+function buildAddress(row: AddressRow): CustomerAddress {
   return {
     id: row.id,
     name: row.name,
@@ -37,29 +31,22 @@ function buildAddress(row: AddressRow) {
     city: row.city,
     state: row.state,
     postalCode: row.postalCode,
-    country: row.country,
-    isDefault: toBool(row.isDefault),
   };
 }
 
-export async function listAddresses(customerId: string) {
+export async function listAddresses(customerId: string): Promise<CustomerAddress[]> {
   const { drizzle: db, schema } = await getDatabase();
 
   const rows = (await db
     .select()
     .from(schema.customerAddresses)
     .where(eq(schema.customerAddresses.customerId, customerId))
-    .orderBy(asc(schema.customerAddresses.createdAt))) as unknown as AddressRow[];
+    .orderBy(asc(schema.customerAddresses.name), asc(schema.customerAddresses.createdAt))) as unknown as AddressRow[];
 
   return rows.map(buildAddress);
 }
 
-/**
- * An address for this customer, or null — never someone else's.
- *
- * Filtering by `customerId` in the query is what makes another customer's
- * address a 404 rather than a lookup-then-compare a future edit could drop.
- */
+/** An address for this customer, or null — never someone else's. */
 async function getOwnAddress(id: string, customerId: string): Promise<AddressRow | null> {
   const { drizzle: db, schema } = await getDatabase();
 
@@ -72,32 +59,9 @@ async function getOwnAddress(id: string, customerId: string): Promise<AddressRow
   return rows[0] ?? null;
 }
 
-/** Clear every other default before a new one is set, so there is ever only one. */
-async function clearOtherDefaults(customerId: string, keepId?: string): Promise<void> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  await db
-    .update(schema.customerAddresses)
-    .set({ isDefault: false })
-    .where(
-      and(
-        eq(schema.customerAddresses.customerId, customerId),
-        eq(schema.customerAddresses.isDefault, true),
-        ...(keepId ? [ne(schema.customerAddresses.id, keepId)] : []),
-      ),
-    );
-}
-
-export async function createAddress(customerId: string, input: AddressInput) {
+export async function createAddress(customerId: string, input: AddressInput): Promise<CustomerAddress> {
   const { drizzle: db, schema } = await getDatabase();
   const id = randomUUID();
-
-  // The first address a customer saves becomes their default automatically —
-  // otherwise checkout prefill silently does nothing until they notice.
-  const existing = await listAddresses(customerId);
-  const isDefault = input.isDefault || existing.length === 0;
-
-  if (isDefault) await clearOtherDefaults(customerId);
 
   await db.insert(schema.customerAddresses).values({
     id,
@@ -108,27 +72,46 @@ export async function createAddress(customerId: string, input: AddressInput) {
     city: input.city,
     state: input.state,
     postalCode: input.postalCode,
-    country: input.country,
-    isDefault,
+    country: "US",
   });
 
-  return { id, ...input, isDefault };
+  return { id, ...input };
+}
+
+/**
+ * Save the recipients of a paid order, skipping ones the customer already has.
+ *
+ * Matched on the whole address rather than the name: two friends can share a
+ * name, and one friend can move house.
+ */
+export async function saveRecipientsFromOrder(customerId: string, recipients: AddressInput[]): Promise<number> {
+  const existing = await listAddresses(customerId);
+  const key = (r: AddressInput) =>
+    [r.name, r.line1, r.line2 ?? "", r.city, r.state, r.postalCode].join("|").toLowerCase();
+  const seen = new Set(existing.map(key));
+
+  let added = 0;
+  for (const recipient of recipients) {
+    if (seen.has(key(recipient))) continue;
+    seen.add(key(recipient));
+    await createAddress(customerId, recipient);
+    added += 1;
+  }
+  return added;
 }
 
 export class AddressNotFoundError extends Error {
   constructor() {
-    super("That address could not be found.");
+    super("That recipient could not be found.");
     this.name = "AddressNotFoundError";
   }
 }
 
-export async function updateAddress(id: string, customerId: string, input: AddressInput) {
+export async function updateAddress(id: string, customerId: string, input: AddressInput): Promise<CustomerAddress> {
   const { drizzle: db, schema } = await getDatabase();
 
   const existing = await getOwnAddress(id, customerId);
   if (!existing) throw new AddressNotFoundError();
-
-  if (input.isDefault) await clearOtherDefaults(customerId, id);
 
   await db
     .update(schema.customerAddresses)
@@ -139,8 +122,6 @@ export async function updateAddress(id: string, customerId: string, input: Addre
       city: input.city,
       state: input.state,
       postalCode: input.postalCode,
-      country: input.country,
-      isDefault: input.isDefault,
     })
     .where(eq(schema.customerAddresses.id, id));
 
@@ -171,10 +152,7 @@ export async function findVerifiedCustomerByEmail(
     .select({ id: schema.customers.id, email: schema.customers.email })
     .from(schema.customers)
     .where(
-      and(
-        eq(schema.customers.email, email.toLowerCase().trim()),
-        isNotNull(schema.customers.emailVerifiedAt),
-      ),
+      and(eq(schema.customers.email, email.toLowerCase().trim()), isNotNull(schema.customers.emailVerifiedAt)),
     )
     .limit(1)) as unknown as { id: string; email: string }[];
 
@@ -182,18 +160,8 @@ export async function findVerifiedCustomerByEmail(
   return row ? { id: row.id, email: row.email } : null;
 }
 
-/**
- * Store the (already hashed) unsubscribe token for this customer's next cart
- * reminder email.
- *
- * Minted fresh on every send rather than once — see the comment on
- * `cartRecoveryUnsubscribeTokenHash` in db/schema.sqlite.ts for why an older
- * email's link simply stops working once a newer one goes out.
- */
-export async function setCartRecoveryUnsubscribeTokenHash(
-  customerId: string,
-  tokenHash: string,
-): Promise<void> {
+/** Store the (already hashed) unsubscribe token for this customer's next cart reminder. */
+export async function setCartRecoveryUnsubscribeTokenHash(customerId: string, tokenHash: string): Promise<void> {
   const { drizzle: db, schema } = await getDatabase();
 
   await db
@@ -202,12 +170,7 @@ export async function setCartRecoveryUnsubscribeTokenHash(
     .where(eq(schema.customers.id, customerId));
 }
 
-/**
- * Redeem an unsubscribe link.
- *
- * Idempotent by design — clicking it twice only ever opts out, so unlike the
- * recovery token this needs no single-use guard.
- */
+/** Redeem an unsubscribe link. Idempotent — clicking it twice only ever opts out. */
 export async function optOutOfCartRecoveryByTokenHash(tokenHash: string): Promise<boolean> {
   const { drizzle: db, schema, dialect } = await getDatabase();
 
@@ -220,10 +183,9 @@ export async function optOutOfCartRecoveryByTokenHash(tokenHash: string): Promis
   const row = rows[0];
   if (!row) return false;
 
-  const now = dialect === "pg" ? new Date() : Math.floor(Date.now() / 1000);
   await db
     .update(schema.customers)
-    .set({ cartRecoveryOptOutAt: now })
+    .set({ cartRecoveryOptOutAt: nowFor(dialect) })
     .where(eq(schema.customers.id, row.id));
 
   return true;

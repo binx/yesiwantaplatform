@@ -1,18 +1,7 @@
 import type { ReactNode } from "react";
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button, Grid, Menu, Skeleton, Typography } from "antd";
-import {
-  AppstoreOutlined,
-  CarOutlined,
-  FileTextOutlined,
-  LogoutOutlined,
-  ProfileOutlined,
-  ApiOutlined,
-  SettingOutlined,
-  TeamOutlined,
-  ShopOutlined,
-  ShoppingOutlined,
-} from "@ant-design/icons";
+import { AppstoreOutlined, FileTextOutlined, LogoutOutlined, SettingOutlined, ShopOutlined } from "@ant-design/icons";
 import { useLogout, useSession } from "@/lib/session";
 import { useSettings } from "./queries";
 import { cx } from "@/lib/cx";
@@ -30,13 +19,8 @@ import styles from "./AdminLayout.module.css";
 
 const NAV = [
   { key: "", icon: <AppstoreOutlined />, label: "Overview" },
-  { key: "products", icon: <ShoppingOutlined />, label: "Products" },
-  { key: "collections", icon: <ProfileOutlined />, label: "Collections" },
-  { key: "pages", icon: <FileTextOutlined />, label: "Pages" },
   { key: "orders", icon: <ShopOutlined />, label: "Orders" },
-  { key: "shipping", icon: <CarOutlined />, label: "Shipping" },
-  { key: "users", icon: <TeamOutlined />, label: "Staff" },
-  { key: "webhooks", icon: <ApiOutlined />, label: "Webhooks" },
+  { key: "pages", icon: <FileTextOutlined />, label: "Pages" },
   { key: "settings", icon: <SettingOutlined />, label: "Settings" },
 ];
 
@@ -75,9 +59,9 @@ export function RequireAdmin() {
     <div className={cx(styles.shell)}>
       <nav className={cx(styles.sidebar)} aria-label="Admin">
         <div className={cx(styles.brand)}>
-          <span aria-hidden="true">🎷🐋</span>
+          <span aria-hidden="true">✉️</span>
           <span>
-            Beluga
+            Postcards
             {settings.data ? <span className={cx(styles.brandStore)}>{settings.data.name}</span> : null}
           </span>
         </div>

@@ -1,97 +1,126 @@
 .hero {
-  display: grid;
-  place-items: center;
-  min-height: min(60vh, 30rem);
-  padding: 4rem var(--beluga-gutter);
-  /*
-   * Was a literal beige gradient, which stayed beige on a dark storefront and
-   * put a bright band across the top of the page. Tinting the store's own
-   * surface with its accent keeps the warmth and follows the theme.
-   */
-  background: linear-gradient(
-    160deg,
-    color-mix(in srgb, var(--beluga-accent) 6%, var(--beluga-surface)) 0%,
-    color-mix(in srgb, var(--beluga-accent) 14%, var(--beluga-surface)) 100%
-  );
+  padding: 3rem var(--beluga-gutter) 2rem;
+  background: var(--beluga-surface);
   border-bottom: 1px solid var(--beluga-line);
 }
 
 .heroInner {
-  max-width: 42rem;
-  text-align: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 24rem);
+  gap: 3rem;
+  align-items: center;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.heroCopy {
+  display: grid;
+  gap: 1.25rem;
+  justify-items: start;
 }
 
 .heroTitle {
-  margin-bottom: 0.75rem;
+  margin: 0;
+  font-size: clamp(2.5rem, 2rem + 4vw, 5rem);
   letter-spacing: -0.02em;
 }
 
 .heroText {
-  margin: 0 auto 1.75rem;
+  margin: 0;
   max-width: 34rem;
   color: var(--beluga-muted);
 }
 
-.section {
-  margin-bottom: 4rem;
+.heroImage {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: var(--beluga-radius);
 }
 
-.sectionHead {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--beluga-line);
-}
-
-.sectionHead h2 {
-  margin: 0;
-}
-
-.more {
-  font-size: 0.875rem;
-  color: var(--beluga-muted);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.more:hover {
-  color: var(--beluga-ink);
-}
-
-.collections {
+.points {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
-  gap: 1rem;
+  gap: 0.75rem;
   margin: 0;
   padding: 0;
   list-style: none;
+  max-width: 34rem;
 }
 
-/*
- * A hero carrying an image.
- *
- * The gradient stays underneath as the fallback while the image loads and as
- * the backdrop if it fails, and a scrim goes over the top: a merchant's photo
- * is chosen for how it looks, not for whether white text will read on it, so
- * the contrast cannot be left to the upload. `--beluga-page` rather than a
- * literal, so a dark storefront darkens and a light one lightens.
- */
-.hasImage {
-  background-size: cover;
-  background-position: center;
-  position: relative;
+.points li {
+  padding: 0.75rem 1rem;
+  line-height: 1.5;
 }
 
-.hasImage::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: color-mix(in srgb, var(--beluga-page) 62%, transparent);
+/* v1's CMYK offset accents, carried over as-is for the design pass to revisit. */
+.magenta {
+  border-top: 3px solid #ff00ff;
+  border-left: 3px solid #ff00ff;
+  background: rgb(255 0 255 / 8%);
 }
 
-.hasImage .heroInner {
-  position: relative;
+.cyan {
+  border-top: 3px solid #00ffff;
+  border-left: 3px solid #00ffff;
+  background: rgb(0 255 255 / 10%);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
+  gap: 2.5rem;
+  padding-top: 1rem;
+  border-top: 3px dotted var(--beluga-ink);
+}
+
+.column p {
+  margin: 0 0 0.75rem;
+}
+
+.script {
+  font-family: Sacramento, cursive;
+  font-weight: 400;
+  font-size: 2.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.faq {
+  margin: 0;
+}
+
+.faq dt {
+  font-weight: 600;
+  margin-top: 1rem;
+  display: inline-block;
+  background: rgb(0 255 255 / 10%);
+}
+
+.faq dd {
+  margin: 0.25rem 0 0;
+  color: var(--beluga-muted);
+}
+
+.cta {
+  margin: 3rem 0;
+  text-align: center;
+}
+
+.table {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 6;
+  object-fit: cover;
+  border-radius: var(--beluga-radius);
+}
+
+@media (max-width: 800px) {
+  .heroInner {
+    grid-template-columns: 1fr;
+  }
+
+  .heroImage {
+    max-height: 20rem;
+    aspect-ratio: auto;
+  }
 }

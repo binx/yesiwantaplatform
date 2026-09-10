@@ -1,115 +1,62 @@
 import { z } from "zod";
+import { cartLineSchema } from "./cart.js";
 import { centsSchema } from "./schema.js";
+import { postcardDesignSchema, postcardSchema } from "./postcards.js";
 
 /**
  * Orders.
  *
- * Stripe's Orders API is gone and has no server-side replacement, so an order
- * is a record we own. Stripe remains the authority on *payment*; everything
- * about fulfilment lives here.
+ * Stripe is the authority on payment; everything about fulfilment lives here.
+ * An order is a bag of postcards — each with its own recipient and mail date —
+ * plus the designs they reference, carried along so an order page can show
+ * the thumbnails without a second request.
  */
 
 export const orderStatusSchema = z.enum([
   /** Checkout Session created, payment not yet confirmed. */
   "pending",
-  /** Webhook confirmed payment. */
+  /** Webhook confirmed payment; postcards are scheduled. */
   "paid",
-  "processing",
-  "shipped",
+  /** Every postcard has gone to print. */
+  "completed",
   "cancelled",
   "refunded",
 ]);
-
-export const orderItemSchema = z.object({
-  id: z.string(),
-  productId: z.string().nullable(),
-  variantId: z.string().nullable(),
-  /**
-   * Snapshots taken at purchase. An order must always render as it was bought,
-   * even after the product is renamed, repriced, or deleted.
-   */
-  productName: z.string(),
-  variantLabel: z.string(),
-  /** Null for any order placed before this field existed. */
-  sku: z.string().nullable(),
-  unitPriceCents: centsSchema,
-  quantity: z.number().int().positive(),
-  options: z.record(z.string(), z.string()),
-});
-
-export const shippingAddressSchema = z.object({
-  name: z.string().nullable(),
-  line1: z.string().nullable(),
-  line2: z.string().nullable(),
-  city: z.string().nullable(),
-  state: z.string().nullable(),
-  postalCode: z.string().nullable(),
-  country: z.string().nullable(),
-});
 
 export const orderSchema = z.object({
   id: z.string(),
   /** Short, human-quotable reference shown to customers. */
   reference: z.string(),
+  /**
+   * The Stripe session that paid for it. Unguessable, and the credential a
+   * guest's confirmation link carries — so it is the one thing that lets an
+   * email say "follow your postcards here" to someone with no account.
+   */
+  checkoutSessionId: z.string(),
   email: z.string(),
   status: orderStatusSchema,
   currency: z.string(),
+  /** What one card cost on this order — a snapshot, in case the price moves. */
+  unitPriceCents: centsSchema,
+  postcardCount: z.number().int().min(0),
   subtotalCents: centsSchema,
-  shippingCents: centsSchema,
-  taxCents: centsSchema,
   /**
    * What a promotion code took off, as a positive number. Stored, not
    * subtracted: `subtotalCents` is Stripe's pre-discount figure and
-   * `totalCents` its post-discount one, so deducting here would double it.
+   * `totalCents` its post-discount one.
    */
   discountCents: centsSchema,
   totalCents: centsSchema,
-  shipping: shippingAddressSchema,
-  carrier: z.string().nullable(),
-  trackingNumber: z.string().nullable(),
-  /**
-   * Set when payment succeeded but stock had run out in the meantime. The
-   * money is taken, so the order is recorded and flagged for the owner rather
-   * than silently oversold or dropped.
-   */
-  oversold: z.boolean(),
-  /**
-   * Cumulative amount refunded. Stripe allows several partial refunds against
-   * one charge, so this accumulates; below `totalCents` means partial.
-   */
+  /** Cumulative amount refunded. Below `totalCents` means partial. */
   refundedCents: centsSchema,
   createdAt: z.number().int(),
-  items: z.array(orderItemSchema),
+  postcards: z.array(postcardSchema),
+  designs: z.array(postcardDesignSchema),
 });
 
-/** What the client sends to start a checkout: identifiers only, never prices. */
+/** What the client sends to start a checkout: design ids, dates and recipients. Never a price. */
 export const checkoutRequestSchema = z.object({
-  lines: z
-    .array(
-      z.object({
-        productId: z.string().min(1),
-        variantId: z.string().min(1),
-        quantity: z.number().int().min(1).max(999),
-        options: z.record(z.string(), z.string()).default({}),
-      }),
-    )
-    .min(1)
-    .max(100),
-  /** Optional shipping rate chosen on the cart page. */
-  shippingRateId: z.string().nullable().default(null),
-  /**
-   * Where it is going, chosen on the cart page.
-   *
-   * Needed *before* the session exists: hosted Checkout collects the address
-   * afterwards, so zone-priced rates would otherwise be picked blind. The
-   * session then restricts address collection to this country, so the buyer
-   * cannot switch zones at Stripe and pay the wrong postage.
-   */
-  shipToCountry: z
-    .string()
-    .regex(/^[A-Za-z]{2}$/)
-    .nullable()
-    .default(null),
+  lines: z.array(cartLineSchema).min(1).max(20),
 });
 
 export const checkoutResponseSchema = z.object({
@@ -117,20 +64,8 @@ export const checkoutResponseSchema = z.object({
   orderId: z.string(),
 });
 
-export const fulfilmentInputSchema = z.object({
-  status: orderStatusSchema,
-  carrier: z.string().max(80).nullable().default(null),
-  trackingNumber: z.string().max(120).nullable().default(null),
-  /** Send the customer an email about this change. */
-  notify: z.boolean().default(false),
-});
-
 /** Stripe's own refund reasons; there is no free-text option on the API. */
-export const refundReasonSchema = z.enum([
-  "duplicate",
-  "fraudulent",
-  "requested_by_customer",
-]);
+export const refundReasonSchema = z.enum(["duplicate", "fraudulent", "requested_by_customer"]);
 
 export const refundInputSchema = z.object({
   /** Omit to refund the full remaining amount. */
@@ -140,19 +75,27 @@ export const refundInputSchema = z.object({
 });
 
 export type OrderStatus = z.infer<typeof orderStatusSchema>;
-export type OrderItem = z.infer<typeof orderItemSchema>;
 export type Order = z.infer<typeof orderSchema>;
 export type CheckoutRequest = z.infer<typeof checkoutRequestSchema>;
-export type FulfilmentInput = z.infer<typeof fulfilmentInputSchema>;
 export type RefundReason = z.infer<typeof refundReasonSchema>;
 export type RefundInput = z.infer<typeof refundInputSchema>;
 
 /**
  * A short order reference derived from the row id.
  *
- * v1 showed `order.id.split("_")[1]` — a slice of a Stripe identifier, which
- * leaked the payment object's id to the customer.
+ * v1 showed a slice of a Stripe identifier, which leaked the payment
+ * object's id to the customer.
  */
 export function orderReference(id: string): string {
   return id.replace(/-/g, "").slice(0, 8).toUpperCase();
+}
+
+/** How many of an order's postcards are in each state — for a one-line summary. */
+export function summarisePostcards(order: Pick<Order, "postcards">) {
+  const counts = { scheduled: 0, sent: 0, error: 0, cancelled: 0, pending: 0 };
+  for (const postcard of order.postcards) {
+    if (postcard.status === "sending") counts.scheduled += 1;
+    else counts[postcard.status] += 1;
+  }
+  return counts;
 }

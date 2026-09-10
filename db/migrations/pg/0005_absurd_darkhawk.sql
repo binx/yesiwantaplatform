@@ -1,1 +1,0 @@
-ALTER TABLE "orders" ADD COLUMN "restocked_at" timestamp with time zone;

@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { Button, Result, Skeleton } from "antd";
 import { formatMoney } from "@shared/money";
 import { OrderStatusTag } from "@/admin/OrderStatusTag";
+import { PostcardSchedule } from "@/components/postcard/PostcardSchedule";
 import { useCustomerOrder } from "@/lib/account";
 import { useStore } from "@/lib/useStore";
 import { cx } from "@/lib/cx";
@@ -11,8 +12,6 @@ import styles from "./Account.module.css";
 export function AccountOrderDetailPage() {
   const { id } = useParams();
   const order = useCustomerOrder(id);
-  // The store's language, not the buyer's browser: an order confirmation
-  // should read the way the shop it came from reads.
   const { locale } = useStore();
 
   useEffect(() => {
@@ -37,6 +36,7 @@ export function AccountOrderDetailPage() {
   }
 
   const data = order.data;
+  const price = (cents: number) => formatMoney(cents, data.currency, locale);
 
   return (
     <div>
@@ -49,55 +49,28 @@ export function AccountOrderDetailPage() {
         <OrderStatusTag order={data} locale={locale} />
       </div>
 
-      <p className={cx(styles.meta)}>
-        Placed {new Date(data.createdAt).toLocaleDateString(locale)}
-        {data.trackingNumber ? (
-          <>
-            {" "}
-            · {data.carrier ? `${data.carrier} ` : ""}tracking {data.trackingNumber}
-          </>
-        ) : null}
-      </p>
+      <p className={cx(styles.meta)}>Placed {new Date(data.createdAt).toLocaleDateString(locale)}</p>
+
+      <PostcardSchedule order={data} locale={locale} />
 
       <table className={cx(styles.table)}>
-        <tbody>
-          {data.items.map((item) => (
-            <tr key={item.id}>
-              <td>
-                {item.productName}
-                {item.variantLabel ? <span className={cx(styles.meta)}> · {item.variantLabel}</span> : null}
-                <span className={cx(styles.meta)}> × {item.quantity}</span>
-              </td>
-              <td className={cx(styles.amount)}>
-                {formatMoney(item.unitPriceCents * item.quantity, data.currency, locale)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
         <tfoot>
           <tr>
-            <td>Subtotal</td>
-            <td className={cx(styles.amount)}>{formatMoney(data.subtotalCents, data.currency, locale)}</td>
+            <td>
+              {data.postcardCount} postcard{data.postcardCount === 1 ? "" : "s"} × {price(data.unitPriceCents)}
+            </td>
+            <td className={cx(styles.amount)}>{price(data.subtotalCents)}</td>
           </tr>
           {data.discountCents > 0 && (
             <tr>
               <td>Discount</td>
-              <td className={cx(styles.amount)}>
-                {"−"}
-                {formatMoney(data.discountCents, data.currency, locale)}
-              </td>
+              <td className={cx(styles.amount)}>−{price(data.discountCents)}</td>
             </tr>
           )}
-          <tr>
-            <td>Shipping</td>
-            <td className={cx(styles.amount)}>
-              {data.shippingCents === 0 ? "Free" : formatMoney(data.shippingCents, data.currency, locale)}
-            </td>
-          </tr>
-          {data.taxCents > 0 && (
+          {data.refundedCents > 0 && (
             <tr>
-              <td>Tax</td>
-              <td className={cx(styles.amount)}>{formatMoney(data.taxCents, data.currency, locale)}</td>
+              <td>Refunded</td>
+              <td className={cx(styles.amount)}>−{price(data.refundedCents)}</td>
             </tr>
           )}
           <tr>
@@ -105,36 +78,11 @@ export function AccountOrderDetailPage() {
               <strong>Total</strong>
             </td>
             <td className={cx(styles.amount)}>
-              <strong>{formatMoney(data.totalCents, data.currency, locale)}</strong>
+              <strong>{price(data.totalCents)}</strong>
             </td>
           </tr>
         </tfoot>
       </table>
-
-      {data.shipping.line1 ? (
-        <div className={cx(styles.card)}>
-          <p>
-            <strong>Shipping to</strong>
-          </p>
-          <p className={cx(styles.meta)}>
-            {data.shipping.name}
-            <br />
-            {data.shipping.line1}
-            {data.shipping.line2 ? (
-              <>
-                <br />
-                {data.shipping.line2}
-              </>
-            ) : null}
-            <br />
-            {[data.shipping.city, data.shipping.state, data.shipping.postalCode]
-              .filter(Boolean)
-              .join(", ")}
-            <br />
-            {data.shipping.country}
-          </p>
-        </div>
-      ) : null}
     </div>
   );
 }

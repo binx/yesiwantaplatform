@@ -15,7 +15,7 @@ export function AdminNotFoundPage() {
   const location = useLocation();
 
   useEffect(() => {
-    document.title = "Not found · Beluga";
+    document.title = "Not found · Admin";
   }, []);
 
   return (

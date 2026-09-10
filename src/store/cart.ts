@@ -1,107 +1,33 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { cartLineSchema, countPostcards, type CartLine } from "@shared/cart";
 
 /**
- * The cart holds identifiers and quantities only.
+ * The cart: a list of batches, each some designs going to some recipients.
  *
- * v1 wrote the price and image into localStorage alongside the line, so a price
- * change left stale amounts in every open cart, and an undefined price wrote
- * `price: undefined` and rendered `$NaN`. Everything displayable is derived
- * from the current catalogue at render time instead.
+ * Holds design *ids*, dates and recipients — never a price or an image URL.
+ * v1 wrote the price into localStorage alongside the line, so a price change
+ * left stale amounts in every open cart. Everything displayable is derived
+ * from settings and the designs API at render time instead.
  */
-export interface CartLine {
-  productId: string;
-  variantId: string;
-  quantity: number;
-  /** Non-priced selections, e.g. { "gift wrap": "Yes" }. */
-  options: Record<string, string>;
-}
+
+export type { CartLine } from "@shared/cart";
 
 interface CartState {
   lines: CartLine[];
-  /**
-   * Where the buyer is shipping to, as an ISO country code.
-   *
-   * Held here rather than asked for at Stripe because hosted Checkout collects
-   * the address *after* the session is created, and zone-priced shipping has to
-   * be resolved before then. Persisted so it survives a reload — being asked
-   * for your country on every visit is the kind of friction that loses carts.
-   */
-  shipToCountry: string | null;
-  /** The rate the buyer picked, by id. Re-resolved server-side at checkout. */
-  shippingRateId: string | null;
   add: (line: CartLine) => void;
-  setQuantity: (index: number, quantity: number) => void;
   remove: (index: number) => void;
   clear: () => void;
   /** Replaces the cart wholesale — used to repopulate it from a recovered cart. */
   setLines: (lines: CartLine[]) => void;
-  setShipToCountry: (countryCode: string | null) => void;
-  setShippingRateId: (rateId: string | null) => void;
-}
-
-/** Cart quantities are always whole numbers of at least one. */
-export function normalizeQuantity(value: unknown, max: number | null): number {
-  // Narrowed explicitly: antd's InputNumber hands back `number | null`, while a
-  // raw <input type="number"> hands back a string, including "" when cleared.
-  let parsed: number;
-  if (typeof value === "number") parsed = value;
-  else if (typeof value === "string") parsed = Number.parseInt(value, 10);
-  else parsed = Number.NaN;
-
-  if (!Number.isFinite(parsed)) return 1;
-
-  const floored = Math.max(1, Math.floor(parsed));
-  return max === null ? floored : Math.min(floored, Math.max(1, max));
-}
-
-function sameLine(a: CartLine, b: CartLine): boolean {
-  if (a.productId !== b.productId || a.variantId !== b.variantId) return false;
-
-  const aKeys = Object.keys(a.options).sort();
-  const bKeys = Object.keys(b.options).sort();
-  if (aKeys.length !== bKeys.length) return false;
-
-  return aKeys.every((key, i) => bKeys[i] === key && a.options[key] === b.options[key]);
 }
 
 export const useCart = create<CartState>()(
   persist(
     (set) => ({
       lines: [],
-      shipToCountry: null,
-      shippingRateId: null,
 
-      setShipToCountry: (shipToCountry) =>
-        // Changing destination invalidates the chosen rate: it may not even
-        // exist in the new zone.
-        set({ shipToCountry, shippingRateId: null }),
-
-      setShippingRateId: (shippingRateId) => set({ shippingRateId }),
-
-      add: (line) =>
-        set((state) => {
-          // Adding the same variant twice increments rather than duplicating.
-          const existing = state.lines.findIndex((l) => sameLine(l, line));
-          if (existing === -1) return { lines: [...state.lines, line] };
-
-          const lines = [...state.lines];
-          const current = lines[existing];
-          if (!current) return { lines: state.lines };
-
-          lines[existing] = { ...current, quantity: current.quantity + line.quantity };
-          return { lines };
-        }),
-
-      setQuantity: (index, quantity) =>
-        set((state) => {
-          const current = state.lines[index];
-          if (!current) return { lines: state.lines };
-
-          const lines = [...state.lines];
-          lines[index] = { ...current, quantity };
-          return { lines };
-        }),
+      add: (line) => set((state) => ({ lines: [...state.lines, line] })),
 
       // Guarded, unlike v1's `splice(findIndex(...), 1)`, which removed the
       // last item whenever the lookup missed.
@@ -111,26 +37,33 @@ export const useCart = create<CartState>()(
           return { lines: state.lines.filter((_, i) => i !== index) };
         }),
 
-      clear: () => set({ lines: [], shippingRateId: null }),
+      clear: () => set({ lines: [] }),
 
       setLines: (lines) => set({ lines }),
     }),
     {
-      name: "beluga.cart",
-      version: 2,
+      name: "postcards.cart",
+      version: 1,
       /*
-       * The destination persists; the chosen rate does not.
-       *
-       * A rate id is only meaningful against the current shipping table, and
-       * that can change between visits — a stale one would be silently dropped
-       * at checkout. The country is stable and worth remembering.
+       * Parsed on the way back in, so a cart written by an older build — or
+       * edited by hand — cannot put an unvalidated line in front of checkout.
+       * A line that no longer fits the schema is dropped, not repaired.
        */
-      partialize: (state) => ({ lines: state.lines, shipToCountry: state.shipToCountry }),
+      merge: (persisted, current) => {
+        const stored = (persisted as { lines?: unknown } | undefined)?.lines;
+        const lines = Array.isArray(stored)
+          ? stored
+              .map((line) => cartLineSchema.safeParse(line))
+              .filter((result) => result.success)
+              .map((result) => result.data)
+          : [];
+        return { ...current, lines };
+      },
     },
   ),
 );
 
-/** Total units in the cart — the number shown next to the Cart link. */
+/** Total postcards in the cart — the number shown next to the Cart link. */
 export function useCartCount(): number {
-  return useCart((state) => state.lines.reduce((sum, line) => sum + line.quantity, 0));
+  return useCart((state) => countPostcards(state.lines));
 }

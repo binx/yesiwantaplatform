@@ -18,7 +18,7 @@ export function UnsubscribeCartRecoveryPage() {
   const attempted = useRef(false);
 
   useEffect(() => {
-    document.title = "Unsubscribe · Beluga";
+    document.title = "Unsubscribe";
   }, []);
 
   useEffect(() => {

@@ -1,0 +1,35 @@
+<table style="width:100%;border-collapse:collapse;font-size:14px;margin:24px 0;">
+  <thead>
+    <tr style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#71717a;">
+      <th style="text-align:left;padding:0 0 8px;border-bottom:1px solid #e4e4e7;">Postcards</th>
+      <th style="text-align:left;padding:0 0 8px;border-bottom:1px solid #e4e4e7;">Going to</th>
+      <th style="text-align:left;padding:0 0 8px;border-bottom:1px solid #e4e4e7;">Mailed</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each order.lines}}
+    <tr>
+      <td style="padding:12px 0;border-bottom:1px solid #f4f4f5;vertical-align:top;">
+        {{this.designCount}} {{this.designLabel}}
+        <div style="color:#71717a;font-size:12px;">{{this.count}} card{{#unless (eq this.count 1)}}s{{/unless}}</div>
+      </td>
+      <td style="padding:12px 0;border-bottom:1px solid #f4f4f5;vertical-align:top;color:#52525b;">
+        {{#each this.recipients}}
+        <div>{{this.name}}</div>
+        <div style="color:#71717a;font-size:12px;margin-bottom:6px;">{{this.address}}</div>
+        {{/each}}
+        {{#if this.moreRecipients}}<div style="color:#71717a;font-size:12px;">and {{this.moreRecipients}} more</div>{{/if}}
+      </td>
+      <td style="padding:12px 0;border-bottom:1px solid #f4f4f5;vertical-align:top;color:#52525b;">
+        {{#if this.spansDates}}{{this.firstDate}} to {{this.lastDate}}{{else}}{{this.firstDate}}{{/if}}
+      </td>
+    </tr>
+    {{/each}}
+  </tbody>
+</table>
+
+<table style="width:100%;font-size:14px;">
+  <tr style="color:#52525b;"><td>{{order.postcardCount}} {{order.postcardLabel}} at {{order.unitPrice}}</td><td style="text-align:right;">{{order.subtotal}}</td></tr>
+  {{#if order.hasDiscount}}<tr style="color:#52525b;"><td>Discount</td><td style="text-align:right;">{{order.discount}}</td></tr>{{/if}}
+  <tr style="font-weight:600;"><td style="padding-top:8px;">Total</td><td style="text-align:right;padding-top:8px;">{{order.total}}</td></tr>
+</table>

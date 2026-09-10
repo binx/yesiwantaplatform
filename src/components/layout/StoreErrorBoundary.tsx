@@ -1,8 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Alert, Button, Typography } from "antd";
-import { StoreNotSetUpError, StorefrontLockedError } from "@/lib/store-source";
+import { StoreNotSetUpError } from "@/lib/store-source";
 import { PageWrapper } from "./PageWrapper";
-import { StorefrontGate } from "./StorefrontGate";
 
 interface Props {
   children: ReactNode;
@@ -35,25 +34,13 @@ export class StoreErrorBoundary extends Component<Props, State> {
     const { error } = this.state;
     if (!error) return this.props.children;
 
-    if (error instanceof StorefrontLockedError || error.name === "StorefrontLockedError") {
-      // Not a second implementation of the gate: the check that matters lives
-      // entirely on the server, and this only ever runs after the server has
-      // already refused the request once. Resetting local state is enough to
-      // let the boundary's children mount normally the moment it succeeds.
-      return (
-        <main id="main">
-          <StorefrontGate onUnlocked={() => this.setState({ error: null })} />
-        </main>
-      );
-    }
-
     if (error instanceof StoreNotSetUpError || error.name === "StoreNotSetUpError") {
       return (
         // `ThemedShell`'s own `<main>` never mounts on this path — the boundary
         // catches before it does — so this fallback needs its own landmark.
         <main id="main">
           <PageWrapper width="prose">
-            <h1>Welcome to Beluga</h1>
+            <h1>Welcome to Postcards</h1>
             <p>
               This store has not been set up yet. The wizard takes three steps and ends with you
               signed in to the admin.

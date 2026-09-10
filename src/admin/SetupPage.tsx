@@ -6,7 +6,6 @@ import {
   App as AntApp,
   Button,
   Card,
-  Checkbox,
   ConfigProvider,
   Form,
   Input,
@@ -61,15 +60,12 @@ interface WizardState {
   identity: IdentityValues | null;
   publishableKey: string;
   theme: Theme;
-  seedDemo: boolean;
-  lockStorefront: boolean | null;
-  storefrontPassword: string;
 }
 
 // Adding a Stripe key means editing `.env` and restarting the API, which is
 // reason enough to reload the tab. sessionStorage survives that reload, so
 // the admin account you already typed on step 1 doesn't vanish for it.
-const WIZARD_STORAGE_KEY = "beluga:setup-wizard";
+const WIZARD_STORAGE_KEY = "postcards:setup-wizard";
 
 function loadWizardState(): WizardState | null {
   try {
@@ -133,42 +129,16 @@ function SetupWizard() {
   const [identity, setIdentity] = useState<IdentityValues | null>(saved?.identity ?? null);
   const [publishableKey, setPublishableKey] = useState(saved?.publishableKey ?? "");
   const [theme, setTheme] = useState<Theme>(saved?.theme ?? defaultTheme);
-  const [seedDemo, setSeedDemo] = useState(saved?.seedDemo ?? true);
-  const [lockStorefrontChoice, setLockStorefrontChoice] = useState<boolean | null>(
-    saved?.lockStorefront ?? null,
-  );
-  const [storefrontPassword, setStorefrontPassword] = useState(saved?.storefrontPassword ?? "");
 
   // Reported by the server, never editable here — see the note on the last step.
   const publicUrl = status.data?.publicUrl ?? null;
 
-  /*
-   * Default the answer to "lock it" once the public URL is known and is not
-   * localhost — see docs/tasks/27-storefront-preview-mode.md §1. A fresh
-   * public address is port-scanned within minutes, and this is precisely the
-   * case where the store is reachable before it is finished. Only sets the
-   * default the first time; a choice already made (including by loading a
-   * saved wizard session) is never overwritten.
-   */
   useEffect(() => {
-    if (lockStorefrontChoice !== null || !publicUrl) return;
-    setLockStorefrontChoice(!isLocalOrigin(publicUrl));
-  }, [publicUrl, lockStorefrontChoice]);
+    saveWizardState({ step, identity, publishableKey, theme });
+  }, [step, identity, publishableKey, theme]);
 
   useEffect(() => {
-    saveWizardState({
-      step,
-      identity,
-      publishableKey,
-      theme,
-      seedDemo,
-      lockStorefront: lockStorefrontChoice,
-      storefrontPassword,
-    });
-  }, [step, identity, publishableKey, theme, seedDemo, lockStorefrontChoice, storefrontPassword]);
-
-  useEffect(() => {
-    document.title = "Set up your store · Beluga";
+    document.title = "Set up your store";
   }, []);
 
   const submit = useMutation({
@@ -229,8 +199,6 @@ function SetupWizard() {
     );
   }
 
-  const lockStorefront = Boolean(lockStorefrontChoice) && storefrontPassword.length >= 8;
-
   const finish = () => {
     if (!identity) return;
 
@@ -241,9 +209,6 @@ function SetupWizard() {
       password: identity.password,
       stripePublishableKey: publishableKey.trim() || null,
       theme,
-      seedDemo,
-      lockStorefront,
-      ...(lockStorefront ? { storefrontPassword } : {}),
       ...(identity.setupToken?.trim() ? { setupToken: identity.setupToken.trim() } : {}),
     });
   };
@@ -252,7 +217,7 @@ function SetupWizard() {
     <main className={cx(styles.page)}>
       <Card className={cx(styles.card)}>
         <Typography.Title level={1} className={cx(styles.title)}>
-          <span aria-hidden="true">🎷🐋</span> Set up your store
+          <span aria-hidden="true">✉️</span> Set up your store
         </Typography.Title>
         <p className={cx(styles.subtitle)}>Three steps. Nothing is saved until the last one.</p>
 
@@ -307,47 +272,6 @@ function SetupWizard() {
               savedFontUrl={null}
             />
 
-            <Checkbox
-              className={cx(styles.seed)}
-              checked={seedDemo}
-              onChange={(event) => setSeedDemo(event.target.checked)}
-            >
-              Load the demo catalogue, so the storefront has something to render
-            </Checkbox>
-
-            {/*
-             * See docs/tasks/27-storefront-preview-mode.md §1. The default is
-             * computed once the public URL is known, above — not repeated
-             * here, so this checkbox is never fighting a re-render of its own
-             * default.
-             */}
-            <Checkbox
-              className={cx(styles.seed)}
-              checked={lockStorefrontChoice ?? false}
-              onChange={(event) => setLockStorefrontChoice(event.target.checked)}
-            >
-              Put a password on the storefront until I am ready to open it
-            </Checkbox>
-
-            {lockStorefrontChoice ? (
-              <Form layout="vertical" requiredMark={false}>
-                <Form.Item
-                  label="Storefront password"
-                  help="At least 8 characters. Give it to anyone who should be able to preview the store before it opens."
-                  validateStatus={
-                    storefrontPassword.length > 0 && storefrontPassword.length < 8 ? "error" : ""
-                  }
-                >
-                  <Input.Password
-                    value={storefrontPassword}
-                    onChange={(event) => setStorefrontPassword(event.target.value)}
-                    autoComplete="new-password"
-                    size="large"
-                  />
-                </Form.Item>
-              </Form>
-            ) : null}
-
             {/*
               * Said, not fixed.
               *
@@ -379,12 +303,7 @@ function SetupWizard() {
               <Button onClick={() => setStep(1)} disabled={submit.isPending}>
                 Back
               </Button>
-              <Button
-                type="primary"
-                onClick={finish}
-                loading={submit.isPending}
-                disabled={Boolean(lockStorefrontChoice) && storefrontPassword.length < 8}
-              >
+              <Button type="primary" onClick={finish} loading={submit.isPending}>
                 Create my store
               </Button>
             </div>
@@ -435,7 +354,7 @@ function IdentityStep({
         label="Store name"
         rules={[{ required: true, message: "Your store needs a name." }]}
       >
-        <Input autoFocus={!requiresToken} placeholder="Blue Whale Goods" size="large" />
+        <Input autoFocus={!requiresToken} placeholder="Postcard Gifts" size="large" />
       </Form.Item>
 
       <Form.Item
@@ -528,8 +447,8 @@ function PaymentsStep({
   return (
     <div>
       <p className={cx(styles.stepIntro)}>
-        Beluga uses Stripe&apos;s hosted checkout, so card details never touch this server. You can
-        skip this and add it later — the catalogue works without it, it just cannot take money.
+        The shop uses Stripe&apos;s hosted checkout, so card details never touch this server. You can
+        skip this and add it later — the designer works without it, it just cannot take money.
       </p>
 
       {hasSecret && keyStatus === "invalid" ? (
@@ -611,33 +530,6 @@ function PaymentsStep({
           />
         </Form.Item>
       </Form>
-
-      {/*
-        * Tax is named here and settled elsewhere, on purpose.
-        *
-        * Nothing in this wizard can activate Stripe Tax or record a
-        * registration — both happen in the Stripe dashboard — so offering a
-        * switch would let someone finish setup believing they were covered.
-        * Saying it exists, and where it lives, is the honest version.
-        */}
-      <Alert
-        className={cx(styles.alert)}
-        type="info"
-        showIcon
-        title="This store will not collect tax yet"
-        description={
-          <p className={cx(styles.alertText)}>
-            Tax is calculated by{" "}
-            <a href="https://docs.stripe.com/tax" target="_blank" rel="noreferrer">
-              Stripe Tax
-            </a>
-            , which is a paid add-on you activate in the Stripe dashboard, along with a
-            registration for each place you are obliged to collect. Once that is done, turn it
-            on in Settings → Tax. Beluga calculates nothing itself and files nothing on your
-            behalf.
-          </p>
-        }
-      />
 
       <div className={cx(styles.actions)}>
         <Button onClick={onBack}>Back</Button>

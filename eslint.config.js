@@ -5,11 +5,7 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  // v1 code is kept for reference while Phases 3-5 land; it is not built.
-  // `.claude` holds the nested worktrees concurrent sessions run in; each one
-  // contains a full copy of the tree, `legacy/` included, and those copies are
-  // not this checkout's code to lint.
-  { ignores: [".claude", "dist", "legacy", "node_modules", "playwright-report", "test-results"] },
+  { ignores: [".claude", "dist", "dist-server", "node_modules", "playwright-report", "test-results"] },
   {
     files: ["**/*.{ts,tsx}"],
     extends: [js.configs.recommended, ...tseslint.configs.recommendedTypeChecked],

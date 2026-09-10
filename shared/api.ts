@@ -1,145 +1,28 @@
 import { z } from "zod";
-import { countryCodeSchema, shippingRateInputSchema, shippingZoneInputSchema } from "./shipping.js";
 import {
   centsSchema,
-  collectionSchema,
-  imageSchema,
-  inventorySchema,
   localeSchema,
-  optionGroupSchema,
-  productKindSchema,
-  productSchema,
   RESERVED_PAGE_SLUGS,
-  skuSchema,
   slugSchema,
   storeSchema,
-  storefrontAccessSchema,
-  taxBehaviorSchema,
-  taxCodeSchema,
   themeSchema,
   heroSchema,
   defaultHero,
 } from "./schema.js";
+import { orientationSchema, postcardBackSchema } from "./postcards.js";
 
 /**
  * Request and response contracts, validated on both sides of the wire.
  *
- * Everything the client sends is parsed here before it reaches the database.
  * Note what is absent: no request carries a price for something being bought.
- * Checkout line items are built server-side from stored prices in Phase 3.
+ * The postcard's price is read from settings by the checkout route.
  */
-
-export const variantInputSchema = z.object({
-  id: z.string().min(1).optional(),
-  /**
-   * Regenerated server-side from `optionValues` whenever the product has any
-   * options — see `regenerateLabel` in shared/product-options.ts. What is sent
-   * here only matters for a product with no options at all.
-   */
-  label: z.string().default(""),
-  priceCents: centsSchema,
-  sku: skuSchema.nullable().default(null),
-  /** The pre-markdown price, struck through beside `priceCents`. Never charged. */
-  compareAtPriceCents: centsSchema.nullable().default(null),
-  inventory: inventorySchema,
-  /** Grams. Only consulted by weight-banded shipping rates. */
-  weightGrams: z.number().int().min(0).max(1_000_000).default(0),
-  /** The selected value per axis, in the same order as `options` below. */
-  optionValues: z.array(z.string()).max(3).default([]),
-});
-
-export const productOptionInputSchema = z.object({
-  id: z.string().min(1).optional(),
-  name: z.string().min(1).max(50),
-  values: z.array(z.string().min(1).max(80)).min(1).max(50),
-});
-
-export const productInputSchema = z
-  .object({
-  slug: slugSchema,
-  name: z.string().min(1).max(200),
-  kind: productKindSchema.default("physical"),
-  description: z.string().max(5000).default(""),
-  bulletPoints: z.array(z.string().max(300)).max(20).default([]),
-  seoTitle: z.string().max(70).nullable().default(null),
-  seoDescription: z.string().max(160).nullable().default(null),
-  /** Null uses the store's default tax code. */
-  taxCode: taxCodeSchema.nullable().default(null),
-  variants: z.array(variantInputSchema).min(1).max(50),
-  /** Up to three priced axes — Size × Colour. `variantName` derives from this. */
-  options: z.array(productOptionInputSchema).max(3).default([]),
-  optionGroups: z.array(optionGroupSchema).max(10).default([]),
-  isLive: z.boolean().default(false),
-  })
-  /*
-   * A download has unlimited stock, so a digital variant may not carry a finite
-   * count.
-   *
-   * Refused here rather than tolerated downstream: `decrementInventoryForOrder`
-   * skips anything that is not `finite`, so a digital variant set finite *would*
-   * be decremented, run out, and start flagging paid orders as `oversold` — for
-   * a file that cannot run out. Rejecting the combination at the input boundary
-   * is the only place that stops it before it reaches an order.
-   */
-  .superRefine((product, ctx) => {
-    if (product.kind === "digital") {
-      product.variants.forEach((variant, index) => {
-        if (variant.inventory.type !== "finite") return;
-
-        ctx.addIssue({
-          code: "custom",
-          path: ["variants", index, "inventory", "type"],
-          message:
-            "A digital product has unlimited stock. Set this variant's inventory to unlimited, or make the product physical.",
-        });
-      });
-    }
-
-    /*
-     * A compare-at price that is not strictly greater than the real price is
-     * not a markdown, it is a mistake — refused here rather than clamped, so
-     * the merchant notices instead of silently getting no badge.
-     */
-    product.variants.forEach((variant, index) => {
-      if (variant.compareAtPriceCents === null) return;
-      if (variant.compareAtPriceCents > variant.priceCents) return;
-
-      ctx.addIssue({
-        code: "custom",
-        path: ["variants", index, "compareAtPriceCents"],
-        message: "The compare-at price must be higher than the price, or it is not a markdown.",
-      });
-    });
-  });
-
-export const collectionInputSchema = z.object({
-  slug: slugSchema,
-  name: z.string().min(1).max(200),
-  /**
-   * The tile image on /shop. Uploaded first, to
-   * `POST /admin/collections/:id/cover`, and then carried here — the same
-   * shape the theme's logo uses, so the image exists on disk before any row
-   * points at it.
-   */
-  cover: imageSchema.nullable().default(null),
-  /**
-   * The collection's own introduction, as Markdown source.
-   *
-   * Source rather than HTML, and rendered on the way out — see
-   * `server/markdown.ts`. 5,000 characters is an introduction; anything longer
-   * is a page, and pages already exist (task 08).
-   */
-  description: z.string().max(5000).nullable().default(null),
-  productIds: z.array(z.string()).max(500).default([]),
-});
 
 /**
  * A store page.
  *
  * The slug check is here rather than in the route so both sides of the wire
- * enforce it: the editor can say why before a save is attempted, and the API
- * still refuses if something else asks. The message names the route it would
- * collide with, because "invalid slug" tells a merchant nothing they can act on.
+ * enforce it; the message names the route it would collide with.
  */
 export const pageInputSchema = z.object({
   slug: slugSchema.superRefine((value, ctx) => {
@@ -166,11 +49,6 @@ export const pagePreviewInputSchema = z.object({
 export const settingsInputSchema = z.object({
   name: z.string().min(1).max(120),
   currency: z.string().length(3),
-  /**
-   * The store's language tag. Defaulted rather than required, so a client that
-   * predates the field — or a scripted PUT built from an older payload — saves
-   * the value every store already had instead of failing validation.
-   */
   locale: localeSchema.default("en-US"),
   /** Publishable key only; a secret key here is rejected outright. */
   stripePublishableKey: z
@@ -178,40 +56,14 @@ export const settingsInputSchema = z.object({
     .startsWith("pk_", "That looks like a secret key. Only the publishable key belongs here.")
     .nullable()
     .default(null),
-  aboutText: z.string().max(20000).nullable().default(null),
-  /**
-   * The landing page's opening block.
-   *
-   * The same shape the storefront receives, so Settings edits exactly what the
-   * page reads. `buttonHref` carries its own refusal — see `heroHrefSchema`.
-   */
+  /** The price of one postcard. Stripe's floor for a charge is 50 cents. */
+  postcardPriceCents: centsSchema.min(50, "Stripe cannot charge less than 50 cents."),
   hero: heroSchema.default(defaultHero),
-  /**
-   * Tax. Off unless the merchant has said otherwise — see the Settings copy,
-   * which is most of this feature: Stripe Tax is a paid add-on, the
-   * registrations are the merchant's to create, and Beluga files nothing.
-   */
-  taxEnabled: z.boolean().default(false),
-  taxBehavior: taxBehaviorSchema.default("exclusive"),
-  defaultTaxCode: taxCodeSchema.default("txcd_99999999"),
-  /**
-   * Abandoned cart reminders. Off by default, same reasoning as tax: this
-   * sends email under the merchant's own SMTP sending reputation, so it is
-   * theirs to turn on, not a default we pick for them.
-   */
   cartRecoveryEnabled: z.boolean().default(false),
   cartRecoveryDelayHours: z.number().int().min(1).max(168).default(4),
   theme: themeSchema,
 });
 
-/**
- * An administrator's email address.
- *
- * Exported on its own so the browser wizard and `npm run setup` refuse exactly
- * the same strings. The terminal path used to accept any text at all, which
- * turned a typo into an account nobody could sign into and nothing would ever
- * email.
- */
 export const adminEmailSchema = z.string().email().max(320);
 
 export const loginInputSchema = z.object({
@@ -220,12 +72,8 @@ export const loginInputSchema = z.object({
 });
 
 /**
- * First-run setup.
- *
- * A password minimum lands here rather than on `loginInputSchema`: existing
- * accounts must still be able to sign in with whatever they already have, but
- * nothing new should be created below this bar. v1's initial-config modal was
- * two fields with no minimum at all.
+ * First-run setup. A password minimum lands here rather than on
+ * `loginInputSchema`: existing accounts must still be able to sign in.
  */
 export const setupInputSchema = z.object({
   storeName: z.string().min(1).max(120),
@@ -238,62 +86,18 @@ export const setupInputSchema = z.object({
     .nullable()
     .default(null),
   theme: themeSchema,
-  /** Load the demo catalogue so the storefront has something to render. */
-  seedDemo: z.boolean().default(false),
-  /**
-   * Put a password on the storefront until the merchant is ready to open it —
-   * see docs/tasks/27-storefront-preview-mode.md. Off by default; the wizard
-   * defaults the *answer* to true when the public URL just given is not
-   * localhost, but that is a UI default, not a schema one.
-   */
-  lockStorefront: z.boolean().default(false),
-  /** Required when `lockStorefront` is true; ignored otherwise. */
-  storefrontPassword: z.string().max(400).optional(),
-  /**
-   * The token the server printed at boot, required whenever `GET /setup`
-   * reports `requiresToken`. See `activeSetupToken` in server/routes/setup.ts.
-   */
+  /** The token the server printed at boot, required whenever `GET /setup` reports `requiresToken`. */
   setupToken: z.string().max(200).optional(),
-})
-  .superRefine((input, ctx) => {
-    if (input.lockStorefront && (input.storefrontPassword ?? "").length < 8) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["storefrontPassword"],
-        message: "Use at least 8 characters.",
-      });
-    }
-  });
+});
 
-/**
- * What the setup wizard is allowed to know before anyone has authenticated.
- *
- * Detail is only returned while the store is unconfigured — which is
- * unavoidably public, since that is the state the wizard exists to resolve.
- * Once setup completes this collapses to `needsSetup: false` and nothing else.
- */
 export const setupStatusSchema = z.object({
   needsSetup: z.boolean(),
   hasAdmin: z.boolean().optional(),
   hasSettings: z.boolean().optional(),
-  /** Whether the *server* has a secret key. The key itself never leaves it. */
   hasStripeSecret: z.boolean().optional(),
   stripeMode: z.enum(["test", "live"]).nullable().optional(),
-  /**
-   * Whether the key actually works, checked once at boot against Stripe
-   * itself — see `probeStripeKey` in server/stripe.ts. `"unchecked"` covers
-   * both no key and a probe that has not resolved yet; only `"invalid"` means
-   * Stripe rejected it.
-   */
   stripeKeyStatus: z.enum(["valid", "invalid", "unchecked"]).optional(),
-  /** Whether `POST /setup` needs the token the server printed when it started. */
   requiresToken: z.boolean().optional(),
-  /**
-   * The origin the server will put in Stripe redirects, emailed links and the
-   * sitemap. The wizard cannot change it — it is an environment value, read
-   * before the API boots — but it can say what it is, so a deploy set up
-   * through the browser does not go public still pointing at localhost.
-   */
   publicUrl: z.string().optional(),
 });
 
@@ -301,94 +105,28 @@ export const setupStatusSchema = z.object({
 export const environmentStatusSchema = z.object({
   hasStripeSecret: z.boolean(),
   stripeMode: z.enum(["test", "live"]).nullable(),
-  /** See the matching field on `setupStatusSchema`. */
   stripeKeyStatus: z.enum(["valid", "invalid", "unchecked"]),
   hasWebhookSecret: z.boolean(),
   hasEmail: z.boolean(),
+  /** Whether a Lob API key is on the server, and which environment it is for. */
+  hasLob: z.boolean(),
+  lobMode: z.enum(["test", "live"]).nullable(),
   database: z.enum(["sqlite", "postgres"]),
   publicUrl: z.string(),
-  /**
-   * Whether the API is running in production. Reported rather than inferred
-   * from the browser's own origin: an admin viewing a production store over an
-   * SSH tunnel is on localhost and the server is not, and the warning that
-   * depends on this is about the server's configuration, not the viewer's.
-   */
   production: z.boolean(),
 });
 
-/**
- * Who may view the storefront right now, as the admin is allowed to see it.
- *
- * No secret ever appears here: not the password, not the share token. A
- * share link is returned once, by the route that mints it, and never again.
- */
-export const storefrontStatusSchema = z.object({
-  access: storefrontAccessSchema,
-  hasPassword: z.boolean(),
-  hasShareLink: z.boolean(),
-  /**
-   * Approximate: there is no dedicated column for this, so it is the store
-   * settings row's own `updatedAt` at the moment a share link exists. Good
-   * enough for "roughly when", which is all the admin UI uses it for.
-   */
-  shareLinkCreatedAt: z.number().nullable(),
-});
-
-/** `PUT /api/admin/storefront` — the access mode alone; the password has its
- * own routes below, so a form that omits it cannot blank a working password. */
-export const storefrontAccessInputSchema = z.object({
-  access: storefrontAccessSchema,
-});
-
-export const storefrontPasswordInputSchema = z.object({
-  password: z.string().min(8, "Use at least 8 characters.").max(400),
-});
-
-/** What a visitor posts to get past the gate — one or the other, never both required. */
-export const storefrontUnlockInputSchema = z
-  .object({
-    password: z.string().min(1).max(400).optional(),
-    token: z.string().min(1).max(200).optional(),
-  })
-  .refine((input) => Boolean(input.password) || Boolean(input.token), {
-    message: "A password or a link is required.",
-  });
-
-/**
- * What the "send a test email" button gets back.
- *
- * `message` carries the transport's own words on failure — "535 authentication
- * failed", "Sender address rejected" — because that string is the whole
- * diagnosis and paraphrasing it would lose it.
- */
+/** What the "send a test email" and "send a test postcard" buttons get back. */
 export const emailTestResultSchema = z.object({
   ok: z.boolean(),
   message: z.string(),
 });
 
-/**
- * The shipping table, saved as one document.
- *
- * Zones and rates travel together because they are edited together: a rate can
- * reference a zone created in the same save.
- */
-export const shippingTableInputSchema = z.object({
-  zones: z.array(shippingZoneInputSchema.extend({ id: z.string().optional() })).max(50),
-  rates: z.array(shippingRateInputSchema.extend({ id: z.string().optional() })).max(200),
-});
-
-/** What the cart page asks for: identifiers and a destination, never prices. */
-export const shippingQuoteInputSchema = z.object({
-  lines: z
-    .array(
-      z.object({
-        productId: z.string().min(1),
-        variantId: z.string().min(1),
-        quantity: z.number().int().min(1).max(999),
-      }),
-    )
-    .max(100),
-  countryCode: countryCodeSchema,
+export const lobTestResultSchema = z.object({
+  ok: z.boolean(),
+  message: z.string(),
+  /** Lob's own proof of the rendered card, when it accepted one. */
+  url: z.string().nullable().default(null),
 });
 
 export const imageInputSchema = z.object({
@@ -399,56 +137,13 @@ export const reorderInputSchema = z.object({
   ids: z.array(z.string().min(1)).max(1000),
 });
 
-export const imagePathInputSchema = z.object({
-  path: z.string().min(1).max(512),
-});
-
-/**
- * Alt text and variant assignment are both editable after upload: a11y should
- * not depend on getting it right in the moment a file is dropped, and an
- * image cannot be assigned to a variant that does not exist yet.
- *
- * Both fields are optional so either can be changed without resending the
- * other — absent means "leave alone", matching the `keep()` convention used
- * on catalogue CSV imports. `variantId: null` means "all variants."
- */
-export const imageAltInputSchema = z.object({
-  path: z.string().min(1).max(512),
-  alt: z.string().max(300).optional(),
-  variantId: z.string().min(1).nullable().optional(),
-});
-
-export const imageReorderInputSchema = z.object({
-  paths: z.array(z.string().min(1).max(512)).max(100),
-});
-
-/**
- * Paging is clamped rather than rejected, so an over-eager client gets a
- * sensible page instead of a 400 — and matches what `listProducts` enforces.
- */
-export const productQuerySchema = z.object({
-  collection: z.string().optional(),
-  search: z.string().max(120).optional(),
-  limit: z.coerce
-    .number()
-    .int()
-    .catch(50)
-    .transform((value) => Math.min(Math.max(value, 1), 200)),
-  offset: z.coerce
-    .number()
-    .int()
-    .catch(0)
-    .transform((value) => Math.max(value, 0)),
+/** What the designer posts alongside the front image. */
+export const designInputSchema = z.object({
+  orientation: orientationSchema,
+  back: postcardBackSchema,
 });
 
 export const storeResponseSchema = storeSchema;
-
-export const productPageResponseSchema = z.object({
-  products: z.array(productSchema),
-  total: z.number().int().min(0),
-  limit: z.number().int(),
-  offset: z.number().int(),
-});
 
 export const sessionResponseSchema = z.object({
   isAdmin: z.boolean(),
@@ -457,70 +152,11 @@ export const sessionResponseSchema = z.object({
   isConfigured: z.boolean(),
 });
 
-export const collectionsResponseSchema = z.array(collectionSchema);
-
-export type VariantInput = z.infer<typeof variantInputSchema>;
-export type ProductOptionInput = z.infer<typeof productOptionInputSchema>;
-export type ProductInput = z.infer<typeof productInputSchema>;
-export type CollectionInput = z.infer<typeof collectionInputSchema>;
-export type PageInput = z.infer<typeof pageInputSchema>;
-export type SettingsInput = z.infer<typeof settingsInputSchema>;
-export type LoginInput = z.infer<typeof loginInputSchema>;
-export type ShippingTableInput = z.infer<typeof shippingTableInputSchema>;
-export type ShippingQuoteInput = z.infer<typeof shippingQuoteInputSchema>;
-export type SetupInput = z.infer<typeof setupInputSchema>;
-export type SetupStatus = z.infer<typeof setupStatusSchema>;
-export type EnvironmentStatus = z.infer<typeof environmentStatusSchema>;
-export type StorefrontStatus = z.infer<typeof storefrontStatusSchema>;
-export type StorefrontAccessInput = z.infer<typeof storefrontAccessInputSchema>;
-export type StorefrontPasswordInput = z.infer<typeof storefrontPasswordInputSchema>;
-export type StorefrontUnlockInput = z.infer<typeof storefrontUnlockInputSchema>;
-export type EmailTestResult = z.infer<typeof emailTestResultSchema>;
-export type ProductQuery = z.infer<typeof productQuerySchema>;
-export type SessionResponse = z.infer<typeof sessionResponseSchema>;
-export type ProductPageResponse = z.infer<typeof productPageResponseSchema>;
-
-/**
- * Administrators, as the client is allowed to see them.
- *
- * There is no `passwordHash` here and there must never be one. v1 kept its hash
- * in a `config.env` that the server handed to the browser.
- */
-export const adminRoleSchema = z.enum(["owner", "staff"]);
-
-export interface AdminSummary {
-  id: string;
-  email: string;
-  role: z.infer<typeof adminRoleSchema>;
-  lastLoginAt: number | null;
-  createdAt: number;
-  /** True for the account making the request, which cannot remove itself. */
-  isSelf: boolean;
-}
-
-export const inviteInputSchema = z.object({
-  email: z.string().email("That does not look like an email address.").max(320),
-  role: adminRoleSchema.default("staff"),
-});
-
-export const acceptInviteInputSchema = z.object({
-  token: z.string().min(1),
-  password: z
-    .string()
-    .min(12, "Use at least 12 characters.")
-    .max(200),
-});
-
 export const passwordChangeInputSchema = z.object({
   current: z.string().min(1),
   next: z.string().min(12, "Use at least 12 characters.").max(200),
 });
 
-/**
- * Request a reset link. Mirrors `forgotPasswordInputSchema` in
- * shared/account.ts — the same shape, on the admin's own schemas rather than
- * the customer's, since the two are never imported together.
- */
 export const forgotPasswordInputSchema = z.object({
   email: adminEmailSchema,
 });
@@ -530,9 +166,16 @@ export const resetPasswordInputSchema = z.object({
   password: z.string().min(12, "Use at least 12 characters.").max(400),
 });
 
-export type AdminRole = z.infer<typeof adminRoleSchema>;
-export type InviteInput = z.infer<typeof inviteInputSchema>;
-export type AcceptInviteInput = z.infer<typeof acceptInviteInputSchema>;
+export type PageInput = z.infer<typeof pageInputSchema>;
+export type SettingsInput = z.infer<typeof settingsInputSchema>;
+export type LoginInput = z.infer<typeof loginInputSchema>;
+export type SetupInput = z.infer<typeof setupInputSchema>;
+export type SetupStatus = z.infer<typeof setupStatusSchema>;
+export type EnvironmentStatus = z.infer<typeof environmentStatusSchema>;
+export type EmailTestResult = z.infer<typeof emailTestResultSchema>;
+export type LobTestResult = z.infer<typeof lobTestResultSchema>;
+export type DesignInput = z.infer<typeof designInputSchema>;
+export type SessionResponse = z.infer<typeof sessionResponseSchema>;
 export type PasswordChangeInput = z.infer<typeof passwordChangeInputSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordInputSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordInputSchema>;

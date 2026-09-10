@@ -55,7 +55,7 @@ export function PagesPage() {
   const reorder = useReorderPages();
 
   useEffect(() => {
-    document.title = "Pages · Beluga";
+    document.title = "Pages · Admin";
   }, []);
 
   const all = pages.data ?? [];
@@ -416,7 +416,7 @@ export function PageEditorPage() {
             />
             <span>
               <strong>Link it in the menu</strong>
-              <em>Adds it to the storefront header, after the collections.</em>
+              <em>Adds it to the storefront header.</em>
             </span>
           </label>
         </div>

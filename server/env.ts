@@ -50,8 +50,8 @@ const schema = z.object({
    */
   SETUP_TOKEN: z.string().min(16, "SETUP_TOKEN must be at least 16 characters.").optional(),
 
-  /** file:./data/beluga.sqlite for SQLite, postgres://… for Postgres. */
-  DATABASE_URL: z.string().default("file:./data/beluga.sqlite"),
+  /** file:./data/postcards.sqlite for SQLite, postgres://… for Postgres. */
+  DATABASE_URL: z.string().default("file:./data/postcards.sqlite"),
 
   /** Signs session cookies. Required in production; generated in dev if absent. */
   SESSION_SECRET: z.string().min(32).optional(),
@@ -109,18 +109,32 @@ const schema = z.object({
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(20 * 1024 * 1024),
 
   /**
-   * Let outbound webhooks reach plain HTTP and private addresses.
+   * Lob, which prints and mails the postcards.
    *
-   * Off by default, and it should stay off on anything public: without it an
-   * endpoint URL is checked against the address its hostname *resolves to*, so
-   * a merchant cannot point Beluga at 169.254.169.254 and read the host's cloud
-   * metadata back out of the delivery log. The opt-out exists for a self-hoster
-   * whose fulfilment script genuinely listens on localhost.
+   * A `test_` key talks to Lob's sandbox, where nothing is printed and every
+   * address is accepted; a `live_` key costs money per card. Absent, the
+   * fulfilment sweep leaves every card `scheduled` and the admin says so —
+   * a store can take orders before its printer is wired up, exactly as it
+   * can before its email is.
    */
-  WEBHOOK_ALLOW_INSECURE_TARGETS: z
-    .enum(["true", "false"])
-    .default("false")
-    .transform((value) => value === "true"),
+  LOB_API_KEY: z
+    .string()
+    .regex(/^(test|live)_[A-Za-z0-9]+$/, "LOB_API_KEY should start with test_ or live_.")
+    .optional(),
+  /**
+   * A Lob HTML template (`tmpl_…`) for the back of the card. v1 kept its back
+   * design in Lob's template editor and sent the message as merge variables;
+   * set this to keep doing that. Unset, the back is rendered from
+   * `print/back.hbs` in this repo and sent as HTML, which needs nothing in
+   * the Lob dashboard at all.
+   */
+  LOB_BACK_TEMPLATE_ID: z.string().regex(/^tmpl_[A-Za-z0-9]+$/).optional(),
+  /**
+   * Lob requires every mailpiece to declare what kind of mail it is. A
+   * postcard someone writes to a friend is not marketing, so the default is
+   * operational; a store using Lob differently can say so here.
+   */
+  LOB_USE_TYPE: z.enum(["operational", "marketing"]).default("operational"),
 });
 
 export type Env = Omit<z.infer<typeof schema>, "SESSION_SECRET" | "TRUST_PROXY"> & {
@@ -257,3 +271,11 @@ export const isSqlite = env.DATABASE_URL.startsWith("file:");
 
 /** Stripe features stay disabled until a secret key is present. */
 export const hasStripe = Boolean(env.STRIPE_SECRET_KEY);
+
+/** Nothing goes to print until a Lob key is present. */
+export const hasLob = Boolean(env.LOB_API_KEY);
+export const lobMode: "test" | "live" | null = env.LOB_API_KEY
+  ? env.LOB_API_KEY.startsWith("live_")
+    ? "live"
+    : "test"
+  : null;

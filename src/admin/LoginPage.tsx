@@ -27,7 +27,7 @@ export function LoginPage() {
   const destination = from && from.startsWith("/admin") ? from : "/admin";
 
   useEffect(() => {
-    document.title = "Sign in · Beluga";
+    document.title = "Sign in · Admin";
   }, []);
 
   // Already signed in — bounce straight through rather than showing a form
@@ -41,9 +41,9 @@ export function LoginPage() {
     <main className={cx(styles.page)}>
       <Card className={cx(styles.card)}>
         <Typography.Title level={1} className={cx(styles.title)}>
-          <span aria-hidden="true">🎷🐋</span> Beluga
+          <span aria-hidden="true">✉️</span> Postcards
         </Typography.Title>
-        <p className={cx(styles.subtitle)}>Sign in to manage your store.</p>
+        <p className={cx(styles.subtitle)}>Sign in to manage the postcard shop.</p>
 
         {login.isError ? (
           <Alert

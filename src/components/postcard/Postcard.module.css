@@ -1,0 +1,383 @@
+/* ------------------------------------------------------------- the designer */
+
+.form {
+  display: grid;
+  gap: 2rem;
+}
+
+.frontRow,
+.backRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.backRow {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.frontPreview {
+  position: relative;
+  width: min(100%, 20rem);
+  background: var(--beluga-page);
+  border: 1px solid var(--beluga-ink);
+  box-shadow: 3px 3px 5px rgb(0 0 0 / 15%);
+  overflow: hidden;
+}
+
+.frontImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.frontEmpty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--beluga-muted);
+  font-size: 0.875rem;
+}
+
+/* The quarter-inch inside the trim, drawn as a translucent border. */
+.safeArea {
+  position: absolute;
+  inset: 0;
+  border: 4% solid rgb(255 255 255 / 55%);
+  pointer-events: none;
+}
+
+.frontControls,
+.backControls {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.fileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.fileLabel {
+  display: inline-block;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.error {
+  font-size: 0.75rem;
+  color: #b91c1c;
+}
+
+.inline {
+  display: flex;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.note {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--beluga-muted);
+}
+
+.empty {
+  margin: 0;
+  color: var(--beluga-muted);
+  font-style: italic;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* ------------------------------------------------------------ the back mock */
+
+.backCard {
+  position: relative;
+  flex-shrink: 0;
+  max-width: 100%;
+  background: #ffffff;
+  border: 1px solid #333;
+  box-shadow: 3px 3px 5px rgb(0 0 0 / 15%);
+  overflow: hidden;
+}
+
+.backText {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-right: 2px dotted #888;
+  line-height: 1.4;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.backMessage {
+  white-space: pre-wrap;
+}
+
+.backValediction {
+  text-align: right;
+  margin-top: 0.4em;
+}
+
+.backAddress {
+  position: absolute;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.backAddress span {
+  height: 1px;
+  background: #ccc;
+}
+
+.backStamp {
+  position: absolute;
+  width: 2.2rem;
+  height: 2.6rem;
+  border: 1px dashed #bbb;
+}
+
+/* -------------------------------------------------------------- the schedule */
+
+.scheduleControls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.dateInput {
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  border: 1px solid var(--beluga-line);
+  border-radius: var(--beluga-radius);
+  background: var(--beluga-surface);
+  color: var(--beluga-ink);
+}
+
+.cadence {
+  width: 7rem;
+}
+
+.designList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.designItem {
+  width: 8rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.designItem img,
+.designItem [role="img"] {
+  border: 1px solid var(--beluga-line);
+}
+
+.designMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8125rem;
+}
+
+/* ------------------------------------------------------------- recipients */
+
+.recipients {
+  display: grid;
+  grid-template-columns: minmax(0, 24rem) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.recipientForm {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--beluga-page);
+  border: 1px solid var(--beluga-line);
+}
+
+.recipientRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.2fr;
+  gap: 0.75rem;
+}
+
+.recipientActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.recipientList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.75rem;
+  max-height: 32rem;
+  overflow-y: auto;
+}
+
+.recipientItem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.badge {
+  flex: 0 0 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--beluga-primary);
+  color: var(--beluga-on-primary);
+  font-size: 0.875rem;
+}
+
+.recipientText {
+  flex: 1;
+  display: grid;
+  font-size: 0.9375rem;
+}
+
+.recipientText span {
+  color: var(--beluga-muted);
+  font-size: 0.8125rem;
+}
+
+.savedList {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.problemList {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+/* --------------------------------------------------------------- the total */
+
+.total {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  font-size: clamp(1.25rem, 1rem + 1.5vw, 2rem);
+}
+
+.count {
+  display: inline-block;
+  padding: 0.1em 0.5em;
+  background: var(--beluga-page);
+  border: 1px solid var(--beluga-line);
+  font-weight: 700;
+}
+
+.totalActions {
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+/* --------------------------------------------------------- the status table */
+
+.scheduleTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.scheduleTable th {
+  padding-bottom: 0.625rem;
+  border-bottom: 1px solid var(--beluga-line);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--beluga-muted);
+  text-align: left;
+}
+
+.scheduleTable td {
+  padding: 0.75rem 0.5rem 0.75rem 0;
+  border-bottom: 1px solid var(--beluga-line);
+  vertical-align: middle;
+  font-size: 0.9375rem;
+}
+
+.scheduleThumb {
+  width: 4rem;
+}
+
+.status {
+  white-space: nowrap;
+}
+
+.statusSent {
+  color: #15803d;
+}
+
+.statusError {
+  color: #b45309;
+}
+
+.statusCancelled {
+  color: var(--beluga-muted);
+}
+
+.tableScroll {
+  overflow-x: auto;
+}
+
+@media (max-width: 800px) {
+  .frontRow,
+  .backRow,
+  .recipients {
+    grid-template-columns: 1fr;
+  }
+
+  .backCard {
+    transform-origin: top left;
+  }
+}

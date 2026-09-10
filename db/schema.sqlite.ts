@@ -1,13 +1,18 @@
 import { sql } from "drizzle-orm";
-import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /**
  * SQLite schema. `db/schema.pg.ts` mirrors it for Postgres.
  *
- * Two rules run through the whole thing:
+ * Postcards v2 is a fork of Beluga v2 cut down to one product: a postcard,
+ * designed by the buyer, printed and mailed by Lob on a date they choose.
+ * There is no catalogue — the price lives on `store_settings` — and there is
+ * no shipping address on an order: every postcard row carries its own
+ * recipient, because that *is* what is being bought.
+ *
+ * Two rules run through the whole thing, inherited from Beluga:
  *   - Money is an INTEGER number of cents. Never a float, never a REAL column.
- *   - Inventory lives here, not in Stripe. Stripe Prices carry no stock, which
- *     is precisely what v1 leaned on the removed SKUs API for.
+ *   - Stripe is the authority on payment; everything about fulfilment is ours.
  */
 
 const timestamps = {
@@ -22,47 +27,33 @@ const timestamps = {
 /** Single row (id = 1). Store-wide settings. */
 export const storeSettings = sqliteTable("store_settings", {
   id: integer("id").primaryKey().default(1),
-  name: text("name").notNull().default("My Store"),
+  name: text("name").notNull().default("Postcard Gifts"),
   currency: text("currency").notNull().default("USD"),
-  /**
-   * BCP 47. Decides how money, dates and country names are written — see
-   * `formatMoney`. Defaults to the tag every store formatted as before the
-   * column existed, so a backfilled row renders exactly as it did.
-   */
+  /** BCP 47. Decides how money and dates are written — see `formatMoney`. */
   locale: text("locale").notNull().default("en-US"),
   /** Publishable key only — the secret key lives in the environment. */
   stripePublishableKey: text("stripe_publishable_key"),
   /**
-   * @deprecated Superseded by the `pages` table. Kept for one release so an
-   * install that rolls back still has its About copy; `db/migrate.ts` copies
-   * it into a page on first run of the migration that added them.
-   */
-  aboutText: text("about_text"),
-  /**
-   * Tax, via Stripe Tax.
+   * What one postcard costs, in cents. The whole "catalogue".
    *
-   * Off by default and deliberately not on a switch the merchant can flip
-   * without reading: Stripe Tax is a paid add-on, and the registrations that
-   * make it correct are theirs to create. Beluga calculates nothing itself.
+   * Read by checkout on every order rather than sent by the client — the same
+   * rule Beluga's variants held to, applied to the one price this store has.
+   * Charged through Stripe's inline `price_data`, so changing it here is
+   * enough: there is no Stripe Price to republish.
    */
-  taxEnabled: integer("tax_enabled", { mode: "boolean" }).notNull().default(false),
-  /** "exclusive" (added at checkout) | "inclusive" (already in the price). */
-  taxBehavior: text("tax_behavior").notNull().default("exclusive"),
-  /** Stripe tax code for products that do not set their own. */
-  defaultTaxCode: text("default_tax_code").notNull().default("txcd_99999999"),
+  postcardPriceCents: integer("postcard_price_cents").notNull().default(140),
   /**
-   * Abandoned cart reminders. Off by default — see the Settings copy: the
-   * merchant must opt in, and the email goes out under their own SMTP sending
-   * reputation, not Beluga's.
+   * Abandoned cart reminders. Off by default — the merchant must opt in, and
+   * the email goes out under their own SMTP sending reputation.
    */
   cartRecoveryEnabled: integer("cart_recovery_enabled", { mode: "boolean" })
     .notNull()
     .default(false),
   /** Hours of inactivity before the one reminder goes out. */
   cartRecoveryDelayHours: integer("cart_recovery_delay_hours").notNull().default(4),
-  themeColorPrimary: text("theme_color_primary").notNull().default("#18181b"),
-  themeColorAccent: text("theme_color_accent").notNull().default("#e07a5f"),
-  themeFontFamily: text("theme_font_family").notNull().default("system-ui, sans-serif"),
+  themeColorPrimary: text("theme_color_primary").notNull().default("#333333"),
+  themeColorAccent: text("theme_color_accent").notNull().default("#ffff37"),
+  themeFontFamily: text("theme_font_family").notNull().default("Quicksand, system-ui, sans-serif"),
   /**
    * Stylesheet defining the faces named in `theme_font_family`. Null means a
    * system font — and, because its origin is what widens the CSP, null also
@@ -77,14 +68,7 @@ export const storeSettings = sqliteTable("store_settings", {
   themeLogoWidth: integer("theme_logo_width"),
   themeLogoHeight: integer("theme_logo_height"),
   themeLogoAlt: text("theme_logo_alt"),
-  /*
-   * The landing page's opening block.
-   *
-   * Copy, not look, which is why these are not `theme_*`: a shop changing its
-   * palette is not changing its sentence. All nullable, and every reader has a
-   * fallback — a store that sets none of them renders exactly as it did before
-   * the columns existed. See `heroSchema` in shared/schema.ts.
-   */
+  /* The landing page's opening block. All nullable; every reader falls back. */
   heroHeading: text("hero_heading"),
   heroText: text("hero_text"),
   heroButtonLabel: text("hero_button_label"),
@@ -93,61 +77,18 @@ export const storeSettings = sqliteTable("store_settings", {
   heroImageWidth: integer("hero_image_width"),
   heroImageHeight: integer("hero_image_height"),
   heroImageAlt: text("hero_image_alt"),
-  /*
-   * Who may view the storefront while it is being built — see
-   * docs/tasks/27-storefront-preview-mode.md. Not a test/live switch: the
-   * Stripe secret key is already that (sk_test_ vs sk_live_). This is the one
-   * thing the key cannot express — who is allowed to look.
-   *
-   * The default is "public", and that is load-bearing: every store that
-   * already exists must come through this migration behaving exactly as open
-   * as it was before the column existed.
-   */
-  storefrontAccess: text("storefront_access").notNull().default("public"),
-  /** argon2id, via server/auth.ts. Null while no password has ever been set. */
-  storefrontPasswordHash: text("storefront_password_hash"),
-  /** The reviewer's credential — a share link's token, hashed like any other. */
-  storefrontShareToken: text("storefront_share_token"),
-  /**
-   * Bumped whenever the password is set, cleared, or the share token is
-   * rotated. A session's grant is only honoured while it matches this value,
-   * which is what makes revocation real against a 24-hour rolling cookie.
-   */
-  storefrontAccessVersion: integer("storefront_access_version").notNull().default(0),
   ...timestamps,
-}, (t) => [uniqueIndex("store_settings_share_token_idx").on(t.storefrontShareToken)]);
+});
 
 export const adminUsers = sqliteTable("admin_users", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
-  /** argon2id. v1 stored a bcrypt hash in config.env and rewrote that file. */
+  /** argon2id. */
   passwordHash: text("password_hash").notNull(),
-  /**
-   * "owner" | "staff". A label today: every admin can do everything, and the
-   * UI says so. The column exists now so gating it later is not a migration.
-   */
-  role: text("role").notNull().default("owner"),
   lastLoginAt: integer("last_login_at"),
-  /** Hash only, same reasoning as the customer and invite tokens. */
+  /** Hash only, same reasoning as the customer tokens. */
   passwordResetTokenHash: text("password_reset_token_hash"),
   passwordResetExpiresAt: integer("password_reset_expires_at"),
-  ...timestamps,
-});
-
-/**
- * Single-use invitations to become an administrator.
- *
- * Only a hash of the token is stored, exactly as a password would be: a leaked
- * database must not hand someone an admin account. The raw token exists only
- * in the emailed link.
- */
-export const adminInvites = sqliteTable("admin_invites", {
-  id: text("id").primaryKey(),
-  email: text("email").notNull(),
-  tokenHash: text("token_hash").notNull(),
-  role: text("role").notNull().default("staff"),
-  expiresAt: integer("expires_at").notNull(),
-  acceptedAt: integer("accepted_at"),
   ...timestamps,
 });
 
@@ -161,10 +102,9 @@ export const adminInvites = sqliteTable("admin_invites", {
 export const customers = sqliteTable("customers", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
-  /** argon2id, via the same path as admin_users. Never set until registration. */
+  /** argon2id, via the same path as admin_users. */
   passwordHash: text("password_hash"),
   name: text("name"),
-  stripeCustomerId: text("stripe_customer_id"),
   /**
    * Set once the emailed link is used. Orders are only ever linked to this
    * account after this is set — see `claimOrdersForCustomer` — so
@@ -174,23 +114,23 @@ export const customers = sqliteTable("customers", {
   /** Hash only; the raw token lives in the emailed link. Single-use. */
   emailVerifyTokenHash: text("email_verify_token_hash"),
   emailVerifyExpiresAt: integer("email_verify_expires_at"),
-  /** Hash only, same reasoning as the invite tokens in `admin_invites`. */
   passwordResetTokenHash: text("password_reset_token_hash"),
   passwordResetExpiresAt: integer("password_reset_expires_at"),
   lastLoginAt: integer("last_login_at"),
   /** Set once this customer clicks "unsubscribe" on a cart reminder. */
   cartRecoveryOptOutAt: integer("cart_recovery_opt_out_at"),
-  /**
-   * Hash only. Minted fresh on every reminder send rather than once at
-   * registration, so there is nothing to provision for customers who never
-   * get a reminder. An older email's unsubscribe link stops working once a
-   * newer one is sent — the same trade-off the password-reset token already
-   * makes, and low-stakes here since clicking it only ever opts out.
-   */
+  /** Hash only. Minted fresh on every reminder send. */
   cartRecoveryUnsubscribeTokenHash: text("cart_recovery_unsubscribe_token_hash"),
   ...timestamps,
 });
 
+/**
+ * A customer's saved recipients — the people they send postcards to.
+ *
+ * Beluga called this the address book and used it to prefill the *buyer's*
+ * shipping address. Here nothing ships to the buyer: every address is someone
+ * else's, and the point of saving one is to pick it again next time.
+ */
 export const customerAddresses = sqliteTable(
   "customer_addresses",
   {
@@ -198,14 +138,14 @@ export const customerAddresses = sqliteTable(
     customerId: text("customer_id")
       .notNull()
       .references(() => customers.id, { onDelete: "cascade" }),
-    name: text("name"),
+    name: text("name").notNull(),
     line1: text("line1").notNull(),
     line2: text("line2"),
-    city: text("city"),
-    state: text("state"),
-    postalCode: text("postal_code"),
-    country: text("country").notNull(),
-    isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
+    city: text("city").notNull(),
+    state: text("state").notNull(),
+    postalCode: text("postal_code").notNull(),
+    /** Always "US": Lob's postcard product is domestic. Kept so the row says so. */
+    country: text("country").notNull().default("US"),
     ...timestamps,
   },
   (t) => [index("customer_addresses_customer_idx").on(t.customerId)],
@@ -222,192 +162,11 @@ export const sessions = sqliteTable(
   (t) => [index("sessions_expires_at_idx").on(t.expiresAt)],
 );
 
-export const products = sqliteTable(
-  "products",
-  {
-    id: text("id").primaryKey(),
-    slug: text("slug").notNull(),
-    name: text("name").notNull(),
-    description: text("description").notNull().default(""),
-    /** JSON array of strings. */
-    bulletPoints: text("bullet_points").notNull().default("[]"),
-    /** Overrides the generated tag. Null falls back to the product name. */
-    seoTitle: text("seo_title"),
-    seoDescription: text("seo_description"),
-    /**
-     * "physical" | "digital". A digital product has no weight and never ships,
-     * so it is excluded from parcel weight and from shipping-address collection
-     * — see shared/shipping.ts and server/routes/checkout.ts.
-     */
-    kind: text("kind").notNull().default("physical"),
-    /**
-     * @deprecated Superseded by `product_options`. Kept in sync with the first
-     * option's name (or null) for one release, so a rollback still has a label.
-     */
-    variantName: text("variant_name"),
-    /** Stripe tax code. Null uses the store default. */
-    taxCode: text("tax_code"),
-    isLive: integer("is_live", { mode: "boolean" }).notNull().default(false),
-    stripeProductId: text("stripe_product_id"),
-    /**
-     * The tax configuration this product was last published to Stripe under,
-     * as `code|behavior`.
-     *
-     * Recorded because `tax_behavior` is immutable on a Stripe Price: changing
-     * it means new Prices, which only happens on an explicit publish. Without
-     * this there is no way to tell a product that carries the store's current
-     * tax settings from one published before they changed — and auto-publishing
-     * to find out would write to a live Stripe account unasked.
-     */
-    stripeTaxSignature: text("stripe_tax_signature"),
-    position: integer("position").notNull().default(0),
-    ...timestamps,
-  },
-  (t) => [uniqueIndex("products_slug_idx").on(t.slug), index("products_live_idx").on(t.isLive)],
-);
-
-export const variants = sqliteTable(
-  "variants",
-  {
-    id: text("id").primaryKey(),
-    productId: text("product_id")
-      .notNull()
-      .references(() => products.id, { onDelete: "cascade" }),
-    label: text("label").notNull().default(""),
-    priceCents: integer("price_cents").notNull(),
-    /** Shown to a warehouse or accounting import; never used to look up the row. */
-    sku: text("sku"),
-    /** The pre-markdown price, for a struck-through "was $42" display. Never charged. */
-    compareAtPriceCents: integer("compare_at_price_cents"),
-    /** "infinite" | "finite" */
-    inventoryType: text("inventory_type").notNull().default("infinite"),
-    inventoryQuantity: integer("inventory_quantity").notNull().default(0),
-    /** Shipping weight. Zero means the store has not recorded one. */
-    weightGrams: integer("weight_grams").notNull().default(0),
-    stripePriceId: text("stripe_price_id"),
-    position: integer("position").notNull().default(0),
-    ...timestamps,
-  },
-  (t) => [
-    index("variants_product_idx").on(t.productId),
-    uniqueIndex("variants_sku_idx")
-      .on(t.sku)
-      .where(sql`${t.sku} is not null`),
-  ],
-);
-
-/** A named axis: "Size". Up to 3 per product. */
-export const productOptions = sqliteTable(
-  "product_options",
-  {
-    id: text("id").primaryKey(),
-    productId: text("product_id")
-      .notNull()
-      .references(() => products.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    position: integer("position").notNull().default(0),
-  },
-  (t) => [index("product_options_product_idx").on(t.productId)],
-);
-
-/** A value on that axis: "Large". */
-export const productOptionValues = sqliteTable(
-  "product_option_values",
-  {
-    id: text("id").primaryKey(),
-    optionId: text("option_id")
-      .notNull()
-      .references(() => productOptions.id, { onDelete: "cascade" }),
-    value: text("value").notNull(),
-    position: integer("position").notNull().default(0),
-  },
-  (t) => [index("product_option_values_option_idx").on(t.optionId)],
-);
-
-/** Which value on each axis this variant is. */
-export const variantOptionValues = sqliteTable(
-  "variant_option_values",
-  {
-    variantId: text("variant_id")
-      .notNull()
-      .references(() => variants.id, { onDelete: "cascade" }),
-    optionValueId: text("option_value_id")
-      .notNull()
-      .references(() => productOptionValues.id, { onDelete: "cascade" }),
-  },
-  (t) => [primaryKey({ columns: [t.variantId, t.optionValueId] })],
-);
-
-export const productImages = sqliteTable(
-  "product_images",
-  {
-    id: text("id").primaryKey(),
-    productId: text("product_id")
-      .notNull()
-      .references(() => products.id, { onDelete: "cascade" }),
-    path: text("path").notNull(),
-    width: integer("width").notNull(),
-    height: integer("height").notNull(),
-    /** JSON array of the derivative widths generated for this image. */
-    widths: text("widths").notNull().default("[]"),
-    /** Required, so imagery is never unlabelled for screen readers. */
-    alt: text("alt").notNull().default(""),
-    /** Null belongs to the whole product; set, it's shown first for that variant. */
-    variantId: text("variant_id").references(() => variants.id, { onDelete: "set null" }),
-    position: integer("position").notNull().default(0),
-  },
-  (t) => [index("product_images_product_idx").on(t.productId)],
-);
-
-/** Non-priced choices, e.g. gift wrap. v1 conflated these with priced SKUs. */
-export const optionGroups = sqliteTable(
-  "option_groups",
-  {
-    id: text("id").primaryKey(),
-    productId: text("product_id")
-      .notNull()
-      .references(() => products.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    /** JSON array of strings. */
-    choices: text("choices").notNull().default("[]"),
-    position: integer("position").notNull().default(0),
-  },
-  (t) => [index("option_groups_product_idx").on(t.productId)],
-);
-
-export const collections = sqliteTable(
-  "collections",
-  {
-    id: text("id").primaryKey(),
-    slug: text("slug").notNull(),
-    name: text("name").notNull(),
-    coverPath: text("cover_path"),
-    coverWidth: integer("cover_width"),
-    coverHeight: integer("cover_height"),
-    coverAlt: text("cover_alt"),
-    /*
-     * The collection's own introduction, as Markdown.
-     *
-     * Stored as source and rendered on the way out through
-     * `server/markdown.ts`, the same as a page body — so tightening the
-     * allow-list applies retroactively, and the storefront ships no parser.
-     * Null for a collection that says nothing, which is every collection that
-     * existed before this column.
-     */
-    description: text("description"),
-    position: integer("position").notNull().default(0),
-    ...timestamps,
-  },
-  (t) => [uniqueIndex("collections_slug_idx").on(t.slug)],
-);
-
 /**
- * Editable prose pages — returns policy, shipping information, contact.
+ * Editable prose pages — about, FAQ, contact, privacy.
  *
- * Replaces the single `aboutText` column, which could hold exactly one page
- * and no title. Bodies are Markdown and are rendered to HTML at read time;
- * nothing here is ever stored as HTML, so a change to the sanitiser applies
- * retroactively to everything already written.
+ * Bodies are Markdown and are rendered to HTML at read time; nothing here is
+ * ever stored as HTML, so a change to the sanitiser applies retroactively.
  */
 export const pages = sqliteTable(
   "pages",
@@ -426,64 +185,45 @@ export const pages = sqliteTable(
   (t) => [uniqueIndex("pages_slug_idx").on(t.slug), index("pages_live_idx").on(t.isLive)],
 );
 
-export const collectionProducts = sqliteTable(
-  "collection_products",
+/**
+ * A postcard design: one front image and one back message.
+ *
+ * Created the moment a buyer saves a design, before there is any order — the
+ * image has to live somewhere while they add recipients and pick dates. The
+ * print file is written at Lob's exact size on upload, so nothing is
+ * re-rendered at send time and a bad image fails while the buyer is still
+ * looking at it.
+ *
+ * `orderId` is set by the payment webhook. A design that never reaches a paid
+ * order is swept away after a month — see server/fulfilment.ts — which is the
+ * only cleanup a public upload route needs to stay honest.
+ */
+export const postcardDesigns = sqliteTable(
+  "postcard_designs",
   {
-    collectionId: text("collection_id")
-      .notNull()
-      .references(() => collections.id, { onDelete: "cascade" }),
-    productId: text("product_id")
-      .notNull()
-      .references(() => products.id, { onDelete: "cascade" }),
-    position: integer("position").notNull().default(0),
+    id: text("id").primaryKey(),
+    /** Set when a signed-in customer designed it. Null for a guest. */
+    customerId: text("customer_id").references(() => customers.id, { onDelete: "set null" }),
+    /** Set once a paid order holds postcards of this design. */
+    orderId: text("order_id"),
+    /** "portrait" | "landscape" */
+    orientation: text("orientation").notNull(),
+    /** Relative to the assets root — the file Lob prints. Null once cleaned up. */
+    printPath: text("print_path"),
+    /** Relative to the assets root — what the storefront shows. */
+    thumbnailPath: text("thumbnail_path").notNull(),
+    thumbnailWidth: integer("thumbnail_width").notNull(),
+    thumbnailHeight: integer("thumbnail_height").notNull(),
+    /** JSON: PostcardBack — the message, valediction, font, size and colour. */
+    back: text("back").notNull().default("{}"),
+    ...timestamps,
   },
   (t) => [
-    primaryKey({ columns: [t.collectionId, t.productId] }),
-    index("collection_products_collection_idx").on(t.collectionId),
+    index("postcard_designs_customer_idx").on(t.customerId),
+    index("postcard_designs_order_idx").on(t.orderId),
+    index("postcard_designs_created_idx").on(t.createdAt),
   ],
 );
-
-/** Phase 3 populates these; the schema lands now so migrations settle early. */
-/**
- * A group of countries priced together.
- *
- * A zone with no countries is the catch-all, so a store can price "everywhere
- * else" without enumerating the world.
- */
-export const shippingZones = sqliteTable("shipping_zones", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  /** JSON array of ISO 3166-1 alpha-2 codes. */
-  countryCodes: text("country_codes").notNull().default("[]"),
-  position: integer("position").notNull().default(0),
-  ...timestamps,
-});
-
-/**
- * A shipping rate, optionally bounded by zone, weight and subtotal.
- *
- * Null bounds mean unbounded, and a null `zone_id` applies the rate
- * everywhere — which is what lets a flat-rate store work with no zones at all.
- */
-export const shippingRates = sqliteTable("shipping_rates", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  priceCents: integer("price_cents").notNull().default(0),
-  stripeShippingRateId: text("stripe_shipping_rate_id"),
-  zoneId: text("zone_id").references(() => shippingZones.id, { onDelete: "cascade" }),
-  minWeightGrams: integer("min_weight_grams"),
-  maxWeightGrams: integer("max_weight_grams"),
-  minSubtotalCents: integer("min_subtotal_cents"),
-  maxSubtotalCents: integer("max_subtotal_cents"),
-  /**
-   * Whether the rate's price already contains tax. Shipping is taxable in some
-   * jurisdictions and not others, so it is set per rate rather than inherited.
-   */
-  taxBehavior: text("tax_behavior").notNull().default("exclusive"),
-  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
-  position: integer("position").notNull().default(0),
-  ...timestamps,
-});
 
 export const orders = sqliteTable(
   "orders",
@@ -492,37 +232,21 @@ export const orders = sqliteTable(
     stripeCheckoutSessionId: text("stripe_checkout_session_id").notNull(),
     stripePaymentIntentId: text("stripe_payment_intent_id"),
     email: text("email").notNull(),
-    /**
-     * Nullable: guest checkout is the default and stays supported. Set at
-     * creation when the buyer was signed in, or linked afterwards by email —
-     * see `claimOrdersForCustomer`, which only ever runs against a verified
-     * customer.
-     */
+    /** Nullable: guest checkout is the default and stays supported. */
     customerId: text("customer_id").references(() => customers.id, { onDelete: "set null" }),
-    /** pending | paid | processing | shipped | cancelled | refunded */
+    /** pending | paid | completed | cancelled | refunded */
     status: text("status").notNull().default("pending"),
     currency: text("currency").notNull().default("USD"),
+    /** What one postcard cost when this order was placed — a snapshot. */
+    unitPriceCents: integer("unit_price_cents").notNull(),
+    /** How many postcards: every design × every recipient, summed over batches. */
+    postcardCount: integer("postcard_count").notNull(),
     subtotalCents: integer("subtotal_cents").notNull().default(0),
-    shippingCents: integer("shipping_cents").notNull().default(0),
-    taxCents: integer("tax_cents").notNull().default(0),
     /** Total discount applied at Stripe. Zero when no code was used. */
     discountCents: integer("discount_cents").notNull().default(0),
     totalCents: integer("total_cents").notNull().default(0),
-    shippingName: text("shipping_name"),
-    shippingLine1: text("shipping_line1"),
-    shippingLine2: text("shipping_line2"),
-    shippingCity: text("shipping_city"),
-    shippingState: text("shipping_state"),
-    shippingPostalCode: text("shipping_postal_code"),
-    shippingCountry: text("shipping_country"),
-    carrier: text("carrier"),
-    trackingNumber: text("tracking_number"),
-    /** Payment succeeded but stock had gone; flagged for the owner. */
-    oversold: integer("oversold", { mode: "boolean" }).notNull().default(false),
     /** Cumulative amount refunded. Less than totalCents means a partial refund. */
     refundedCents: integer("refunded_cents").notNull().default(0),
-    /** Set once stock has been returned, so a second refund event is a no-op. */
-    restockedAt: integer("restocked_at"),
     ...timestamps,
   },
   (t) => [
@@ -534,27 +258,58 @@ export const orders = sqliteTable(
   ],
 );
 
-export const orderItems = sqliteTable(
-  "order_items",
+/**
+ * One physical postcard: a design, a recipient, and a day to mail it.
+ *
+ * This is the unit Lob deals in and the unit the buyer follows, so it is the
+ * unit the database keeps. `batchIndex` remembers which cart line it came
+ * from, which is what lets an expired checkout rebuild the exact cart for a
+ * reminder email.
+ *
+ * `status`:
+ *   pending    the order has not been paid yet
+ *   scheduled  paid; waiting for `mailDate`
+ *   sending    claimed by the sweep — a second instance skips it
+ *   sent       accepted by Lob; `lobId` is theirs
+ *   error      Lob refused it; `lastError` says why, in Lob's own words
+ *   cancelled  the order was cancelled or refunded before it went out
+ */
+export const postcards = sqliteTable(
+  "postcards",
   {
     id: text("id").primaryKey(),
     orderId: text("order_id")
       .notNull()
       .references(() => orders.id, { onDelete: "cascade" }),
-    /** Nullable: the catalogue may change after the sale. */
-    productId: text("product_id"),
-    variantId: text("variant_id"),
-    /** Snapshots, so an order always renders as it was bought. */
-    productName: text("product_name").notNull(),
-    variantLabel: text("variant_label").notNull().default(""),
-    /** Null for any order placed before this column existed. */
-    sku: text("sku"),
-    unitPriceCents: integer("unit_price_cents").notNull(),
-    quantity: integer("quantity").notNull(),
-    /** JSON object of non-priced selections. */
-    options: text("options").notNull().default("{}"),
+    designId: text("design_id")
+      .notNull()
+      .references(() => postcardDesigns.id),
+    batchIndex: integer("batch_index").notNull().default(0),
+    recipientName: text("recipient_name").notNull(),
+    recipientLine1: text("recipient_line1").notNull(),
+    recipientLine2: text("recipient_line2"),
+    recipientCity: text("recipient_city").notNull(),
+    recipientState: text("recipient_state").notNull(),
+    recipientPostalCode: text("recipient_postal_code").notNull(),
+    /** ISO date, YYYY-MM-DD, in the store's day — the day it goes to Lob. */
+    mailDate: text("mail_date").notNull(),
+    status: text("status").notNull().default("pending"),
+    lobId: text("lob_id"),
+    /** Lob's rendered proof, when they return one. */
+    lobUrl: text("lob_url"),
+    /** Expected delivery, from Lob, as an ISO date. */
+    expectedDeliveryDate: text("expected_delivery_date"),
+    sentAt: integer("sent_at"),
+    /** How many times the sweep has tried. A transient failure retries; a refusal does not. */
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+    ...timestamps,
   },
-  (t) => [index("order_items_order_idx").on(t.orderId)],
+  (t) => [
+    index("postcards_order_idx").on(t.orderId),
+    index("postcards_design_idx").on(t.designId),
+    index("postcards_due_idx").on(t.status, t.mailDate),
+  ],
 );
 
 /**
@@ -571,18 +326,7 @@ export const webhookEvents = sqliteTable("webhook_events", {
 
 /**
  * A signed-in customer's cart, mirrored server-side so there is something to
- * remind them about — see docs/tasks/12-abandoned-cart.md.
- *
- * Only ever populated for a customer with an account: a guest's cart never
- * reaches the server before checkout, so there is no address to contact and
- * nothing worth storing. `customerId` is NOT NULL for that reason, unlike the
- * brief's own sketch of this table, which left room for an anonymous-with-email
- * case this codebase has no way to produce.
- *
- * At most one *active* (unrecovered) row per customer — see
- * `db/carts-repository.ts`'s `upsertActiveCart`. `reminderSentAt` doubles as
- * "when the recovery token was minted," so its 7-day expiry needs no column
- * of its own.
+ * remind them about. Only ever populated for a customer with an account.
  */
 export const carts = sqliteTable(
   "carts",
@@ -593,7 +337,7 @@ export const carts = sqliteTable(
       .references(() => customers.id, { onDelete: "cascade" }),
     /** Snapshot of the customer's email at last sync — never a live join. */
     email: text("email").notNull(),
-    /** JSON: CartLine[] — identifiers and quantities only, same rule as order items. */
+    /** JSON: CartLine[] — design ids, dates and recipients. */
     lines: text("lines").notNull().default("[]"),
     currency: text("currency").notNull(),
     /** Hash only; single-use. Cleared on redemption. */
@@ -605,81 +349,5 @@ export const carts = sqliteTable(
   (t) => [
     index("carts_customer_idx").on(t.customerId),
     index("carts_updated_idx").on(t.updatedAt),
-  ],
-);
-
-/**
- * Outbound webhook endpoints — see docs/tasks/14-outbound-webhooks.md.
- *
- * `secret` is stored in the clear, and that is deliberate rather than an
- * oversight. The brief sketched storing a hash, which works for the invite and
- * password-reset tokens elsewhere in this codebase because those are *verified*
- * — we compare a hash to a hash. An HMAC signing key has to be *used*: signing
- * with a hash of the secret would mean the merchant's Stripe-shaped
- * verification code, which HMACs the secret they were shown, never matches.
- * So it is a symmetric key held the same way `STRIPE_WEBHOOK_SECRET` is, and
- * what "shown once" buys is that no API response ever returns it again.
- */
-export const webhookEndpoints = sqliteTable(
-  "webhook_endpoints",
-  {
-    id: text("id").primaryKey(),
-    url: text("url").notNull(),
-    description: text("description").notNull().default(""),
-    /** Signing key. Never leaves the server after the response that mints it. */
-    secret: text("secret").notNull(),
-    /** JSON: WebhookEventType[]. */
-    eventTypes: text("event_types").notNull().default("[]"),
-    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
-    /** Counts *exhausted deliveries*, not attempts. Any success resets it to zero. */
-    consecutiveFailures: integer("consecutive_failures").notNull().default(0),
-    /** Set when the run of failures crossed the cap and we stopped retrying. */
-    disabledAt: integer("disabled_at"),
-    lastSuccessAt: integer("last_success_at"),
-    lastErrorAt: integer("last_error_at"),
-    lastError: text("last_error"),
-    ...timestamps,
-  },
-  (t) => [index("webhook_endpoints_enabled_idx").on(t.enabled)],
-);
-
-/**
- * One row per (event, endpoint) pair — the queue that makes delivery
- * out-of-band.
- *
- * Nothing is ever sent from a request handler: `emitWebhookEvent` inserts here
- * and returns, and the dispatcher in server/webhooks.ts picks it up. That is
- * what stops a slow merchant endpoint from delaying our response to Stripe,
- * which would trigger Stripe's own retry and re-enter the handler.
- *
- * State is read off the two timestamps: both null means still owed,
- * `deliveredAt` means done, `failedAt` means retries exhausted.
- */
-export const webhookDeliveries = sqliteTable(
-  "webhook_deliveries",
-  {
-    id: text("id").primaryKey(),
-    endpointId: text("endpoint_id")
-      .notNull()
-      .references(() => webhookEndpoints.id, { onDelete: "cascade" }),
-    /** Sent in a header so a consumer can dedup exactly as we dedup Stripe's. */
-    eventId: text("event_id").notNull(),
-    eventType: text("event_type").notNull(),
-    /** JSON: the exact bytes that get signed. Snapshotted, never re-derived. */
-    payload: text("payload").notNull(),
-    attempts: integer("attempts").notNull().default(0),
-    /** Doubles as the lease: claiming pushes it out so a second instance skips. */
-    nextAttemptAt: integer("next_attempt_at")
-      .notNull()
-      .default(sql`(unixepoch())`),
-    responseStatus: integer("response_status"),
-    error: text("error"),
-    deliveredAt: integer("delivered_at"),
-    failedAt: integer("failed_at"),
-    ...timestamps,
-  },
-  (t) => [
-    index("webhook_deliveries_endpoint_idx").on(t.endpointId),
-    index("webhook_deliveries_due_idx").on(t.nextAttemptAt),
   ],
 );

@@ -1,5 +1,8 @@
 <h1 style="margin:0 0 12px;font-size:24px;font-weight:600;">Thanks for your order</h1>
 <p style="margin:0 0 8px;color:#52525b;line-height:1.6;">
-  We've received your order and will let you know as soon as it ships.
+  Your postcards are scheduled. Each one goes to print on its day, and we'll email you when it does.
 </p>
-{{> items}}
+<p style="margin:0 0 8px;">
+  <a href="{{order.trackingUrl}}" style="color:#18181b;">Follow your postcards here</a>
+</p>
+{{> postcards}}

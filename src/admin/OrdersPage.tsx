@@ -27,7 +27,7 @@ export function OrdersPage() {
   const orders = useOrders(status, offset);
 
   useEffect(() => {
-    document.title = "Orders · Beluga";
+    document.title = "Orders · Admin";
   }, []);
 
   const total = orders.data?.total ?? 0;
@@ -40,7 +40,7 @@ export function OrdersPage() {
     <>
       <PageHeader
         title="Orders"
-        description="An order is recorded when Stripe's webhook confirms payment, never on the success redirect."
+        description="An order is recorded when Stripe's webhook confirms payment. Each postcard on it goes to Lob on its own day."
         actions={
           /*
            * A plain link, not a fetch: the route is a cookie-authenticated GET,
@@ -97,13 +97,7 @@ export function OrdersPage() {
                 dataIndex: "status",
                 render: (_value, order) => <OrderStatusTag order={order} locale={locale} />,
               },
-              {
-                title: "Items",
-                dataIndex: "items",
-                align: "right",
-                render: (items: Order["items"]) =>
-                  items.reduce((count, item) => count + item.quantity, 0),
-              },
+              { title: "Postcards", dataIndex: "postcardCount", align: "right" },
               {
                 title: "Total",
                 dataIndex: "totalCents",

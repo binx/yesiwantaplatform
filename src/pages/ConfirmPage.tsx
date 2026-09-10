@@ -2,46 +2,35 @@ import { useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Result, Skeleton } from "antd";
+import { orderSchema, type Order } from "@shared/orders";
 import { formatMoney } from "@shared/money";
-import { taxLineLabel } from "@shared/tax";
 import { PageWrapper } from "@/components/layout/PageWrapper";
+import { PostcardSchedule } from "@/components/postcard/PostcardSchedule";
 import { apiGet } from "@/lib/api";
 import { cx } from "@/lib/cx";
 import { useCart } from "@/store/cart";
 import { useStore } from "@/lib/useStore";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import styles from "./ConfirmPage.module.css";
 
-interface ConfirmedOrder {
-  reference: string;
-  email: string;
-  status: string;
-  currency: string;
-  subtotalCents: number;
-  shippingCents: number;
-  taxCents: number;
-  discountCents: number;
-  totalCents: number;
-  items: {
-    productName: string;
-    variantLabel: string;
-    quantity: number;
-    unitPriceCents: number;
-    options: Record<string, string>;
-  }[];
-}
-
+/**
+ * The page Stripe returns the buyer to — and the page every email links to.
+ *
+ * Polls until the webhook has marked the order paid rather than assuming
+ * payment succeeded because the buyer landed here. Keyed by the session id,
+ * which is unguessable, so a guest can come back to it from the email weeks
+ * later and see which cards have gone out.
+ */
 export function ConfirmPage() {
   const [params] = useSearchParams();
   const sessionId = params.get("session_id");
   const clear = useCart((s) => s.clear);
   const store = useStore();
-  // The shop's language, not the buyer's browser: a receipt should read the
-  // way the store that issued it reads.
-  const { locale } = store;
+  useDocumentTitle("Your order");
 
   const { data, error, isPending } = useQuery({
     queryKey: ["order", sessionId],
-    queryFn: ({ signal }) => apiGet<ConfirmedOrder>(`/checkout/${sessionId ?? ""}`, signal),
+    queryFn: async ({ signal }) => orderSchema.parse(await apiGet<Order>(`/checkout/${sessionId ?? ""}`, signal)),
     enabled: Boolean(sessionId),
     // The webhook may land a moment after the redirect; poll briefly rather
     // than telling the buyer their paid order is "pending".
@@ -52,7 +41,7 @@ export function ConfirmPage() {
   // Emptying the cart is driven by arriving here with a real order, not by the
   // click that started checkout — an abandoned payment keeps its cart.
   useEffect(() => {
-    if (data) clear();
+    if (data && data.status !== "pending") clear();
   }, [data, clear]);
 
   if (!sessionId) {
@@ -63,8 +52,8 @@ export function ConfirmPage() {
           title={<h1>No order to show</h1>}
           subTitle="This page is shown after a completed checkout."
           extra={
-            <Link to="/shop">
-              <Button type="primary">Back to the shop</Button>
+            <Link to="/create">
+              <Button type="primary">Make a postcard</Button>
             </Link>
           }
         />
@@ -93,16 +82,19 @@ export function ConfirmPage() {
     );
   }
 
+  const price = (cents: number) => formatMoney(cents, data.currency, store.locale);
+
   return (
-    <PageWrapper width="prose">
-      <h1>Thank you for your order</h1>
+    <PageWrapper>
+      <h1>{data.status === "pending" ? "Confirming your payment" : "Thank you for your order!"}</h1>
 
       <p className={styles.lede}>
         Order <strong>{data.reference}</strong>
         {data.email ? (
           <>
             {" "}
-            — a confirmation is on its way to <strong>{data.email}</strong>.
+            — a confirmation is on its way to <strong>{data.email}</strong>. You'll get another email
+            each time a postcard goes to print.
           </>
         ) : (
           "."
@@ -119,59 +111,38 @@ export function ConfirmPage() {
         />
       )}
 
+      {data.status === "cancelled" && (
+        <Alert type="warning" showIcon className={cx(styles.pending)} title="This order was cancelled." />
+      )}
+
+      <p className={styles.note}>Bookmark this page to follow your postcards' progress.</p>
+
+      <PostcardSchedule order={data} locale={store.locale} />
+
       <table className={styles.table}>
-        <tbody>
-          {data.items.map((item, i) => (
-            <tr key={i}>
-              <td>
-                {item.productName}
-                {item.variantLabel && <span className={styles.meta}> · {item.variantLabel}</span>}
-                <span className={styles.meta}> × {item.quantity}</span>
-              </td>
-              <td className={styles.amount}>
-                {formatMoney(item.unitPriceCents * item.quantity, data.currency, locale)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
         <tfoot>
           <tr>
-            <td>Subtotal</td>
-            <td className={styles.amount}>{formatMoney(data.subtotalCents, data.currency, locale)}</td>
+            <td>
+              {data.postcardCount} postcard{data.postcardCount === 1 ? "" : "s"} × {price(data.unitPriceCents)}
+            </td>
+            <td className={styles.amount}>{price(data.subtotalCents)}</td>
           </tr>
           {data.discountCents > 0 && (
             <tr>
               <td>Discount</td>
-              <td className={styles.amount}>
-                {"\u2212"}
-                {formatMoney(data.discountCents, data.currency, locale)}
-              </td>
-            </tr>
-          )}
-          <tr>
-            <td>Shipping</td>
-            <td className={styles.amount}>
-              {data.shippingCents === 0 ? "Free" : formatMoney(data.shippingCents, data.currency, locale)}
-            </td>
-          </tr>
-          {data.taxCents > 0 && (
-            <tr>
-              {/* "Includes tax" when the price already contained it — an
-                  additive-looking row would read as a second charge. */}
-              <td>{taxLineLabel(store.taxBehavior)}</td>
-              <td className={styles.amount}>{formatMoney(data.taxCents, data.currency, locale)}</td>
+              <td className={styles.amount}>−{price(data.discountCents)}</td>
             </tr>
           )}
           <tr className={styles.total}>
             <td>Total</td>
-            <td className={styles.amount}>{formatMoney(data.totalCents, data.currency, locale)}</td>
+            <td className={styles.amount}>{price(data.totalCents)}</td>
           </tr>
         </tfoot>
       </table>
 
       <p>
-        <Link to="/shop">
-          <Button>Continue shopping</Button>
+        <Link to="/create">
+          <Button>Make more postcards</Button>
         </Link>
       </p>
     </PageWrapper>

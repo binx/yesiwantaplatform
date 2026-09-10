@@ -73,3 +73,31 @@
     max-width: 260px;
   }
 }
+
+.previewCard {
+  padding: 1rem;
+  background: var(--beluga-surface);
+  border: 1px solid var(--beluga-line);
+  border-radius: var(--beluga-radius);
+}
+
+.previewHeading {
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+  color: var(--beluga-ink);
+}
+
+.previewText {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--beluga-muted);
+}
+
+.previewAccent {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  background: var(--beluga-accent);
+  color: var(--beluga-on-accent);
+  font-size: 0.75rem;
+  border-radius: var(--beluga-radius);
+}

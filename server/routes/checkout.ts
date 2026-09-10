@@ -1,32 +1,32 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
-import type Stripe from "stripe";
 import { checkoutRequestSchema } from "../../shared/orders.js";
-import { getSettings, findProductsByIds } from "../../db/repository.js";
-import {
-  createPendingOrder,
-  findOrderByCheckoutSession,
-  type PendingOrderLine,
-} from "../../db/orders-repository.js";
-import { getShippingTable } from "../../db/shipping-repository.js";
-import { countriesCovered } from "../../shared/shipping.js";
-import { quoteShipping, type QuotedRate } from "./shipping.js";
+import { countPostcards } from "../../shared/cart.js";
+import { todayIso } from "../../shared/postcards.js";
+import { getSettings } from "../../db/repository.js";
+import { findDesignsByIds } from "../../db/designs-repository.js";
+import { createPendingOrder, findOrderByCheckoutSession } from "../../db/orders-repository.js";
 import { env } from "../env.js";
 import { httpError, writeRateLimit } from "../middleware.js";
 import { getStripe } from "../stripe.js";
 import { findCustomerById } from "../auth.js";
+import { toCustomerOrder } from "./account.js";
 
 /**
  * Checkout.
  *
- * The client sends product and variant identifiers with quantities — never a
- * price. Every amount charged is read from the database and turned into Stripe
- * line items here, so a tampered cart cannot change what anything costs.
+ * The client sends design ids, mail dates and recipients — never a price.
+ * The price of a postcard is read from settings here and multiplied by the
+ * number of cards, so a tampered cart cannot change what anything costs.
  *
- * v1 posted `type: "sku"` line items to the removed Orders API and let the
- * browser choose the shipping SKU.
+ * Stripe is given an inline `price_data` rather than a catalogue Price: there
+ * is exactly one thing for sale and its price is a setting, so there is
+ * nothing to publish and nothing to keep in step.
  */
 export const checkoutRouter: Router = Router();
+
+/** How far out a card may be scheduled. Lob keeps nothing this long; we do. */
+const MAX_DAYS_AHEAD = 365;
 
 checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
   const stripe = getStripe();
@@ -35,195 +35,76 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
   }
 
   const parsed = checkoutRequestSchema.safeParse(req.body);
-  if (!parsed.success) throw httpError(400, "That cart could not be read.");
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    throw httpError(400, first ? `That cart could not be read: ${first.path.join(".")} ${first.message}` : "That cart could not be read.");
+  }
 
   const settings = await getSettings();
   if (!settings) throw httpError(503, "This store has not been set up yet.");
 
+  const lines = parsed.data.lines;
   const currency = settings.currency.toLowerCase();
 
-  // Only used when the cart did not name a destination; a store with no zones
-  // configured keeps the previous behaviour of a small default list.
-  const { zones } = await getShippingTable();
-  const covered = countriesCovered(zones);
-  const allowedCountries = covered.length > 0 ? covered : ["US", "CA", "GB", "AU", "NZ", "IE"];
+  // Every design has to exist, unordered, right now. A design that was
+  // cleaned up — or already bought — is a stale cart, not an order.
+  const designIds = [...new Set(lines.flatMap((line) => line.designs.map((d) => d.designId)))];
+  const designs = await findDesignsByIds(designIds);
+  const known = new Map(designs.map((d) => [d.id, d]));
 
-  // Load every referenced product once, by id, from the live catalogue.
-  const ids = [...new Set(parsed.data.lines.map((line) => line.productId))];
-  const products = await findProductsByIds(ids, true);
-  const byId = new Map(products.map((p) => [p.id, p]));
-
-  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
-  const orderLines: PendingOrderLine[] = [];
-  let subtotalCents = 0;
-  /*
-   * Whether anything in this cart actually has to be posted.
-   *
-   * Tracked over the same loop that reads prices, from the catalogue rather
-   * than the request, for the same reason: the buyer must not be able to
-   * declare their order digital and skip address collection.
-   */
-  let hasPhysicalLine = false;
-
-  for (const line of parsed.data.lines) {
-    const product = byId.get(line.productId);
-    if (!product) throw httpError(409, "An item in your cart is no longer available.");
-
-    const variant = product.variants.find((v) => v.id === line.variantId);
-    if (!variant) throw httpError(409, `"${product.name}" no longer has that option.`);
-
-    // Stock is checked here and again, authoritatively, when the webhook
-    // confirms payment.
-    if (variant.inventory.type === "finite" && variant.inventory.quantity < line.quantity) {
-      throw httpError(
-        409,
-        variant.inventory.quantity === 0
-          ? `"${product.name}" has sold out.`
-          : `Only ${variant.inventory.quantity} of "${product.name}" left.`,
-      );
-    }
-
-    if (!variant.stripePriceId) {
-      // Two audiences, two sentences. The shopper cannot act on this and has
-      // no relationship with Stripe, so they get the plain fact; the merchant
-      // can act on it, and gets the reason — in the log here, and on the
-      // product row and the dashboard, which is where merchants look.
-      console.error(
-        `[checkout] "${product.name}" is live but not published to Stripe, so it cannot be sold.`,
-      );
-      throw httpError(409, `${product.name} is unavailable right now.`);
-    }
-
-    if (product.kind === "physical") hasPhysicalLine = true;
-
-    lineItems.push({ price: variant.stripePriceId, quantity: line.quantity });
-
-    orderLines.push({
-      productId: product.id,
-      variantId: variant.id,
-      productName: product.name,
-      variantLabel: variant.label,
-      sku: variant.sku,
-      // From the database, not the request. compareAtPriceCents never enters
-      // this line, or subtotalCents below — it is display-only, and it is
-      // never what a shopper is actually charged.
-      unitPriceCents: variant.priceCents,
-      quantity: line.quantity,
-      options: line.options,
-    });
-
-    subtotalCents += variant.priceCents * line.quantity;
+  for (const id of designIds) {
+    const design = known.get(id);
+    if (!design) throw httpError(409, "A design in your cart is no longer available. Remove it and try again.");
+    if (design.orderId) throw httpError(409, "A design in your cart has already been ordered.");
+    if (!design.printPath) throw httpError(409, "A design in your cart can no longer be printed. Remove it and try again.");
   }
 
-  /*
-   * Shipping.
-   *
-   * Resolved here, from the same `quoteShipping` the cart page called, so the
-   * price shown before checkout is the price offered at Stripe. Offered inline
-   * rather than as pre-created Stripe objects, so there is nothing to keep in
-   * sync.
-   *
-   * v1 let the browser pick a shipping SKU, and invented a `{name:"FREE",
-   * price:0}` one when it had none.
-   */
-  const destination = parsed.data.shipToCountry?.toUpperCase() ?? null;
+  // Dates: not in the past, not absurdly far out. Today is fine — the sweep
+  // runs every fifteen minutes and picks it up after payment.
+  const today = todayIso();
+  const horizon = new Date(Date.now() + MAX_DAYS_AHEAD * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  for (const line of lines) {
+    for (const design of line.designs) {
+      if (design.mailDate < today) throw httpError(400, "A postcard is scheduled for a day that has passed. Pick a new date.");
+      if (design.mailDate > horizon) throw httpError(400, "Postcards can be scheduled up to a year ahead.");
+    }
+  }
 
-  const quote =
-    hasPhysicalLine && destination
-      ? await quoteShipping(parsed.data.lines, destination)
-      : { rates: [] as QuotedRate[] };
-
-  // The buyer's choice goes first: Stripe preselects the first option, so this
-  // is what makes the cart's selection survive the redirect.
-  const ordered = [...quote.rates].sort((a, b) => {
-    if (a.id === parsed.data.shippingRateId) return -1;
-    if (b.id === parsed.data.shippingRateId) return 1;
-    return 0;
-  });
-
-  const shippingOptions: Stripe.Checkout.SessionCreateParams.ShippingOption[] = ordered.map(
-    (rate) => ({
-      shipping_rate_data: {
-        type: "fixed_amount",
-        fixed_amount: { amount: rate.priceCents, currency },
-        display_name: rate.name,
-        // Only when tax is on. Declaring a behaviour on a store that collects
-        // no tax says something about a number nobody is calculating.
-        ...(settings.taxEnabled ? { tax_behavior: rate.taxBehavior } : {}),
-      },
-    }),
-  );
+  const quantity = countPostcards(lines);
+  const unitPriceCents = settings.postcardPriceCents;
 
   // Minted up front so it can travel in the session's metadata; the webhook
   // uses it to find this order without having to reconstruct the cart.
   const orderId = randomUUID();
 
-  /*
-   * A signed-in buyer's order is linked at creation, not guessed at from the
-   * email Stripe hands back later — see the webhook's `handleCheckoutCompleted`
-   * for the guest path, which only ever links by matching a *verified*
-   * customer's address.
-   */
   const customer = req.session.customerId ? await findCustomerById(req.session.customerId) : null;
 
   const session = await stripe.checkout.sessions.create(
     {
       mode: "payment",
-      line_items: lineItems,
-      currency,
-      // Saves a signed-in buyer retyping what we already know.
-      ...(customer ? { customer_email: customer.email } : {}),
-      /*
-       * Stripe hosts the whole redemption flow — the code field, validation,
-       * expiry, usage caps — so codes are created in the Stripe dashboard and
-       * Beluga only records what came off. Note that Stripe rejects this
-       * alongside `discounts`; never set both.
-       */
-      allow_promotion_codes: true,
-      /*
-       * Tax, calculated by Stripe Tax, and only when the merchant has turned
-       * it on — see the Settings copy for why that is a deliberate gate rather
-       * than a default. `customer_update` is not optional here: with
-       * `automatic_tax` on, a session that creates a customer is rejected
-       * without it, and the rejection lands at session creation rather than at
-       * payment. Loud and in test, which is the right place for it.
-       */
-      ...(settings.taxEnabled
-        ? {
-            automatic_tax: { enabled: true },
-            customer_update: { shipping: "auto" as const },
-          }
-        : {}),
-      /*
-       * Locked to the country the rates were priced for.
-       *
-       * Letting the buyer change country at Stripe would let them keep a
-       * domestic rate on an international address — the shipping equivalent of
-       * trusting a price from the client. With no destination chosen we fall
-       * back to the store's own list.
-       */
-      /*
-       * A cart of downloads only gets no address collection and no shipping
-       * options at all — not an empty list, the keys absent entirely. Asking a
-       * buyer for a postal address to receive a PDF is the visible half of the
-       * bug; the invisible half is that Stripe would then attach a shipping
-       * address to an order that has nothing to ship.
-       *
-       * A mixed cart is unchanged: one physical line is enough to need an
-       * address, and the rates it is offered were priced on that line alone.
-       */
-      ...(hasPhysicalLine
-        ? {
-            shipping_address_collection: {
-              allowed_countries: destination ? [destination] : allowedCountries,
+      line_items: [
+        {
+          quantity,
+          price_data: {
+            currency,
+            unit_amount: unitPriceCents,
+            product_data: {
+              name: quantity === 1 ? "Postcard" : "Postcards",
+              description: `${quantity} custom postcard${quantity === 1 ? "" : "s"}, printed and mailed on the dates you chose.`,
             },
-            ...(shippingOptions.length > 0 ? { shipping_options: shippingOptions } : {}),
-          }
-        : {}),
+          },
+        },
+      ],
+      ...(customer ? { customer_email: customer.email } : {}),
+      // Stripe hosts the whole promotion-code flow; codes are created in the
+      // Stripe dashboard and this only records what came off.
+      allow_promotion_codes: true,
+      // No shipping address: the recipients *are* the addresses, and the
+      // buyer's own is not needed for anything.
       success_url: `${env.PUBLIC_URL}/confirm?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${env.PUBLIC_URL}/cart`,
-      metadata: { beluga_order_id: orderId },
-      payment_intent_data: { metadata: { beluga_order_id: orderId } },
+      metadata: { postcards_order_id: orderId },
+      payment_intent_data: { metadata: { postcards_order_id: orderId } },
     },
     // Retries of this request reuse the same session rather than making a new
     // one; the order id is unique per attempt.
@@ -237,8 +118,8 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
     checkoutSessionId: session.id,
     email: session.customer_details?.email ?? customer?.email ?? "",
     currency: settings.currency,
-    subtotalCents,
-    lines: orderLines,
+    unitPriceCents,
+    lines,
     customerId: customer?.id ?? null,
   });
 
@@ -257,22 +138,5 @@ checkoutRouter.get("/checkout/:sessionId", async (req, res) => {
   const order = await findOrderByCheckoutSession(req.params.sessionId);
   if (!order) throw httpError(404, "No order found for that checkout.");
 
-  res.json({
-    reference: order.reference,
-    email: order.email,
-    status: order.status,
-    currency: order.currency,
-    subtotalCents: order.subtotalCents,
-    shippingCents: order.shippingCents,
-    taxCents: order.taxCents,
-    discountCents: order.discountCents,
-    totalCents: order.totalCents,
-    items: order.items.map((i) => ({
-      productName: i.productName,
-      variantLabel: i.variantLabel,
-      quantity: i.quantity,
-      unitPriceCents: i.unitPriceCents,
-      options: i.options,
-    })),
-  });
+  res.json(toCustomerOrder(order));
 });

@@ -1,14 +1,14 @@
 ---
 task: "03"
 title: "Fulfilment: rate-limit backoff and delivery tracking"
-status: in-progress
+status: done
 tier: 0
 size: M
 migration: one table
 blocked_by: []
 blocks: ["05", "06"]
 touches: server/fulfilment.ts:104 · server/lob.ts:38 · server/routes/webhook.ts · db/orders-repository.ts:462 · src/components/postcard/PostcardSchedule.tsx
-completed:
+completed: 2026-09-10
 shipped_in:
 summary: >-
   **A:** the sweep treats a 429 like any transient failure — the card goes back, the
@@ -33,8 +33,10 @@ summary: >-
   `postcards.tracking_status` forward only. The order pages show a timeline
   under each sent card; a returned card lands in the admin's error column in
   our words. The admin overview says when the webhook secret is missing.
-  No email, anywhere. The orders-list filter for returned cards was left
-  out: it needs a join the list does not do yet.
+  No email, anywhere. The orders list has its Returned chip: an EXISTS on
+  the cards' `tracking_status`, so an order with two returned cards is one
+  row, and a "N returned" tag beside the status so a filtered row says why
+  it is there. The CSV download carries the same filter.
 
 Two parts. **A is a morning's work and should land first** — it protects
 paid cards. **B** is the prerequisite for brief 05's status column and

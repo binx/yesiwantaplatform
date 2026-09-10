@@ -8,7 +8,7 @@ import type {
   PasswordChangeInput,
 } from "@shared/api";
 import type { Image, PageDraft } from "@shared/schema";
-import type { Order, OrderStatus, RefundInput } from "@shared/orders";
+import type { Order, OrderFilter, RefundInput } from "@shared/orders";
 import type { PostcardBack } from "@shared/postcards";
 import { apiGet, csrfDelete, csrfPost, csrfPut, csrfUpload } from "@/lib/api";
 
@@ -24,7 +24,7 @@ export const adminKeys = {
   settings: ["admin", "settings"] as const,
   environment: ["admin", "environment"] as const,
   fulfilment: ["admin", "fulfilment"] as const,
-  orders: (status: OrderStatus | "all", offset: number) => ["admin", "orders", status, offset] as const,
+  orders: (filter: OrderFilter, offset: number) => ["admin", "orders", filter, offset] as const,
   order: (id: string) => ["admin", "order", id] as const,
 };
 
@@ -195,12 +195,25 @@ export function useRunFulfilment() {
 
 export const ORDER_PAGE_SIZE = 25;
 
-export function useOrders(status: OrderStatus | "all", offset: number) {
+/**
+ * The filter as the API asks for it. "returned" is not a status, so it goes
+ * on its own parameter; the CSV link builds its query the same way, which is
+ * why this returns the params rather than a URL.
+ */
+export function orderQuery(filter: OrderFilter): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filter === "returned") params.set("returned", "true");
+  else if (filter !== "all") params.set("status", filter);
+  return params;
+}
+
+export function useOrders(filter: OrderFilter, offset: number) {
   return useQuery({
-    queryKey: adminKeys.orders(status, offset),
+    queryKey: adminKeys.orders(filter, offset),
     queryFn: ({ signal }) => {
-      const params = new URLSearchParams({ limit: String(ORDER_PAGE_SIZE), offset: String(offset) });
-      if (status !== "all") params.set("status", status);
+      const params = orderQuery(filter);
+      params.set("limit", String(ORDER_PAGE_SIZE));
+      params.set("offset", String(offset));
       return apiGet<OrderPage>(`/admin/orders?${params.toString()}`, signal);
     },
     placeholderData: (previous) => previous,

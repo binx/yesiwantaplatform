@@ -6,6 +6,7 @@ import { recipientSchema } from "../shared/postcards.js";
 import {
   REPLY_CODE_ALPHABET,
   REPLY_CODE_LENGTH,
+  RETURNED_TO_SENDER,
   isShownTrackingEvent,
   type Postcard,
   type PostcardStatus,
@@ -512,6 +513,8 @@ export async function listOrders(
     /** Inclusive bounds on `createdAt`, in epoch milliseconds. */
     from?: number;
     to?: number;
+    /** Only orders with a card USPS sent back. Independent of `status`: a returned card lives on a paid order. */
+    returnedToSender?: boolean;
   } = {},
 ): Promise<OrderPage> {
   const { drizzle: db, schema, dialect } = await getDatabase();
@@ -521,10 +524,20 @@ export async function listOrders(
   // createdAt is unix *seconds* on SQLite and a timestamptz on Postgres.
   const bound = (epochMs: number) => (dialect === "pg" ? new Date(epochMs) : Math.floor(epochMs / 1000));
 
+  /*
+   * The returned filter is the one clause here that is not about a column on
+   * the order. It asks about the cards, so it is an EXISTS rather than a
+   * join: an order with three returned cards must still be one row, and the
+   * count query has to agree with the page query about that. Written as SQL
+   * because it is the same SQL on both engines.
+   */
+  const returned = sql`exists (select 1 from ${schema.postcards} where ${schema.postcards.orderId} = ${schema.orders.id} and ${schema.postcards.trackingStatus} = ${RETURNED_TO_SENDER})`;
+
   const where = and(
     options.status ? eq(schema.orders.status, options.status) : undefined,
     options.from !== undefined ? gte(schema.orders.createdAt, bound(options.from)) : undefined,
     options.to !== undefined ? lte(schema.orders.createdAt, bound(options.to)) : undefined,
+    options.returnedToSender ? returned : undefined,
   );
 
   const [rows, totals] = await Promise.all([

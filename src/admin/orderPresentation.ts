@@ -1,8 +1,23 @@
-import type { OrderStatus } from "@shared/orders";
+import type { OrderFilter, OrderStatus } from "@shared/orders";
 import type { PostcardStatus } from "@shared/postcards";
 
 /** Every status, in the order the filter shows them. */
 export const ORDER_STATUSES: OrderStatus[] = ["pending", "paid", "completed", "cancelled", "refunded"];
+
+/** The filter chips, in the order the list shows them. "Returned" sits last: it is a different question. */
+export const ORDER_FILTERS: OrderFilter[] = ["all", ...ORDER_STATUSES, "returned"];
+
+/** What a chip is called, and — for the empty state — what the list was looking for. */
+export function filterLabel(filter: OrderFilter): string {
+  switch (filter) {
+    case "all":
+      return "All";
+    case "returned":
+      return "Returned";
+    default:
+      return statusLabel(filter);
+  }
+}
 
 export function statusLabel(status: OrderStatus): string {
   switch (status) {

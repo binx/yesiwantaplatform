@@ -7,8 +7,24 @@ import { statusLabel } from "./orderPresentation";
 /**
  * An order's status, with the one detail that matters beside it: how many
  * cards are still to go, or how much has come back.
+ *
+ * A returned card is a second tag rather than a replacement for the first.
+ * Its own status is still `sent` — USPS carried it, then brought it back —
+ * so "3 of 3 sent" stays true and the return is the news next to it. Without
+ * this the list's Returned filter would show rows with nothing to see.
  */
 export function OrderStatusTag({ order, locale }: { order: Order; locale: string }) {
+  const counts = summarisePostcards(order);
+
+  return (
+    <>
+      <StatusTag order={order} locale={locale} />
+      {counts.returned > 0 ? <Tag color="volcano">{counts.returned} returned</Tag> : null}
+    </>
+  );
+}
+
+function StatusTag({ order, locale }: { order: Order; locale: string }) {
   const counts = summarisePostcards(order);
 
   if (order.status === "refunded" || order.refundedCents > 0) {

@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { Router, raw } from "express";
 import { z } from "zod";
 import { findPostcardForTracking, forgetWebhookEvent, recordTrackingEvent, recordWebhookEvent, markPostcardReturned } from "../../db/orders-repository.js";
+import { RETURNED_TO_SENDER } from "../../shared/postcards.js";
 import { safeEqual } from "../auth.js";
 import { env, hasLobWebhook } from "../env.js";
 
@@ -127,7 +128,7 @@ lobWebhookRouter.post("/webhooks/lob", raw({ type: "*/*", limit: "1mb" }), async
 
     // Our words, not a Lob refusal: the admin's error column is where a
     // person looks, and a returned card is the earliest sign of a bad address.
-    if (type === "postcard.returned_to_sender") await markPostcardReturned(postcard.id);
+    if (type === RETURNED_TO_SENDER) await markPostcardReturned(postcard.id);
   } catch (error) {
     await forgetWebhookEvent(dedupeKey);
     console.error(`Failed handling Lob event ${event.id}:`, error);

@@ -306,12 +306,18 @@ adminRouter.post("/settings/hero-image", (req, res, next) => {
 
 /* ------------------------------------------------------------------ orders */
 
+/**
+ * `status` and `returned` are separate parameters because they ask different
+ * questions — the order's own status, and whether any card on it came back —
+ * even though the list's chips let a person pick only one at a time.
+ */
 adminRouter.get("/orders", async (req, res) => {
   const status = orderStatusSchema.safeParse(req.query.status);
 
   res.json(
     await listOrders({
       ...(status.success ? { status: status.data } : {}),
+      ...(req.query.returned === "true" ? { returnedToSender: true } : {}),
       limit: Number(req.query.limit ?? 25),
       offset: Number(req.query.offset ?? 0),
     }),
@@ -425,6 +431,7 @@ adminRouter.get("/orders.csv", async (req, res) => {
 
   const filters = {
     ...(status.success ? { status: status.data } : {}),
+    ...(req.query.returned === "true" ? { returnedToSender: true } : {}),
     ...(Number.isFinite(from) ? { from } : {}),
     ...(Number.isFinite(to) ? { to } : {}),
   };

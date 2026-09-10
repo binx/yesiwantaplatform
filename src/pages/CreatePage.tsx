@@ -122,9 +122,10 @@ export function CreatePage() {
     [mode, designs, customDates, cadenceDates],
   );
 
+  const recipientCount = replying ? 1 : recipients.length;
   const abroad = recipients.filter(isInternational).length;
   const international = designs.length * abroad;
-  const domestic = designs.length * ((replying ? 1 : recipients.length) - abroad);
+  const domestic = designs.length * (recipientCount - abroad);
   const count = domestic + international;
   const totalCents = domestic * store.postcardPriceCents + international * (store.internationalPostcardPriceCents ?? 0);
   const price = (cents: number) => formatMoney(cents, store.currency, store.locale);
@@ -203,6 +204,10 @@ export function CreatePage() {
   return (
     <PageWrapper width="wide">
       <h1>Make a postcard</h1>
+      <p className={cx(postcard.note, styles.intro)}>
+        Every design you save here goes to every recipient you add, on the dates you choose. Want
+        different cards for different people? Add this batch to the cart and make another.
+      </p>
 
       <section className={cx(styles.panel)} aria-labelledby="design-heading">
         <h2 id="design-heading">1. Create a postcard design</h2>
@@ -237,6 +242,11 @@ export function CreatePage() {
 
       <section className={cx(styles.panel)} aria-labelledby="recipients-heading">
         <h2 id="recipients-heading">3. Postcard recipients</h2>
+        {designs.length > 1 ? (
+          <p className={cx(postcard.note, styles.subhead)}>
+            All {designs.length} designs go to each person below.
+          </p>
+        ) : null}
         {replying ? (
           <div className={cx(postcard.replyLock)} role="status">
             <strong>To {replyCard.data?.senderName ?? "the sender"}</strong>
@@ -254,21 +264,21 @@ export function CreatePage() {
           Total
         </h2>
         <p className={postcard.total}>
-          <span>
-            <span className={postcard.count}>{designs.length}</span> design{designs.length === 1 ? "" : "s"}
+          <span className={postcard.factors}>
+            <span className={postcard.term}>
+              <span className={postcard.count}>{designs.length}</span> design{designs.length === 1 ? "" : "s"}
+            </span>
+            <span className={postcard.term}>
+              × <span className={postcard.count}>{recipientCount}</span> recipient{recipientCount === 1 ? "" : "s"}
+            </span>
+            <span className={postcard.term}>× {price(store.postcardPriceCents)} each</span>
+            {international > 0 && store.internationalPostcardPriceCents !== null ? (
+              <span className={postcard.term}>({price(store.internationalPostcardPriceCents)} abroad)</span>
+            ) : null}
           </span>
-          <span>×</span>
-          <span>
-            <span className={postcard.count}>{replying ? 1 : recipients.length}</span> recipient{(replying ? 1 : recipients.length) === 1 ? "" : "s"}
+          <span className={postcard.term}>
+            = <strong>{price(totalCents)}</strong>
           </span>
-          <span>×</span>
-          <span>
-            {international > 0 && store.internationalPostcardPriceCents !== null
-              ? `${price(store.postcardPriceCents)} each (${price(store.internationalPostcardPriceCents)} abroad)`
-              : `${price(store.postcardPriceCents)} each`}
-          </span>
-          <span>=</span>
-          <strong>{price(totalCents)}</strong>
         </p>
         <div className={postcard.totalActions}>
           <Button type="primary" size="large" disabled={count === 0 || blocked > 0} onClick={addToCart}>

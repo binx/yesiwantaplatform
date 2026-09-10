@@ -274,6 +274,17 @@ test("opens 'land it by a date' as a bottom drawer on a phone, not a popover ove
   await expect(page.getByLabel("The day that matters")).toBeVisible();
 });
 
+test("puts the orientation switch on screen with the frame on a phone", async ({ page }) => {
+  test.skip(test.info().project.name !== "mobile", "this checks the phone layout");
+
+  await page.goto("/create");
+  await expect(page.getByRole("heading", { name: "Make a postcard", level: 1 })).toBeVisible();
+
+  // Before any scrolling: the frame is capped by height so the controls above
+  // it are reachable without scrolling past a screen-tall box.
+  await expect(page.getByRole("radiogroup", { name: "Orientation" })).toBeInViewport();
+});
+
 test("refuses a recipient that would not fit on the card, before the cart", async ({ page }) => {
   await page.goto("/create");
   await page.getByLabel("Name").fill("Grandma");

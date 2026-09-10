@@ -18,9 +18,46 @@
  * width has nothing to resolve against — the preview's only children are
  * absolutely positioned — and on a desktop viewport the box collapsed to a
  * couple of pixels. Below 800px the grid is one column and 100% is the page.
+ *
+ * The four areas are flat grid items rather than one nested controls column so
+ * that the phone breakpoint can reorder them — switch and upload above the
+ * frame, zoom and the hint below — without a second copy of the markup.
  */
 .frontRow {
-  grid-template-columns: min(20rem, 100%) minmax(0, 1fr);
+  grid-template-columns: min(16rem, 100%) minmax(0, 1fr);
+  /*
+   * The third row is a spacer: the frame is taller than the two controls, and
+   * without somewhere for its leftover height to go the grid shares it out
+   * between the control rows and strands Zoom halfway down the column.
+   */
+  grid-template-areas:
+    "frame switches"
+    "frame zoom"
+    "frame ."
+    "notes notes";
+  grid-template-rows: auto auto 1fr auto;
+  column-gap: 2rem;
+  row-gap: 1rem;
+}
+
+.frontSwitches {
+  grid-area: switches;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.frontZoom {
+  grid-area: zoom;
+  max-width: 32rem;
+}
+
+.frontNotes {
+  grid-area: notes;
+  display: grid;
+  gap: 1rem;
+  max-width: 32rem;
 }
 
 .backRow {
@@ -28,6 +65,7 @@
 }
 
 .frontPreview {
+  grid-area: frame;
   position: relative;
   width: 100%;
   background: var(--beluga-page);
@@ -37,11 +75,25 @@
   /* The photo is dragged inside the frame: the frame, not the page, takes the touch. */
   touch-action: none;
   user-select: none;
+  cursor: pointer;
+}
+
+/* Editing: the saved thumbnail, neither clickable nor draggable. */
+.frontPreview[data-fixed] {
+  cursor: default;
+}
+
+.frontPreview[data-photo] {
   cursor: grab;
 }
 
-.frontPreview:active {
+.frontPreview[data-photo]:active {
   cursor: grabbing;
+}
+
+.frontPreview[data-dragging] {
+  outline: 2px dashed var(--beluga-primary);
+  outline-offset: -6px;
 }
 
 .frontPreview:focus-visible {
@@ -80,9 +132,22 @@
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center;
-  color: var(--beluga-muted);
+  place-content: center;
+  justify-items: center;
+  gap: 0.4rem;
+  padding: 1rem;
+  border: 0;
+  background: none;
+  font: inherit;
   font-size: 0.875rem;
+  color: var(--beluga-muted);
+  text-align: center;
+  cursor: pointer;
+}
+
+.frontEmpty:focus-visible {
+  outline: 2px solid var(--beluga-primary);
+  outline-offset: -4px;
 }
 
 /* The quarter-inch inside the trim, drawn as a translucent border. */
@@ -93,7 +158,6 @@
   pointer-events: none;
 }
 
-.frontControls,
 .backControls {
   display: grid;
   gap: 1rem;
@@ -362,6 +426,24 @@
   font-size: clamp(1.25rem, 1rem + 1.5vw, 2rem);
 }
 
+/*
+ * Each factor is glued to the operator that *precedes* it, so a wrap can only
+ * ever start a row with `×` or `=`, never strand one at the end of one. The
+ * brief asked for the trailing form, but that still breaks "2 designs ×" onto
+ * its own row somewhere around 520px.
+ */
+.term {
+  white-space: nowrap;
+}
+
+.factors {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
 .count {
   display: inline-block;
   padding: 0.1em 0.5em;
@@ -433,8 +515,40 @@
     grid-template-columns: 1fr;
   }
 
+  /* Switch and upload first, so both are on screen with the frame. */
+  .frontRow {
+    grid-template-areas:
+      "switches"
+      "frame"
+      "zoom"
+      "notes";
+  }
+
+  /*
+   * Cap the frame by height, not width, or a portrait card is taller than the
+   * phone before a single control is visible. `--frame-ratio` comes from the
+   * orientation on the element itself; `aspect-ratio` still sets the shape.
+   * The safe-area frame is a percentage border, so it scales with this.
+   */
+  .frontPreview {
+    max-width: min(100%, calc(55vh * var(--frame-ratio, 1)));
+    margin-inline: auto;
+  }
+
   .backCard {
     transform-origin: top left;
+  }
+}
+
+/* The multiplication on one line, the answer on the next. */
+@media (max-width: 480px) {
+  .total {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .factors {
+    gap: 0.5rem;
   }
 }
 

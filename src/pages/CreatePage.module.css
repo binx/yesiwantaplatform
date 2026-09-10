@@ -9,3 +9,13 @@
 .panel h2 {
   margin-bottom: 1.25rem;
 }
+
+.intro {
+  max-width: 46rem;
+  margin: 0 0 1.5rem;
+}
+
+/* Sits in the gap `.panel h2` already reserves under itself. */
+.subhead {
+  margin: -0.75rem 0 1.25rem;
+}

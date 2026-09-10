@@ -46,6 +46,27 @@ beforeEach(() => {
 });
 
 describe("DesignForm", () => {
+  it("opens the file picker when the empty frame is clicked", async () => {
+    const click = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+    renderWithProviders(<DesignForm onSaved={() => {}} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Add a photo/ }));
+
+    expect(click).toHaveBeenCalledTimes(1);
+    click.mockRestore();
+  });
+
+  it("drops the frame's button once a photo is in it", async () => {
+    renderWithProviders(<DesignForm onSaved={() => {}} />);
+    expect(screen.getByRole("button", { name: /Add a photo/ })).toBeInTheDocument();
+
+    await pickPhoto();
+
+    expect(screen.queryByRole("button", { name: /Add a photo/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Drag it, or use the arrow keys/ })).toBeInTheDocument();
+  });
+
+
   it("warns and disables Save when the note overflows the card, and clears when it fits again", async () => {
     renderWithProviders(<DesignForm onSaved={() => {}} />);
     await pickPhoto();

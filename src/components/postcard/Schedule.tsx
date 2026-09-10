@@ -1,12 +1,16 @@
 import { useId, useState } from "react";
-import { Button, Checkbox, InputNumber, Popover, Segmented, Select } from "antd";
-import { DeleteOutlined } from "@ant-design/icons";
+import { Button, Checkbox, Drawer, InputNumber, Popover, Segmented, Select } from "antd";
+import { CalendarOutlined, DeleteOutlined } from "@ant-design/icons";
 import { addDaysIso, todayIso, type PostcardDesign } from "@shared/postcards";
 import { DELIVERY_ESTIMATE } from "@shared/copy";
 import { ProductImage } from "@/components/ui/ProductImage";
 import { formatMailDate } from "@/lib/postcards";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cx } from "@/lib/cx";
 import styles from "./Postcard.module.css";
+
+/** Below this, the popover has nowhere to open into without covering the thumbnails. */
+const MOBILE_QUERY = "(max-width: 800px)";
 
 /**
  * When each design goes out.
@@ -87,7 +91,10 @@ export function Schedule({
           ) : null}
 
           {perDesign ? (
-            <p className={styles.scheduleControls}>Choose a mail date under each design.</p>
+            <p className={styles.scheduleControls}>
+              Choose a mail date under each design.
+              <ArriveBy items={items} locale={locale} onArriveBy={onArriveBy} />
+            </p>
           ) : (
             <div className={styles.scheduleControls}>
               <label htmlFor={dateId}>{items.length > 1 ? "Mail the first one on" : "Mail it on"}</label>
@@ -113,6 +120,7 @@ export function Schedule({
                   />
                 </>
               ) : null}
+              <ArriveBy items={items} locale={locale} onArriveBy={onArriveBy} />
             </div>
           )}
         </>
@@ -123,34 +131,44 @@ export function Schedule({
           <li key={item.design.id} className={styles.designItem}>
             <ProductImage image={item.design.thumbnail} sizes="120px" decorative />
             {perDesign ? (
-              <input
-                className={cx(styles.dateInput, styles.designDate)}
-                type="date"
-                min={today}
-                value={item.mailDate}
-                aria-label={`Mail date for design ${index + 1}`}
-                onChange={(event) => onDateChange(item.design.id, event.target.value || today)}
-              />
-            ) : null}
-            <div className={styles.designMeta}>
-              <span>{perDesign ? "" : formatMailDate(item.mailDate, locale)}</span>
-              <Button
-                type="text"
-                size="small"
-                icon={<DeleteOutlined />}
-                aria-label={`Remove design ${index + 1}`}
-                onClick={() => onRemove(index)}
-              />
-            </div>
+              <div className={styles.designControls}>
+                <input
+                  className={cx(styles.dateInput, styles.designDate)}
+                  type="date"
+                  min={today}
+                  value={item.mailDate}
+                  aria-label={`Mail date for design ${index + 1}`}
+                  onChange={(event) => onDateChange(item.design.id, event.target.value || today)}
+                />
+                <div className={styles.designMeta}>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    aria-label={`Remove design ${index + 1}`}
+                    onClick={() => onRemove(index)}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className={styles.designMeta}>
+                <span>{formatMailDate(item.mailDate, locale)}</span>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  aria-label={`Remove design ${index + 1}`}
+                  onClick={() => onRemove(index)}
+                />
+              </div>
+            )}
           </li>
         ))}
       </ul>
 
       {items.length > 0 ? (
         <>
-          <p className={styles.note}>
-            {DELIVERY_ESTIMATE} <ArriveBy items={items} locale={locale} onArriveBy={onArriveBy} />
-          </p>
+          <p className={styles.note}>{DELIVERY_ESTIMATE}</p>
           <p className={styles.replyOption}>
             <Checkbox checked={replyLink} onChange={(event) => onReplyLinkChange(event.target.checked)}>
               Print a small QR code on the back, so they can see the card online and send one back.
@@ -238,11 +256,24 @@ function ArriveBy({
     </div>
   );
 
+  const isMobile = useMediaQuery(MOBILE_QUERY);
+
+  if (isMobile) {
+    return (
+      <>
+        <Button icon={<CalendarOutlined aria-hidden />} onClick={() => setOpen(true)}>
+          Land it by a date
+        </Button>
+        <Drawer placement="bottom" open={open} onClose={() => setOpen(false)} title="Ahead of a date">
+          {content}
+        </Drawer>
+      </>
+    );
+  }
+
   return (
     <Popover trigger="click" open={open} onOpenChange={setOpen} content={content} title="Ahead of a date">
-      <Button type="link" size="small" className={cx(styles.arriveByLink)}>
-        Send it ahead of a date
-      </Button>
+      <Button icon={<CalendarOutlined aria-hidden />}>Land it by a date</Button>
     </Popover>
   );
 }

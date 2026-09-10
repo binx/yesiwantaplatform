@@ -241,7 +241,7 @@
 }
 
 .designItem {
-  width: 8rem;
+  width: min(9.5rem, 100%);
   display: grid;
   gap: 0.35rem;
 }
@@ -256,6 +256,13 @@
   align-items: center;
   justify-content: space-between;
   font-size: 0.8125rem;
+}
+
+/* Custom mode: one row per card — date input on the left, .designMeta's buttons on the right. */
+.designControls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 /* ------------------------------------------------------------- recipients */
@@ -451,15 +458,9 @@
 }
 
 .designDate {
-  width: 100%;
+  flex: 1;
   min-width: 0;
   font-size: 0.8125rem;
-}
-
-.arriveByLink {
-  padding: 0;
-  height: auto;
-  font-size: inherit;
 }
 
 .arriveBy {

@@ -5,8 +5,8 @@ import { env } from "./env.js";
 import { httpError, type ApiError } from "./middleware.js";
 import { imageStore, isSafeRelativePath } from "./image-store.js";
 import { DERIVATIVE_WIDTHS, derivativePath, derivativeWidthsFor } from "../shared/images.js";
-import { PRINT_SIZES, type Orientation } from "../shared/postcards.js";
-import { printFile } from "./lob.js";
+import { PRINT_SIZES, defaultCrop, type Crop, type Orientation } from "../shared/postcards.js";
+import { cropToCard, finishPrintFile } from "./lob.js";
 
 // Where the local driver writes. Re-exported because the static handler in
 // server/app.ts and the boot check in server/index.ts read it from here.
@@ -181,20 +181,22 @@ export async function storePostcardDesign(
   designId: string,
   buffer: Buffer,
   orientation: Orientation,
+  crop: Crop = defaultCrop,
 ): Promise<StoredDesign> {
   assertSafeOwnerId(designId);
   await readImage(buffer);
 
-  const print = await printFile(buffer, orientation);
+  // The card face, cropped once. The print file and the thumbnail are both
+  // cut from it, so there is one crop and not two that can drift apart.
+  const card = await cropToCard(buffer, orientation, crop);
+
+  const print = await finishPrintFile(card, orientation);
   const printPath = `designs/${designId}/print.png`;
   await imageStore.put(printPath, print.bytes, "image/png");
 
   // The thumbnail shows the design the way the buyer holds it — portrait
-  // stays portrait — so it is cut from the original, not the rotated print.
-  const size = PRINT_SIZES[orientation];
-  const thumb = await sharp(buffer, { limitInputPixels: MAX_INPUT_PIXELS })
-    .rotate()
-    .resize(size.width, size.height, { fit: "cover", position: "centre" })
+  // stays portrait — so it is cut from the face, not the rotated print.
+  const thumb = await sharp(card)
     .resize(THUMBNAIL_EDGE, THUMBNAIL_EDGE, { fit: "inside" })
     .webp({ quality: 80 })
     .toBuffer({ resolveWithObject: true });

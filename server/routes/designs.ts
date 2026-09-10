@@ -51,9 +51,19 @@ designsRouter.get("/designs/:id", async (req, res) => {
   res.json(toPublicDesign(design));
 });
 
+/** A multipart text field holding JSON. Absent or empty means "not given". */
+function parseJsonField(value: unknown, message: string): unknown {
+  if (typeof value !== "string" || value === "") return undefined;
+  try {
+    return JSON.parse(value);
+  } catch {
+    throw httpError(400, message);
+  }
+}
+
 /**
- * Save a design: the front image as multipart `file`, plus `orientation` and
- * `back` (a JSON string) as fields.
+ * Save a design: the front image as multipart `file`, plus `orientation`,
+ * `back` and `crop` (JSON strings) as fields.
  *
  * The print file is made here, at Lob's size and density, so an image that
  * cannot be printed is refused now — with a message that says why — rather
@@ -68,23 +78,17 @@ designsRouter.post("/designs", uploadRateLimit, (req, res, next) => {
         if (!req.file) throw httpError(400, "Choose an image for the front of the card.");
 
         const body = req.body as Record<string, unknown>;
-        let back: unknown = {};
-        if (typeof body.back === "string" && body.back !== "") {
-          try {
-            back = JSON.parse(body.back);
-          } catch {
-            throw httpError(400, "The back of the card could not be read.");
-          }
-        }
+        const back = parseJsonField(body.back, "The back of the card could not be read.");
+        const crop = parseJsonField(body.crop, "The photo's position could not be read.");
 
-        const parsed = designInputSchema.safeParse({ orientation: body.orientation, back });
+        const parsed = designInputSchema.safeParse({ orientation: body.orientation, back: back ?? {}, ...(crop === undefined ? {} : { crop }) });
         if (!parsed.success) {
           const first = parsed.error.issues[0];
           throw httpError(400, first ? `${first.path.join(".")}: ${first.message}` : "Invalid design.");
         }
 
         const id = randomUUID();
-        const stored = await storePostcardDesign(id, req.file.buffer, parsed.data.orientation);
+        const stored = await storePostcardDesign(id, req.file.buffer, parsed.data.orientation, parsed.data.crop);
 
         try {
           const design = await createDesign(

@@ -1,15 +1,18 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { Alert, Button, ColorPicker, Input, Radio, Slider } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import {
   BACK_FONTS,
   PRINT_SIZES,
+  defaultCrop,
   defaultPostcardBack,
+  type Crop,
   type Orientation,
   type PostcardBack,
   type PostcardDesign,
 } from "@shared/postcards";
 import { useSaveDesign } from "@/lib/designs";
+import { cropFromDrag, nudgeCrop, previewGeometry } from "@/lib/crop";
 import { cx } from "@/lib/cx";
 import { PostcardBackMock } from "./PostcardBackMock";
 import styles from "./Postcard.module.css";
@@ -17,10 +20,13 @@ import styles from "./Postcard.module.css";
 /**
  * Design one postcard: a photo for the front, a note for the back.
  *
- * The crop the preview shows is the crop that prints — `object-fit: cover`
- * here and sharp's `fit: cover` on the server are the same centre crop — and
- * the frame drawn inside it is the safe area, a quarter inch in from the
- * trimmed edge, which is where Lob says text and faces should stay.
+ * The crop the preview shows is the crop that prints. The photo is drawn
+ * here at the scale and offset `cropRect` gives for the preview's size, and
+ * the server resizes and extracts the same window at print size — one
+ * function, two callers. Dragging the photo, the arrow keys and the zoom
+ * slider all change the same three numbers, which go up with the file. The
+ * frame drawn inside the preview is the safe area, a quarter inch in from
+ * the trimmed edge, which is where Lob says text and faces should stay.
  *
  * Nothing is posted until Save: the file goes up once, with the back, and
  * comes back as a design id the schedule and the cart carry from there.
@@ -40,9 +46,15 @@ export function DesignForm({ onSaved }: DesignFormProps) {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [orientation, setOrientation] = useState<Orientation>("portrait");
   const [back, setBack] = useState<PostcardBack>(defaultPostcardBack);
+  const [crop, setCrop] = useState<Crop>(defaultCrop);
+  const [moved, setMoved] = useState(false);
+  const [box, setBox] = useState<{ width: number; height: number } | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const save = useSaveDesign();
   const fileId = useId();
+  const hintId = useId();
+  const previewRef = useRef<HTMLDivElement>(null);
+  const pointer = useRef<{ id: number; x: number; y: number } | null>(null);
 
   const size = PRINT_SIZES[orientation];
   const lowRes = picked !== null && (picked.width < size.width || picked.height < size.height);
@@ -57,16 +69,65 @@ export function DesignForm({ onSaved }: DesignFormProps) {
     [size],
   );
 
+  // The preview's rendered size: it follows the orientation and the viewport,
+  // and the photo's geometry is computed from whatever it is right now.
+  useEffect(() => {
+    const element = previewRef.current;
+    if (!element) return;
+    const measure = () => setBox({ width: element.clientWidth, height: element.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [orientation]);
+
+  const geometry = picked && box ? previewGeometry(picked, box, crop) : null;
+
   const choose = (file: File | undefined) => {
     if (!file) return;
     const url = URL.createObjectURL(file);
     const image = new Image();
-    image.onload = () => setPicked({ file, url, width: image.naturalWidth, height: image.naturalHeight });
+    image.onload = () => {
+      setPicked({ file, url, width: image.naturalWidth, height: image.naturalHeight });
+      setCrop(defaultCrop);
+      setMoved(false);
+    };
     image.onerror = () => {
       URL.revokeObjectURL(url);
       setPicked(null);
     };
     image.src = url;
+  };
+
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (!picked) return;
+    pointer.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const held = pointer.current;
+    if (!held || held.id !== event.pointerId || !geometry) return;
+    const dx = event.clientX - held.x;
+    const dy = event.clientY - held.y;
+    pointer.current = { ...held, x: event.clientX, y: event.clientY };
+    if (dx === 0 && dy === 0) return;
+    setCrop((current) => cropFromDrag(current, dx, dy, geometry));
+    setMoved(true);
+  };
+
+  const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    pointer.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!picked) return;
+    const next = nudgeCrop(crop, event.key);
+    if (!next) return;
+    event.preventDefault();
+    setCrop(next);
+    setMoved(true);
   };
 
   const set = <K extends keyof PostcardBack>(key: K, value: PostcardBack[K]) =>
@@ -75,12 +136,14 @@ export function DesignForm({ onSaved }: DesignFormProps) {
   const submit = () => {
     if (!picked) return;
     save.mutate(
-      { file: picked.file, orientation, back },
+      { file: picked.file, orientation, back, crop },
       {
         onSuccess: (design) => {
           onSaved(design);
           setPicked(null);
           setBack(defaultPostcardBack);
+          setCrop(defaultCrop);
+          setMoved(false);
           setSavedFlash(true);
           setTimeout(() => setSavedFlash(false), 4000);
         },
@@ -91,13 +154,41 @@ export function DesignForm({ onSaved }: DesignFormProps) {
   return (
     <div className={cx(styles.form)}>
       <div className={styles.frontRow}>
-        <div className={cx(styles.frontPreview)} style={previewStyle}>
+        <div
+          ref={previewRef}
+          className={cx(styles.frontPreview)}
+          style={previewStyle}
+          role="img"
+          aria-label={picked ? "Your photo in the card. Drag it, or use the arrow keys, to choose what shows." : "Your photo goes here"}
+          aria-describedby={picked ? hintId : undefined}
+          tabIndex={picked ? 0 : -1}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onKeyDown={onKeyDown}
+        >
           {picked ? (
-            <img className={styles.frontImage} src={picked.url} alt="" />
+            <img
+              className={styles.frontImage}
+              src={picked.url}
+              alt=""
+              draggable={false}
+              style={
+                geometry
+                  ? { width: geometry.width, height: geometry.height, transform: `translate(${-geometry.left}px, ${-geometry.top}px)` }
+                  : undefined
+              }
+            />
           ) : (
             <div className={styles.frontEmpty}>Your photo goes here</div>
           )}
           <div className={styles.safeArea} aria-hidden />
+          {picked && !moved ? (
+            <span className={styles.frontHint} aria-hidden>
+              Drag to reposition
+            </span>
+          ) : null}
         </div>
 
         <div className={styles.frontControls}>
@@ -124,9 +215,29 @@ export function DesignForm({ onSaved }: DesignFormProps) {
             ]}
           />
 
-          <p className={styles.note}>
-            For a sharp print, use a photo at least {size.width} × {size.height} pixels. The inner
-            frame is the safe zone — anything outside it may be trimmed.
+          <div className={styles.field}>
+            <span className={styles.label} id="zoom-label">
+              Zoom
+            </span>
+            <Slider
+              ariaLabelForHandle="Zoom"
+              min={1}
+              max={3}
+              step={0.05}
+              disabled={!picked}
+              value={crop.zoom}
+              tooltip={{ formatter: (value) => `${(value ?? 1).toFixed(2)}×` }}
+              onChange={(value: number) => {
+                setCrop((current) => ({ ...current, zoom: value }));
+                setMoved(true);
+              }}
+            />
+          </div>
+
+          <p className={styles.note} id={hintId}>
+            For a sharp print, use a photo at least {size.width} × {size.height} pixels. Drag the
+            photo, or use the arrow keys, to choose what shows. The inner frame is the safe zone —
+            anything outside it may be trimmed.
           </p>
 
           {lowRes ? (

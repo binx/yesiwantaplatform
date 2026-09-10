@@ -1,5 +1,5 @@
 import { useMutation, useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { postcardDesignSchema, type PostcardBack, type PostcardDesign, type Orientation } from "@shared/postcards";
+import { postcardDesignSchema, type Crop, type PostcardBack, type PostcardDesign, type Orientation } from "@shared/postcards";
 import { z } from "zod";
 import { ApiError, apiGet } from "./api";
 
@@ -27,6 +27,8 @@ export interface SaveDesignInput {
   file: File;
   orientation: Orientation;
   back: PostcardBack;
+  /** Where the photo sits in the frame; the server crops the print file the same way. */
+  crop: Crop;
 }
 
 /**
@@ -39,6 +41,7 @@ export async function saveDesign(input: SaveDesignInput): Promise<PostcardDesign
   form.append("file", input.file);
   form.append("orientation", input.orientation);
   form.append("back", JSON.stringify(input.back));
+  form.append("crop", JSON.stringify(input.crop));
 
   const response = await fetch("/api/designs", {
     method: "POST",

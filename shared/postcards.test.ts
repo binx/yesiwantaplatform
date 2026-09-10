@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDaysIso, businessDaysBeforeIso, formatRecipient, recipientSchema, stripEmoji, todayIso } from "./postcards";
+import { addDaysIso, businessDaysBeforeIso, cropRect, defaultCrop, formatRecipient, recipientSchema, stripEmoji, todayIso } from "./postcards";
 
 describe("dates", () => {
   it("adds days as calendar arithmetic, across month and year ends", () => {
@@ -45,5 +45,32 @@ describe("stripEmoji", () => {
   it("removes pictographs and leaves punctuation and accents alone", () => {
     expect(stripEmoji("Café ☕️ & crêpes 🥐!")).toBe("Café  & crêpes !");
     expect(stripEmoji("Love, R ❤️")).toBe("Love, R ");
+  });
+});
+
+describe("cropRect", () => {
+  const source = { width: 4000, height: 1000 };
+  const target = { width: 1875, height: 1275 };
+
+  it("is the old centre crop at the default", () => {
+    const rect = cropRect(source, target, defaultCrop);
+    // Cover: the height is the limiting axis, so the source is scaled to 1275 tall.
+    expect(rect.scale).toBeCloseTo(1.275);
+    expect(rect.scaledHeight).toBeCloseTo(1275);
+    expect(rect.top).toBe(0);
+    // Half the horizontal overflow is hidden on the left.
+    expect(rect.left).toBeCloseTo((5100 - 1875) / 2);
+  });
+
+  it("pins the edges at 0 and 1", () => {
+    expect(cropRect(source, target, { ...defaultCrop, x: 0 }).left).toBe(0);
+    expect(cropRect(source, target, { ...defaultCrop, x: 1 }).left).toBeCloseTo(5100 - 1875);
+  });
+
+  it("doubles the scale at zoom 2 and keeps the window inside the photo", () => {
+    const rect = cropRect(source, target, { ...defaultCrop, zoom: 2 });
+    expect(rect.scale).toBeCloseTo(2.55);
+    expect(rect.top).toBeCloseTo((2550 - 1275) / 2);
+    expect(rect.left + target.width).toBeLessThanOrEqual(rect.scaledWidth);
   });
 });

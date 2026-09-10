@@ -32,6 +32,59 @@ export const PRINT_SIZES: Record<Orientation, { width: number; height: number }>
 export const BLEED_INCHES = 0.125;
 export const SAFE_INCHES = 0.125;
 
+/**
+ * Where the photo sits inside the card, as fractions of the overflow.
+ *
+ * `x` and `y` are 0..1: 0.5 is the centre crop the site always did, 0 pins
+ * the photo's left/top edge to the card's, 1 its right/bottom. `zoom` scales
+ * the photo up from the smallest size that covers the card. The same three
+ * numbers drive the preview and the print file, which is what keeps them
+ * the same picture.
+ */
+export const cropSchema = z.object({
+  x: z.number().min(0).max(1).default(0.5),
+  y: z.number().min(0).max(1).default(0.5),
+  zoom: z.number().min(1).max(3).default(1),
+});
+export type Crop = z.infer<typeof cropSchema>;
+export const defaultCrop: Crop = { x: 0.5, y: 0.5, zoom: 1 };
+
+export interface CropRect {
+  /** How much the source is enlarged (or shrunk) to fill the target at this zoom. */
+  scale: number;
+  /** The scaled source's width and height. */
+  scaledWidth: number;
+  scaledHeight: number;
+  /** The target's window into the scaled source, in scaled pixels. */
+  left: number;
+  top: number;
+}
+
+/**
+ * The rectangle of a `source`-sized image that fills a `target` at this crop.
+ *
+ * Pure, so the browser and sharp call the same function: the preview draws
+ * the photo at `scale` translated by `(-left, -top)`, and the print pipeline
+ * resizes to the scaled size and extracts the same window.
+ */
+export function cropRect(
+  source: { width: number; height: number },
+  target: { width: number; height: number },
+  crop: Crop,
+): CropRect {
+  const cover = Math.max(target.width / source.width, target.height / source.height);
+  const scale = cover * crop.zoom;
+  const scaledWidth = source.width * scale;
+  const scaledHeight = source.height * scale;
+  return {
+    scale,
+    scaledWidth,
+    scaledHeight,
+    left: Math.max(0, scaledWidth - target.width) * crop.x,
+    top: Math.max(0, scaledHeight - target.height) * crop.y,
+  };
+}
+
 /** The faces the back of a card can be set in. All three load from Google Fonts. */
 export const BACK_FONTS = [
   { name: "Patrick Hand", label: "Handwriting" },

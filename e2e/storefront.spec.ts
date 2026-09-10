@@ -23,6 +23,13 @@ async function designOne(page: Page) {
   await expect(page.getByRole("button", { name: "Saved!" })).toBeVisible();
 }
 
+/** A US address's State is a searchable combobox, not free text: filter to the code, then commit it. */
+async function selectState(page: Page, code: string) {
+  const field = page.getByLabel("State");
+  await field.fill(code);
+  await field.press("Enter");
+}
+
 test("browses from the landing page to the designer", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Postcard Gifts", level: 1 })).toBeVisible();
@@ -46,7 +53,7 @@ test("designs a card, adds a recipient and sees the right total in the cart", as
   await page.getByLabel("Name").fill("Grandma");
   await page.getByLabel("Street address").fill("1 Test Street");
   await page.getByLabel("City").fill("Marfa");
-  await page.getByLabel("State").fill("TX");
+  await selectState(page, "TX");
   await page.getByLabel("ZIP").fill("79843");
   await page.getByRole("button", { name: "Add recipient" }).click();
   await expect(page.getByRole("list", { name: "Recipients" })).toContainText("Grandma");
@@ -75,7 +82,7 @@ test("mails two designs on two chosen dates", async ({ page }) => {
   await page.getByLabel("Name").fill("Grandma");
   await page.getByLabel("Street address").fill("1 Test Street");
   await page.getByLabel("City").fill("Marfa");
-  await page.getByLabel("State").fill("TX");
+  await selectState(page, "TX");
   await page.getByLabel("ZIP").fill("79843");
   await page.getByRole("button", { name: "Add recipient" }).click();
 
@@ -158,7 +165,7 @@ test("offers USPS's form of an address, and uses it on request", async ({ page }
   await page.getByLabel("Name").fill("Grandma");
   await page.getByLabel("Street address").fill("185 berry street");
   await page.getByLabel("City").fill("San Francisco");
-  await page.getByLabel("State").fill("CA");
+  await selectState(page, "CA");
   await page.getByLabel("ZIP").fill("94107");
   await page.getByRole("button", { name: "Add recipient" }).click();
 
@@ -219,7 +226,7 @@ test("refuses a recipient that would not fit on the card, before the cart", asyn
   await page.getByLabel("Name").fill("Grandma");
   await page.getByLabel("Street address").fill("1 Test Street");
   await page.getByLabel("City").fill("Marfa");
-  await page.getByLabel("State").fill("TX");
+  await selectState(page, "TX");
   await page.getByLabel("ZIP").fill("9784");
   await page.getByRole("button", { name: "Add recipient" }).click();
   await expect(page.getByRole("alert")).toContainText("5-digit ZIP");
@@ -230,7 +237,7 @@ test("survives a reload without losing the cart", async ({ page }) => {
   await page.getByLabel("Name").fill("Grandma");
   await page.getByLabel("Street address").fill("1 Test Street");
   await page.getByLabel("City").fill("Marfa");
-  await page.getByLabel("State").fill("TX");
+  await selectState(page, "TX");
   await page.getByLabel("ZIP").fill("79843");
   await page.getByRole("button", { name: "Add recipient" }).click();
   await page.getByRole("button", { name: "Add to cart" }).click();
@@ -248,7 +255,7 @@ test("checkout explains itself when Stripe is not configured", async ({ page }) 
   await page.getByLabel("Name").fill("Grandma");
   await page.getByLabel("Street address").fill("1 Test Street");
   await page.getByLabel("City").fill("Marfa");
-  await page.getByLabel("State").fill("TX");
+  await selectState(page, "TX");
   await page.getByLabel("ZIP").fill("79843");
   await page.getByRole("button", { name: "Add recipient" }).click();
   await page.getByRole("button", { name: "Add to cart" }).click();

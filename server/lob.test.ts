@@ -124,6 +124,11 @@ describe("renderBack", () => {
     const html = await renderBack({ text: "Hi", valediction: "", fontName: "Quicksand", fontSize: 12, fontColor: "#000000" });
     expect(html).toContain(Handlebars.escapeExpression(CARD_FONTS_URL));
   });
+
+  it("anchors the message column to the top, so an overflow clips the end and not the opening", async () => {
+    const html = await renderBack({ text: "Hi", valediction: "", fontName: "Quicksand", fontSize: 12, fontColor: "#000000" });
+    expect(html).toContain("justify-content: flex-start");
+  });
 });
 
 describe("LobError", () => {

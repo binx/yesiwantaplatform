@@ -116,6 +116,23 @@ test("repositions the photo with the arrow keys and saves that crop", async ({ p
   await expect(page.getByRole("button", { name: "Saved!" })).toBeVisible();
 });
 
+test("warns when a note overflows the card and disables Save, then clears when it fits again", async ({ page }) => {
+  await page.goto("/create");
+  await page.locator('input[type="file"][accept="image/*"]').setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: PNG });
+
+  const note = page.getByLabel("Note for the back");
+  const save = page.getByRole("button", { name: "Save this design" });
+  await expect(save).toBeEnabled();
+
+  await note.fill("Seen from the road. ".repeat(20)); // 400 characters, at the default size and font
+  await expect(page.getByText("That's more than fits on the card")).toBeVisible();
+  await expect(save).toBeDisabled();
+
+  await note.fill("");
+  await expect(page.getByText("That's more than fits on the card")).toHaveCount(0);
+  await expect(save).toBeEnabled();
+});
+
 test("imports a spreadsheet's CSV, previews the columns, and fixes a bad row by hand", async ({ page }) => {
   await page.goto("/create");
   await page.getByRole("button", { name: "Upload a list" }).click();

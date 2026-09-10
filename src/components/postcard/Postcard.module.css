@@ -174,7 +174,7 @@
   position: absolute;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   border-right: 2px dotted #888;
   line-height: 1.4;
   overflow: hidden;

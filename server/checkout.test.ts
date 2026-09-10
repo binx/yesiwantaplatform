@@ -5,6 +5,7 @@ import type Stripe from "stripe";
 import sharp from "sharp";
 import { eq } from "drizzle-orm";
 import { addDaysIso, todayIso } from "../shared/postcards.js";
+import type { Order } from "../shared/orders.js";
 
 /**
  * Checkout and webhooks.
@@ -298,7 +299,7 @@ describe("the admin's free order", () => {
       .send({ lines: [{ designs: [{ designId, mailDate: addDaysIso(todayIso(), 2) }], recipients: [RECIPIENT, { ...RECIPIENT, name: "Grandpa" }] }] })
       .expect(201);
 
-    const order = response.body.order;
+    const order = response.body.order as Order;
     expect(order.status).toBe("paid");
     expect(order.totalCents).toBe(0);
     expect(order.unitPriceCents).toBe(0);

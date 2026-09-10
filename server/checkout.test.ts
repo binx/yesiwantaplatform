@@ -278,6 +278,48 @@ describe("webhooks", () => {
   });
 });
 
+describe("the admin's free order", () => {
+  it("writes a paid order for nothing, schedules its cards and claims the design", async () => {
+    const { createAdmin } = await import("./auth.js");
+    await createAdmin("free@example.com", "a-sufficiently-long-test-password");
+    const agent = request.agent(app);
+    const bootstrap = await agent.get("/api/session").expect(200);
+    const login = await agent
+      .post("/api/session")
+      .set("x-csrf-token", bootstrap.body.csrfToken as string)
+      .send({ email: "free@example.com", password: "a-sufficiently-long-test-password" })
+      .expect(200);
+    const csrf = login.body.csrfToken as string;
+
+    const designId = await design();
+    const response = await agent
+      .post("/api/admin/orders/complimentary")
+      .set("x-csrf-token", csrf)
+      .send({ lines: [{ designs: [{ designId, mailDate: addDaysIso(todayIso(), 2) }], recipients: [RECIPIENT, { ...RECIPIENT, name: "Grandpa" }] }] })
+      .expect(201);
+
+    const order = response.body.order;
+    expect(order.status).toBe("paid");
+    expect(order.totalCents).toBe(0);
+    expect(order.unitPriceCents).toBe(0);
+    expect(order.postcardCount).toBe(2);
+    expect(order.email).toBe("free@example.com");
+    expect(order.postcards.every((p: { status: string }) => p.status === "scheduled")).toBe(true);
+    // Never reached Stripe.
+    expect(createSession).not.toHaveBeenCalled();
+
+    const { getDesign } = await import("../db/designs-repository.js");
+    expect((await getDesign(designId))?.orderId).toBe(order.id);
+
+    // The same checks as checkout: the design is spoken for now.
+    await agent
+      .post("/api/admin/orders/complimentary")
+      .set("x-csrf-token", csrf)
+      .send({ lines: [{ designs: [{ designId, mailDate: todayIso() }], recipients: [RECIPIENT] }] })
+      .expect(409);
+  });
+});
+
 describe("the confirmation lookup", () => {
   it("returns the order's postcards, without Lob's error text", async () => {
     const designId = await design();

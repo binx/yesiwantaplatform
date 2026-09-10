@@ -26,15 +26,17 @@ import {
   cancelPostcard,
   completeOrderIfDone,
   countPostcardsByStatus,
+  createPendingOrder,
   getOrder,
   getOrderPaymentIntentId,
   getPostcard,
   listOrders,
+  markOrderPaid,
   requeuePostcard,
 } from "../../db/orders-repository.js";
 import { formatMoney } from "../../shared/money.js";
 import { CSV_BOM, csvRow } from "../../shared/csv.js";
-import { orderStatusSchema, refundInputSchema } from "../../shared/orders.js";
+import { complimentaryOrderInputSchema, orderStatusSchema, refundInputSchema } from "../../shared/orders.js";
 import { formatRecipient, postcardBackSchema } from "../../shared/postcards.js";
 import { refreshFontOrigins, verifyFontUrl } from "../fonts.js";
 import {
@@ -52,7 +54,10 @@ import { renderMarkdown } from "../markdown.js";
 import { escapeHtml } from "../html.js";
 import { sendEmailReportingFailure, sendOrderEmail } from "../email.js";
 import { LobError, LobNotConfiguredError, sendTestPostcard } from "../lob.js";
-import { cleanUp, sendDuePostcards } from "../fulfilment.js";
+import { cleanUp, kickSweep, sendDuePostcards } from "../fulfilment.js";
+import { assertOrderable } from "./checkout.js";
+import { attachDesignsToOrder } from "../../db/designs-repository.js";
+import { randomUUID } from "node:crypto";
 import {
   destroySessionsForUser,
   findAdminById,
@@ -333,6 +338,68 @@ const CSV_COLUMNS = [
   "order_refunded_cents",
   "currency",
 ] as const;
+
+/**
+ * Place an order for free — v1's "free postcards" route, for the one admin.
+ *
+ * The same lines the cart sends to checkout, held to the same checks, but
+ * with no Stripe session and no money: the order is written and moved
+ * straight to `paid` here, which is the one place other than the webhook
+ * that ever does so. That is deliberate, and it is why this lives behind
+ * `requireAdmin` rather than being a zero-price path through checkout — a
+ * zero price is a thing a tampered cart would love to ask for.
+ *
+ * Registered before `/orders/:id` on purpose, as `/orders.csv` is.
+ */
+adminRouter.post("/orders/complimentary", async (req, res) => {
+  let input;
+  try {
+    input = complimentaryOrderInputSchema.parse(req.body);
+  } catch (error) {
+    toHttp(error);
+  }
+
+  const admin = await findAdminById(req.session.adminId!);
+  if (!admin) throw httpError(401, "Sign in again.");
+
+  const settings = await getSettings();
+  if (!settings) throw httpError(503, "This store has not been set up yet.");
+
+  await assertOrderable(input.lines);
+
+  const orderId = randomUUID();
+  await createPendingOrder({
+    id: orderId,
+    // Not a Stripe session; the column is unique, so it still has to be one of a kind.
+    checkoutSessionId: `complimentary-${orderId}`,
+    email: admin.email,
+    currency: settings.currency,
+    unitPriceCents: 0,
+    lines: input.lines,
+  });
+
+  await markOrderPaid(orderId, {
+    paymentIntentId: null,
+    email: admin.email,
+    subtotalCents: 0,
+    discountCents: 0,
+    totalCents: 0,
+    currency: settings.currency,
+  });
+
+  const order = await getOrder(orderId);
+  if (!order) throw httpError(500, "The order was not written.");
+
+  await attachDesignsToOrder(
+    order.postcards.map((p) => p.designId),
+    orderId,
+  );
+
+  // Today's cards should not wait for the next tick, same as a paid one.
+  kickSweep();
+
+  res.status(201).json({ order });
+});
 
 const CSV_ROW_CAP = 50_000;
 

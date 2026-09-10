@@ -59,6 +59,15 @@ export const checkoutRequestSchema = z.object({
   lines: z.array(cartLineSchema).min(1).max(20),
 });
 
+/**
+ * An order the administrator places for free — v1's "free postcards" route.
+ * The same lines as a checkout; the difference is who is asking and that
+ * nothing is charged.
+ */
+export const complimentaryOrderInputSchema = z.object({
+  lines: z.array(cartLineSchema).min(1).max(20),
+});
+
 export const checkoutResponseSchema = z.object({
   url: z.string().url(),
   orderId: z.string(),
@@ -77,6 +86,7 @@ export const refundInputSchema = z.object({
 export type OrderStatus = z.infer<typeof orderStatusSchema>;
 export type Order = z.infer<typeof orderSchema>;
 export type CheckoutRequest = z.infer<typeof checkoutRequestSchema>;
+export type ComplimentaryOrderInput = z.infer<typeof complimentaryOrderInputSchema>;
 export type RefundReason = z.infer<typeof refundReasonSchema>;
 export type RefundInput = z.infer<typeof refundInputSchema>;
 

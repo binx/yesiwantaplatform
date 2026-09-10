@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "antd";
+import { App, Button } from "antd";
+import { useMutation } from "@tanstack/react-query";
+import type { Order } from "@shared/orders";
+import { csrfPost } from "@/lib/api";
+import { useSession } from "@/lib/session";
 import { addDaysIso, todayIso, type PostcardDesign, type Recipient } from "@shared/postcards";
 import { formatMoney } from "@shared/money";
 import { PageWrapper } from "@/components/layout/PageWrapper";
@@ -26,7 +30,26 @@ export function CreatePage() {
   const store = useStore();
   const navigate = useNavigate();
   const add = useCart((s) => s.add);
+  const { message } = App.useApp();
   useDocumentTitle("Make a postcard");
+
+  /*
+   * The one admin's own route: order the batch for free, no Stripe.
+   *
+   * The button only renders for an admin session, but that is a convenience
+   * — the route itself is behind `requireAdmin`, and this hook costs a
+   * shopper one small session probe that every storefront page makes anyway.
+   */
+  const session = useSession();
+  const complimentary = useMutation({
+    mutationFn: (line: { designs: { designId: string; mailDate: string }[]; recipients: Recipient[] }) =>
+      csrfPost<{ order: Order }>("/admin/orders/complimentary", { lines: [line] }),
+    onSuccess: ({ order }) => {
+      message.success(`Ordered ${order.postcardCount} postcard${order.postcardCount === 1 ? "" : "s"} for free.`);
+      void navigate(`/admin/orders/${order.id}`);
+    },
+    onError: (error: unknown) => void message.error(error instanceof Error ? error.message : "Could not place the order."),
+  });
 
   const [designs, setDesigns] = useState<PostcardDesign[]>([]);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
@@ -105,6 +128,21 @@ export function CreatePage() {
           <Button type="primary" size="large" disabled={count === 0} onClick={addToCart}>
             Add to cart
           </Button>
+          {session.data?.isAdmin ? (
+            <Button
+              size="large"
+              disabled={count === 0}
+              loading={complimentary.isPending}
+              onClick={() =>
+                complimentary.mutate({
+                  designs: scheduled.map(({ design, mailDate }) => ({ designId: design.id, mailDate })),
+                  recipients,
+                })
+              }
+            >
+              Send for free (admin)
+            </Button>
+          ) : null}
           {count === 0 ? (
             <span className={postcard.note}>Save at least one design and add at least one recipient.</span>
           ) : (

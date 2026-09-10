@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { checkoutRequestSchema } from "../../shared/orders.js";
-import { countPostcards } from "../../shared/cart.js";
+import { countPostcards, type CartLine } from "../../shared/cart.js";
 import { todayIso } from "../../shared/postcards.js";
 import { getSettings } from "../../db/repository.js";
 import { findDesignsByIds } from "../../db/designs-repository.js";
@@ -28,26 +28,13 @@ export const checkoutRouter: Router = Router();
 /** How far out a card may be scheduled. Lob keeps nothing this long; we do. */
 const MAX_DAYS_AHEAD = 365;
 
-checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
-  const stripe = getStripe();
-  if (!stripe) {
-    throw httpError(503, "This store cannot take payments yet: Stripe is not configured.");
-  }
-
-  const parsed = checkoutRequestSchema.safeParse(req.body);
-  if (!parsed.success) {
-    const first = parsed.error.issues[0];
-    throw httpError(400, first ? `That cart could not be read: ${first.path.join(".")} ${first.message}` : "That cart could not be read.");
-  }
-
-  const settings = await getSettings();
-  if (!settings) throw httpError(503, "This store has not been set up yet.");
-
-  const lines = parsed.data.lines;
-  const currency = settings.currency.toLowerCase();
-
-  // Every design has to exist, unordered, right now. A design that was
-  // cleaned up — or already bought — is a stale cart, not an order.
+/**
+ * Everything about a cart that has to be true before it becomes an order,
+ * whoever is placing it. Shared with the admin's complimentary route so the
+ * two cannot drift: a design that was cleaned up, or a date in the past, is
+ * refused with the same sentence either way.
+ */
+export async function assertOrderable(lines: CartLine[]): Promise<void> {
   const designIds = [...new Set(lines.flatMap((line) => line.designs.map((d) => d.designId)))];
   const designs = await findDesignsByIds(designIds);
   const known = new Map(designs.map((d) => [d.id, d]));
@@ -69,6 +56,29 @@ checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
       if (design.mailDate > horizon) throw httpError(400, "Postcards can be scheduled up to a year ahead.");
     }
   }
+}
+
+checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
+  const stripe = getStripe();
+  if (!stripe) {
+    throw httpError(503, "This store cannot take payments yet: Stripe is not configured.");
+  }
+
+  const parsed = checkoutRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    throw httpError(400, first ? `That cart could not be read: ${first.path.join(".")} ${first.message}` : "That cart could not be read.");
+  }
+
+  const settings = await getSettings();
+  if (!settings) throw httpError(503, "This store has not been set up yet.");
+
+  const lines = parsed.data.lines;
+  const currency = settings.currency.toLowerCase();
+
+  // Every design has to exist, unordered, right now, and every date has to
+  // be one Lob can still act on.
+  await assertOrderable(lines);
 
   const quantity = countPostcards(lines);
   const unitPriceCents = settings.postcardPriceCents;

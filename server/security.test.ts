@@ -64,6 +64,7 @@ const MUTATIONS = [
   { method: "post", path: "/api/admin/lob/test" },
   { method: "post", path: "/api/admin/fulfilment/run" },
   { method: "post", path: "/api/admin/fulfilment/cleanup" },
+  { method: "post", path: "/api/admin/orders/complimentary" },
   { method: "post", path: "/api/admin/orders/demo-order/cancel" },
   { method: "post", path: "/api/admin/orders/demo-order/refund" },
   { method: "post", path: "/api/admin/orders/demo-order/postcards/some-card/retry" },

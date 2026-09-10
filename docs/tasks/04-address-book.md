@@ -95,7 +95,7 @@ is "everyone tagged *family*".
    recipient with a birthday is added, the schedule shows a one-line offer
    under the date row: "Maya's birthday is Oct 14 — mail it Oct 6 to arrive
    in time?" with a button that writes the computed date. Uses
-   `businessDaysBeforeIso` from brief 00. Only for a line with exactly one
+   `addDaysIso(birthday, -7)`, the same lead brief 00's control defaults to. Only for a line with exactly one
    recipient; a batch to twelve people has no single birthday. If brief 00
    has not landed, skip this step and note it in the PR.
 

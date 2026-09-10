@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { Button, InputNumber, Popover, Segmented, Select } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
-import { DELIVERY_BUSINESS_DAYS, businessDaysBeforeIso, todayIso, type PostcardDesign } from "@shared/postcards";
+import { addDaysIso, todayIso, type PostcardDesign } from "@shared/postcards";
 import { ProductImage } from "@/components/ui/ProductImage";
 import { formatMailDate } from "@/lib/postcards";
 import { cx } from "@/lib/cx";
@@ -142,7 +142,8 @@ export function Schedule({
 
       {items.length > 0 ? (
         <p className={styles.note}>
-          Postcards are typically delivered about a week after they are mailed.{" "}
+          Delivery time varies: a couple of days when the address is near the printer, a week or
+          more when it isn't.{" "}
           <ArriveBy items={items} locale={locale} onArriveBy={onArriveBy} />
         </p>
       ) : null}
@@ -151,11 +152,15 @@ export function Schedule({
 }
 
 /**
- * "I want one to arrive on a day": the mail date worked back from the day
- * the card should land, six business days earlier. The estimate is the
- * same one the note above gives; this just does the subtraction so a
- * birthday card is not mailed on the birthday.
+ * "Send it ahead of a date": the buyer names the day that matters and how
+ * many days early to mail, and the mail date is that subtraction. No
+ * arrival is promised — how long a card takes depends on how far it
+ * travels from the printer and on USPS, anywhere from a couple of days to
+ * a week or more — so the lead is theirs to choose, with a week as the
+ * starting point.
  */
+const DEFAULT_LEAD_DAYS = 7;
+
 function ArriveBy({
   items,
   locale,
@@ -168,11 +173,13 @@ function ArriveBy({
   const [open, setOpen] = useState(false);
   const [designId, setDesignId] = useState<string | null>(null);
   const [target, setTarget] = useState("");
+  const [lead, setLead] = useState(DEFAULT_LEAD_DAYS);
   const targetId = useId();
+  const leadId = useId();
   const today = todayIso();
 
   const chosen = designId && items.some((item) => item.design.id === designId) ? designId : (items[0]?.design.id ?? null);
-  const wanted = target ? businessDaysBeforeIso(target, DELIVERY_BUSINESS_DAYS) : null;
+  const wanted = target ? addDaysIso(target, -lead) : null;
   const mailDate = wanted && wanted < today ? today : wanted;
   const tight = wanted !== null && wanted < today;
 
@@ -186,13 +193,23 @@ function ArriveBy({
           options={items.map((item, index) => ({ value: item.design.id, label: `Design ${index + 1}` }))}
         />
       ) : null}
-      <label htmlFor={targetId}>Arrive on</label>
+      <label htmlFor={targetId}>The day that matters</label>
       <input id={targetId} className={styles.dateInput} type="date" min={today} value={target} onChange={(event) => setTarget(event.target.value)} />
+      <label htmlFor={leadId}>Mail it this many days before</label>
+      <InputNumber
+        id={leadId}
+        min={1}
+        max={30}
+        value={lead}
+        onChange={(value) => setLead(typeof value === "number" && value >= 1 ? Math.floor(value) : DEFAULT_LEAD_DAYS)}
+        suffix={lead === 1 ? "day" : "days"}
+        className={cx(styles.cadence)}
+      />
       {mailDate ? (
         <p className={styles.note}>
           {tight
-            ? `That is soon — mailed today, it may arrive a day or two after ${formatMailDate(target, locale)}.`
-            : `We'll mail it on ${formatMailDate(mailDate, locale)} so it should arrive around ${formatMailDate(target, locale)}.`}
+            ? `That's soon: it would be mailed today, and may arrive after ${formatMailDate(target, locale)}.`
+            : `Mailed ${formatMailDate(mailDate, locale)}. How long it takes from there depends on how far it travels and on USPS — a couple of days, or a week or more.`}
         </p>
       ) : null}
       <Button
@@ -211,9 +228,9 @@ function ArriveBy({
   );
 
   return (
-    <Popover trigger="click" open={open} onOpenChange={setOpen} content={content} title="Arrive by a day">
+    <Popover trigger="click" open={open} onOpenChange={setOpen} content={content} title="Ahead of a date">
       <Button type="link" size="small" className={cx(styles.arriveByLink)}>
-        I want one to arrive on a day
+        Send it ahead of a date
       </Button>
     </Popover>
   );

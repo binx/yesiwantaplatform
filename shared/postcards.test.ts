@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { addDaysIso, businessDaysBeforeIso, cropRect, defaultCrop, formatRecipient, recipientSchema, stripEmoji, todayIso } from "./postcards";
+import { addDaysIso, cropRect, defaultCrop, formatRecipient, recipientSchema, stripEmoji, todayIso } from "./postcards";
 
 describe("dates", () => {
-  it("adds days as calendar arithmetic, across month and year ends", () => {
+  it("adds days as calendar arithmetic, across month and year ends, forwards and back", () => {
     expect(addDaysIso("2026-09-28", 7)).toBe("2026-10-05");
+    expect(addDaysIso("2026-10-05", -7)).toBe("2026-09-28");
+    expect(addDaysIso("2027-01-03", -7)).toBe("2026-12-27");
     expect(addDaysIso("2026-12-30", 3)).toBe("2027-01-02");
     expect(addDaysIso("2028-02-28", 1)).toBe("2028-02-29");
   });
@@ -12,17 +14,6 @@ describe("dates", () => {
     expect(todayIso(new Date(2026, 0, 5, 23, 59))).toBe("2026-01-05");
   });
 
-  it("counts business days backwards, skipping weekends and crossing month and year ends", () => {
-    // Monday 14 Sep 2026: six weekdays earlier is Friday 4 Sep, over one weekend.
-    expect(businessDaysBeforeIso("2026-09-14", 6)).toBe("2026-09-04");
-    // Saturday 19 Sep: one weekday earlier is Friday 18 Sep.
-    expect(businessDaysBeforeIso("2026-09-19", 1)).toBe("2026-09-18");
-    // Monday 2 Nov: two weekdays earlier is Thursday 29 Oct, over the weekend and the month end.
-    expect(businessDaysBeforeIso("2026-11-02", 2)).toBe("2026-10-29");
-    // Monday 4 Jan 2027: three weekdays earlier is Wednesday 30 Dec 2026 (Friday 1 Jan counts; no holidays).
-    expect(businessDaysBeforeIso("2027-01-04", 3)).toBe("2026-12-30");
-    expect(businessDaysBeforeIso("2026-09-14", 0)).toBe("2026-09-14");
-  });
 });
 
 describe("recipientSchema", () => {

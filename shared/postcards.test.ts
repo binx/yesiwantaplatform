@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDaysIso, cropRect, defaultCrop, formatRecipient, reactionInputSchema, recipientSchema, replyCodeSchema, REACTIONS, stripEmoji, todayIso } from "./postcards";
+import { addDaysIso, cropRect, defaultCrop, formatRecipient, recipientSchema, replyCodeSchema, stripEmoji, todayIso } from "./postcards";
 
 describe("dates", () => {
   it("adds days as calendar arithmetic, across month and year ends, forwards and back", () => {
@@ -86,13 +86,10 @@ describe("cropRect", () => {
 });
 
 describe("the reply code", () => {
-  it("is eight characters from an alphabet with no lookalikes, and a reaction is one of the offered taps", () => {
+  it("is eight characters from an alphabet with no lookalikes", () => {
     expect(replyCodeSchema.safeParse("AB7X3KQM").success).toBe(true);
     expect(replyCodeSchema.safeParse("AB7X3KQ0").success).toBe(false);
     expect(replyCodeSchema.safeParse("AB7X3KQ").success).toBe(false);
     expect(replyCodeSchema.parse(" ab7x3kqm ")).toBe("AB7X3KQM");
-    expect(reactionInputSchema.parse({ emoji: REACTIONS[0] })).toEqual({ emoji: REACTIONS[0], note: null });
-    expect(reactionInputSchema.safeParse({ emoji: "🙃" }).success).toBe(false);
-    expect(reactionInputSchema.safeParse({ emoji: REACTIONS[0], note: "x".repeat(141) }).success).toBe(false);
   });
 });

@@ -390,20 +390,6 @@ export const postcards = sqliteTable(
 );
 
 /**
- * "It arrived": one tap from the recipient, with an optional note, shown to
- * the sender beside that card. An explicit act — nothing is recorded when
- * the page is merely opened.
- */
-export const postcardReactions = sqliteTable("postcard_reactions", {
-  postcardId: text("postcard_id")
-    .primaryKey()
-    .references(() => postcards.id, { onDelete: "cascade" }),
-  emoji: text("emoji").notNull(),
-  note: text("note"),
-  ...timestamps,
-});
-
-/**
  * Where a card is, from Lob's tracking webhook: one row per event, keyed
  * by Lob's event id so a redelivery is a no-op. Shown as a timeline on the
  * order pages; never emailed.

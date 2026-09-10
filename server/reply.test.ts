@@ -87,13 +87,6 @@ async function signIn(email: string) {
   return { agent, csrf: login.body.csrfToken as string };
 }
 
-/** A stranger holding the card: a session, so they have a CSRF token, but no account. */
-async function stranger() {
-  const agent = request.agent(app);
-  const bootstrap = await agent.get("/api/session").expect(200);
-  return { agent, csrf: bootstrap.body.csrfToken as string };
-}
-
 async function design(agent: request.Agent | request.SuperTest<request.Test> = request(app)): Promise<string> {
   const png = await sharp({ create: { width: 300, height: 200, channels: 3, background: "#00ffff" } }).png().toBuffer();
   const response = await agent
@@ -189,7 +182,7 @@ describe("the code on the back", () => {
 
     await delivered(postcard.id);
     const page = await request(app).get(`/api/r/${code}`).expect(200);
-    expect(page.body).toMatchObject({ senderName: "Rachel", canReply: true, mailedOn: todayIso(), reaction: null, orientation: "landscape" });
+    expect(page.body).toMatchObject({ senderName: "Rachel", canReply: true, mailedOn: todayIso(), orientation: "landscape" });
     expect(page.body.back.text).toBe("Wish you were here");
     expect(page.body.front.path).toBeTruthy();
     expect(JSON.stringify(page.body)).not.toContain(SENDER_ADDRESS.line1);
@@ -209,21 +202,15 @@ describe("the code on the back", () => {
     await request(app).get(`/api/r/${code}`).expect(200);
   });
 
-  it("takes a reaction from whoever holds the card, replaces it on a second tap, and shows it to the sender", async () => {
+  it("shows the sender their card's code on the order, and nothing about who has looked at it", async () => {
     const { sender, orderId, postcard, code } = await sentCard();
     await delivered(postcard.id);
-    const holder = await stranger();
-
-    await holder.agent.post(`/api/r/${code}/reaction`).set("x-csrf-token", holder.csrf).send({ emoji: "🙃", note: "x" }).expect(400);
-    await holder.agent.post(`/api/r/${code}/reaction`).set("x-csrf-token", holder.csrf).send({ emoji: "❤️", note: "  On the fridge 🎉 " }).expect(204);
-    await holder.agent.post(`/api/r/${code}/reaction`).set("x-csrf-token", holder.csrf).send({ emoji: "😂", note: "" }).expect(204);
-
-    const page = await request(app).get(`/api/r/${code}`).expect(200);
-    expect(page.body.reaction).toMatchObject({ emoji: "😂", note: null });
+    await request(app).get(`/api/r/${code}`).expect(200);
+    await request(app).get(`/api/r/${code}`).expect(200);
 
     const theirs = await sender.agent.get(`/api/account/orders/${orderId}`).expect(200);
-    expect(theirs.body.postcards[0].reaction).toMatchObject({ emoji: "😂", note: null });
     expect(theirs.body.postcards[0].replyCode).toBe(code);
+    expect(JSON.stringify(theirs.body)).not.toMatch(/viewed|seen/i);
   });
 
   it("goes dark for good when the sender turns it off", async () => {

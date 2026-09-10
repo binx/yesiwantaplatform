@@ -7,10 +7,8 @@ import {
   REPLY_CODE_ALPHABET,
   REPLY_CODE_LENGTH,
   isShownTrackingEvent,
-  reactionEmojiSchema,
   type Postcard,
   type PostcardStatus,
-  type Reaction,
   type ReplySummary,
   type TrackingEvent,
 } from "../shared/postcards.js";
@@ -174,10 +172,9 @@ export interface PostcardRow {
   isReply: unknown;
 }
 
-/** Everything a card carries beyond its own row: scans, the reaction, and what came back. */
+/** Everything a card carries beyond its own row: scans, and what came back. */
 export interface PostcardExtras {
   tracking?: TrackingEvent[];
-  reaction?: Reaction | null;
   replies?: ReplySummary | null;
 }
 
@@ -190,7 +187,7 @@ interface TrackingRow {
 }
 
 export function buildPostcard(row: PostcardRow, extras: PostcardExtras | TrackingEvent[] = {}): Postcard {
-  const { tracking = [], reaction = null, replies = null } = Array.isArray(extras) ? { tracking: extras } : extras;
+  const { tracking = [], replies = null } = Array.isArray(extras) ? { tracking: extras } : extras;
   return {
     id: row.id,
     designId: row.designId,
@@ -217,7 +214,6 @@ export function buildPostcard(row: PostcardRow, extras: PostcardExtras | Trackin
     // Off, or turned off: the code is not shown, so nothing can be reached by it.
     replyCode: row.replyCode && (row.replyDisabledAt === null || row.replyDisabledAt === undefined) ? row.replyCode : null,
     isReply: toBool(row.isReply),
-    reaction,
     replies,
   };
 }
@@ -293,25 +289,10 @@ async function loadPostcards(orderIds: string[]): Promise<Map<string, Postcard[]
   return map;
 }
 
-/** Scans, reactions and replies for a set of cards, three queries rather than three per card. */
+/** Scans and replies for a set of cards, two queries rather than two per card. */
 export async function loadExtras(postcardIds: string[]): Promise<(id: string) => PostcardExtras> {
-  const [tracking, reactions, replies] = await Promise.all([loadTracking(postcardIds), loadReactions(postcardIds), loadReplies(postcardIds)]);
-  return (id) => ({ tracking: tracking.get(id) ?? [], reaction: reactions.get(id) ?? null, replies: replies.get(id) ?? null });
-}
-
-async function loadReactions(postcardIds: string[]): Promise<Map<string, Reaction>> {
-  const map = new Map<string, Reaction>();
-  if (postcardIds.length === 0) return map;
-  const { drizzle: db, schema } = await getDatabase();
-  const rows = (await db
-    .select()
-    .from(schema.postcardReactions)
-    .where(inArray(schema.postcardReactions.postcardId, postcardIds))) as unknown as { postcardId: string; emoji: string; note: string | null; updatedAt: unknown }[];
-  for (const row of rows) {
-    const emoji = reactionEmojiSchema.safeParse(row.emoji);
-    if (emoji.success) map.set(row.postcardId, { emoji: emoji.data, note: row.note, at: toEpochMs(row.updatedAt) });
-  }
-  return map;
+  const [tracking, replies] = await Promise.all([loadTracking(postcardIds), loadReplies(postcardIds)]);
+  return (id) => ({ tracking: tracking.get(id) ?? [], replies: replies.get(id) ?? null });
 }
 
 /**
@@ -495,17 +476,6 @@ export async function findPostcardByReplyCode(code: string): Promise<ReplyTarget
     .limit(1)) as unknown as { postcard: PostcardRow; orderId: string; customerId: string | null; orderStatus: string; email: string }[];
   const row = rows[0];
   return row ? { postcard: row.postcard, order: { id: row.orderId, customerId: row.customerId, status: row.orderStatus, email: row.email } } : null;
-}
-
-/** "It arrived", from the recipient. A second tap replaces the first. */
-export async function upsertReaction(postcardId: string, emoji: string, note: string | null): Promise<void> {
-  const { drizzle: db, schema, dialect } = await getDatabase();
-  const existing = (await db.select({ id: schema.postcardReactions.postcardId }).from(schema.postcardReactions).where(eq(schema.postcardReactions.postcardId, postcardId)).limit(1)) as unknown as { id: string }[];
-  if (existing.length > 0) {
-    await db.update(schema.postcardReactions).set({ emoji, note, updatedAt: nowFor(dialect) }).where(eq(schema.postcardReactions.postcardId, postcardId));
-  } else {
-    await db.insert(schema.postcardReactions).values({ postcardId, emoji, note });
-  }
 }
 
 /** The sender turns a card's link off. Scoped to their own order. Returns false when it is not theirs. */

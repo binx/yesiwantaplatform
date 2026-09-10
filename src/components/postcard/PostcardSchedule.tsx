@@ -45,21 +45,14 @@ function statusClass(status: PostcardStatus): string {
 }
 
 /**
- * What came back through the card's QR: the recipient's tap and note, and
- * a reply on its way — shown without its front until it has landed.
+ * What came back through the card's QR: a reply on its way — shown without
+ * its front until it has landed.
  */
-export function ReplyNotes({ postcard, locale }: { postcard: Postcard; locale: string }) {
-  const { reaction, replies } = postcard;
-  if (!reaction && !replies) return null;
-  const day = (epochMs: number) => new Date(epochMs).toLocaleDateString(locale, { month: "short", day: "numeric" });
+export function ReplyNotes({ postcard }: { postcard: Postcard }) {
+  const { replies } = postcard;
+  if (!replies) return null;
   return (
     <div className={styles.replyNotes}>
-      {reaction ? (
-        <div>
-          <span className={styles.reactionEmoji}>{reaction.emoji}</span> {reaction.note ? `“${reaction.note}”` : "It arrived"}{" "}
-          <span className={styles.note}>{day(reaction.at)}</span>
-        </div>
-      ) : null}
       {replies && replies.onTheWay > 0 ? <div className={styles.note}>A reply is on its way</div> : null}
       {replies && replies.delivered > 0 ? (
         <div className={styles.replyBack}>
@@ -114,7 +107,7 @@ export function PostcardSchedule({
                 <td>
                   <div>{postcard.recipient.name}</div>
                   <div className={styles.note}>{postcard.isReply ? "Address kept private" : formatRecipient(postcard.recipient, locale)}</div>
-                  <ReplyNotes postcard={postcard} locale={locale} />
+                  <ReplyNotes postcard={postcard} />
                   {onDisableReply && postcard.replyCode && postcard.status !== "cancelled" ? (
                     <Popconfirm title="Turn off this card's QR code?" description="The page behind it goes dark and nobody can reply through it. This can't be undone." onConfirm={() => onDisableReply(postcard)}>
                       <Button type="link" size="small" className={cx(styles.turnOff)}>

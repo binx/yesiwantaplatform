@@ -154,7 +154,7 @@ export function Schedule({
           </p>
           <p className={styles.replyOption}>
             <Checkbox checked={replyLink} onChange={(event) => onReplyLinkChange(event.target.checked)}>
-              Print a small QR code on the back, so they can see the card online, tell you it arrived, and send one back.
+              Print a small QR code on the back, so they can see the card online and send one back.
             </Checkbox>
           </p>
         </>

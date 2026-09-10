@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { reactionInputSchema, replyCodeSchema, stripEmoji } from "../../shared/postcards.js";
+import { replyCodeSchema } from "../../shared/postcards.js";
 import type { ReplyCard } from "../../shared/reply.js";
 import { getReplySettings } from "../../db/customers-repository.js";
 import { toEpochMs } from "../../db/repository.js";
 import { getDesign, toPublicDesign } from "../../db/designs-repository.js";
-import { findPostcardByReplyCode, loadExtras, upsertReaction, type ReplyTarget } from "../../db/orders-repository.js";
+import { findPostcardByReplyCode, type ReplyTarget } from "../../db/orders-repository.js";
 import { httpError, replyRateLimit, verifyCsrf } from "../middleware.js";
 
 /**
@@ -48,7 +48,6 @@ replyRouter.get("/r/:code", replyRateLimit, verifyCsrf, async (req, res) => {
   if (!design) throw httpError(404, "There's no postcard here.");
 
   const settings = target.order.customerId ? await getReplySettings(target.order.customerId) : null;
-  const extras = (await loadExtras([target.postcard.id]))(target.postcard.id);
   const front = toPublicDesign(design);
 
   res.json({
@@ -58,16 +57,5 @@ replyRouter.get("/r/:code", replyRateLimit, verifyCsrf, async (req, res) => {
     senderName: settings?.displayName ?? null,
     mailedOn: target.postcard.mailDate,
     canReply: Boolean(settings?.address && settings.displayName),
-    reaction: extras.reaction ?? null,
   } satisfies ReplyCard);
-});
-
-/** "It arrived": one tap and, if they like, a line. A second tap replaces the first. */
-replyRouter.post("/r/:code/reaction", replyRateLimit, verifyCsrf, async (req, res) => {
-  const target = await lookUp(String(req.params.code));
-  const parsed = reactionInputSchema.safeParse(req.body);
-  if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "That could not be sent.");
-
-  await upsertReaction(target.postcard.id, parsed.data.emoji, parsed.data.note ? stripEmoji(parsed.data.note).trim() || null : null);
-  res.status(204).end();
 });

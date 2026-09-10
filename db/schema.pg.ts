@@ -254,16 +254,6 @@ export const postcards = pgTable(
   ],
 );
 
-/** "It arrived", from the recipient, shown to the sender. See db/schema.sqlite.ts. */
-export const postcardReactions = pgTable("postcard_reactions", {
-  postcardId: text("postcard_id")
-    .primaryKey()
-    .references(() => postcards.id, { onDelete: "cascade" }),
-  emoji: text("emoji").notNull(),
-  note: text("note"),
-  ...timestamps,
-});
-
 export const postcardTrackingEvents = pgTable(
   "postcard_tracking_events",
   {

@@ -259,7 +259,7 @@ for (const { name, context } of dialects) {
       expect(await db.orders.findPostcardForTracking(null, "psc_nope")).toBeNull();
     });
 
-    it("gives each card a unique reply code, keeps a reaction and a reply address, on either engine", async () => {
+    it("gives each card a unique reply code, and keeps a reply address, on either engine", async () => {
       const a = await design();
       const orderId = randomUUID();
       const { createCustomer } = await import("../server/auth.js");
@@ -286,10 +286,6 @@ for (const { name, context } of dialects) {
       const found = await db.orders.findPostcardByReplyCode(code);
       expect(found).toMatchObject({ postcard: { id: cards[0]!.id }, order: { id: orderId, customerId } });
       expect(await db.orders.findPostcardByReplyCode("NOTACODE")).toBeNull();
-
-      await db.orders.upsertReaction(cards[0]!.id, "❤️", "Fridge");
-      await db.orders.upsertReaction(cards[0]!.id, "😂", null);
-      expect((await db.orders.getOrder(orderId))!.postcards[0]!.reaction).toMatchObject({ emoji: "😂", note: null });
 
       expect(await db.orders.disableReplyLink(orderId, cards[0]!.id, "someone-else")).toBe(false);
       expect(await db.orders.disableReplyLink(orderId, cards[0]!.id, customerId)).toBe(true);

@@ -289,25 +289,6 @@ export const replyCodeSchema = z
   .toUpperCase()
   .regex(new RegExp(`^[${REPLY_CODE_ALPHABET}]{${REPLY_CODE_LENGTH}}$`), "That is not a postcard code.");
 
-/** The five things a recipient can say with one tap. */
-export const REACTIONS = ["❤️", "😂", "🥹", "😮", "👋"] as const;
-export const reactionEmojiSchema = z.enum(REACTIONS);
-
-export const reactionInputSchema = z.object({
-  emoji: reactionEmojiSchema,
-  note: z.string().trim().max(140, "140 characters at most.").nullable().default(null),
-});
-
-export const reactionSchema = z.object({
-  emoji: reactionEmojiSchema,
-  note: z.string().nullable(),
-  /** Epoch milliseconds. */
-  at: z.number().int(),
-});
-
-export type ReactionInput = z.infer<typeof reactionInputSchema>;
-export type Reaction = z.infer<typeof reactionSchema>;
-
 /** What came back through a card's code: how many replies are paid for, and the first one's front once it has landed. */
 export const replySummarySchema = z.object({
   onTheWay: z.number().int(),
@@ -345,7 +326,6 @@ export const postcardSchema = z.object({
   replyCode: z.string().nullable().default(null),
   /** A card sent back to a sender. The customer view blanks its address. */
   isReply: z.boolean().default(false),
-  reaction: reactionSchema.nullable().default(null),
   replies: replySummarySchema.nullable().default(null),
 });
 

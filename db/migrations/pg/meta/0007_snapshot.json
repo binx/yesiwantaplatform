@@ -1,5 +1,5 @@
 {
-  "id": "bd2a0e5f-8d10-4dd8-a1f1-c4264d770ccf",
+  "id": "0f3c854d-e18c-4294-881d-3bcca273bb74",
   "prevId": "60727ffd-5f3e-4fce-8acd-273e34c9245d",
   "version": "7",
   "dialect": "postgresql",
@@ -1070,65 +1070,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.postcard_reactions": {
-      "name": "postcard_reactions",
-      "schema": "",
-      "columns": {
-        "postcard_id": {
-          "name": "postcard_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "emoji": {
-          "name": "emoji",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "postcard_reactions_postcard_id_postcards_id_fk": {
-          "name": "postcard_reactions_postcard_id_postcards_id_fk",
-          "tableFrom": "postcard_reactions",
-          "tableTo": "postcards",
-          "columnsFrom": [
-            "postcard_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },

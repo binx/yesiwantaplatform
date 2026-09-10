@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { imageSchema } from "./schema.js";
-import { mailDateSchema, orientationSchema, postcardBackSchema, reactionSchema } from "./postcards.js";
+import { mailDateSchema, orientationSchema, postcardBackSchema } from "./postcards.js";
 
 /**
  * What the holder of a card's code is shown: the card, who it came from by
@@ -17,7 +17,6 @@ export const replyCardSchema = z.object({
   mailedOn: mailDateSchema,
   /** The sender is a customer with a reply address, and has not turned the link off. */
   canReply: z.boolean(),
-  reaction: reactionSchema.nullable(),
 });
 
 export type ReplyCard = z.infer<typeof replyCardSchema>;

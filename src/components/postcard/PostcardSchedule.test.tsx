@@ -26,7 +26,6 @@ const order: Pick<Order, "postcards" | "designs"> = {
       trackingStatus: "postcard.processed_for_delivery",
       replyCode: "AB7X3KQM",
       isReply: false,
-      reaction: { emoji: "❤️", note: "Fridge status: achieved", at: Date.parse("2026-09-19T12:00:00Z") },
       replies: null,
       tracking: [
         { type: "postcard.in_transit", occurredAt: Date.parse("2026-09-15T12:00:00Z"), location: null },
@@ -51,7 +50,6 @@ const order: Pick<Order, "postcards" | "designs"> = {
       tracking: [],
       replyCode: null,
       isReply: false,
-      reaction: null,
       replies: null,
     },
   ],
@@ -80,7 +78,6 @@ describe("PostcardSchedule", () => {
     };
     renderWithProviders(<PostcardSchedule order={withReplies} locale="en-US" onDisableReply={onDisableReply} />);
 
-    expect(screen.getByText(/Fridge status: achieved/)).toBeInTheDocument();
     expect(screen.getByText("A reply is on its way")).toBeInTheDocument();
     expect(screen.getByText("Address kept private")).toBeInTheDocument();
     expect(screen.queryByText(/, Marfa, TX 79843$/)).toHaveTextContent("1 Test Street, Marfa, TX 79843");

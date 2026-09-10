@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ba073f28-acf9-4546-a304-5e25698b5a38",
+  "id": "aa87e2bd-04ce-4d22-a6c8-f711df2bba54",
   "prevId": "4da4f83a-f9fb-4057-9806-90ac7696db55",
   "tables": {
     "address_requests": {
@@ -1031,67 +1031,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "postcard_reactions": {
-      "name": "postcard_reactions",
-      "columns": {
-        "postcard_id": {
-          "name": "postcard_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "emoji": {
-          "name": "emoji",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(unixepoch())"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(unixepoch())"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "postcard_reactions_postcard_id_postcards_id_fk": {
-          "name": "postcard_reactions_postcard_id_postcards_id_fk",
-          "tableFrom": "postcard_reactions",
-          "tableTo": "postcards",
-          "columnsFrom": [
-            "postcard_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },

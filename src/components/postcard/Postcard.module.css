@@ -623,10 +623,6 @@
   white-space: normal;
 }
 
-.reactionEmoji {
-  font-size: 1rem;
-}
-
 .replyBack {
   display: flex;
   align-items: center;

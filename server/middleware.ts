@@ -216,7 +216,7 @@ export const requestRateLimit = rateLimit({
   message: { error: "Too many submissions. Try again in an hour." },
 });
 
-/** The card-code page and its reaction: a scan or two per card, not a scanner. */
+/** The card-code page: a scan or two per card, not a scanner. */
 export const replyRateLimit = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 60,

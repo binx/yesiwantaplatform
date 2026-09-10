@@ -108,7 +108,7 @@ const CUSTOMER_READS = [
 ] as const;
 
 const PUBLIC_CART_TOKEN_ROUTES = ["/api/cart/recover", "/api/cart/unsubscribe"] as const;
-const PUBLIC_WRITE_ROUTES = ["/api/recipients/verify", "/api/address-requests/some-token", "/api/r/NOTACODE1/reaction"] as const;
+const PUBLIC_WRITE_ROUTES = ["/api/recipients/verify", "/api/address-requests/some-token"] as const;
 const ADMIN_PASSWORD_RESET_ROUTES = ["/api/session/forgot-password", "/api/session/reset-password"] as const;
 
 describe("anonymous access", () => {

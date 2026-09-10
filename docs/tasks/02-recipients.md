@@ -9,7 +9,7 @@ blocked_by: []
 blocks: ["04"]
 touches: src/lib/recipients-csv.ts · shared/csv.ts:78 · shared/postcards.ts:78 · server/lob.ts · src/components/postcard/Recipients.tsx · server/routes/checkout.ts
 completed: 2026-09-10
-shipped_in: 5
+shipped_in: 5, 6, 7
 summary: >-
   Three things about who a card goes to. **A:** the CSV importer wants exact column names
   and refuses a whole file for one bad row; make it read what spreadsheets actually export.

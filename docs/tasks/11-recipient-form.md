@@ -1,15 +1,15 @@
 ---
 task: "11"
 title: "Recipients: a state picker, honest buttons, and an unbroken row"
-status: todo
+status: done
 tier: 1
 size: S
 migration: none
 blocked_by: []
 blocks: []
 touches: src/components/postcard/RecipientFields.tsx:98 · src/components/postcard/RecipientFields.tsx:156 · src/lib/recipients.ts:41 · src/lib/recipient-form.ts:68 · src/components/postcard/Recipients.tsx:273 · src/components/postcard/Postcard.module.css:277
-completed:
-shipped_in:
+completed: 2026-09-10
+shipped_in: 15, 20
 summary: >-
   Three things on the address form: the State box takes any two letters and sends
   "ZZ" off to USPS; the button under a rejected address says "Check the address" and

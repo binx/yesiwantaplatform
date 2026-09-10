@@ -1,15 +1,15 @@
 ---
 task: "07"
 title: "Back of card: the message must fit"
-status: todo
+status: done
 tier: 0
 size: M
 migration: none
 blocked_by: []
 blocks: []
 touches: src/components/postcard/PostcardBackMock.tsx · src/components/postcard/Postcard.module.css:172 · print/back.hbs:27 · src/components/postcard/DesignForm.tsx:258 · shared/postcards.ts:103
-completed:
-shipped_in:
+completed: 2026-09-10
+shipped_in: 21
 summary: >-
   A note longer than the message column is silently clipped at BOTH ends, on screen
   and in print, because the column is vertically centred with overflow hidden. The

@@ -1,11 +1,15 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Alert, Button, Checkbox, Input, Modal, type InputRef } from "antd";
+import { Alert, Button, Checkbox, Modal, type InputRef } from "antd";
 import { DeleteOutlined, EditOutlined, UploadOutlined } from "@ant-design/icons";
-import { formatRecipient, recipientSchema, type Recipient } from "@shared/postcards";
+import { formatRecipient, type Recipient, type Verification } from "@shared/postcards";
+import type { CustomerAddress } from "@shared/account";
 import { useAddresses, useCustomer } from "@/lib/account";
 import { parseRecipientsCsv, SAMPLE_CSV, type CsvProblem, type CsvResult } from "@/lib/recipients-csv";
+import { describeVerification, recipientKey, verifyRecipient } from "@/lib/recipients";
 import { cx } from "@/lib/cx";
+import { BLANK_RECIPIENT, useRecipientCheck, validateRecipient, type RecipientErrors } from "@/lib/recipient-form";
+import { RecipientFields, VerificationNotice } from "./RecipientFields";
 import styles from "./Postcard.module.css";
 
 /**
@@ -15,61 +19,67 @@ import styles from "./Postcard.module.css";
  * they have written to before. Every one of them ends in `recipientSchema`,
  * which carries Lob's limits, so a name that will not fit on the card is
  * refused here and not by the printer after the money has been taken.
+ *
+ * Then USPS gets a say. Each address is verified through Lob as it arrives:
+ * the form asks before adding, a list is checked a few at a time after, and
+ * an address USPS does not know at all keeps the batch out of the cart
+ * until it is fixed or removed — because Lob would refuse it after payment,
+ * and that is the worse place to find out.
  */
 interface RecipientsProps {
   recipients: Recipient[];
   onChange: (recipients: Recipient[]) => void;
+  /** How many recipients USPS refused; the page keeps the batch out of the cart while it is above zero. */
+  onBlockedChange?: (count: number) => void;
 }
 
-const BLANK: Recipient = { name: "", line1: "", line2: null, city: "", state: "", postalCode: "" };
+const VERIFIED: Verification = { deliverability: "deliverable", suggested: null, changed: false };
 
-type Errors = Partial<Record<keyof Recipient, string>>;
-
-function validate(draft: Recipient): { ok: true; value: Recipient } | { ok: false; errors: Errors } {
-  const parsed = recipientSchema.safeParse({ ...draft, line2: draft.line2?.trim() ? draft.line2 : null });
-  if (parsed.success) return { ok: true, value: parsed.data };
-
-  const errors: Errors = {};
-  for (const issue of parsed.error.issues) {
-    const key = issue.path[0] as keyof Recipient | undefined;
-    if (key && !errors[key]) errors[key] = issue.message;
-  }
-  return { ok: false, errors };
-}
-
-export function Recipients({ recipients, onChange }: RecipientsProps) {
-  const [draft, setDraft] = useState<Recipient>(BLANK);
-  const [errors, setErrors] = useState<Errors>({});
+export function Recipients({ recipients, onChange, onBlockedChange }: RecipientsProps) {
+  const [draft, setDraft] = useState<Recipient>(BLANK_RECIPIENT);
+  const [errors, setErrors] = useState<RecipientErrors>({});
   const [editing, setEditing] = useState<number | null>(null);
   const [csvOpen, setCsvOpen] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
   // Rows a CSV could not use, kept here so the good rows go in and these get fixed one by one.
   const [pending, setPending] = useState<CsvProblem[]>([]);
   const [fixingLine, setFixingLine] = useState<number | null>(null);
+  // What USPS said about each recipient in the list, by `recipientKey`.
+  const [verified, setVerified] = useState<Record<string, Verification>>({});
+  const [reviewing, setReviewing] = useState<number | null>(null);
+  const inFlight = useRef(new Set<string>());
   const nameRef = useRef<InputRef>(null);
   const customer = useCustomer();
+  const check = useRecipientCheck();
 
   const set = (key: keyof Recipient, value: string) => {
     setDraft((current) => ({ ...current, [key]: value }));
     if (errors[key]) setErrors((current) => ({ ...current, [key]: undefined }));
   };
 
+  const mark = (entries: [string, Verification][]) =>
+    setVerified((current) => ({ ...current, ...Object.fromEntries(entries) }));
+
+  const commit = (value: Recipient, verification: Verification) => {
+    if (editing === null) onChange([...recipients, value]);
+    else onChange(recipients.map((r, i) => (i === editing ? value : r)));
+    mark([[recipientKey(value), verification]]);
+
+    if (fixingLine !== null) setPending((current) => current.filter((problem) => problem.line !== fixingLine));
+    setFixingLine(null);
+    setDraft(BLANK_RECIPIENT);
+    setErrors({});
+    setEditing(null);
+    nameRef.current?.focus();
+  };
+
   const submit = () => {
-    const result = validate(draft);
+    const result = validateRecipient(draft);
     if (!result.ok) {
       setErrors(result.errors);
       return;
     }
-
-    if (editing === null) onChange([...recipients, result.value]);
-    else onChange(recipients.map((r, i) => (i === editing ? result.value : r)));
-
-    if (fixingLine !== null) setPending((current) => current.filter((problem) => problem.line !== fixingLine));
-    setFixingLine(null);
-    setDraft(BLANK);
-    setErrors({});
-    setEditing(null);
-    nameRef.current?.focus();
+    void check.run(result.value, commit);
   };
 
   const importCsv = (list: Recipient[], problems: CsvProblem[]) => {
@@ -80,7 +90,7 @@ export function Recipients({ recipients, onChange }: RecipientsProps) {
 
   /** Load a row the CSV could not use into the form, with its errors showing, so the fix is one field away. */
   const fix = (problem: CsvProblem) => {
-    const result = validate(problem.draft);
+    const result = validateRecipient(problem.draft);
     setDraft(problem.draft);
     setErrors(result.ok ? {} : result.errors);
     setEditing(null);
@@ -89,9 +99,11 @@ export function Recipients({ recipients, onChange }: RecipientsProps) {
   };
 
   const edit = (index: number) => {
-    setDraft(recipients[index] ?? BLANK);
+    setDraft(recipients[index] ?? BLANK_RECIPIENT);
     setEditing(index);
     setErrors({});
+    setReviewing(null);
+    check.dismiss();
     nameRef.current?.focus();
   };
 
@@ -99,9 +111,63 @@ export function Recipients({ recipients, onChange }: RecipientsProps) {
     onChange(recipients.filter((_, i) => i !== index));
     if (editing === index) {
       setEditing(null);
-      setDraft(BLANK);
+      setDraft(BLANK_RECIPIENT);
     }
+    if (reviewing === index) setReviewing(null);
   };
+
+  const cancelEdit = () => {
+    setEditing(null);
+    setFixingLine(null);
+    setDraft(BLANK_RECIPIENT);
+    setErrors({});
+    check.dismiss();
+  };
+
+  // Addresses that arrived without passing through the form — a CSV, the
+  // saved list — are verified a few at a time, and the results land as chips.
+  useEffect(() => {
+    const queue = recipients.filter((recipient) => {
+      const key = recipientKey(recipient);
+      return !(key in verified) && !inFlight.current.has(key);
+    });
+    if (queue.length === 0) return;
+
+    const batch = queue.slice(0, 4);
+    for (const recipient of batch) inFlight.current.add(recipientKey(recipient));
+    void Promise.all(batch.map(async (recipient) => [recipientKey(recipient), await verifyRecipient(recipient)] as const)).then((results) => {
+      for (const [key] of results) inFlight.current.delete(key);
+      mark(results.map(([key, verification]) => [key, verification]));
+    });
+  }, [recipients, verified]);
+
+  const statusOf = (recipient: Recipient) => verified[recipientKey(recipient)];
+  const blocked = recipients.filter((recipient) => statusOf(recipient)?.deliverability === "undeliverable").length;
+  const suggestions = recipients.filter((recipient) => {
+    const status = statusOf(recipient);
+    return status?.deliverability === "deliverable" && status.changed && status.suggested;
+  }).length;
+
+  useEffect(() => {
+    onBlockedChange?.(blocked);
+  }, [blocked, onBlockedChange]);
+
+  const applyAllSuggestions = () => {
+    const entries: [string, Verification][] = [];
+    const next = recipients.map((recipient) => {
+      const status = statusOf(recipient);
+      if (status?.deliverability === "deliverable" && status.changed && status.suggested) {
+        entries.push([recipientKey(status.suggested), VERIFIED]);
+        return status.suggested;
+      }
+      return recipient;
+    });
+    mark(entries);
+    onChange(next);
+  };
+
+  const reviewed = reviewing !== null ? recipients[reviewing] : undefined;
+  const reviewedStatus = reviewed ? statusOf(reviewed) : undefined;
 
   return (
     <div className={styles.recipients}>
@@ -112,44 +178,12 @@ export function Recipients({ recipients, onChange }: RecipientsProps) {
           submit();
         }}
       >
-        <Field label="Name" error={errors.name}>
-          {(id) => (
-            <Input id={id} ref={nameRef} value={draft.name} maxLength={40} autoComplete="off" onChange={(e) => set("name", e.target.value)} />
-          )}
-        </Field>
-        <Field label="Street address" error={errors.line1}>
-          {(id) => <Input id={id} value={draft.line1} maxLength={64} autoComplete="off" onChange={(e) => set("line1", e.target.value)} />}
-        </Field>
-        <Field label="Apt, suite, etc. (optional)" error={errors.line2}>
-          {(id) => <Input id={id} value={draft.line2 ?? ""} maxLength={64} autoComplete="off" onChange={(e) => set("line2", e.target.value)} />}
-        </Field>
-        <div className={styles.recipientRow}>
-          <Field label="City" error={errors.city}>
-            {(id) => <Input id={id} value={draft.city} autoComplete="off" onChange={(e) => set("city", e.target.value)} />}
-          </Field>
-          <Field label="State" error={errors.state}>
-            {(id) => <Input id={id} value={draft.state} maxLength={2} placeholder="CA" autoComplete="off" onChange={(e) => set("state", e.target.value.toUpperCase())} />}
-          </Field>
-          <Field label="ZIP" error={errors.postalCode}>
-            {(id) => <Input id={id} value={draft.postalCode} maxLength={10} inputMode="numeric" autoComplete="off" onChange={(e) => set("postalCode", e.target.value)} />}
-          </Field>
-        </div>
+        <RecipientFields draft={draft} errors={errors} onChange={set} nameRef={nameRef} />
         <div className={styles.recipientActions}>
-          <Button type="primary" htmlType="submit">
+          <Button type="primary" htmlType="submit" loading={check.verifying}>
             {editing === null ? "Add recipient" : "Save changes"}
           </Button>
-          {editing !== null || fixingLine !== null ? (
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setFixingLine(null);
-                setDraft(BLANK);
-                setErrors({});
-              }}
-            >
-              Cancel
-            </Button>
-          ) : null}
+          {editing !== null || fixingLine !== null ? <Button onClick={cancelEdit}>Cancel</Button> : null}
           <Button icon={<UploadOutlined />} onClick={() => setCsvOpen(true)}>
             Upload a list
           </Button>
@@ -164,21 +198,73 @@ export function Recipients({ recipients, onChange }: RecipientsProps) {
             </span>
           )}
         </div>
+        {check.check ? <VerificationNotice check={check.check} onUse={check.useSuggested} onKeep={check.keepMine} onDismiss={check.dismiss} /> : null}
       </form>
 
       <ol className={styles.recipientList} aria-label="Recipients">
-        {recipients.map((recipient, index) => (
-          <li key={`${index}-${recipient.name}`} className={styles.recipientItem}>
-            <span className={styles.badge}>{index + 1}</span>
-            <span className={styles.recipientText}>
-              <strong>{recipient.name}</strong>
-              <span>{formatRecipient(recipient)}</span>
-            </span>
-            <Button type="text" size="small" icon={<EditOutlined />} aria-label={`Edit ${recipient.name}`} onClick={() => edit(index)} />
-            <Button type="text" size="small" icon={<DeleteOutlined />} aria-label={`Remove ${recipient.name}`} onClick={() => remove(index)} />
-          </li>
-        ))}
+        {recipients.map((recipient, index) => {
+          const status = statusOf(recipient);
+          const note = status ? describeVerification(status) : null;
+          return (
+            <li key={`${index}-${recipient.name}`} className={styles.recipientItem}>
+              <span className={styles.badge}>{index + 1}</span>
+              <span className={styles.recipientText}>
+                <strong>{recipient.name}</strong>
+                <span>{formatRecipient(recipient)}</span>
+                {status?.deliverability === "deliverable" && !status.changed ? (
+                  <span className={styles.verifiedChip}>Verified</span>
+                ) : note?.tone === "suggest" || note?.tone === "warn" ? (
+                  <Button size="small" className={cx(styles.chipButton)} onClick={() => setReviewing(index)} aria-label={`Review ${recipient.name}`}>
+                    {note.tone === "suggest" ? "Suggested" : "Check"}
+                  </Button>
+                ) : note?.tone === "block" ? (
+                  <Button size="small" danger className={cx(styles.chipButton)} onClick={() => edit(index)} aria-label={`Fix ${recipient.name}`}>
+                    Check this
+                  </Button>
+                ) : null}
+                {reviewing === index && reviewed && reviewedStatus ? (
+                  <VerificationNotice
+                    check={{ value: reviewed, verification: reviewedStatus }}
+                    onUse={() => {
+                      const suggested = reviewedStatus.suggested ?? reviewed;
+                      onChange(recipients.map((r, i) => (i === index ? suggested : r)));
+                      mark([[recipientKey(suggested), VERIFIED]]);
+                      setReviewing(null);
+                    }}
+                    onKeep={() => {
+                      mark([[recipientKey(reviewed), VERIFIED]]);
+                      setReviewing(null);
+                    }}
+                    onDismiss={() => {
+                      setReviewing(null);
+                      if (reviewedStatus.deliverability !== "deliverable") edit(index);
+                    }}
+                  />
+                ) : null}
+              </span>
+              <Button type="text" size="small" icon={<EditOutlined />} aria-label={`Edit ${recipient.name}`} onClick={() => edit(index)} />
+              <Button type="text" size="small" icon={<DeleteOutlined />} aria-label={`Remove ${recipient.name}`} onClick={() => remove(index)} />
+            </li>
+          );
+        })}
       </ol>
+
+      {suggestions > 1 ? (
+        <p className={styles.recipientActions}>
+          <Button size="small" onClick={applyAllSuggestions}>
+            Use USPS's form for all {suggestions}
+          </Button>
+        </p>
+      ) : null}
+
+      {blocked > 0 ? (
+        <Alert
+          type="error"
+          showIcon
+          title={`${blocked} address${blocked === 1 ? "" : "es"} need${blocked === 1 ? "s" : ""} checking`}
+          description="USPS doesn't recognise them. Fix or remove them before adding this batch to the cart."
+        />
+      ) : null}
 
       {pending.length > 0 ? (
         <div className={styles.pendingRows} role="region" aria-label="Rows that need fixing">
@@ -214,33 +300,12 @@ export function Recipients({ recipients, onChange }: RecipientsProps) {
           open={savedOpen}
           onClose={() => setSavedOpen(false)}
           existing={recipients}
-          onAdd={(list) => onChange([...recipients, ...list])}
+          onAdd={(list) => {
+            // Ones Lob already called deliverable are not asked about again.
+            mark(list.filter((address) => address.verifiedAt !== null).map((address) => [recipientKey(address), VERIFIED]));
+            onChange([...recipients, ...list.map(({ name, line1, line2, city, state, postalCode }) => ({ name, line1, line2, city, state, postalCode }))]);
+          }}
         />
-      ) : null}
-    </div>
-  );
-}
-
-function Field({
-  label,
-  error,
-  children,
-}: {
-  label: string;
-  error?: string | undefined;
-  children: (id: string) => React.ReactNode;
-}) {
-  const id = useId();
-  return (
-    <div className={cx(styles.field, styles.grow)}>
-      <label className={styles.label} htmlFor={id}>
-        {label}
-      </label>
-      {children(id)}
-      {error ? (
-        <span className={styles.error} role="alert">
-          {error}
-        </span>
       ) : null}
     </div>
   );
@@ -358,8 +423,6 @@ function CsvModal({
 
 /* ------------------------------------------------------------- saved list */
 
-const key = (r: Recipient) => `${r.name}|${formatRecipient(r)}`.toLowerCase();
-
 function SavedRecipientsModal({
   open,
   onClose,
@@ -369,13 +432,13 @@ function SavedRecipientsModal({
   open: boolean;
   onClose: () => void;
   existing: Recipient[];
-  onAdd: (recipients: Recipient[]) => void;
+  onAdd: (addresses: CustomerAddress[]) => void;
 }) {
   const addresses = useAddresses(open);
   const [chosen, setChosen] = useState<string[]>([]);
-  const already = new Set(existing.map(key));
+  const already = new Set(existing.map(recipientKey));
 
-  const list = (addresses.data ?? []).filter((address) => !already.has(key(address)));
+  const list = (addresses.data ?? []).filter((address) => !already.has(recipientKey(address)));
 
   return (
     <Modal
@@ -385,8 +448,7 @@ function SavedRecipientsModal({
       okText={`Add ${chosen.length || ""}`.trim()}
       okButtonProps={{ disabled: chosen.length === 0 }}
       onOk={() => {
-        const picked = list.filter((address) => chosen.includes(address.id));
-        onAdd(picked.map(({ name, line1, line2, city, state, postalCode }) => ({ name, line1, line2, city, state, postalCode })));
+        onAdd(list.filter((address) => chosen.includes(address.id)));
         setChosen([]);
         onClose();
       }}

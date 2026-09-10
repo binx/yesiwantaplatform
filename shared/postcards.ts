@@ -146,6 +146,34 @@ export const recipientSchema = z.object({
 
 export type Recipient = z.infer<typeof recipientSchema>;
 
+/**
+ * What Lob's address verification said about a recipient.
+ *
+ * Lob's own sub-codes (`undeliverable_no_match` and friends) collapse to
+ * `undeliverable`; `unknown` means Lob could not be asked — no key, an
+ * outage — and the buyer proceeds as if nothing had been checked.
+ */
+export const deliverabilitySchema = z.enum([
+  "deliverable",
+  "deliverable_unnecessary_unit",
+  "deliverable_incorrect_unit",
+  "deliverable_missing_unit",
+  "undeliverable",
+  "unknown",
+]);
+export type Deliverability = z.infer<typeof deliverabilitySchema>;
+
+export const verificationSchema = z.object({
+  deliverability: deliverabilitySchema,
+  /** The address in USPS's form, when Lob returned one. Null when undeliverable or unknown. */
+  suggested: recipientSchema.nullable(),
+  /** Whether `suggested` differs from what was sent, ignoring case, punctuation and ZIP+4. */
+  changed: z.boolean(),
+});
+export type Verification = z.infer<typeof verificationSchema>;
+
+export const unknownVerification: Verification = { deliverability: "unknown", suggested: null, changed: false };
+
 /** A calendar day, YYYY-MM-DD. The day the card goes to Lob, in the store's day. */
 export const mailDateSchema = z
   .string()

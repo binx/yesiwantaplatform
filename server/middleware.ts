@@ -186,6 +186,21 @@ export const uploadRateLimit = rateLimit({
   message: { error: "Too many uploads. Try again in a few minutes." },
 });
 
+/**
+ * Address verification — a public route that calls a paid Lob endpoint.
+ *
+ * Generous enough for a bulk upload (a few hundred rows, with the server's
+ * own cache absorbing repeats) and small enough that the endpoint is not a
+ * free verifier for the internet. Every response counts.
+ */
+export const verifyRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 120,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many address checks. Try again in an hour." },
+});
+
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /**

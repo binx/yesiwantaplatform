@@ -129,6 +129,39 @@ test("imports a spreadsheet's CSV, previews the columns, and fixes a bad row by 
   await expect(fixes).toHaveCount(0);
 });
 
+test("offers USPS's form of an address, and uses it on request", async ({ page }) => {
+  // Lob is not configured on the fixture, so USPS is played here.
+  await page.route("**/api/recipients/verify", async (route) => {
+    const sent = route.request().postDataJSON() as { line1: string };
+    await route.fulfill({
+      json:
+        sent.line1 === "185 berry street"
+          ? {
+              deliverability: "deliverable",
+              suggested: { name: "Grandma", line1: "185 Berry St", line2: null, city: "San Francisco", state: "CA", postalCode: "94107" },
+              changed: true,
+            }
+          : { deliverability: "unknown", suggested: null, changed: false },
+    });
+  });
+
+  await page.goto("/create");
+  await page.getByLabel("Name").fill("Grandma");
+  await page.getByLabel("Street address").fill("185 berry street");
+  await page.getByLabel("City").fill("San Francisco");
+  await page.getByLabel("State").fill("CA");
+  await page.getByLabel("ZIP").fill("94107");
+  await page.getByRole("button", { name: "Add recipient" }).click();
+
+  await expect(page.getByText("USPS knows this address as:")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Recipients" })).not.toContainText("Grandma");
+  await page.getByRole("button", { name: "Use this" }).click();
+
+  const list = page.getByRole("list", { name: "Recipients" });
+  await expect(list).toContainText("185 Berry St, San Francisco, CA 94107");
+  await expect(list).toContainText("Verified");
+});
+
 test("refuses a recipient that would not fit on the card, before the cart", async ({ page }) => {
   await page.goto("/create");
   await page.getByLabel("Name").fill("Grandma");

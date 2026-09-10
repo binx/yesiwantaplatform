@@ -62,12 +62,13 @@ async function loadWith(databaseUrl: string) {
   const designs = await import("./designs-repository.js");
   const pages = await import("./pages-repository.js");
   const carts = await import("./carts-repository.js");
+  const customers = await import("./customers-repository.js");
   const { getDatabase, resetDatabase } = await import("./client.js");
 
   await runMigrations();
   await seedIfEmpty();
 
-  return { ...repository, admin, orders, designs, pages, carts, getDatabase, resetDatabase };
+  return { ...repository, admin, orders, designs, pages, carts, customers, getDatabase, resetDatabase };
 }
 
 const RECIPIENT = { name: "Grandma", line1: "1 Test Street", line2: null, city: "Marfa", state: "TX", postalCode: "79843" };
@@ -174,6 +175,25 @@ for (const { name, context } of dialects) {
       order = (await db.orders.getOrder(orderId))!;
       expect(order.status).toBe("cancelled");
       expect(order.postcards.filter((p) => p.status === "cancelled")).toHaveLength(4);
+    });
+
+    it("records when a saved recipient was verified, and forgets it on edit", async () => {
+      const { drizzle, schema } = await db.getDatabase();
+      const customerId = randomUUID();
+      await drizzle.insert(schema.customers).values({ id: customerId, email: `${customerId}@example.com`, passwordHash: null, name: null });
+
+      const verified = await db.customers.createAddress(customerId, RECIPIENT, { verified: true });
+      const plain = await db.customers.createAddress(customerId, { ...RECIPIENT, name: "Grandpa" });
+      expect(typeof verified.verifiedAt).toBe("number");
+      expect(plain.verifiedAt).toBeNull();
+
+      const listed = await db.customers.listAddresses(customerId);
+      expect(listed.find((a) => a.id === verified.id)?.verifiedAt).toBeTypeOf("number");
+      expect(listed.find((a) => a.id === plain.id)?.verifiedAt).toBeNull();
+
+      const edited = await db.customers.updateAddress(verified.id, customerId, { ...RECIPIENT, line1: "2 Test Street" });
+      expect(edited.verifiedAt).toBeNull();
+      expect((await db.customers.listAddresses(customerId)).find((a) => a.id === verified.id)?.verifiedAt).toBeNull();
     });
 
     it("round-trips a page's booleans", async () => {

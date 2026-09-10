@@ -146,6 +146,8 @@ export const customerAddresses = sqliteTable(
     postalCode: text("postal_code").notNull(),
     /** Always "US": Lob's postcard product is domestic. Kept so the row says so. */
     country: text("country").notNull().default("US"),
+    /** When Lob's verification last called this address deliverable. Null: never, or edited since. */
+    verifiedAt: integer("verified_at"),
     ...timestamps,
   },
   (t) => [index("customer_addresses_customer_idx").on(t.customerId)],

@@ -94,6 +94,8 @@ export const customerAddresses = pgTable(
     state: text("state").notNull(),
     postalCode: text("postal_code").notNull(),
     country: text("country").notNull().default("US"),
+    /** When Lob's verification last called this address deliverable. Null: never, or edited since. */
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [index("customer_addresses_customer_idx").on(t.customerId)],

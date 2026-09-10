@@ -75,10 +75,6 @@ instead of sent.
   numbers.
 - **Postcards are US only**, as in v1; the recipient form enforces a
   two-letter state and a 5-digit ZIP.
-- **No address verification.** A typo in a ZIP goes to Lob and comes back as
-  a refusal on the order after payment. Lob's US verification endpoint can be
-  proxied server-side from the recipient form (no publishable key needed) —
-  a good small task once the basics are proven.
 - **Old orders were not migrated** from the v1 Postgres database.
 
 ## 4. The design pass

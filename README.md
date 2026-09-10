@@ -113,6 +113,15 @@ Designs nobody bought are deleted after a month. Once every card of a design
 has gone to Lob, its print file is removed and the thumbnail kept, so the order
 page still shows what was sent.
 
+Every recipient is checked against Lob's US address verification as it is
+added, so a ZIP that USPS does not know is caught while the buyer is looking
+at the field rather than by the printer after payment. USPS's form of an
+address is offered back; an address USPS does not recognise keeps the batch
+out of the cart until it is fixed. With no `LOB_API_KEY`, or with Lob down,
+nothing is checked and nothing is blocked. The route is rate-limited and the
+answers cached for a day, because verifications past the plan's allowance
+are billed.
+
 ### Customer accounts
 
 Sign in, order history, password reset — and **saved recipients**: the people a

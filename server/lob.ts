@@ -8,11 +8,15 @@ import {
   PRINT_SIZES,
   cropRect,
   defaultCrop,
+  recipientSchema,
   stripEmoji,
+  unknownVerification,
   type Crop,
+  type Deliverability,
   type Orientation,
   type PostcardBack,
   type Recipient,
+  type Verification,
 } from "../shared/postcards.js";
 
 /**
@@ -249,15 +253,27 @@ interface LobPostcardBody {
 
 /** Send a multipart request and turn Lob's answer into either a body or a `LobError`. */
 async function post<T>(endpoint: string, form: FormData, idempotencyKey?: string): Promise<T> {
+  return send<T>(endpoint, {
+    headers: { ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}) },
+    body: form,
+  });
+}
+
+/** The same, with a JSON body — what the verification endpoints take. */
+async function postJson<T>(endpoint: string, body: unknown): Promise<T> {
+  return send<T>(endpoint, {
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+async function send<T>(endpoint: string, init: { headers: Record<string, string>; body: FormData | string }): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${API}${endpoint}`, {
       method: "POST",
-      headers: {
-        authorization: authorization(),
-        ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
-      },
-      body: form,
+      headers: { authorization: authorization(), ...init.headers },
+      body: init.body,
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (error) {
@@ -368,4 +384,151 @@ export async function sendTestPostcard(back: PostcardBack): Promise<LobPostcard>
     back,
     description: "Postcard Gifts admin test",
   });
+}
+
+/* ------------------------------------------------------------ verification */
+
+/*
+ * Address verification, before the money.
+ *
+ * This is the one place outside the fulfilment sweep that talks to Lob, and
+ * it is a read: `POST /v1/us_verifications` answers in a second with what
+ * USPS makes of an address, so a typo in a ZIP is caught while the buyer is
+ * looking at the field rather than by the sweep after payment. It is called
+ * from a request handler behind its own rate limit (`verifyRateLimit`), and
+ * cached here, because Lob bills verifications past the plan's allowance
+ * and a buyer re-adding the same friend should not pay twice.
+ *
+ * Lob being down is not a refusal. Anything that is not an answer — no key,
+ * an outage, a rate limit — comes back as `unknown`, and the buyer proceeds
+ * as if nothing had been checked. Verification must never be what stops a
+ * sale.
+ */
+
+const VERIFY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const VERIFY_CACHE_MAX = 5000;
+const verifyCache = new Map<string, { at: number; value: Verification }>();
+
+/** Tests share a process; each starts clean. */
+export function resetVerificationCache(): void {
+  verifyCache.clear();
+}
+
+const squash = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+function cacheKey(recipient: Recipient): string {
+  return [recipient.line1, recipient.line2 ?? "", recipient.city, recipient.state, recipient.postalCode.slice(0, 5)].map(squash).join("|");
+}
+
+interface UsVerificationBody {
+  deliverability?: string;
+  primary_line?: string;
+  secondary_line?: string;
+  components?: { city?: string; state?: string; zip_code?: string; zip_code_plus_4?: string };
+}
+
+/**
+ * USPS answers in capitals — "185 BERRY ST" — and a postcard is addressed
+ * by a person, so the suggestion is offered in title case. Directionals and
+ * the state stay as they are.
+ */
+const KEEP_UPPER = new Set(["N", "S", "E", "W", "NE", "NW", "SE", "SW", "PO", "APT", "STE"]);
+function titleCase(value: string): string {
+  return value
+    .split(" ")
+    .map((word) => {
+      if (word === "") return word;
+      if (KEEP_UPPER.has(word.toUpperCase()) && word.toUpperCase() === word) return word;
+      if (/^\d/.test(word)) return word.toLowerCase();
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(" ");
+}
+
+function sameAddress(a: Recipient, b: Recipient): boolean {
+  return (
+    squash(a.line1) === squash(b.line1) &&
+    squash(a.line2 ?? "") === squash(b.line2 ?? "") &&
+    squash(a.city) === squash(b.city) &&
+    squash(a.state) === squash(b.state) &&
+    a.postalCode.slice(0, 5) === b.postalCode.slice(0, 5)
+  );
+}
+
+function toDeliverability(raw: string | undefined): Deliverability {
+  switch (raw) {
+    case "deliverable":
+    case "deliverable_unnecessary_unit":
+    case "deliverable_incorrect_unit":
+    case "deliverable_missing_unit":
+      return raw;
+    default:
+      if (raw?.startsWith("undeliverable")) return "undeliverable";
+      if (raw?.startsWith("deliverable")) return "deliverable";
+      return "unknown";
+  }
+}
+
+/** Lob's answer, read into what the form needs: a verdict, and the address in USPS's form when there is one. */
+export function interpretVerification(sent: Recipient, body: UsVerificationBody): Verification {
+  const deliverability = toDeliverability(body.deliverability);
+  if (deliverability === "undeliverable" || deliverability === "unknown") {
+    return { deliverability, suggested: null, changed: false };
+  }
+
+  const components = body.components ?? {};
+  const zip = components.zip_code
+    ? components.zip_code_plus_4
+      ? `${components.zip_code}-${components.zip_code_plus_4}`
+      : components.zip_code
+    : sent.postalCode;
+
+  const parsed = recipientSchema.safeParse({
+    name: sent.name,
+    line1: body.primary_line ? titleCase(body.primary_line) : sent.line1,
+    line2: body.secondary_line ? titleCase(body.secondary_line) : null,
+    city: components.city ? titleCase(components.city) : sent.city,
+    state: components.state ?? sent.state,
+    postalCode: zip,
+  });
+  const suggested = parsed.success ? parsed.data : sent;
+  const changed = !sameAddress(sent, suggested);
+
+  // Nothing but case or ZIP+4 differs: keep the buyer's own spelling.
+  return { deliverability, suggested: changed ? suggested : sent, changed };
+}
+
+export async function verifyRecipient(recipient: Recipient): Promise<Verification> {
+  if (!hasLob) return unknownVerification;
+
+  const key = cacheKey(recipient);
+  const hit = verifyCache.get(key);
+  if (hit && Date.now() - hit.at < VERIFY_CACHE_TTL_MS) return hit.value;
+
+  let body: UsVerificationBody;
+  try {
+    body = await postJson<UsVerificationBody>("/us_verifications", {
+      primary_line: recipient.line1,
+      secondary_line: recipient.line2 ?? "",
+      city: recipient.city,
+      state: recipient.state,
+      zip_code: recipient.postalCode,
+    });
+  } catch (error) {
+    // An outage, a rate limit, or a refusal of the *request* — none is the
+    // buyer's address being wrong, so none blocks them. A 4xx is logged: it
+    // would be this code sending Lob something it did not expect.
+    if (error instanceof LobError && error.status >= 400 && error.status < 500 && error.status !== 429) {
+      console.warn(`[lob] verification refused: ${error.message}`);
+    }
+    return unknownVerification;
+  }
+
+  const value = interpretVerification(recipient, body);
+  if (verifyCache.size >= VERIFY_CACHE_MAX) {
+    const oldest = verifyCache.keys().next().value;
+    if (oldest !== undefined) verifyCache.delete(oldest);
+  }
+  verifyCache.set(key, { at: Date.now(), value });
+  return value;
 }

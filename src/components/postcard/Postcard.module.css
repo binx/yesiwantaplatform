@@ -509,3 +509,27 @@
   gap: 0.5rem;
   margin-bottom: 0.35rem;
 }
+
+/* ------------------------------------------------------- address verification */
+
+.verificationNotice {
+  margin-top: 1rem;
+}
+
+.suggestedAddress {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.verifiedChip {
+  display: inline-block;
+  margin-top: 0.15rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--beluga-muted);
+}
+
+.chipButton {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+}

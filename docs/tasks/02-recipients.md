@@ -28,7 +28,12 @@ summary: >-
   detected, the modal previews the mapping and the first rows before
   importing, good rows import while bad ones are listed with Edit/Skip and
   a four-digit ZIP gets the leading-zero message.
-- **B** and **C** not started.
+- **B** built. `verifyRecipient` in `server/lob.ts` (US verifications, a
+  day's cache, `unknown` on any failure), `POST /api/recipients/verify`
+  behind `verifyRateLimit`, `customer_addresses.verified_at`, and the shared
+  `RecipientFields` + `VerificationNotice` used by the designer and the
+  account page. A refused address keeps the batch out of the cart.
+- **C** not started.
 
 Three parts. **A and B ship independently. C depends on both**: it adds a
 country column to the CSV and needs the verification call to pick Lob's

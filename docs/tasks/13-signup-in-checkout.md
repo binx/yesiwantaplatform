@@ -9,7 +9,7 @@ blocked_by: []
 blocks: []
 touches: src/pages/account/AccountRegisterPage.tsx:32 · src/pages/account/VerifyEmailPage.tsx:28 · server/routes/account.ts:147 · src/pages/CartPage.tsx:202 · src/components/postcard/Recipients.tsx:190 · emails/
 completed: 2026-09-10
-shipped_in:
+shipped_in: 22
 summary: >-
   A shopper who taps "Sign in to keep your recipients" from the cart and creates an
   account lands on "Check your email" with one button, "Back to sign in", and no way

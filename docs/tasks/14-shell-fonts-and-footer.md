@@ -1,15 +1,15 @@
 ---
 task: "14"
 title: "Shell: the card fonts are a dependency, and the footer stays down"
-status: todo
+status: done
 tier: 0
 size: S
 migration: none
 blocked_by: []
 blocks: ["07"]
 touches: server/html.ts:71 · index.html · src/App.tsx:38 · shared/postcards.ts:90 · src/index.css:51 · src/components/layout/Footer.module.css
-completed:
-shipped_in:
+completed: 2026-09-10
+shipped_in: 18
 summary: >-
   The three faces a card can be set in, and Sacramento on the landing page, are only
   ever loaded because the default theme's Google Fonts URL happens to include them.

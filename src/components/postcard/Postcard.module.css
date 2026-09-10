@@ -381,3 +381,31 @@
     transform-origin: top left;
   }
 }
+
+/* ---------------------------------------------------- schedule: per-design dates */
+
+.scheduleMode {
+  margin-bottom: 1rem;
+}
+
+.designDate {
+  width: 100%;
+  min-width: 0;
+  font-size: 0.8125rem;
+}
+
+.arriveByLink {
+  padding: 0;
+  height: auto;
+  font-size: inherit;
+}
+
+.arriveBy {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 14rem;
+}
+
+.arriveBy p {
+  margin: 0;
+}

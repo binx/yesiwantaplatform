@@ -114,6 +114,35 @@ export function addDaysIso(date: string, days: number): string {
   return next.toISOString().slice(0, 10);
 }
 
+/**
+ * Lob's production plus first-class postcard transit, in business days.
+ *
+ * One to two days at the printer, three to five in the post. One constant so
+ * "arrive by" on the site and the note under the schedule cannot disagree;
+ * international mail (brief 02C) adds to it per country rather than
+ * replacing it.
+ */
+export const DELIVERY_BUSINESS_DAYS = 6;
+
+/**
+ * `businessDaysBeforeIso("2026-09-14", 6)` → the date six weekdays earlier.
+ *
+ * Weekends are skipped; holidays are not, because USPS moves on most of
+ * them and the answer is an estimate either way. Pure calendar arithmetic
+ * in UTC, like `addDaysIso`, so no time zone can shift the day.
+ */
+export function businessDaysBeforeIso(date: string, days: number): string {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  const cursor = new Date(Date.UTC(y, m - 1, d));
+  let remaining = days;
+  while (remaining > 0) {
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+    const weekday = cursor.getUTCDay();
+    if (weekday !== 0 && weekday !== 6) remaining -= 1;
+  }
+  return cursor.toISOString().slice(0, 10);
+}
+
 /** A design as the storefront receives it — no file paths, just what it can show. */
 export const postcardDesignSchema = z.object({
   id: z.string().min(1),

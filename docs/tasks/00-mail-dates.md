@@ -1,15 +1,15 @@
 ---
 task: "00"
 title: Mail dates per design
-status: todo
+status: done
 tier: 0
 size: S
 migration: none
 blocked_by: []
 blocks: []
 touches: src/pages/CreatePage.tsx:61 · src/components/postcard/Schedule.tsx · shared/postcards.ts
-completed:
-shipped_in:
+completed: 2026-09-09
+shipped_in: 3
 summary: >-
   The schedule is one start date and a cadence, so a batch can be "one a week" but not
   "one on her birthday and one at Christmas". The cart already carries a date per design

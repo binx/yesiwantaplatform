@@ -164,7 +164,7 @@ graph LR
 
 | # | Title | Status | Tier | Size | Migration |
 |---|-------|--------|------|------|-----------|
-| 00 | [Mail dates per design](00-mail-dates.md) | todo | 0 | S | none |
+| 00 | [Mail dates per design](00-mail-dates.md) | done | 0 | S | none |
 | 01 | [Front of card: crop offset and collage](01-front-of-card.md) | todo | 1 | L | none |
 | 02 | [Recipients: CSV matching, verification, international](02-recipients.md) | todo | 1 | L | columns on three tables |
 | 03 | [Fulfilment: rate-limit backoff and delivery tracking](03-fulfilment.md) | todo | 0 | M | one table |

@@ -2,6 +2,7 @@ import { useId, useMemo, type ReactNode, type RefObject } from "react";
 import { Alert, Button, Input, Select, type InputRef } from "antd";
 import { formatRecipient, type Recipient } from "@shared/postcards";
 import { COUNTRY_CODES, countryName } from "@shared/countries";
+import { US_STATES } from "@shared/us-states";
 import { describeVerification } from "@/lib/recipients";
 import type { RecipientCheck, RecipientErrors } from "@/lib/recipient-form";
 import { cx } from "@/lib/cx";
@@ -47,6 +48,7 @@ interface RecipientFieldsProps {
   errors: RecipientErrors;
   onChange: (key: keyof Recipient, value: string) => void;
   nameRef?: RefObject<InputRef | null>;
+  line1Ref?: RefObject<InputRef | null>;
   /** For country names and the address line. */
   locale: string;
   /** Whether a country other than the US may be chosen: the shop has an international price, and this is not its own return address. */
@@ -59,7 +61,7 @@ interface RecipientFieldsProps {
  * and a five-digit ZIP; elsewhere the labels loosen and neither is required.
  * A shop with no international price never shows the select at all.
  */
-export function RecipientFields({ draft, errors, onChange, nameRef, locale, allowInternational }: RecipientFieldsProps) {
+export function RecipientFields({ draft, errors, onChange, nameRef, line1Ref, locale, allowInternational }: RecipientFieldsProps) {
   const abroad = draft.country !== "US";
   const countries = useMemo(
     () =>
@@ -68,6 +70,7 @@ export function RecipientFields({ draft, errors, onChange, nameRef, locale, allo
       ),
     [locale],
   );
+  const states = useMemo(() => US_STATES.map((state) => ({ value: state.code, label: `${state.code} · ${state.name}` })), []);
 
   return (
     <>
@@ -90,7 +93,7 @@ export function RecipientFields({ draft, errors, onChange, nameRef, locale, allo
         {(id) => <Input id={id} ref={nameRef} value={draft.name} maxLength={40} autoComplete="off" onChange={(e) => onChange("name", e.target.value)} />}
       </Field>
       <Field label="Street address" error={errors.line1}>
-        {(id) => <Input id={id} value={draft.line1} maxLength={64} autoComplete="off" onChange={(e) => onChange("line1", e.target.value)} />}
+        {(id) => <Input id={id} ref={line1Ref} value={draft.line1} maxLength={64} autoComplete="off" onChange={(e) => onChange("line1", e.target.value)} />}
       </Field>
       <Field label="Apt, suite, etc. (optional)" error={errors.line2}>
         {(id) => <Input id={id} value={draft.line2 ?? ""} maxLength={64} autoComplete="off" onChange={(e) => onChange("line2", e.target.value)} />}
@@ -104,7 +107,7 @@ export function RecipientFields({ draft, errors, onChange, nameRef, locale, allo
             abroad ? (
               <Input id={id} value={draft.state} maxLength={64} autoComplete="off" onChange={(e) => onChange("state", e.target.value)} />
             ) : (
-              <Input id={id} value={draft.state} maxLength={2} placeholder="CA" autoComplete="off" onChange={(e) => onChange("state", e.target.value.toUpperCase())} />
+              <Select id={id} showSearch value={draft.state || null} placeholder="Choose a state" optionFilterProp="label" options={states} onChange={(value: string) => onChange("state", value)} />
             )
           }
         </Field>
@@ -128,10 +131,11 @@ interface VerificationNoticeProps {
   onUse: () => void;
   onKeep: () => void;
   onDismiss: () => void;
+  onEdit: () => void;
 }
 
 /** The card under the form: USPS's form of the address, and what to do about it. */
-export function VerificationNotice({ check, locale, onUse, onKeep, onDismiss }: VerificationNoticeProps) {
+export function VerificationNotice({ check, locale, onUse, onKeep, onDismiss, onEdit }: VerificationNoticeProps) {
   const note = describeVerification(check.verification);
   if (!note) return null;
   const suggested = check.verification.changed ? check.verification.suggested : null;
@@ -154,8 +158,8 @@ export function VerificationNotice({ check, locale, onUse, onKeep, onDismiss }: 
           {note.detail ? <p className={styles.note}>{note.detail}</p> : null}
           <div className={styles.recipientActions}>
             {note.tone === "block" ? (
-              <Button size="small" onClick={onDismiss}>
-                Check the address
+              <Button size="small" onClick={onEdit}>
+                Edit the address
               </Button>
             ) : (
               <>

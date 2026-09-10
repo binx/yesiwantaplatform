@@ -39,13 +39,19 @@ describe("parseRecipientsCsv", () => {
 
   it("imports the good rows and hands back the bad ones with what they held", () => {
     const { recipients, problems, preview } = parseRecipientsCsv(
-      "name,address_line1,address_city,address_state,address_zip\nA,1 St,B,CA,90210\nB,2 St,C,California,90210\nC,3 St,D,CA,90211\n",
+      "name,address_line1,address_city,address_state,address_zip\nA,1 St,B,CA,90210\nB,2 St,C,ZZ,90210\nC,3 St,D,CA,90211\n",
     );
     expect(recipients).toHaveLength(2);
     expect(preview).toHaveLength(2);
     expect(problems).toEqual([
-      { line: 3, message: expect.stringContaining("state"), draft: { name: "B", line1: "2 St", line2: null, city: "C", state: "California", postalCode: "90210", country: "US" } },
+      { line: 3, message: expect.stringContaining("state"), draft: { name: "B", line1: "2 St", line2: null, city: "C", state: "ZZ", postalCode: "90210", country: "US" } },
     ]);
+  });
+
+  it("maps a full state name to its code", () => {
+    const { recipients, problems } = parseRecipientsCsv("name,address_line1,address_city,address_state,address_zip\nA,1 St,B,California,90210\n");
+    expect(problems).toEqual([]);
+    expect(recipients).toEqual([{ name: "A", line1: "1 St", line2: null, city: "B", state: "CA", postalCode: "90210", country: "US" }]);
   });
 
   it("says when Excel probably ate a leading zero", () => {

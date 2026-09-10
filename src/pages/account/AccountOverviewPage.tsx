@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Alert, Button, Form, Input, Tag } from "antd";
+import { Alert, Button, Form, Input, Tag, type InputRef } from "antd";
 import { useClearReplySettings, useCustomer, useCustomerLogout, useSetReplySettings, useUpdateProfile } from "@/lib/account";
 import { useStore } from "@/lib/useStore";
 import { RecipientFields, VerificationNotice } from "@/components/postcard/RecipientFields";
@@ -132,6 +132,7 @@ function ReplySettings({ displayName, address }: { displayName: string | null; a
   const [draft, setDraft] = useState<Recipient>(address ?? BLANK_RECIPIENT);
   const [errors, setErrors] = useState<RecipientErrors>({});
   const [nameError, setNameError] = useState<string | null>(null);
+  const line1Ref = useRef<InputRef>(null);
   const on = address !== null;
 
   const open = () => {
@@ -220,13 +221,24 @@ function ReplySettings({ displayName, address }: { displayName: string | null; a
             errors={errors}
             locale={locale}
             allowInternational={false}
+            line1Ref={line1Ref}
             onChange={(key, value) => {
               setDraft((current) => ({ ...current, [key]: value }));
               if (errors[key]) setErrors((current) => ({ ...current, [key]: undefined }));
             }}
           />
           {check.check ? (
-            <VerificationNotice check={check.check} locale={locale} onUse={check.useSuggested} onKeep={check.keepMine} onDismiss={check.dismiss} />
+            <VerificationNotice
+              check={check.check}
+              locale={locale}
+              onUse={check.useSuggested}
+              onKeep={check.keepMine}
+              onDismiss={check.dismiss}
+              onEdit={() => {
+                check.dismiss();
+                line1Ref.current?.focus();
+              }}
+            />
           ) : null}
           <Button type="primary" htmlType="submit" loading={check.verifying || save.isPending}>
             Save

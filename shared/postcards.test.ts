@@ -49,6 +49,13 @@ describe("recipientSchema", () => {
     expect(recipientSchema.safeParse({ name: "A", line1: "1 Main St", line2: null, city: "A", state: "California", postalCode: "90210", country: "US" }).success).toBe(false);
     expect(recipientSchema.safeParse({ name: "A", line1: "1 Main St", line2: null, city: "A", state: "CA", postalCode: "9021" }).success).toBe(false);
   });
+
+  it("only accepts a real US state, not any two letters", () => {
+    const zz = recipientSchema.safeParse({ name: "A", line1: "1 Main St", line2: null, city: "A", state: "ZZ", postalCode: "90210", country: "US" });
+    expect(zz.success).toBe(false);
+    if (!zz.success) expect(zz.error.issues[0]?.message).toBe("Choose a state.");
+    expect(recipientSchema.safeParse({ name: "A", line1: "1 Main St", line2: null, city: "A", state: "PR", postalCode: "90210", country: "US" }).success).toBe(true);
+  });
 });
 
 describe("stripEmoji", () => {

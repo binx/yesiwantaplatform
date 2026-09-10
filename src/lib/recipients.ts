@@ -53,7 +53,7 @@ export function describeVerification(verification: Verification): VerificationNo
     case "deliverable_incorrect_unit":
       return {
         tone: "warn",
-        title: "USPS doesn't recognise that apartment or suite number at this building.",
+        title: "USPS doesn't recognize that apartment or suite number at this building.",
         detail: "Check it if you can. Kept as it is, the card relies on the carrier knowing the building.",
       };
     case "deliverable_missing_unit":
@@ -65,8 +65,8 @@ export function describeVerification(verification: Verification): VerificationNo
     case "undeliverable":
       return {
         tone: "block",
-        title: "USPS doesn't recognise this address.",
-        detail: "Check the street number and the ZIP. The printer would refuse it after payment, so it can't go in as it is.",
+        title: "USPS doesn't recognize this address.",
+        detail: "Check the street number and the ZIP. It can't be mailed as written.",
       };
   }
 }

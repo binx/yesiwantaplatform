@@ -27,7 +27,14 @@ summary: >-
   card back with its attempt undone (`releasePostcard`); the first 429 of a
   sweep waits for `Retry-After` once. `MAX_ATTEMPTS` is 8. The admin overview
   shows why the last sweep stopped.
-- **B** not started.
+- **B** built. `POST /api/webhooks/lob` verifies Lob's signature and
+  timestamp, deduplicates through the shared `webhook_events` table with a
+  `lob:` prefix, records each event in `postcard_tracking_events`, and moves
+  `postcards.tracking_status` forward only. The order pages show a timeline
+  under each sent card; a returned card lands in the admin's error column in
+  our words. The admin overview says when the webhook secret is missing.
+  No email, anywhere. The orders-list filter for returned cards was left
+  out: it needs a join the list does not do yet.
 
 Two parts. **A is a morning's work and should land first** — it protects
 paid cards. **B** is the prerequisite for brief 05's status column and

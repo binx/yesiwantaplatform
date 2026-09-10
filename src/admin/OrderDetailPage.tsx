@@ -7,7 +7,7 @@ import { formatMoney, parseCents } from "@shared/money";
 import type { Postcard } from "@shared/postcards";
 import { ApiError } from "@/lib/api";
 import { cx } from "@/lib/cx";
-import { PostcardSchedule } from "@/components/postcard/PostcardSchedule";
+import { PostcardSchedule, TrackingTimeline } from "@/components/postcard/PostcardSchedule";
 import {
   useCancelOrder,
   useCancelPostcard,
@@ -76,9 +76,10 @@ export function OrderDetailPage() {
       {postcard.status === "sent" && postcard.expectedDeliveryDate ? (
         <span className={cx(styles.muted)}>expected {postcard.expectedDeliveryDate}</span>
       ) : null}
-      {postcard.status === "error" && postcard.lastError ? (
+      {postcard.lastError && (postcard.status === "error" || postcard.trackingStatus === "postcard.returned_to_sender") ? (
         <span className={cx(styles.errorText)}>{postcard.lastError}</span>
       ) : null}
+      <TrackingTimeline postcard={postcard} locale={locale} />
       {postcard.status === "error" || postcard.status === "cancelled" ? (
         <Button
           size="small"

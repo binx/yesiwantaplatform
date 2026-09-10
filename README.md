@@ -129,6 +129,15 @@ nothing is checked and nothing is blocked. The route is rate-limited and the
 answers cached for a day, because verifications past the plan's allowance
 are billed.
 
+After a card leaves, Lob reports where it is through a webhook. Create one in
+the Lob dashboard pointed at `<PUBLIC_URL>/api/webhooks/lob`, subscribe it to
+the postcard events, and put its signing secret in `.env` as
+`LOB_WEBHOOK_SECRET`. The order pages — the confirmation page, the account, the
+admin — then show a timeline under each sent card: in transit, near its
+destination, out for delivery, delivered, and returned to sender. Nothing about
+tracking is ever emailed. Lob's test environment sends no tracking events; the
+dashboard's webhook debugger can post samples.
+
 ### Customer accounts
 
 Sign in, order history, password reset — and **saved recipients**: the people a

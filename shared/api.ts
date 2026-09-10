@@ -122,6 +122,8 @@ export const environmentStatusSchema = z.object({
   /** Whether a Lob API key is on the server, and which environment it is for. */
   hasLob: z.boolean(),
   lobMode: z.enum(["test", "live"]).nullable(),
+  /** Whether Lob's tracking webhook can be verified, so the order pages get a timeline. */
+  hasLobWebhook: z.boolean(),
   database: z.enum(["sqlite", "postgres"]),
   publicUrl: z.string(),
   production: z.boolean(),

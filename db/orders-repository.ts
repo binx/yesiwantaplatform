@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
 import { orderReference, orderSchema, type Order, type OrderStatus } from "../shared/orders.js";
 import { countPostcardsByDestination, type CartLine } from "../shared/cart.js";
-import type { Postcard, PostcardStatus } from "../shared/postcards.js";
+import { isShownTrackingEvent, type Postcard, type PostcardStatus, type TrackingEvent } from "../shared/postcards.js";
 import { getDatabase } from "./client.js";
 import { affectedRows, findDesignsByIds, toPublicDesign } from "./designs-repository.js";
 import { nowFor, toEpochMs } from "./repository.js";
@@ -126,9 +126,18 @@ export interface PostcardRow {
   sentAt: unknown;
   attempts: number;
   lastError: string | null;
+  trackingStatus: string | null;
 }
 
-export function buildPostcard(row: PostcardRow): Postcard {
+interface TrackingRow {
+  id: string;
+  postcardId: string;
+  type: string;
+  occurredAt: unknown;
+  location: string | null;
+}
+
+export function buildPostcard(row: PostcardRow, tracking: TrackingEvent[] = []): Postcard {
   return {
     id: row.id,
     designId: row.designId,
@@ -150,6 +159,8 @@ export function buildPostcard(row: PostcardRow): Postcard {
     sentAt: row.sentAt === null || row.sentAt === undefined ? null : toEpochMs(row.sentAt),
     attempts: row.attempts,
     lastError: row.lastError,
+    trackingStatus: row.trackingStatus,
+    tracking,
   };
 }
 
@@ -211,14 +222,37 @@ async function loadPostcards(orderIds: string[]): Promise<Map<string, Postcard[]
         asc(schema.postcards.id),
       )) as unknown as PostcardRow[];
 
+    const tracking = await loadTracking(rows.map((row) => row.id));
     for (const row of rows) {
       const existing = map.get(row.orderId);
-      const postcard = buildPostcard(row);
+      const postcard = buildPostcard(row, tracking.get(row.id) ?? []);
       if (existing) existing.push(postcard);
       else map.set(row.orderId, [postcard]);
     }
   }
 
+  return map;
+}
+
+/** The shown tracking events for a set of cards, oldest first, one query per chunk rather than one per card. */
+async function loadTracking(postcardIds: string[]): Promise<Map<string, TrackingEvent[]>> {
+  const { drizzle: db, schema } = await getDatabase();
+  const map = new Map<string, TrackingEvent[]>();
+  if (postcardIds.length === 0) return map;
+
+  const rows = (await db
+    .select()
+    .from(schema.postcardTrackingEvents)
+    .where(inArray(schema.postcardTrackingEvents.postcardId, postcardIds))
+    .orderBy(asc(schema.postcardTrackingEvents.occurredAt), asc(schema.postcardTrackingEvents.id))) as unknown as TrackingRow[];
+
+  for (const row of rows) {
+    if (!isShownTrackingEvent(row.type)) continue;
+    const event: TrackingEvent = { type: row.type, occurredAt: toEpochMs(row.occurredAt), location: row.location };
+    const list = map.get(row.postcardId);
+    if (list) list.push(event);
+    else map.set(row.postcardId, [event]);
+  }
   return map;
 }
 
@@ -581,7 +615,83 @@ export async function getPostcard(orderId: string, id: string): Promise<Postcard
     .limit(1)) as unknown as PostcardRow[];
 
   const row = rows[0];
-  return row ? buildPostcard(row) : null;
+  if (!row) return null;
+  const tracking = await loadTracking([row.id]);
+  return buildPostcard(row, tracking.get(row.id) ?? []);
+}
+
+/* ---------------------------------------------------------------- tracking */
+
+/** The card a Lob tracking event is about: by our id from the metadata, else by Lob's own id. */
+export async function findPostcardForTracking(ours: string | null, lobId: string | null): Promise<PostcardRow | null> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  if (ours) {
+    const rows = (await db.select().from(schema.postcards).where(eq(schema.postcards.id, ours)).limit(1)) as unknown as PostcardRow[];
+    if (rows[0]) return rows[0];
+  }
+  if (lobId) {
+    const rows = (await db.select().from(schema.postcards).where(eq(schema.postcards.lobId, lobId)).limit(1)) as unknown as PostcardRow[];
+    if (rows[0]) return rows[0];
+  }
+  return null;
+}
+
+export interface TrackingEventInput {
+  /** Lob's event id. */
+  id: string;
+  type: string;
+  /** Epoch milliseconds. */
+  occurredAt: number;
+  location: string | null;
+}
+
+/**
+ * Record one tracking event and move the card's status forward.
+ *
+ * The event id is the primary key, so Lob delivering twice inserts once.
+ * The status only ever moves to a *later* shown event — USPS scans arrive
+ * out of order often enough that "delivered, then in transit" would
+ * otherwise read as a card going backwards.
+ */
+export async function recordTrackingEvent(postcardId: string, event: TrackingEventInput): Promise<boolean> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+
+  const seen = (await db
+    .select({ id: schema.postcardTrackingEvents.id })
+    .from(schema.postcardTrackingEvents)
+    .where(eq(schema.postcardTrackingEvents.id, event.id))
+    .limit(1)) as unknown as { id: string }[];
+  if (seen.length > 0) return false;
+
+  await db.insert(schema.postcardTrackingEvents).values({
+    id: event.id,
+    postcardId,
+    type: event.type,
+    occurredAt: dialect === "pg" ? new Date(event.occurredAt) : Math.floor(event.occurredAt / 1000),
+    location: event.location,
+  });
+
+  if (isShownTrackingEvent(event.type)) {
+    const shown = (await loadTracking([postcardId])).get(postcardId) ?? [];
+    const latest = shown[shown.length - 1];
+    if (latest) {
+      await db
+        .update(schema.postcards)
+        .set({ trackingStatus: latest.type, updatedAt: nowFor(dialect) })
+        .where(eq(schema.postcards.id, postcardId));
+    }
+  }
+  return true;
+}
+
+/** USPS sent the card back. The status stays `sent` — it was — but the admin's error column says so. */
+export async function markPostcardReturned(postcardId: string): Promise<void> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+  await db
+    .update(schema.postcards)
+    .set({ lastError: "Returned to sender by USPS. Check the address.", updatedAt: nowFor(dialect) })
+    .where(eq(schema.postcards.id, postcardId));
 }
 
 /** Put an errored (or cancelled) card back on the schedule. Returns false if it was not one. */

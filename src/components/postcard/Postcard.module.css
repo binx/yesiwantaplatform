@@ -537,3 +537,29 @@
 .countrySelect {
   width: 100%;
 }
+
+/* ------------------------------------------------------------ delivery tracking */
+
+.timeline {
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+  white-space: normal;
+}
+
+.timelineStep {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  color: var(--beluga-muted);
+}
+
+.timelineStep:last-child {
+  color: var(--beluga-ink);
+}
+
+.timelineDay {
+  flex: 0 0 3.5rem;
+  font-variant-numeric: tabular-nums;
+}

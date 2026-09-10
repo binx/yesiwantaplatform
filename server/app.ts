@@ -15,6 +15,7 @@ import { checkoutRouter } from "./routes/checkout.js";
 import { designsRouter } from "./routes/designs.js";
 import { cartRouter } from "./routes/cart.js";
 import { webhookRouter } from "./routes/webhook.js";
+import { lobWebhookRouter } from "./routes/lob-webhook.js";
 import { siteRouter } from "./routes/site.js";
 import { injectMeta } from "./html.js";
 import { metaForPath } from "./seo.js";
@@ -51,6 +52,7 @@ export function createApp(options: { schedulers?: boolean } = {}): Express {
   // Stripe signs the raw request body, so the webhook must be mounted before
   // any body parser rewrites it — and before sessions, which it does not use.
   app.use("/api", webhookRouter);
+  app.use("/api", lobWebhookRouter);
 
   app.use(
     session({

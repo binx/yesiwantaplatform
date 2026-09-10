@@ -208,6 +208,8 @@ export const postcards = pgTable(
     sentAt: timestamp("sent_at", { withTimezone: true }),
     attempts: integer("attempts").notNull().default(0),
     lastError: text("last_error"),
+    /** The latest tracking event Lob reported, as its `event_type.id`. See db/schema.sqlite.ts. */
+    trackingStatus: text("tracking_status"),
     ...timestamps,
   },
   (t) => [
@@ -215,6 +217,21 @@ export const postcards = pgTable(
     index("postcards_design_idx").on(t.designId),
     index("postcards_due_idx").on(t.status, t.mailDate),
   ],
+);
+
+export const postcardTrackingEvents = pgTable(
+  "postcard_tracking_events",
+  {
+    id: text("id").primaryKey(),
+    postcardId: text("postcard_id")
+      .notNull()
+      .references(() => postcards.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    location: text("location"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("postcard_tracking_postcard_idx").on(t.postcardId, t.occurredAt)],
 );
 
 export const webhookEvents = pgTable("webhook_events", {

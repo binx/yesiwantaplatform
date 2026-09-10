@@ -3,7 +3,7 @@ import type { Order } from "@shared/orders";
 import { formatRecipient, type Postcard, type PostcardStatus } from "@shared/postcards";
 import { ProductImage } from "@/components/ui/ProductImage";
 import { cx } from "@/lib/cx";
-import { customerStatusLabel, formatMailDate } from "@/lib/postcards";
+import { customerStatusLabel, formatMailDate, trackingLabel } from "@/lib/postcards";
 import styles from "./Postcard.module.css";
 
 /**
@@ -14,6 +14,28 @@ import styles from "./Postcard.module.css";
  * their account shows never disagree. The admin has its own, with the error
  * text and the buttons.
  */
+/**
+ * Where a sent card is, scan by scan, oldest first. Rendered under the
+ * status wherever an order is shown — the confirmation page, the account,
+ * the admin — and nowhere else: the sender opted into a confirmation and a
+ * "went to print" note, not a feed of USPS scans.
+ */
+export function TrackingTimeline({ postcard, locale }: { postcard: Postcard; locale: string }) {
+  if (postcard.tracking.length === 0) return null;
+  const day = (epochMs: number) => new Date(epochMs).toLocaleDateString(locale, { month: "short", day: "numeric" });
+
+  return (
+    <ol className={styles.timeline} aria-label="Delivery progress">
+      {postcard.tracking.map((event) => (
+        <li key={`${event.type}-${event.occurredAt}`} className={cx(styles.timelineStep, event.type === "postcard.returned_to_sender" && styles.statusError)}>
+          <span className={styles.timelineDay}>{day(event.occurredAt)}</span>
+          <span>{trackingLabel(event.type)}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function statusClass(status: PostcardStatus): string {
   if (status === "sent") return styles.statusSent ?? "";
   if (status === "error") return styles.statusError ?? "";
@@ -65,11 +87,12 @@ export function PostcardSchedule({
                   ) : (
                     <>
                       {customerStatusLabel(postcard.status)}
-                      {postcard.status === "sent" && postcard.expectedDeliveryDate ? (
+                      {postcard.status === "sent" && postcard.expectedDeliveryDate && postcard.trackingStatus !== "postcard.delivered" ? (
                         <div className={styles.note}>
                           Expected {formatMailDate(postcard.expectedDeliveryDate, locale)}
                         </div>
                       ) : null}
+                      <TrackingTimeline postcard={postcard} locale={locale} />
                     </>
                   )}
                 </td>

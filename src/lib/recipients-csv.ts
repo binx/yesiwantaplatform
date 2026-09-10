@@ -1,6 +1,7 @@
 import { recipientSchema, type Recipient } from "@shared/postcards";
 import { CsvStreamParser, detectCsvDelimiter, stripCsvBom, unguardCsvField } from "@shared/csv";
 import { COUNTRY_CODES, countryName, isCountryCode } from "@shared/countries";
+import { usStateCode } from "@shared/us-states";
 
 /**
  * A recipient list as a CSV, parsed in the browser.
@@ -178,6 +179,7 @@ export function parseRecipientsCsv(rawText: string): CsvResult {
       else draft[target] = value;
     });
     if (!has("name")) draft.name = [firstName, lastName].filter(Boolean).join(" ");
+    if (draft.country === "US") draft.state = usStateCode(draft.state);
 
     const parsed = recipientSchema.safeParse(draft);
     if (parsed.success) recipients.push(parsed.data);

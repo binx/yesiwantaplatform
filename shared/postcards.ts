@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { imageSchema } from "./schema.js";
 import { countryName, isCountryCode } from "./countries.js";
+import { US_STATE_CODES } from "./us-states.js";
 
 /**
  * The postcard itself — everything the storefront, the API and the print
@@ -152,8 +153,8 @@ export function refineRecipient(recipient: RecipientFields, ctx: z.RefinementCtx
     ctx.addIssue({ code: "custom", path: ["country"], message: "Use a two-letter country code, like CA." });
   }
   if (recipient.country !== "US") return;
-  if (!/^[A-Za-z]{2}$/.test(recipient.state)) {
-    ctx.addIssue({ code: "custom", path: ["state"], message: "Use the two-letter state code, like CA." });
+  if (!US_STATE_CODES.has(recipient.state.toUpperCase())) {
+    ctx.addIssue({ code: "custom", path: ["state"], message: "Choose a state." });
   }
   if (!/^\d{5}(-\d{4})?$/.test(recipient.postalCode)) {
     ctx.addIssue({ code: "custom", path: ["postalCode"], message: "Use a 5-digit ZIP code." });

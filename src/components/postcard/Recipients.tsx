@@ -51,6 +51,7 @@ export function Recipients({ recipients, onChange, onBlockedChange }: Recipients
   const [reviewing, setReviewing] = useState<number | null>(null);
   const inFlight = useRef(new Set<string>());
   const nameRef = useRef<InputRef>(null);
+  const line1Ref = useRef<InputRef>(null);
   const customer = useCustomer();
   const store = useStore();
   const check = useRecipientCheck();
@@ -181,7 +182,7 @@ export function Recipients({ recipients, onChange, onBlockedChange }: Recipients
           submit();
         }}
       >
-        <RecipientFields draft={draft} errors={errors} onChange={set} nameRef={nameRef} locale={store.locale} allowInternational={store.internationalPostcardPriceCents !== null} />
+        <RecipientFields draft={draft} errors={errors} onChange={set} nameRef={nameRef} line1Ref={line1Ref} locale={store.locale} allowInternational={store.internationalPostcardPriceCents !== null} />
         <div className={styles.recipientActions}>
           <Button type="primary" htmlType="submit" loading={check.verifying}>
             {editing === null ? "Add recipient" : "Save changes"}
@@ -201,7 +202,19 @@ export function Recipients({ recipients, onChange, onBlockedChange }: Recipients
             </span>
           )}
         </div>
-        {check.check ? <VerificationNotice check={check.check} locale={store.locale} onUse={check.useSuggested} onKeep={check.keepMine} onDismiss={check.dismiss} /> : null}
+        {check.check ? (
+          <VerificationNotice
+            check={check.check}
+            locale={store.locale}
+            onUse={check.useSuggested}
+            onKeep={check.keepMine}
+            onDismiss={check.dismiss}
+            onEdit={() => {
+              check.dismiss();
+              line1Ref.current?.focus();
+            }}
+          />
+        ) : null}
       </form>
 
       <ol className={styles.recipientList} aria-label="Recipients">
@@ -243,6 +256,11 @@ export function Recipients({ recipients, onChange, onBlockedChange }: Recipients
                       setReviewing(null);
                       if (reviewedStatus.deliverability !== "deliverable") edit(index);
                     }}
+                    onEdit={() => {
+                      setReviewing(null);
+                      edit(index);
+                      line1Ref.current?.focus();
+                    }}
                   />
                 ) : null}
               </span>
@@ -270,7 +288,7 @@ export function Recipients({ recipients, onChange, onBlockedChange }: Recipients
           type="error"
           showIcon
           title={`${blocked} address${blocked === 1 ? "" : "es"} need${blocked === 1 ? "s" : ""} checking`}
-          description="USPS doesn't recognise them. Fix or remove them before adding this batch to the cart."
+          description="USPS doesn't recognize them. Fix or remove them before adding this batch to the cart."
         />
       ) : null}
 

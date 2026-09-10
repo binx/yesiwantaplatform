@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Alert, Button, Checkbox, Input, Popconfirm, Select, Skeleton, Tag } from "antd";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Button, Checkbox, Input, Popconfirm, Select, Skeleton, Tag, type InputRef } from "antd";
 import { formatRecipient, type Recipient } from "@shared/postcards";
 import type { AddressInput, CustomerAddress } from "@shared/account";
 import { useAddresses, useCreateAddress, useDeleteAddress, useUpdateAddress } from "@/lib/account";
@@ -64,6 +64,7 @@ function RecipientForm({
   const [errors, setErrors] = useState<RecipientErrors>({});
   const check = useRecipientCheck();
   const store = useStore();
+  const line1Ref = useRef<InputRef>(null);
 
   const set = (key: keyof Recipient, value: string) => {
     setDraft((current) => ({ ...current, recipient: { ...current.recipient, [key]: value } }));
@@ -93,7 +94,7 @@ function RecipientForm({
     >
       {error ? <Alert className={cx(styles.alert)} type="error" showIcon title={error} /> : null}
 
-      <RecipientFields draft={draft.recipient} errors={errors} onChange={set} locale={store.locale} allowInternational={store.internationalPostcardPriceCents !== null} />
+      <RecipientFields draft={draft.recipient} errors={errors} onChange={set} line1Ref={line1Ref} locale={store.locale} allowInternational={store.internationalPostcardPriceCents !== null} />
 
       <div className={postcard.field}>
         <label className={postcard.label} htmlFor="address-label">
@@ -139,7 +140,19 @@ function RecipientForm({
         <Input.TextArea id="address-notes" value={draft.notes} maxLength={500} autoSize={{ minRows: 2, maxRows: 5 }} onChange={(e) => setDraft((c) => ({ ...c, notes: e.target.value }))} />
       </div>
 
-      {check.check ? <VerificationNotice check={check.check} locale={store.locale} onUse={check.useSuggested} onKeep={check.keepMine} onDismiss={check.dismiss} /> : null}
+      {check.check ? (
+        <VerificationNotice
+          check={check.check}
+          locale={store.locale}
+          onUse={check.useSuggested}
+          onKeep={check.keepMine}
+          onDismiss={check.dismiss}
+          onEdit={() => {
+            check.dismiss();
+            line1Ref.current?.focus();
+          }}
+        />
+      ) : null}
 
       <div className={postcard.recipientActions}>
         <Button type="primary" htmlType="submit" loading={saving || check.verifying}>

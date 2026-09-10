@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Alert, Button, Result, Skeleton } from "antd";
+import { Alert, Button, Result, Skeleton, type InputRef } from "antd";
 import type { Recipient } from "@shared/postcards";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { RecipientFields, VerificationNotice } from "@/components/postcard/RecipientFields";
@@ -38,6 +38,7 @@ export function AddressRequestPage() {
   const [draft, setDraft] = useState<Recipient>(BLANK_RECIPIENT);
   const [errors, setErrors] = useState<RecipientErrors>({});
   const check = useRecipientCheck();
+  const line1Ref = useRef<InputRef>(null);
   const respond = useMutation({ mutationFn: (recipient: Recipient) => respondToAddressRequest(token, recipient) });
 
   useEffect(() => {
@@ -119,9 +120,21 @@ export function AddressRequestPage() {
           void check.run(result.value, (value) => respond.mutate(value));
         }}
       >
-        <RecipientFields draft={draft} errors={errors} onChange={set} locale={store.locale} allowInternational={store.internationalPostcardPriceCents !== null} />
+        <RecipientFields draft={draft} errors={errors} onChange={set} line1Ref={line1Ref} locale={store.locale} allowInternational={store.internationalPostcardPriceCents !== null} />
 
-        {check.check ? <VerificationNotice check={check.check} locale={store.locale} onUse={check.useSuggested} onKeep={check.keepMine} onDismiss={check.dismiss} /> : null}
+        {check.check ? (
+          <VerificationNotice
+            check={check.check}
+            locale={store.locale}
+            onUse={check.useSuggested}
+            onKeep={check.keepMine}
+            onDismiss={check.dismiss}
+            onEdit={() => {
+              check.dismiss();
+              line1Ref.current?.focus();
+            }}
+          />
+        ) : null}
 
         {respond.isError && !closed ? (
           <Alert type="error" showIcon title={respond.error instanceof Error ? respond.error.message : "That could not be sent. Try again."} />

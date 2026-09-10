@@ -54,7 +54,7 @@ addressRequestsRouter.post("/address-requests/:token", requestRateLimit, verifyC
   // know at all would only become a parked card later.
   const verification = await verifyRecipient(parsed.data);
   if (verification.deliverability === "undeliverable") {
-    throw httpError(400, "USPS doesn't recognise this address. Check the street number and the ZIP.");
+    throw httpError(400, "USPS doesn't recognize this address. Check the street number and the ZIP.");
   }
 
   let saved;

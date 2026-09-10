@@ -21,11 +21,18 @@ const store = storeSchema.parse(demoStore);
 const TYPED: Recipient = { name: "Grandma", line1: "185 berry street", line2: null, city: "San Francisco", state: "CA", postalCode: "94107", country: "US" };
 const USPS: Recipient = { ...TYPED, line1: "185 Berry St" };
 
+async function chooseState(code: string) {
+  const combobox = screen.getByLabelText("State");
+  await userEvent.click(combobox);
+  await userEvent.type(combobox, code);
+  await userEvent.click(await screen.findByTitle(new RegExp(`^${code} ·`)));
+}
+
 async function fillForm() {
   await userEvent.type(screen.getByLabelText("Name"), TYPED.name);
   await userEvent.type(screen.getByLabelText("Street address"), TYPED.line1);
   await userEvent.type(screen.getByLabelText("City"), TYPED.city);
-  await userEvent.type(screen.getByLabelText("State"), TYPED.state);
+  await chooseState(TYPED.state);
   await userEvent.type(screen.getByLabelText("ZIP"), TYPED.postalCode);
   await userEvent.click(screen.getByRole("button", { name: "Add recipient" }));
 }
@@ -64,15 +71,19 @@ describe("Recipients", () => {
     expect(onChange).toHaveBeenCalledWith([TYPED]);
   });
 
-  it("stops an address USPS does not know, and says why", async () => {
+  it("stops an address USPS does not know, offers to edit it, and focuses the street address", async () => {
     verifyRecipient.mockResolvedValue({ deliverability: "undeliverable", suggested: null, changed: false });
     const onChange = vi.fn();
     renderWithProviders(<Recipients recipients={[]} onChange={onChange} />, { store });
 
     await fillForm();
-    expect(await screen.findByText("USPS doesn't recognise this address.")).toBeInTheDocument();
+    expect(await screen.findByText("USPS doesn't recognize this address.")).toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
     // The form still holds what was typed, ready to fix.
+    expect(screen.getByLabelText("Street address")).toHaveValue(TYPED.line1);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit the address" }));
+    expect(screen.getByLabelText("Street address")).toHaveFocus();
     expect(screen.getByLabelText("Street address")).toHaveValue(TYPED.line1);
   });
 

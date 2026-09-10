@@ -4,6 +4,7 @@ import styles from "./Account.module.css";
 
 const LINKS = [
   { to: "/account", label: "Overview", end: true },
+  { to: "/account/postcards", label: "Postcards", end: false },
   { to: "/account/orders", label: "Orders", end: false },
   { to: "/account/recipients", label: "Recipients", end: false },
 ] as const;

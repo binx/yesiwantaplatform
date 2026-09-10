@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import {
   addressInputSchema,
@@ -23,7 +24,20 @@ import {
   claimOrdersForCustomer,
   getOrderForCustomer,
   listOrdersForCustomer,
+  listPostcardsForDesign,
 } from "../../db/orders-repository.js";
+import {
+  createDesign,
+  deleteDraftDesign,
+  getDesignForCustomer,
+  listCopiesOf,
+  listDesignsForCustomer,
+  toPublicDesign,
+  type GalleryDesign as GalleryDesignRow,
+} from "../../db/designs-repository.js";
+import { copyDesignFiles, deleteDesignFile } from "../uploads.js";
+import type { GalleryDesign } from "../../shared/gallery.js";
+import type { Postcard } from "../../shared/postcards.js";
 import {
   AddressNotFoundError,
   createAddress,
@@ -307,6 +321,82 @@ meRouter.delete("/addresses/:id", async (req, res) => {
     if (error instanceof AddressNotFoundError) throw httpError(404, error.message);
     throw error;
   }
+});
+
+/* ----------------------------------------------------------------- gallery */
+
+function toGalleryDesign(design: GalleryDesignRow): GalleryDesign {
+  return { ...toPublicDesign(design), ordered: design.orderId !== null, originId: design.originId, canSendAgain: design.canSendAgain, postcards: design.postcards };
+}
+
+/** The customer view of a card: the same stripping `toCustomerOrder` does. */
+function toCustomerPostcard(postcard: Postcard): Postcard {
+  return { ...postcard, lastError: null, attempts: 0 };
+}
+
+meRouter.get("/designs", async (req, res) => {
+  const cursor = typeof req.query.cursor === "string" && req.query.cursor !== "" ? req.query.cursor : undefined;
+  const limit = Number(req.query.limit);
+  const page = await listDesignsForCustomer(req.session.customerId!, { ...(cursor ? { cursor } : {}), ...(Number.isFinite(limit) ? { limit } : {}) });
+  res.json({ designs: page.designs.map(toGalleryDesign), nextCursor: page.nextCursor });
+});
+
+/** One design with its cards. Another customer's design is a 404, like an order. */
+meRouter.get("/designs/:id", async (req, res) => {
+  const customerId = req.session.customerId!;
+  const design = await getDesignForCustomer(req.params.id, customerId);
+  if (!design) throw httpError(404, "No design found.");
+
+  const [cards, copies] = await Promise.all([listPostcardsForDesign(design.id, customerId), listCopiesOf(design.id, customerId)]);
+  res.json({ ...toGalleryDesign(design), cards: cards.map(toCustomerPostcard), copies: copies.map(toGalleryDesign) });
+});
+
+/**
+ * "Send again": a fresh design with the same files and back, ready for the
+ * designer. A design belongs to one order, so a copy rather than a reuse —
+ * and the copy remembers where it came from.
+ */
+meRouter.post("/designs/:id/duplicate", async (req, res) => {
+  const customerId = req.session.customerId!;
+  const design = await getDesignForCustomer(req.params.id, customerId);
+  if (!design) throw httpError(404, "No design found.");
+  if (!design.printPath) throw httpError(409, "This design's print file is gone, so it can't be sent again. Save it as a new design instead.");
+
+  const id = randomUUID();
+  const files = await copyDesignFiles({ printPath: design.printPath, thumbnailPath: design.thumbnailPath }, id);
+  try {
+    const copy = await createDesign(
+      {
+        customerId,
+        originId: design.originId ?? design.id,
+        orientation: design.orientation,
+        back: design.back,
+        thumbnailWidth: design.thumbnailWidth,
+        thumbnailHeight: design.thumbnailHeight,
+        ...files,
+      },
+      id,
+    );
+    res.status(201).json(toPublicDesign(copy));
+  } catch (error) {
+    await deleteDesignFile(files.printPath).catch(() => undefined);
+    await deleteDesignFile(files.thumbnailPath).catch(() => undefined);
+    throw error;
+  }
+});
+
+/** Drafts only: an ordered design is the record of what went out, and the order keeps a key to it. */
+meRouter.delete("/designs/:id", async (req, res) => {
+  const customerId = req.session.customerId!;
+  const existing = await getDesignForCustomer(req.params.id, customerId);
+  if (!existing) throw httpError(404, "No design found.");
+  if (existing.orderId) throw httpError(409, "Ordered designs stay in your gallery.");
+
+  const deleted = await deleteDraftDesign(existing.id, customerId);
+  if (!deleted) throw httpError(409, "Ordered designs stay in your gallery.");
+  if (deleted.printPath) await deleteDesignFile(deleted.printPath).catch(() => undefined);
+  await deleteDesignFile(deleted.thumbnailPath).catch(() => undefined);
+  res.status(204).end();
 });
 
 /* --------------------------------------------------------- address requests */

@@ -163,6 +163,7 @@ export const postcardDesigns = pgTable(
     id: text("id").primaryKey(),
     customerId: text("customer_id").references(() => customers.id, { onDelete: "set null" }),
     orderId: text("order_id"),
+    originId: text("origin_id"),
     orientation: text("orientation").notNull(),
     printPath: text("print_path"),
     thumbnailPath: text("thumbnail_path").notNull(),

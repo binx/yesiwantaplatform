@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Alert, Button, Form, Input, Tag } from "antd";
 import { useCustomer, useCustomerLogout, useUpdateProfile } from "@/lib/account";
+import { useGallery } from "@/lib/gallery";
+import { DesignCard } from "./AccountPostcardsPage";
+import gallery from "./Gallery.module.css";
 import { cx } from "@/lib/cx";
 import styles from "./Account.module.css";
 
@@ -11,6 +14,8 @@ export function AccountOverviewPage() {
   const logout = useCustomerLogout();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
+  const recent = useGallery(3);
+  const recentDesigns = recent.data?.pages[0]?.designs ?? [];
 
   useEffect(() => {
     document.title = "Account overview · Your account";
@@ -81,6 +86,20 @@ export function AccountOverviewPage() {
           />
         ) : null}
       </div>
+
+      {recentDesigns.length > 0 ? (
+        <section className={cx(gallery.recent)} aria-labelledby="recent-heading">
+          <h2 id="recent-heading">Your latest postcards</h2>
+          <ul className={gallery.grid} aria-label="Latest postcards">
+            {recentDesigns.map((design) => (
+              <li key={design.id} className={gallery.card}>
+                <DesignCard design={design} />
+              </li>
+            ))}
+          </ul>
+          <Link to="/account/postcards">All your postcards</Link>
+        </section>
+      ) : null}
 
       <Button
         loading={logout.isPending}

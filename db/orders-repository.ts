@@ -4,7 +4,7 @@ import { orderReference, orderSchema, type Order, type OrderStatus } from "../sh
 import { countPostcardsByDestination, type CartLine } from "../shared/cart.js";
 import { isShownTrackingEvent, type Postcard, type PostcardStatus, type TrackingEvent } from "../shared/postcards.js";
 import { getDatabase } from "./client.js";
-import { affectedRows, findDesignsByIds, toPublicDesign } from "./designs-repository.js";
+import { affectedRows, claimDesignsForOrders, findDesignsByIds, toPublicDesign } from "./designs-repository.js";
 import { nowFor, toEpochMs } from "./repository.js";
 
 /**
@@ -326,12 +326,34 @@ export async function listOrdersForCustomer(
 export async function claimOrdersForCustomer(customerId: string, email: string): Promise<number> {
   const { drizzle: db, schema } = await getDatabase();
 
-  const result = await db
-    .update(schema.orders)
-    .set({ customerId })
-    .where(and(eq(sql`lower(${schema.orders.email})`, email.toLowerCase()), isNull(schema.orders.customerId)));
+  const where = and(eq(sql`lower(${schema.orders.email})`, email.toLowerCase()), isNull(schema.orders.customerId));
+  const unclaimed = (await db.select({ id: schema.orders.id }).from(schema.orders).where(where)) as unknown as { id: string }[];
+  if (unclaimed.length === 0) return 0;
+
+  const result = await db.update(schema.orders).set({ customerId }).where(where);
+
+  // The designs on those orders are theirs too, so the gallery shows them.
+  await claimDesignsForOrders(
+    customerId,
+    unclaimed.map((row) => row.id),
+  );
 
   return affectedRows(result);
+}
+
+/** Every card of one design across this customer's orders, for the gallery's detail page. */
+export async function listPostcardsForDesign(designId: string, customerId: string): Promise<Postcard[]> {
+  const { drizzle: db, schema } = await getDatabase();
+
+  const rows = (await db
+    .select({ postcard: schema.postcards })
+    .from(schema.postcards)
+    .innerJoin(schema.orders, eq(schema.orders.id, schema.postcards.orderId))
+    .where(and(eq(schema.postcards.designId, designId), eq(schema.orders.customerId, customerId)))
+    .orderBy(asc(schema.postcards.mailDate), asc(schema.postcards.recipientName), asc(schema.postcards.id))) as unknown as { postcard: PostcardRow }[];
+
+  const tracking = await loadTracking(rows.map((row) => row.postcard.id));
+  return rows.map((row) => buildPostcard(row.postcard, tracking.get(row.postcard.id) ?? []));
 }
 
 export async function listOrders(

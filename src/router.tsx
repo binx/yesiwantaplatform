@@ -159,6 +159,18 @@ export const router = createBrowserRouter([
                 }),
               },
               {
+                path: "postcards",
+                lazy: async () => ({
+                  Component: (await import("./pages/account/AccountPostcardsPage")).AccountPostcardsPage,
+                }),
+              },
+              {
+                path: "postcards/:id",
+                lazy: async () => ({
+                  Component: (await import("./pages/account/AccountPostcardDetailPage")).AccountPostcardDetailPage,
+                }),
+              },
+              {
                 path: "orders",
                 lazy: async () => ({
                   Component: (await import("./pages/account/AccountOrdersPage")).AccountOrdersPage,

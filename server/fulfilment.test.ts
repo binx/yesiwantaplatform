@@ -388,6 +388,41 @@ describe("sendDuePostcards", () => {
 });
 
 describe("cleanUp", () => {
+  it("leaves a customer's print file and young drafts alone, and removes a draft after six months", async () => {
+    const { getDatabase } = await import("../db/client.js");
+    const { eq } = await import("drizzle-orm");
+    const { drizzle: db, schema, dialect } = await getDatabase();
+    const { createCustomer } = await import("./auth.js");
+    const customerId = await createCustomer(`gallery-${Date.now()}@example.com`, "a-sufficiently-long-test-password", "Rachel");
+
+    // A customer's sent design keeps its print file; a guest's is trimmed (the next test).
+    const { designId } = await paidOrder(todayIso());
+    await db.update(schema.postcardDesigns).set({ customerId }).where(eq(schema.postcardDesigns.id, designId));
+    const { sendDuePostcards, cleanUp } = await import("./fulfilment.js");
+    await sendDuePostcards();
+
+    // Two drafts of theirs: one 40 days old, one 200 days old.
+    const png = await sharp({ create: { width: 100, height: 100, channels: 3, background: "#000000" } }).png().toBuffer();
+    const draft = async (ageDays: number) => {
+      const id = (await request(app).post("/api/designs").field("orientation", "portrait").attach("file", png, { filename: "a.png", contentType: "image/png" }).expect(201)).body.id as string;
+      const at = new Date(Date.now() - ageDays * 24 * 60 * 60 * 1000);
+      await db
+        .update(schema.postcardDesigns)
+        .set({ customerId, createdAt: dialect === "pg" ? at : Math.floor(at.getTime() / 1000) })
+        .where(eq(schema.postcardDesigns.id, id));
+      return id;
+    };
+    const young = await draft(40);
+    const old = await draft(200);
+
+    await cleanUp();
+
+    const { getDesign } = await import("../db/designs-repository.js");
+    expect((await getDesign(designId))?.printPath).toBeTruthy();
+    expect(await getDesign(young)).not.toBeNull();
+    expect(await getDesign(old)).toBeNull();
+  });
+
   it("deletes a design nobody bought after a month, and trims a sent design's print file", async () => {
     const { getDatabase } = await import("../db/client.js");
     const { eq } = await import("drizzle-orm");

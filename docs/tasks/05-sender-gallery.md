@@ -1,15 +1,15 @@
 ---
 task: "05"
 title: Sender gallery and send again
-status: todo
+status: done
 tier: 2
 size: M
 migration: none
 blocked_by: ["03"]
 blocks: ["06"]
 touches: server/fulfilment.ts:189 · db/designs-repository.ts · server/routes/account.ts · src/pages/CreatePage.tsx · src/pages/account/AccountNav.tsx
-completed:
-shipped_in:
+completed: 2026-09-10
+shipped_in: 12
 summary: >-
   A customer's designs are already theirs (`postcard_designs.customer_id`), but there is
   nowhere to see them: order history is a list of receipts. Add a gallery of everything
@@ -19,6 +19,14 @@ summary: >-
 ---
 
 # 05 · Sender gallery and send again
+
+## Progress
+
+Built as specified, with two small departures: `origin_id` is the one
+migration; the detail view is a route (`/account/postcards/:id`), not a
+drawer. The retention change keeps a customer's print files and gives
+their drafts six months; `claimOrdersForCustomer` claims the designs
+along with the orders.
 
 ## The problem
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { cartLineSchema } from "./cart.js";
 import { centsSchema } from "./schema.js";
-import { postcardDesignSchema, postcardSchema } from "./postcards.js";
+import { RETURNED_TO_SENDER, postcardDesignSchema, postcardSchema } from "./postcards.js";
 
 /**
  * Orders.
@@ -22,6 +22,13 @@ export const orderStatusSchema = z.enum([
   "cancelled",
   "refunded",
 ]);
+
+/**
+ * What the admin's orders list is filtered by. Every value but "returned" is
+ * an order status; "returned" is a fact about the *cards* on an order — one
+ * of them came back — so it cannot be another member of the status enum.
+ */
+export const orderFilterSchema = z.enum([...orderStatusSchema.options, "all", "returned"]);
 
 export const orderSchema = z.object({
   id: z.string(),
@@ -89,6 +96,7 @@ export const refundInputSchema = z.object({
 });
 
 export type OrderStatus = z.infer<typeof orderStatusSchema>;
+export type OrderFilter = z.infer<typeof orderFilterSchema>;
 export type Order = z.infer<typeof orderSchema>;
 export type CheckoutRequest = z.infer<typeof checkoutRequestSchema>;
 export type ComplimentaryOrderInput = z.infer<typeof complimentaryOrderInputSchema>;
@@ -107,10 +115,13 @@ export function orderReference(id: string): string {
 
 /** How many of an order's postcards are in each state — for a one-line summary. */
 export function summarisePostcards(order: Pick<Order, "postcards">) {
-  const counts = { scheduled: 0, sent: 0, error: 0, cancelled: 0, pending: 0 };
+  const counts = { scheduled: 0, sent: 0, error: 0, cancelled: 0, pending: 0, returned: 0 };
   for (const postcard of order.postcards) {
     if (postcard.status === "sending") counts.scheduled += 1;
     else counts[postcard.status] += 1;
+    // A returned card stays `sent`, because it was — so it is counted apart
+    // from the statuses rather than instead of one of them.
+    if (postcard.trackingStatus === RETURNED_TO_SENDER) counts.returned += 1;
   }
   return counts;
 }

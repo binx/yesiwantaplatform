@@ -1,15 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, Empty, Segmented, Skeleton, Table } from "antd";
-import type { Order, OrderStatus } from "@shared/orders";
+import type { Order, OrderFilter } from "@shared/orders";
 import { formatMoney } from "@shared/money";
 import { cx } from "@/lib/cx";
-import { ORDER_PAGE_SIZE, useOrders,
-  useStoreLocale,
-} from "./queries";
+import { ORDER_PAGE_SIZE, orderQuery, useOrders, useStoreLocale } from "./queries";
 import { PageHeader } from "./RequireAdmin";
 import { OrderStatusTag } from "./OrderStatusTag";
-import { ORDER_STATUSES, formatOrderDate, statusLabel } from "./orderPresentation";
+import { ORDER_FILTERS, filterLabel, formatOrderDate } from "./orderPresentation";
 import styles from "./OrdersPage.module.css";
 
 /**
@@ -21,10 +19,10 @@ import styles from "./OrdersPage.module.css";
  */
 export function OrdersPage() {
   const locale = useStoreLocale();
-  const [status, setStatus] = useState<OrderStatus | "all">("all");
+  const [filter, setFilter] = useState<OrderFilter>("all");
   const [offset, setOffset] = useState(0);
 
-  const orders = useOrders(status, offset);
+  const orders = useOrders(filter, offset);
 
   useEffect(() => {
     document.title = "Orders · Admin";
@@ -47,33 +45,26 @@ export function OrdersPage() {
            * and verifyCsrf skips safe methods, so there is no token to attach
            * and no blob to build. The browser saves the stream as it arrives.
            */
-          <a href={`/api/admin/orders.csv${status === "all" ? "" : `?status=${status}`}`}>
+          <a href={csvHref(filter)}>
             <Button>Download CSV</Button>
           </a>
         }
       />
 
-      <Segmented<OrderStatus | "all">
+      <Segmented<OrderFilter>
         className={cx(styles.filter)}
-        value={status}
+        value={filter}
         onChange={(next) => {
-          setStatus(next);
+          setFilter(next);
           setOffset(0);
         }}
-        options={[
-          { label: "All", value: "all" },
-          ...ORDER_STATUSES.map((value) => ({ label: statusLabel(value), value })),
-        ]}
+        options={ORDER_FILTERS.map((value) => ({ label: filterLabel(value), value }))}
       />
 
       {orders.isPending ? (
         <Skeleton active paragraph={{ rows: 8 }} />
       ) : rows.length === 0 ? (
-        <Empty
-          description={
-            status === "all" ? "No orders yet." : `No ${statusLabel(status).toLowerCase()} orders.`
-          }
-        />
+        <Empty description={emptyDescription(filter)} />
       ) : (
         <>
           <Table<Order>
@@ -133,4 +124,20 @@ export function OrdersPage() {
       )}
     </>
   );
+}
+
+/**
+ * The CSV of what is on screen, not of everything. The route reads the same
+ * two parameters the list does, so the filter is built once in `orderQuery`.
+ */
+function csvHref(filter: OrderFilter): string {
+  const params = orderQuery(filter);
+  const query = params.toString();
+  return `/api/admin/orders.csv${query ? `?${query}` : ""}`;
+}
+
+function emptyDescription(filter: OrderFilter): string {
+  if (filter === "all") return "No orders yet.";
+  if (filter === "returned") return "No cards have come back.";
+  return `No ${filterLabel(filter).toLowerCase()} orders.`;
 }

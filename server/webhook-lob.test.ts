@@ -49,14 +49,14 @@ beforeEach(() => {
   vi.spyOn(stripe.checkout.sessions, "create").mockImplementation(createSession as unknown as typeof stripe.checkout.sessions.create);
 });
 
-/** A paid order whose one card has gone to Lob, so it has a Lob id to be tracked by. */
-async function sentCard() {
+/** A paid order whose cards have gone to Lob, so each has a Lob id to be tracked by. */
+async function sentCard(cards = 1) {
   const png = await sharp({ create: { width: 300, height: 200, channels: 3, background: "#00ffff" } }).png().toBuffer();
   const uploaded = await request(app).post("/api/designs").field("orientation", "landscape").attach("file", png, { filename: "a.png", contentType: "image/png" }).expect(201);
   const designId = uploaded.body.id as string;
-  const recipient = { name: "Grandma", line1: "1 Test Street", line2: null, city: "Marfa", state: "TX", postalCode: "79843" };
+  const recipients = Array.from({ length: cards }, (_unused, index) => ({ name: `Grandma ${index + 1}`, line1: "1 Test Street", line2: null, city: "Marfa", state: "TX", postalCode: "79843" }));
 
-  await request(app).post("/api/checkout").send({ lines: [{ designs: [{ designId, mailDate: todayIso() }], recipients: [recipient] }] }).expect(200);
+  await request(app).post("/api/checkout").send({ lines: [{ designs: [{ designId, mailDate: todayIso() }], recipients }] }).expect(200);
   const session = createSession.mock.results.at(-1)?.value as { id: string };
   const params = createSession.mock.calls.at(-1)?.[0] as Stripe.Checkout.SessionCreateParams;
   const orderId = params.metadata?.postcards_order_id as string;
@@ -71,8 +71,8 @@ async function sentCard() {
         object: "checkout.session",
         payment_intent: `pi_${orderId}`,
         currency: "usd",
-        amount_subtotal: 140,
-        amount_total: 140,
+        amount_subtotal: 140 * cards,
+        amount_total: 140 * cards,
         total_details: { amount_discount: 0 },
         customer_details: { email: "buyer@example.com" },
         metadata: { postcards_order_id: orderId },
@@ -88,8 +88,8 @@ async function sentCard() {
   const { getOrder } = await import("../db/orders-repository.js");
   const order = (await getOrder(orderId))!;
   const postcard = order.postcards[0]!;
-  expect(postcard.status).toBe("sent");
-  return { orderId, postcard, sessionId: session.id };
+  expect(order.postcards.every((card) => card.status === "sent")).toBe(true);
+  return { orderId, postcard, postcards: order.postcards, sessionId: session.id };
 }
 
 function lobEvent(o: { id?: string; type: string; postcardId?: string; lobId?: string; at: string; location?: string }) {
@@ -189,6 +189,64 @@ describe("POST /api/webhooks/lob", () => {
     expect(response.body.ignored).toBe(true);
   });
 });
+
+/**
+ * The admin's orders list, filtered to the cards that came back.
+ *
+ * Through the route rather than the repository, because the point of the
+ * chip is that the query parameter it sends reaches `listOrders` — and that
+ * the total agrees with the rows, which an order with two returned cards
+ * would break if the filter were a join.
+ */
+describe("GET /api/admin/orders?returned=true", () => {
+  it("lists only orders with a returned card, once each", async () => {
+    const delivered = await sentCard();
+    const returnedTwice = await sentCard(2);
+
+    await signed(lobEvent({ type: "postcard.delivered", postcardId: delivered.postcard.id, at: "2026-09-18T15:00:00Z" })).expect(200);
+    for (const card of returnedTwice.postcards) {
+      await signed(lobEvent({ type: "postcard.returned_to_sender", postcardId: card.id, at: "2026-09-20T10:00:00Z" })).expect(200);
+    }
+
+    const agent = await adminAgent();
+    const filtered = await agent.get("/api/admin/orders?returned=true").expect(200);
+    const ids = (filtered.body.orders as { id: string }[]).map((order) => order.id);
+
+    expect(ids).toContain(returnedTwice.orderId);
+    expect(ids).not.toContain(delivered.orderId);
+    expect(ids.filter((id) => id === returnedTwice.orderId)).toHaveLength(1);
+    expect(filtered.body.total).toBe(ids.length);
+
+    const all = await agent.get("/api/admin/orders").expect(200);
+    const allIds = (all.body.orders as { id: string }[]).map((order) => order.id);
+    expect(allIds).toContain(delivered.orderId);
+    expect(allIds).toContain(returnedTwice.orderId);
+  });
+
+  it("filters the CSV the same way, so the download matches the screen", async () => {
+    const delivered = await sentCard();
+    const returned = await sentCard();
+    await signed(lobEvent({ type: "postcard.delivered", postcardId: delivered.postcard.id, at: "2026-09-18T15:00:00Z" })).expect(200);
+    await signed(lobEvent({ type: "postcard.returned_to_sender", postcardId: returned.postcard.id, at: "2026-09-20T10:00:00Z" })).expect(200);
+
+    const csv = await (await adminAgent()).get("/api/admin/orders.csv?returned=true").expect(200);
+    expect(csv.text).toContain(returned.orderId);
+    expect(csv.text).not.toContain(delivered.orderId);
+  });
+});
+
+/** A signed-in administrator. Every call makes its own, so the tests do not share a session. */
+async function adminAgent() {
+  const email = `orders-${Math.random().toString(36).slice(2)}@example.com`;
+  const password = "a-sufficiently-long-test-password";
+  const { createAdmin } = await import("./auth.js");
+  await createAdmin(email, password);
+
+  const agent = request.agent(app);
+  const bootstrap = await agent.get("/api/session").expect(200);
+  await agent.post("/api/session").set("x-csrf-token", bootstrap.body.csrfToken as string).send({ email, password }).expect(200);
+  return agent;
+}
 
 async function sentOrderIdOf(postcardId: string): Promise<string | null> {
   const { getDatabase } = await import("../db/client.js");

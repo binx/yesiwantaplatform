@@ -274,6 +274,13 @@ export const SHOWN_TRACKING_EVENTS = [
 
 export type ShownTrackingEvent = (typeof SHOWN_TRACKING_EVENTS)[number];
 
+/**
+ * The one tracking type anything branches on: it writes the admin's error
+ * column and it is the orders list's filter. Named once so the webhook, the
+ * query and the chip cannot drift apart on a spelling.
+ */
+export const RETURNED_TO_SENDER = "postcard.returned_to_sender";
+
 export function isShownTrackingEvent(type: string): type is ShownTrackingEvent {
   return (SHOWN_TRACKING_EVENTS as readonly string[]).includes(type);
 }

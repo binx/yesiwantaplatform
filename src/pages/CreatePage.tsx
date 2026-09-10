@@ -55,6 +55,8 @@ export function CreatePage() {
   });
 
   const [designs, setDesigns] = useState<PostcardDesign[]>([]);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const editingDesign = editingIndex !== null ? (designs[editingIndex] ?? null) : null;
 
   // Designs handed in by the gallery's "send again": `?designs=a,b`. Fetched
   // once through the public designs route and seeded into the schedule; the
@@ -161,6 +163,21 @@ export function CreatePage() {
     }
   };
 
+  const removeDesign = (index: number) => {
+    setDesigns((current) => current.filter((_, i) => i !== index));
+    setEditingIndex((current) => (current === index ? null : current));
+  };
+
+  const startEdit = (index: number) => {
+    setEditingIndex(index);
+    document.getElementById("design-heading")?.scrollIntoView();
+  };
+
+  const editDesign = (design: PostcardDesign) => {
+    setDesigns((current) => current.map((d, i) => (i === editingIndex ? design : d)));
+    setEditingIndex(null);
+  };
+
   const arriveBy = (designId: string, mailDate: string) => {
     if (mode === "cadence" && designs.length === 1) {
       setStartDate(mailDate);
@@ -189,7 +206,13 @@ export function CreatePage() {
 
       <section className={cx(styles.panel)} aria-labelledby="design-heading">
         <h2 id="design-heading">1. Create a postcard design</h2>
-        <DesignForm onSaved={addDesign} replyLink={replyLink} />
+        <DesignForm
+          onSaved={addDesign}
+          replyLink={replyLink}
+          editing={editingDesign}
+          onEdited={editDesign}
+          onCancelEdit={() => setEditingIndex(null)}
+        />
       </section>
 
       <section className={cx(styles.panel)} aria-labelledby="schedule-heading">
@@ -204,7 +227,8 @@ export function CreatePage() {
           onCadenceChange={setCadenceDays}
           onDateChange={setCustomDate}
           onArriveBy={arriveBy}
-          onRemove={(index) => setDesigns((current) => current.filter((_, i) => i !== index))}
+          onRemove={removeDesign}
+          onEdit={startEdit}
           locale={store.locale}
           replyLink={replyLink}
           onReplyLinkChange={setReplyLink}

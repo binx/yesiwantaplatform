@@ -1,15 +1,15 @@
 ---
 task: "09"
 title: Edit a saved design
-status: todo
+status: done
 tier: 1
 size: S
 migration: none
 blocked_by: []
 blocks: []
 touches: src/components/postcard/Schedule.tsx:120 · src/components/postcard/DesignForm.tsx:143 · src/lib/designs.ts:57 · server/routes/designs.ts:119 · src/pages/CreatePage.tsx
-completed:
-shipped_in:
+completed: 2026-09-10
+shipped_in: "#25"
 summary: >-
   Once a design is saved the form clears and the only thing the schedule offers is
   Remove. A typo in the note means removing the card and designing it again, photo

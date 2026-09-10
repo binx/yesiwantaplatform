@@ -1,4 +1,4 @@
-import { useMutation, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { postcardDesignSchema, type Crop, type PostcardBack, type PostcardDesign, type Orientation } from "@shared/postcards";
 import { z } from "zod";
 import { ApiError, apiGet } from "./api";
@@ -56,6 +56,41 @@ export async function saveDesign(input: SaveDesignInput): Promise<PostcardDesign
 
 export function useSaveDesign() {
   return useMutation({ mutationFn: saveDesign });
+}
+
+export interface UpdateDesignBackInput {
+  id: string;
+  back: PostcardBack;
+}
+
+/**
+ * Edit the message on a design that has not been ordered yet.
+ *
+ * A plain fetch, like `saveDesign`, not `csrfPut`: `PUT /api/designs/:id` is
+ * public, the same posture as the POST it edits — the id is unguessable and
+ * is the whole of the credential, so this stays session-free rather than
+ * spending a `GET /api/session` (and the session row it writes) on every
+ * shopper just to carry a token nothing here needs.
+ */
+export async function updateDesignBack({ id, back }: UpdateDesignBackInput): Promise<PostcardDesign> {
+  const response = await fetch(`/api/designs/${id}`, {
+    method: "PUT",
+    credentials: "same-origin",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify(back),
+  });
+
+  if (!response.ok) throw new ApiError(await readError(response), response.status);
+  return postcardDesignSchema.parse(await response.json());
+}
+
+export function useUpdateDesignBack() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateDesignBack,
+    // The cart and any other view of this id may already hold the old back cached.
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["designs"] }),
+  });
 }
 
 /**

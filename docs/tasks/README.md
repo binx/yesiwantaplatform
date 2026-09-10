@@ -190,7 +190,7 @@ desktop and a phone). None needs a migration. Suggested order:
 | 06 | [Reply link](06-reply-link.md) | done | 3 | L | columns on three tables |
 | 07 | [Back of card: the message must fit](07-back-of-card-fit.md) | done | 0 | M | none |
 | 08 | [Designer: photo frame, layout, price line, batch explainer](08-designer-layout.md) | todo | 1 | M | none |
-| 09 | [Edit a saved design](09-edit-saved-design.md) | todo | 1 | S | none |
+| 09 | [Edit a saved design](09-edit-saved-design.md) | done | 1 | S | none |
 | 10 | [Schedule: surface “ahead of a date”, tidy per-date cards](10-schedule-polish.md) | done | 2 | S | none |
 | 11 | [Recipients: state picker, honest buttons, unbroken row](11-recipient-form.md) | done | 1 | S | none |
 | 12 | [Copy: one delivery estimate, tenses, labels](12-copy-pass.md) | done | 1 | S | none |

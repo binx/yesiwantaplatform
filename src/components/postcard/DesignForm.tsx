@@ -11,9 +11,11 @@ import {
   type PostcardBack,
   type PostcardDesign,
 } from "@shared/postcards";
-import { useSaveDesign } from "@/lib/designs";
+import { ApiError } from "@/lib/api";
+import { useSaveDesign, useUpdateDesignBack } from "@/lib/designs";
 import { cropFromDrag, nudgeCrop, previewGeometry } from "@/lib/crop";
 import { cx } from "@/lib/cx";
+import { ProductImage } from "@/components/ui/ProductImage";
 import { PostcardBackMock } from "./PostcardBackMock";
 import styles from "./Postcard.module.css";
 
@@ -35,6 +37,10 @@ interface DesignFormProps {
   onSaved: (design: PostcardDesign) => void;
   /** Whether the back will carry the reply QR, so the preview shows its footprint. */
   replyLink?: boolean;
+  /** The design being edited, if any — its photo is fixed, only the back changes. */
+  editing?: PostcardDesign | null;
+  onEdited?: (design: PostcardDesign) => void;
+  onCancelEdit?: () => void;
 }
 
 interface Picked {
@@ -44,7 +50,7 @@ interface Picked {
   height: number;
 }
 
-export function DesignForm({ onSaved, replyLink = true }: DesignFormProps) {
+export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited, onCancelEdit }: DesignFormProps) {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [orientation, setOrientation] = useState<Orientation>("portrait");
   const [back, setBack] = useState<PostcardBack>(defaultPostcardBack);
@@ -54,12 +60,25 @@ export function DesignForm({ onSaved, replyLink = true }: DesignFormProps) {
   const [savedFlash, setSavedFlash] = useState(false);
   const [fits, setFits] = useState(true);
   const save = useSaveDesign();
+  const update = useUpdateDesignBack();
   const fileId = useId();
   const hintId = useId();
   const previewRef = useRef<HTMLDivElement>(null);
   const pointer = useRef<{ id: number; x: number; y: number } | null>(null);
 
-  const size = PRINT_SIZES[orientation];
+  // Entering edit mode seeds the back from the saved design and drops any
+  // unsaved photo pick — the frame it shows from here is the saved thumbnail.
+  // (The object-URL cleanup effect below still revokes whatever `picked` was.)
+  useEffect(() => {
+    if (!editing) return;
+    setBack(editing.back);
+    setPicked(null);
+    setCrop(defaultCrop);
+    setMoved(false);
+  }, [editing]);
+
+  const previewOrientation = editing?.orientation ?? orientation;
+  const size = PRINT_SIZES[previewOrientation];
   const lowRes = picked !== null && (picked.width < size.width || picked.height < size.height);
 
   // Object URLs are revoked when the file changes or the form unmounts.
@@ -82,7 +101,7 @@ export function DesignForm({ onSaved, replyLink = true }: DesignFormProps) {
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [orientation]);
+  }, [previewOrientation]);
 
   const geometry = picked && box ? previewGeometry(picked, box, crop) : null;
 
@@ -137,6 +156,20 @@ export function DesignForm({ onSaved, replyLink = true }: DesignFormProps) {
     setBack((current) => ({ ...current, [key]: value }));
 
   const submit = () => {
+    if (editing) {
+      update.mutate(
+        { id: editing.id, back },
+        {
+          onSuccess: (design) => {
+            onEdited?.(design);
+            setBack(defaultPostcardBack);
+            setSavedFlash(true);
+            setTimeout(() => setSavedFlash(false), 4000);
+          },
+        },
+      );
+      return;
+    }
     if (!picked) return;
     save.mutate(
       { file: picked.file, orientation, back, crop },
@@ -154,6 +187,11 @@ export function DesignForm({ onSaved, replyLink = true }: DesignFormProps) {
     );
   };
 
+  const cancelEdit = () => {
+    setBack(defaultPostcardBack);
+    onCancelEdit?.();
+  };
+
   return (
     <div className={cx(styles.form)}>
       <div className={styles.frontRow}>
@@ -162,7 +200,13 @@ export function DesignForm({ onSaved, replyLink = true }: DesignFormProps) {
           className={cx(styles.frontPreview)}
           style={previewStyle}
           role="img"
-          aria-label={picked ? "Your photo in the card. Drag it, or use the arrow keys, to choose what shows." : "Your photo goes here"}
+          aria-label={
+            editing
+              ? "The saved photo for this design"
+              : picked
+                ? "Your photo in the card. Drag it, or use the arrow keys, to choose what shows."
+                : "Your photo goes here"
+          }
           aria-describedby={picked ? hintId : undefined}
           tabIndex={picked ? 0 : -1}
           onPointerDown={onPointerDown}
@@ -171,7 +215,9 @@ export function DesignForm({ onSaved, replyLink = true }: DesignFormProps) {
           onPointerCancel={onPointerUp}
           onKeyDown={onKeyDown}
         >
-          {picked ? (
+          {editing ? (
+            <ProductImage image={editing.thumbnail} className={cx(styles.frontImage)} decorative />
+          ) : picked ? (
             <img
               className={styles.frontImage}
               src={picked.url}
@@ -195,62 +241,68 @@ export function DesignForm({ onSaved, replyLink = true }: DesignFormProps) {
         </div>
 
         <div className={styles.frontControls}>
-          <label htmlFor={fileId} className={styles.fileLabel}>
-            <input
-              id={fileId}
-              className={styles.fileInput}
-              type="file"
-              accept="image/*"
-              onChange={(event) => choose(event.target.files?.[0])}
-            />
-            <Button icon={<UploadOutlined />} onClick={() => document.getElementById(fileId)?.click()}>
-              {picked ? "Choose a different photo" : "Upload a photo"}
-            </Button>
-          </label>
+          {editing ? (
+            <p className={styles.note}>To change the photo, remove this design and save a new one.</p>
+          ) : (
+            <>
+              <label htmlFor={fileId} className={styles.fileLabel}>
+                <input
+                  id={fileId}
+                  className={styles.fileInput}
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => choose(event.target.files?.[0])}
+                />
+                <Button icon={<UploadOutlined />} onClick={() => document.getElementById(fileId)?.click()}>
+                  {picked ? "Choose a different photo" : "Upload a photo"}
+                </Button>
+              </label>
 
-          <Radio.Group
-            value={orientation}
-            onChange={(event) => setOrientation(event.target.value as Orientation)}
-            aria-label="Orientation"
-            options={[
-              { label: "Portrait", value: "portrait" },
-              { label: "Landscape", value: "landscape" },
-            ]}
-          />
+              <Radio.Group
+                value={orientation}
+                onChange={(event) => setOrientation(event.target.value as Orientation)}
+                aria-label="Orientation"
+                options={[
+                  { label: "Portrait", value: "portrait" },
+                  { label: "Landscape", value: "landscape" },
+                ]}
+              />
 
-          <div className={styles.field}>
-            <span className={styles.label} id="zoom-label">
-              Zoom
-            </span>
-            <Slider
-              ariaLabelForHandle="Zoom"
-              min={1}
-              max={3}
-              step={0.05}
-              disabled={!picked}
-              value={crop.zoom}
-              tooltip={{ formatter: (value) => `${(value ?? 1).toFixed(2)}×` }}
-              onChange={(value: number) => {
-                setCrop((current) => ({ ...current, zoom: value }));
-                setMoved(true);
-              }}
-            />
-          </div>
+              <div className={styles.field}>
+                <span className={styles.label} id="zoom-label">
+                  Zoom
+                </span>
+                <Slider
+                  ariaLabelForHandle="Zoom"
+                  min={1}
+                  max={3}
+                  step={0.05}
+                  disabled={!picked}
+                  value={crop.zoom}
+                  tooltip={{ formatter: (value) => `${(value ?? 1).toFixed(2)}×` }}
+                  onChange={(value: number) => {
+                    setCrop((current) => ({ ...current, zoom: value }));
+                    setMoved(true);
+                  }}
+                />
+              </div>
 
-          <p className={styles.note} id={hintId}>
-            For a sharp print, use a photo at least {size.width} × {size.height} pixels. Drag the
-            photo, or use the arrow keys, to choose what shows. The inner frame is the safe zone —
-            anything outside it may be trimmed.
-          </p>
+              <p className={styles.note} id={hintId}>
+                For a sharp print, use a photo at least {size.width} × {size.height} pixels. Drag the
+                photo, or use the arrow keys, to choose what shows. The inner frame is the safe zone —
+                anything outside it may be trimmed.
+              </p>
 
-          {lowRes ? (
-            <Alert
-              type="warning"
-              showIcon
-              title="This photo is on the small side"
-              description={`It is ${picked?.width} × ${picked?.height} pixels, so it will look a little soft when printed.`}
-            />
-          ) : null}
+              {lowRes ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  title="This photo is on the small side"
+                  description={`It is ${picked?.width} × ${picked?.height} pixels, so it will look a little soft when printed.`}
+                />
+              ) : null}
+            </>
+          )}
         </div>
       </div>
 
@@ -329,7 +381,22 @@ export function DesignForm({ onSaved, replyLink = true }: DesignFormProps) {
         />
       ) : null}
 
-      {save.isError ? (
+      {editing && update.isError ? (
+        <Alert
+          type="error"
+          showIcon
+          title="That design could not be saved"
+          description={
+            update.error instanceof ApiError && update.error.status === 409
+              ? `${update.error.message} Remove it from the schedule and save a fresh copy to change the note.`
+              : update.error instanceof Error
+                ? update.error.message
+                : "Try again."
+          }
+        />
+      ) : null}
+
+      {!editing && save.isError ? (
         <Alert
           type="error"
           showIcon
@@ -339,15 +406,30 @@ export function DesignForm({ onSaved, replyLink = true }: DesignFormProps) {
       ) : null}
 
       <div className={styles.actions}>
-        <Button type="primary" size="large" disabled={!picked || !fits} loading={save.isPending} onClick={submit}>
-          {savedFlash ? "Saved!" : "Save this design"}
+        <Button
+          type="primary"
+          size="large"
+          disabled={(!editing && !picked) || !fits}
+          loading={editing ? update.isPending : save.isPending}
+          onClick={submit}
+        >
+          {editing ? "Save changes" : savedFlash ? "Saved!" : "Save this design"}
         </Button>
+        {editing ? (
+          <Button size="large" onClick={cancelEdit}>
+            Cancel
+          </Button>
+        ) : null}
         <span className={styles.note} role="status">
           {!fits
             ? "Shorten the note, or choose a smaller size. What you see on the card is what prints."
             : savedFlash
-              ? "Added to the schedule below. Save another, or scroll down to add recipients."
-              : "Save each design, then choose who gets it and when."}
+              ? editing
+                ? "Updated."
+                : "Added to the schedule below. Save another, or scroll down to add recipients."
+              : editing
+                ? "Change the note, closing line, style, size or ink, then save."
+                : "Save each design, then choose who gets it and when."}
         </span>
       </div>
     </div>

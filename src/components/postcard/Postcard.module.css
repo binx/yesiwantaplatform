@@ -258,6 +258,12 @@
   font-size: 0.8125rem;
 }
 
+.designButtons {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
 /* Custom mode: one row per card — date input on the left, .designMeta's buttons on the right. */
 .designControls {
   display: flex;

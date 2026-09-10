@@ -93,6 +93,33 @@ test("mails two designs on two chosen dates", async ({ page }) => {
   await expect(page.getByText(/Mails .+ to .+/)).toBeVisible();
 });
 
+test("edits a saved design's note and the change carries through to the cart", async ({ page }) => {
+  await designOne(page);
+
+  await page.getByRole("button", { name: "Edit design 1" }).click();
+  const note = page.getByLabel("Note for the back");
+  await expect(note).toHaveValue("Wish you were here");
+  await expect(page.getByText("To change the photo, remove this design and save a new one.")).toBeVisible();
+
+  await note.fill("Miss you lots");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("Updated.")).toBeVisible();
+
+  await page.getByLabel("Name").fill("Grandma");
+  await page.getByLabel("Street address").fill("1 Test Street");
+  await page.getByLabel("City").fill("Marfa");
+  await selectState(page, "TX");
+  await page.getByLabel("ZIP").fill("79843");
+  await page.getByRole("button", { name: "Add recipient" }).click();
+
+  const designsResponse = page.waitForResponse(
+    (response) => response.url().includes("/api/designs?ids=") && response.status() === 200,
+  );
+  await page.getByRole("button", { name: "Add to cart" }).click();
+  const body = (await (await designsResponse).json()) as Array<{ back: { text: string } }>;
+  expect(body[0]?.back.text).toBe("Miss you lots");
+});
+
 test("repositions the photo with the arrow keys and saves that crop", async ({ page }) => {
   await page.goto("/create");
   await page.locator('input[type="file"][accept="image/*"]').setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: PNG });

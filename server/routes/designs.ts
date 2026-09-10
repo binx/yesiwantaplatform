@@ -115,7 +115,13 @@ designsRouter.post("/designs", uploadRateLimit, (req, res, next) => {
   });
 });
 
-/** Edit the message on a design that has not been ordered yet. */
+/**
+ * Edit the message on a design that has not been ordered yet.
+ *
+ * Public and CSRF-free like the POST above it: the id is the credential, a
+ * guest has no session to carry a token in, and the rate limit is what keeps
+ * this from being a blind write oracle.
+ */
 designsRouter.put("/designs/:id", writeRateLimit, async (req, res) => {
   const id = String(req.params.id);
   const parsed = postcardBackSchema.safeParse(req.body);

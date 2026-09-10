@@ -275,8 +275,7 @@ What Lob requires abroad, confirmed against its documentation:
 6. **Verification** (Part B) routes non-US recipients to
    `intl_verifications`. `deliverable`/`undeliverable` only; no suggestions.
 
-7. **Expectations.** `DELIVERY_BUSINESS_DAYS` (brief 00) becomes a function
-   of country: `+6` for non-US. The schedule note reads "International
+7. **Expectations.** No arrival is promised anywhere (brief 00, amended). The schedule note reads "International
    cards take about two weeks longer" when a foreign recipient is on the
    list. The `PostcardSent` email already shows Lob's
    `expected_delivery_date`, which accounts for the destination.

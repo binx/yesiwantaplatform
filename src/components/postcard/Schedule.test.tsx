@@ -70,17 +70,19 @@ describe("Schedule", () => {
     expect(onModeChange).toHaveBeenCalledWith("custom");
   });
 
-  it("works a mail date back from the day a card should arrive", async () => {
+  it("mails a chosen number of days ahead of the day that matters, promising nothing about arrival", async () => {
     const { onArriveBy } = renderSchedule("custom");
-    await userEvent.click(screen.getByRole("button", { name: "I want one to arrive on a day" }));
+    await userEvent.click(screen.getByRole("button", { name: "Send it ahead of a date" }));
 
-    // A Monday well ahead: the mail date is six weekdays earlier, which is the Friday before the previous week.
     const target = "2099-06-15";
-    const input = await screen.findByLabelText("Arrive on");
+    const input = await screen.findByLabelText("The day that matters");
     fireEvent.change(input, { target: { value: target } });
-    expect(await screen.findByText(/We'll mail it on Jun 5, 2099/)).toBeInTheDocument();
+    // A week ahead by default, in calendar days; the note says how long it takes is not ours to promise.
+    expect(await screen.findByText(/Mailed Jun 8, 2099/)).toBeInTheDocument();
+    expect(screen.getByText(/depends on how far it travels/)).toBeInTheDocument();
+    expect(screen.queryByText(/should arrive/)).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Use this date" }));
-    expect(onArriveBy).toHaveBeenCalledWith("a", "2099-06-05");
+    expect(onArriveBy).toHaveBeenCalledWith("a", "2099-06-08");
   });
 });

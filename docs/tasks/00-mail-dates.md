@@ -93,33 +93,19 @@ Switching from custom back to cadence discards the custom dates (state kept,
 but derived dates win). Switching to custom seeds every design from the
 cadence dates it had, so the buyer starts from the schedule they could see.
 
-### 3. "Arrive by"
+### 3. "Ahead of a date"
 
-A small link under the date row in custom mode — **I want one to arrive on a
-day** — that opens an antd `Popover` with a date input and the sentence
-"We'll mail it on **{mailDate}** so it should arrive around **{target}**."
-Choosing a design and confirming writes the computed date into
-`customDates`.
-
-The arithmetic goes in `shared/postcards.ts` next to `addDaysIso`, tested:
-
-```ts
-/** Business days before a date, skipping weekends. No holidays: USPS moves on most of them. */
-export function businessDaysBeforeIso(date: string, days: number): string;
-
-/** Lob's production plus first-class postcard transit, in business days. */
-export const DELIVERY_BUSINESS_DAYS = 6;
-```
-
-Six is the honest number for domestic mail: one to two days at Lob, three to
-five in the post. It is deliberately a constant in one place, because brief
-02C (international) has to add five to seven business days to it per
-country. If the computed mail date is before today, clamp to today and say
-so in the popover: "That is soon — mailed today it may arrive a day or two
-after."
-
-Keep the existing note ("typically delivered about a week after") — it is
-still the right expectation for cadence mode.
+*Amended 2026-09-10.* The first version promised an arrival: it subtracted
+six business days and said "so it should arrive around". That is not a
+promise this shop can make — how long a card takes depends on how far it
+travels from the printer and on USPS, anywhere from a couple of days to a
+week or more. So the control names no arrival. The buyer picks **the day
+that matters** and **how many days before** to mail (default seven, one to
+thirty); the mail date is the subtraction, in calendar days via
+`addDaysIso(date, -lead)`, and the note says plainly that delivery time
+varies. If the result is before today, clamp to today and say it may arrive
+after the day. The note under the schedule says the same, in place of the
+old "about a week".
 
 ### 4. The cart
 
@@ -135,14 +121,15 @@ read as two dates, not one plus a cadence.
 - A custom date in the past is refused before the cart, and one that
   *becomes* past while the tab is open is raised to today.
 - Cadence mode is unchanged for a buyer who never touches the toggle.
-- "Arrive by" a Saturday computes a mail date that skips the weekend.
+- "Ahead of a date" subtracts the chosen number of calendar days and never
+  states an arrival day.
 - The axe scan in `e2e/accessibility.spec.ts` passes on `/create` with the
   custom controls showing.
 
 ## Tests to add
 
-- `shared/postcards.test.ts`: `businessDaysBeforeIso` across a weekend, a
-  month boundary, and a year boundary.
+- `shared/postcards.test.ts`: `addDaysIso` backwards across a month and a
+  year boundary.
 - A component test for `Schedule` (the pattern is
   `src/pages/LandingPage.test.tsx`): switching to custom shows one date
   input per design; changing one calls back with that design's id.

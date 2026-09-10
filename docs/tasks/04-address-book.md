@@ -9,7 +9,7 @@ blocked_by: ["02"]
 blocks: []
 touches: db/customers-repository.ts:87 · src/pages/account/AccountAddressesPage.tsx · src/components/postcard/Recipients.tsx:278 · server/routes/account.ts:260 · shared/account.ts
 completed: 2026-09-10
-shipped_in:
+shipped_in: 9, 10
 summary: >-
   Saved recipients already exist — filled from paid orders, editable, pickable in the
   designer. **A** turns the list into an address book: labels, tags for one-click groups,

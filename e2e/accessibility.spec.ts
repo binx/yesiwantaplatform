@@ -18,6 +18,7 @@ const routes: [name: string, path: string][] = [
   ["reset password", "/account/reset-password?token=not-a-real-token"],
   ["order confirmation", "/confirm"],
   ["cart-email unsubscribe", "/unsubscribe"],
+  ["address request", "/address/not-a-real-token"],
   ["admin sign-in", "/admin/login"],
 ];
 

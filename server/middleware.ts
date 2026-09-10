@@ -201,6 +201,21 @@ export const verifyRateLimit = rateLimit({
   message: { error: "Too many address checks. Try again in an hour." },
 });
 
+/**
+ * "Send me your address" responses — a public write into someone's book.
+ *
+ * A responder submits once. This is the ceiling on a script trying tokens
+ * or filling a collector link with junk; the per-link caps are in the
+ * repository.
+ */
+export const requestRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 30,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many submissions. Try again in an hour." },
+});
+
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /**

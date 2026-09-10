@@ -105,6 +105,13 @@ export const router = createBrowserRouter([
           Component: (await import("./pages/UnsubscribeCartRecoveryPage")).UnsubscribeCartRecoveryPage,
         }),
       },
+      {
+        // A friend's "send me your address" link. Public, and its own small
+        // chunk: the person opening it is not a customer and downloads none
+        // of the account.
+        path: "address/:token",
+        lazy: async () => ({ Component: (await import("./pages/AddressRequestPage")).AddressRequestPage }),
+      },
       { path: "about", element: <PagePage slug="about" /> },
       {
         // Customer accounts, loaded on demand like /admin.

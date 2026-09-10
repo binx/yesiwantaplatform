@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import type {
   AddressInput,
+  AddressRequest,
+  AddressRequestInput,
   CustomerAddress,
   CustomerLoginInput,
   CustomerProfile,
@@ -25,6 +27,7 @@ import { apiGet, clearCsrfToken, csrfDelete, csrfPost, csrfPut, setCsrfToken } f
 export const customerQueryKey = ["account"] as const;
 const ordersQueryKey = ["account", "orders"] as const;
 const addressesQueryKey = ["account", "addresses"] as const;
+const addressRequestsQueryKey = ["account", "address-requests"] as const;
 
 async function fetchCustomer(signal?: AbortSignal): Promise<CustomerProfile | null> {
   const session = await apiGet<CustomerSession>("/account", signal);
@@ -161,5 +164,39 @@ export function useDeleteAddress() {
   return useMutation({
     mutationFn: (id: string) => csrfDelete<void>(`/account/addresses/${id}`),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: addressesQueryKey }),
+  });
+}
+
+/* --------------------------------------------------------- address requests */
+
+export function useAddressRequests(enabled = true): UseQueryResult<AddressRequest[]> {
+  return useQuery({
+    queryKey: addressRequestsQueryKey,
+    queryFn: ({ signal }) => apiGet<AddressRequest[]>("/account/address-requests", signal),
+    enabled,
+  });
+}
+
+export function useCreateAddressRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: AddressRequestInput) => csrfPost<AddressRequest>("/account/address-requests", input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: addressRequestsQueryKey }),
+  });
+}
+
+export function useRenewAddressRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => csrfPost<AddressRequest>(`/account/address-requests/${id}/renew`, {}),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: addressRequestsQueryKey }),
+  });
+}
+
+export function useRevokeAddressRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => csrfDelete<void>(`/account/address-requests/${id}`),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: addressRequestsQueryKey }),
   });
 }

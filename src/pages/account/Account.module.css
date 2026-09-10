@@ -130,3 +130,51 @@
 .facts :global(.ant-tag) {
   margin-left: 0.35rem;
 }
+
+/* --------------------------------------------------------- address requests */
+
+.requests {
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--beluga-line);
+  border-left: 3px solid var(--beluga-accent);
+}
+
+.requestsHeading {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.requestList {
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.requestItem {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--beluga-line);
+}
+
+.requestText {
+  min-width: 0;
+}
+
+.linkActions {
+  margin-top: 0.75rem;
+}
+
+.fieldLabel {
+  display: block;
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--beluga-muted);
+}
+
+.form :global(.ant-checkbox-wrapper) {
+  margin-top: 0.75rem;
+}

@@ -1,15 +1,24 @@
 import { Router } from "express";
 import {
   addressInputSchema,
+  addressRequestInputSchema,
   customerLoginInputSchema,
   customerProfileUpdateInputSchema,
   customerRegisterInputSchema,
   forgotPasswordInputSchema,
   resetPasswordInputSchema,
   verifyEmailInputSchema,
+  type AddressRequest,
   type CustomerProfile,
   type CustomerSession,
 } from "../../shared/account.js";
+import {
+  createAddressRequest,
+  listAddressRequests,
+  renewAddressRequest,
+  revokeAddressRequest,
+  type AddressRequestRecord,
+} from "../../db/address-requests-repository.js";
 import {
   claimOrdersForCustomer,
   getOrderForCustomer,
@@ -298,6 +307,53 @@ meRouter.delete("/addresses/:id", async (req, res) => {
     if (error instanceof AddressNotFoundError) throw httpError(404, error.message);
     throw error;
   }
+});
+
+/* --------------------------------------------------------- address requests */
+
+/** The link, minted here rather than in the repository, which knows nothing of PUBLIC_URL. */
+function withUrl(record: AddressRequestRecord): AddressRequest {
+  return {
+    id: record.id,
+    label: record.label,
+    multi: record.multi,
+    status: record.status,
+    notifyByEmail: record.notifyByEmail,
+    responses: record.responses,
+    url: new URL(`/address/${record.token}`, env.PUBLIC_URL).toString(),
+    expiresAt: record.expiresAt,
+    createdAt: record.createdAt,
+  };
+}
+
+meRouter.get("/address-requests", async (req, res) => {
+  res.json((await listAddressRequests(req.session.customerId!)).map(withUrl));
+});
+
+/**
+ * Mint a link. The page a friend opens says who is asking, so the customer
+ * needs a name first — "Someone would like your address" is not a page
+ * anyone should fill in.
+ */
+meRouter.post("/address-requests", async (req, res) => {
+  const parsed = addressRequestInputSchema.safeParse(req.body);
+  if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "That could not be used.");
+
+  const customer = await findCustomerById(req.session.customerId!);
+  if (!customer?.name?.trim()) throw httpError(409, "Add your name to your account first, so the person you ask knows who is asking.");
+
+  res.status(201).json(withUrl(await createAddressRequest(customer.id, parsed.data)));
+});
+
+meRouter.post("/address-requests/:id/renew", async (req, res) => {
+  const renewed = await renewAddressRequest(req.params.id, req.session.customerId!);
+  if (!renewed) throw httpError(404, "No such link.");
+  res.json(withUrl(renewed));
+});
+
+meRouter.delete("/address-requests/:id", async (req, res) => {
+  if (!(await revokeAddressRequest(req.params.id, req.session.customerId!))) throw httpError(404, "No such link.");
+  res.status(204).end();
 });
 
 /* ---------------------------------------------------------------- password */

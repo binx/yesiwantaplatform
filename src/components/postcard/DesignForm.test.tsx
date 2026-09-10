@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { PostcardDesign } from "@shared/postcards";
 import { renderWithProviders, screen, userEvent } from "@/test-utils";
 import { DesignForm } from "./DesignForm";
 import styles from "./Postcard.module.css";
@@ -78,5 +79,75 @@ describe("DesignForm", () => {
 
     expect(screen.queryByText("That's more than fits on the card")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save this design" })).toBeEnabled();
+  });
+});
+
+describe("DesignForm editing a saved design", () => {
+  const design: PostcardDesign = {
+    id: "abc-123",
+    orientation: "portrait",
+    thumbnail: { path: "designs/abc-123/thumb.webp", width: 408, height: 600, alt: "", widths: [] },
+    back: { text: "Miss you lots", valediction: "Love, Rachel", fontName: "Patrick Hand", fontSize: 24, fontColor: "#000000" },
+    createdAt: 0,
+  };
+
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  it("seeds the back from the design, hides the upload controls, and shows the saved thumbnail", () => {
+    renderWithProviders(<DesignForm onSaved={() => {}} editing={design} />);
+
+    expect(screen.getByDisplayValue("Miss you lots")).toBeInTheDocument();
+    expect(screen.getByText("To change the photo, remove this design and save a new one.")).toBeInTheDocument();
+    expect(screen.queryByText("Upload a photo")).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "Portrait" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+
+  it("saves changes through the update hook and hands the parsed design to onEdited", async () => {
+    const updated: PostcardDesign = { ...design, back: { ...design.back, text: "Miss you lots!" } };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(updated), { status: 200 }));
+    const onEdited = vi.fn();
+
+    renderWithProviders(<DesignForm onSaved={() => {}} editing={design} onEdited={onEdited} />);
+    stubFit(true);
+    await userEvent.type(screen.getByLabelText("Note for the back"), "!");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/designs/abc-123", expect.objectContaining({ method: "PUT" }));
+    await screen.findByText("Updated.");
+    expect(onEdited).toHaveBeenCalledWith(updated);
+  });
+
+  it("shows the server's 409 message with the removal hint, and does not clear the note", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ error: "That design has already been ordered and cannot be changed." }), { status: 409 }),
+    );
+
+    renderWithProviders(<DesignForm onSaved={() => {}} editing={design} />);
+    stubFit(true);
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(
+      await screen.findByText(
+        "That design has already been ordered and cannot be changed. Remove it from the schedule and save a fresh copy to change the note.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Miss you lots")).toBeInTheDocument();
+  });
+
+  it("Cancel restores a blank form and calls onCancelEdit without touching the design", async () => {
+    const onCancelEdit = vi.fn();
+    renderWithProviders(<DesignForm onSaved={() => {}} editing={design} onCancelEdit={onCancelEdit} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onCancelEdit).toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

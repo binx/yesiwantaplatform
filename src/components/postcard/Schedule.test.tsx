@@ -25,6 +25,7 @@ function renderSchedule(mode: "cadence" | "custom", handlers: Partial<Parameters
   const onModeChange = vi.fn();
   const onArriveBy = vi.fn();
   const onReplyLinkChange = vi.fn();
+  const onEdit = vi.fn();
   renderWithProviders(
     <Schedule
       items={items}
@@ -39,11 +40,12 @@ function renderSchedule(mode: "cadence" | "custom", handlers: Partial<Parameters
       onDateChange={onDateChange}
       onArriveBy={onArriveBy}
       onRemove={() => {}}
+      onEdit={onEdit}
       locale="en-US"
       {...handlers}
     />,
   );
-  return { onDateChange, onModeChange, onArriveBy, onReplyLinkChange };
+  return { onDateChange, onModeChange, onArriveBy, onReplyLinkChange, onEdit };
 }
 
 describe("Schedule", () => {
@@ -87,6 +89,12 @@ describe("Schedule", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Use this date" }));
     expect(onArriveBy).toHaveBeenCalledWith("a", "2099-06-08");
+  });
+
+  it("reports which design's Edit button was pressed, in both modes", async () => {
+    const { onEdit } = renderSchedule("cadence");
+    await userEvent.click(screen.getByRole("button", { name: "Edit design 2" }));
+    expect(onEdit).toHaveBeenCalledWith(1);
   });
 
   it("offers the QR code on the back, on by default, and reports it being turned off", async () => {

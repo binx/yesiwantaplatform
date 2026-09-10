@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { Button, Checkbox, Drawer, InputNumber, Popover, Segmented, Select } from "antd";
-import { CalendarOutlined, DeleteOutlined } from "@ant-design/icons";
+import { CalendarOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { addDaysIso, todayIso, type PostcardDesign } from "@shared/postcards";
 import { DELIVERY_ESTIMATE } from "@shared/copy";
 import { ProductImage } from "@/components/ui/ProductImage";
@@ -42,6 +42,7 @@ interface ScheduleProps {
   /** A mail date worked back from the day a card should land. */
   onArriveBy: (designId: string, mailDate: string) => void;
   onRemove: (index: number) => void;
+  onEdit: (index: number) => void;
   locale: string;
   /** Print a QR code on the back so the recipient can see the card online and send one back. */
   replyLink: boolean;
@@ -59,6 +60,7 @@ export function Schedule({
   onDateChange,
   onArriveBy,
   onRemove,
+  onEdit,
   locale,
   replyLink,
   onReplyLinkChange,
@@ -141,6 +143,35 @@ export function Schedule({
                   onChange={(event) => onDateChange(item.design.id, event.target.value || today)}
                 />
                 <div className={styles.designMeta}>
+                  <span className={styles.designButtons}>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<EditOutlined />}
+                      aria-label={`Edit design ${index + 1}`}
+                      onClick={() => onEdit(index)}
+                    />
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      aria-label={`Remove design ${index + 1}`}
+                      onClick={() => onRemove(index)}
+                    />
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className={styles.designMeta}>
+                <span>{formatMailDate(item.mailDate, locale)}</span>
+                <span className={styles.designButtons}>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<EditOutlined />}
+                    aria-label={`Edit design ${index + 1}`}
+                    onClick={() => onEdit(index)}
+                  />
                   <Button
                     type="text"
                     size="small"
@@ -148,18 +179,7 @@ export function Schedule({
                     aria-label={`Remove design ${index + 1}`}
                     onClick={() => onRemove(index)}
                   />
-                </div>
-              </div>
-            ) : (
-              <div className={styles.designMeta}>
-                <span>{formatMailDate(item.mailDate, locale)}</span>
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<DeleteOutlined />}
-                  aria-label={`Remove design ${index + 1}`}
-                  onClick={() => onRemove(index)}
-                />
+                </span>
               </div>
             )}
           </li>

@@ -41,14 +41,37 @@ export class LobError extends Error {
   readonly code: string | null;
   /** Whether a later attempt could succeed: a rate limit or an outage, not a refusal. */
   readonly retryable: boolean;
+  /**
+   * Whether the failure is about Lob or the network rather than this card:
+   * a rate limit, or no HTTP answer at all. The sweep stops on these rather
+   * than walking every remaining card into the same wall.
+   */
+  readonly stall: boolean;
+  /** What Lob's `Retry-After` header asked for, when it sent one. */
+  readonly retryAfterMs: number | null;
 
-  constructor(message: string, status: number, code: string | null) {
+  constructor(message: string, status: number, code: string | null, retryAfterMs: number | null = null) {
     super(message);
     this.name = "LobError";
     this.status = status;
     this.code = code;
     this.retryable = status === 429 || status >= 500 || status === 0;
+    this.stall = status === 429 || status === 0;
+    this.retryAfterMs = retryAfterMs;
   }
+}
+
+/**
+ * `Retry-After` as milliseconds: either a number of seconds or an HTTP date.
+ * Null when absent or unreadable — the caller picks its own pause.
+ */
+export function retryAfterMs(header: string | null, now = Date.now()): number | null {
+  if (!header) return null;
+  const trimmed = header.trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed) * 1000;
+  const at = Date.parse(trimmed);
+  if (Number.isNaN(at)) return null;
+  return Math.max(0, at - now);
 }
 
 export class LobNotConfiguredError extends Error {
@@ -220,7 +243,12 @@ async function post<T>(endpoint: string, form: FormData, idempotencyKey?: string
     const detail = (body as LobErrorBody | null)?.error;
     const message =
       detail?.message ?? (text ? text.slice(0, 300) : `Lob answered ${response.status} with no body.`);
-    throw new LobError(`Lob refused it (${response.status}): ${message}`, response.status, detail?.code ?? null);
+    throw new LobError(
+      `Lob refused it (${response.status}): ${message}`,
+      response.status,
+      detail?.code ?? null,
+      retryAfterMs(response.headers.get("retry-after")),
+    );
   }
 
   return body as T;

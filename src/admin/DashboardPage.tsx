@@ -71,6 +71,16 @@ export function DashboardPage() {
 
       {environment.data ? <Wiring environment={environment.data} /> : null}
 
+      {fulfilment.data?.lastRun?.result.skipped ? (
+        <Alert
+          className={cx(styles.wiring)}
+          type="warning"
+          showIcon
+          title="The last sweep stopped early"
+          description={`${fulfilment.data.lastRun.result.skipped} (${new Date(fulfilment.data.lastRun.at).toLocaleTimeString(locale)})`}
+        />
+      ) : null}
+
       {(counts.error ?? 0) > 0 ? (
         <Alert
           className={cx(styles.wiring)}

@@ -532,6 +532,29 @@ export async function markPostcardFailed(
     .where(eq(schema.postcards.id, id));
 }
 
+/**
+ * Put a claimed card back untouched.
+ *
+ * For a failure that was Lob's or the network's, not the card's: a rate
+ * limit, or no answer at all. The claim's `attempts + 1` is undone, so an
+ * hour of throttling cannot walk a card up to `MAX_ATTEMPTS` and park it for
+ * a person who has nothing to fix. The message is kept so the admin can see
+ * why the tick did nothing.
+ */
+export async function releasePostcard(id: string, message: string): Promise<void> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+
+  await db
+    .update(schema.postcards)
+    .set({
+      status: "scheduled",
+      attempts: sql`CASE WHEN ${schema.postcards.attempts} > 0 THEN ${schema.postcards.attempts} - 1 ELSE 0 END`,
+      lastError: message.slice(0, 2000),
+      updatedAt: nowFor(dialect),
+    })
+    .where(and(eq(schema.postcards.id, id), eq(schema.postcards.status, "sending")));
+}
+
 /** A postcard by id and order — the order is the scope an admin acts within. */
 export async function getPostcard(orderId: string, id: string): Promise<Postcard | null> {
   const { drizzle: db, schema } = await getDatabase();

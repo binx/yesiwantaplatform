@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { printFile, renderBack } from "./lob.js";
+import { LobError, printFile, renderBack, retryAfterMs } from "./lob.js";
 
 /**
  * The print file and the back, checked as arithmetic.
@@ -64,5 +64,24 @@ describe("renderBack", () => {
   it("omits the closing line when there is none", async () => {
     const html = await renderBack({ text: "Just this.", valediction: "", fontName: "Quicksand", fontSize: 12, fontColor: "#000000" });
     expect(html).not.toContain("valediction\"");
+  });
+});
+
+describe("LobError", () => {
+  it("tells a stall apart from a refusal", () => {
+    expect(new LobError("limit", 429, null).stall).toBe(true);
+    expect(new LobError("gone", 0, null).stall).toBe(true);
+    expect(new LobError("bad gateway", 502, null).stall).toBe(false);
+    expect(new LobError("bad gateway", 502, null).retryable).toBe(true);
+    expect(new LobError("bad address", 422, "invalid").retryable).toBe(false);
+  });
+
+  it("reads Retry-After as seconds or as a date, and shrugs at anything else", () => {
+    expect(retryAfterMs(null)).toBeNull();
+    expect(retryAfterMs("3")).toBe(3000);
+    const now = Date.parse("2026-09-10T00:00:00Z");
+    expect(retryAfterMs("Thu, 10 Sep 2026 00:00:02 GMT", now)).toBe(2000);
+    expect(retryAfterMs("Thu, 10 Sep 2026 00:00:00 GMT", now + 5000)).toBe(0);
+    expect(retryAfterMs("soon")).toBeNull();
   });
 });

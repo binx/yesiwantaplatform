@@ -155,10 +155,19 @@ export function useSendTestPostcard() {
   });
 }
 
+export interface SweepResult {
+  sent: number;
+  failed: number;
+  parked: number;
+  skipped: string | null;
+}
+
 export interface FulfilmentStatus {
   postcards: Record<string, number>;
   hasLob: boolean;
   lobMode: "test" | "live" | null;
+  /** The most recent sweep since the server started, or null. */
+  lastRun: { at: number; result: SweepResult } | null;
 }
 
 export function useFulfilment() {
@@ -173,7 +182,7 @@ export function useRunFulfilment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => csrfPost<{ sent: number; failed: number; parked: number; skipped: string | null }>("/admin/fulfilment/run", {}),
+    mutationFn: () => csrfPost<SweepResult>("/admin/fulfilment/run", {}),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: adminKeys.fulfilment });
       await queryClient.invalidateQueries({ queryKey: ["admin", "orders"] });

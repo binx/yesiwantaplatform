@@ -54,7 +54,7 @@ import { renderMarkdown } from "../markdown.js";
 import { escapeHtml } from "../html.js";
 import { sendEmailReportingFailure, sendOrderEmail } from "../email.js";
 import { LobError, LobNotConfiguredError, sendTestPostcard } from "../lob.js";
-import { cleanUp, kickSweep, sendDuePostcards } from "../fulfilment.js";
+import { cleanUp, getLastSweep, kickSweep, sendDuePostcards } from "../fulfilment.js";
 import { assertOrderable } from "./checkout.js";
 import { attachDesignsToOrder } from "../../db/designs-repository.js";
 import { randomUUID } from "node:crypto";
@@ -172,7 +172,7 @@ adminRouter.post("/lob/test", emailRateLimit, async (req, res) => {
 
 /** An overview of fulfilment: how many cards are where. */
 adminRouter.get("/fulfilment", async (_req, res) => {
-  res.json({ postcards: await countPostcardsByStatus(), hasLob, lobMode });
+  res.json({ postcards: await countPostcardsByStatus(), hasLob, lobMode, lastRun: getLastSweep() });
 });
 
 /** Run the sweep now rather than waiting for the next tick. */

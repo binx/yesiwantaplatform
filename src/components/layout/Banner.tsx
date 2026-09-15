@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { Badge, Button, Drawer } from "antd";
-import { MenuOutlined, ShoppingOutlined, UserOutlined } from "@ant-design/icons";
+import {
+  MenuOutlined,
+  ShoppingOutlined,
+  UserOutlined,
+} from "@ant-design/icons";
 import { useStore } from "@/lib/useStore";
 import { assetUrl } from "@/lib/store-source";
 import { useCustomer } from "@/lib/account";
@@ -24,10 +28,13 @@ export function Banner() {
 
   const links = [
     { to: "/create", label: "Make a postcard" },
-    ...store.pages.filter((page) => page.inNav).map((page) => ({ to: `/${page.slug}`, label: page.title })),
+    ...store.pages
+      .filter((page) => page.inNav)
+      .map((page) => ({ to: `/${page.slug}`, label: page.title })),
   ];
 
-  const cartLabel = count > 0 ? `Cart, ${count} postcard${count === 1 ? "" : "s"}` : "Cart";
+  const cartLabel =
+    count > 0 ? `Cart, ${count} postcard${count === 1 ? "" : "s"}` : "Cart";
   const cartText = count > 0 ? `Cart (${count})` : "Cart";
 
   return (
@@ -40,7 +47,7 @@ export function Banner() {
             alt={store.theme.logo.alt || store.name}
           />
         ) : (
-          <span className={styles.wordmark}>postcards</span>
+          <span className={styles.wordmark}>postcard gifts</span>
         )}
       </Link>
 
@@ -49,7 +56,9 @@ export function Banner() {
           <NavLink
             key={link.to}
             to={link.to}
-            className={({ isActive }) => (isActive ? `${styles.link} ${styles.active}` : styles.link)}
+            className={({ isActive }) =>
+              isActive ? `${styles.link} ${styles.active}` : styles.link
+            }
           >
             {link.label}
           </NavLink>
@@ -61,7 +70,12 @@ export function Banner() {
       </Link>
 
       <Link to="/cart" className={styles.cart} aria-label={cartLabel}>
-        <Badge count={count} size="small" color="var(--beluga-accent)" offset={[2, -2]}>
+        <Badge
+          count={count}
+          size="small"
+          color="var(--beluga-accent)"
+          offset={[2, -2]}
+        >
           <ShoppingOutlined className={styles.cartIcon} aria-hidden />
         </Badge>
       </Link>
@@ -75,7 +89,12 @@ export function Banner() {
         aria-expanded={open}
       />
 
-      <Drawer title="Menu" placement="right" open={open} onClose={() => setOpen(false)}>
+      <Drawer
+        title="Menu"
+        placement="right"
+        open={open}
+        onClose={() => setOpen(false)}
+      >
         <nav className={styles.drawerNav} aria-label="Main">
           <Link to="/" onClick={() => setOpen(false)}>
             Home

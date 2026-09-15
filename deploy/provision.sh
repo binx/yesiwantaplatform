@@ -164,6 +164,8 @@ sed -e "s/DOMAIN/$DOMAIN/g" -e "s/STAGING_HOST/$STAGING_HOST/g" -e "s/SERVER_IP/
 	"$HERE/Caddyfile" > /etc/caddy/Caddyfile
 install -d -o caddy -g caddy /var/log/caddy
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+# validate runs as root and creates the access log; hand it back to caddy.
+chown -R caddy:caddy /var/log/caddy
 systemctl enable caddy >/dev/null
 systemctl reload caddy || systemctl restart caddy
 

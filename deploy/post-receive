@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Git post-receive hook: `git push production main` deploys.
+#
+# Installed to /srv/postcards/repo.git/hooks/post-receive by
+# deploy/provision.sh and run as the `postcards` user. The same shape as
+# v1's hook: check out main into the app directory, install, build, restart.
+# Only main deploys; pushing any other branch is stored and ignored.
+
+set -euo pipefail
+
+APP=/srv/postcards/app
+REPO=/srv/postcards/repo.git
+
+deployed=false
+while read -r _oldrev newrev ref; do
+	if [ "$ref" != "refs/heads/main" ]; then
+		echo "Ignoring $ref: only main is deployed."
+		continue
+	fi
+
+	echo "Deploying $newrev to $APP"
+	mkdir -p "$APP"
+	git --work-tree="$APP" --git-dir="$REPO" checkout -f main
+	# Untracked leftovers from an older checkout stay out of the way of
+	# express.static; build output is regenerated below anyway.
+	git --work-tree="$APP" --git-dir="$REPO" clean -fdq -e node_modules -e dist -e dist-server
+
+	cd "$APP"
+	echo "$newrev" > .deployed-revision
+
+	# devDependencies are needed to build (tsc, vite). NODE_ENV is not set in
+	# the hook's environment, but be explicit so a future change cannot
+	# silently prune them.
+	npm ci --include=dev --no-audit --no-fund
+	npm run build
+
+	deployed=true
+done
+
+if [ "$deployed" = true ]; then
+	# Migrations run at boot, inside the server. A few seconds of downtime
+	# while the process restarts; Caddy answers 502 in the gap.
+	sudo /usr/bin/systemctl restart postcards
+
+	# Migrations run before the port is bound, so give it up to thirty
+	# seconds rather than reading the log a moment too early.
+	for _ in $(seq 1 30); do
+		if curl -fsS http://127.0.0.1:4000/api/health >/dev/null 2>&1; then
+			echo "postcards is running: $(curl -fsS http://127.0.0.1:4000/api/health)"
+			exit 0
+		fi
+		if ! systemctl is-active --quiet postcards; then
+			break
+		fi
+		sleep 1
+	done
+	echo "postcards did not answer /api/health. Last log lines:" >&2
+	journalctl -u postcards -n 40 --no-pager >&2
+	exit 1
+fi

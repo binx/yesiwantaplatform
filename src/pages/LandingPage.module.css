@@ -7,22 +7,58 @@
 .heroInner {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(16rem, 24rem);
-  gap: 3rem;
-  align-items: center;
+  gap: 0 3rem;
+  align-items: start;
   max-width: 72rem;
   margin: 0 auto;
+}
+
+/*
+ * v1's wordmark. The plates are text-shadows in the order they stack: magenta
+ * on top, then cyan, then yellow; the glyph itself is the page's own surface
+ * colour so it knocks the plates and the dotted rule out where it sits.
+ * The offset scales with the type so it stays the same fraction of an x-height
+ * on a phone.
+ */
+.wordmark {
+  --plate: clamp(2px, 0.4vw, 5px);
+  grid-column: 1 / -1;
+  position: relative;
+  text-align: center;
+  padding: 0.25em 0 0.15em;
+  font-size: clamp(5.5rem, 3rem + 17vw, 18rem);
+  line-height: 0.9;
+}
+
+.wordmark::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.47em;
+  border-bottom: 3px dotted var(--beluga-ink);
+}
+
+.wordmarkText {
+  position: relative;
+  margin: 0;
+  font-family: Sacramento, cursive;
+  font-weight: 400;
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: 0;
+  color: var(--beluga-surface);
+  text-shadow:
+    var(--plate) calc(-1 * var(--plate)) 0 #ff00ff,
+    var(--plate) var(--plate) 0 #00ffff,
+    calc(-1 * var(--plate)) calc(-1 * var(--plate)) 0 #ffff37;
 }
 
 .heroCopy {
   display: grid;
   gap: 1.25rem;
   justify-items: start;
-}
-
-.heroTitle {
-  margin: 0;
-  font-size: clamp(2.5rem, 2rem + 4vw, 5rem);
-  letter-spacing: -0.02em;
+  padding-top: 1.5rem;
 }
 
 .heroText {
@@ -31,12 +67,14 @@
   color: var(--beluga-muted);
 }
 
+/* Tucked up under the wordmark's descenders, the way v1 hung the photo. */
 .heroImage {
   width: 100%;
   height: auto;
   aspect-ratio: 2 / 3;
   object-fit: cover;
   border-radius: var(--beluga-radius);
+  margin-top: -3rem;
 }
 
 .points {
@@ -78,11 +116,19 @@
   margin: 0 0 0.75rem;
 }
 
+/* The same plates at a section heading's size, ink on top as in v1. */
 .script {
   font-family: Sacramento, cursive;
   font-weight: 400;
-  font-size: 2.75rem;
-  margin-bottom: 0.5rem;
+  font-size: clamp(2.75rem, 2rem + 2vw, 4rem);
+  line-height: 1.1;
+  margin: 0 0 1rem;
+  text-align: center;
+  color: var(--beluga-ink);
+  text-shadow:
+    2px -2px 0 #ff00ff,
+    2px 2px 0 #00ffff,
+    -2px -2px 0 #ffff37;
 }
 
 .faq {
@@ -122,5 +168,6 @@
   .heroImage {
     max-height: 20rem;
     aspect-ratio: auto;
+    margin-top: 1rem;
   }
 }

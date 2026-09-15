@@ -32,9 +32,14 @@ function HeroButton({ href, children }: { href: string; children: ReactNode }) {
 }
 
 /**
- * The front page: v1's copy, with the parts the admin can edit read from
- * settings. The price is never typed into prose — it is the same setting
- * checkout charges, formatted the same way.
+ * The front page: v1's copy and v1's look, with the parts the admin can
+ * edit read from settings. The price is never typed into prose — it is the
+ * same setting checkout charges, formatted the same way.
+ *
+ * The title is v1's wordmark: "postcards" in Sacramento with the three
+ * CMYK plates knocked out of register behind it, over a dotted rule. The
+ * offset is a text-shadow now rather than four stacked copies of the text,
+ * so it is one heading to a screen reader and one line to change.
  */
 export function LandingPage() {
   const store = useStore();
@@ -50,11 +55,11 @@ export function LandingPage() {
     <>
       <section className={cx(styles.hero)}>
         <div className={styles.heroInner}>
+          <div className={styles.wordmark}>
+            <h1 className={styles.wordmarkText}>{hero.heading ?? "postcards"}</h1>
+          </div>
           <div className={styles.heroCopy}>
-            <h1 className={styles.heroTitle}>{hero.heading ?? store.name}</h1>
-            <p className={styles.heroText}>
-              {hero.text ?? "Design your own postcards, send them to the people you love, and schedule them to arrive every few days."}
-            </p>
+            {hero.text && <p className={styles.heroText}>{hero.text}</p>}
             <ul className={styles.points}>
               <li className={styles.magenta}>
                 <strong>Create and send a postcard for {price}.</strong>

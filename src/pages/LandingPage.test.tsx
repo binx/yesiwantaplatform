@@ -8,9 +8,9 @@ const withHero = (hero: Partial<typeof defaultHero>, priceCents = 140) =>
   storeSchema.parse({ ...demoStore, postcardPriceCents: priceCents, hero: { ...defaultHero, ...hero } });
 
 describe("the landing page", () => {
-  it("falls back to the store name and a button to the designer", () => {
+  it("titles the page with the wordmark and a button to the designer", () => {
     renderWithProviders(<LandingPage />, { store: withHero({}) });
-    expect(screen.getByRole("heading", { level: 1, name: "Postcard Gifts" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "postcards" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /sold already/i })).toHaveAttribute("href", "/create");
   });
 

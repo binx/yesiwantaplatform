@@ -41,13 +41,20 @@ if [ "$deployed" = true ]; then
 	# Migrations run at boot, inside the server. A few seconds of downtime
 	# while the process restarts; Caddy answers 502 in the gap.
 	sudo /usr/bin/systemctl restart postcards
-	sleep 3
-	if systemctl is-active --quiet postcards; then
-		echo "postcards is running."
-		curl -fsS http://127.0.0.1:4000/api/health && echo
-	else
-		echo "postcards failed to start. Last log lines:" >&2
-		journalctl -u postcards -n 40 --no-pager >&2
-		exit 1
-	fi
+
+	# Migrations run before the port is bound, so give it up to thirty
+	# seconds rather than reading the log a moment too early.
+	for _ in $(seq 1 30); do
+		if curl -fsS http://127.0.0.1:4000/api/health >/dev/null 2>&1; then
+			echo "postcards is running: $(curl -fsS http://127.0.0.1:4000/api/health)"
+			exit 0
+		fi
+		if ! systemctl is-active --quiet postcards; then
+			break
+		fi
+		sleep 1
+	done
+	echo "postcards did not answer /api/health. Last log lines:" >&2
+	journalctl -u postcards -n 40 --no-pager >&2
+	exit 1
 fi

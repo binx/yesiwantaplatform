@@ -49,15 +49,30 @@ so it can be run again after a change to any file in `deploy/`.
 
 ## Deploying
 
+Merging to `main` deploys. `.github/workflows/deploy.yml` runs on every push
+to `main` and does `git push` to the droplet from a runner; the hook's build
+output streams into the Actions log. The Actions tab shows whether the last
+deploy landed, and **Run workflow** re-runs it by hand.
+
+The same push works from a laptop, and is the fallback if Actions is down:
+
 ```bash
 git remote add production postcards@SERVER_IP:/srv/postcards/repo.git   # once
 git push production main
 ```
 
-The hook checks main out into `/srv/postcards/app`, runs `npm ci` and
-`npm run build`, restarts the service, and prints the health check. Only
-`main` deploys. Migrations run when the server boots. Expect a few seconds
-of 502 while it restarts.
+Either way the hook checks main out into `/srv/postcards/app`, runs
+`npm ci` and `npm run build`, restarts the service, and polls the health
+check. Only `main` deploys. Migrations run when the server boots. Expect a
+few seconds of 502 while it restarts.
+
+The workflow signs in as `postcards` with its own key, kept as the
+`DEPLOY_SSH_KEY` repository secret. Its public half is a line in
+`/home/postcards/.ssh/authorized_keys` on the box tagged
+`github-actions deploy`, restricted with `command="git-shell …"` so the
+key can push and nothing else. The droplet's host key is pinned in the
+workflow file. To rotate: `ssh-keygen -t ed25519`, replace that line,
+replace the secret.
 
 ## Secrets
 

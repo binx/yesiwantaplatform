@@ -180,6 +180,11 @@ recorded only when Stripe's `charge.refunded` lands. A full refund withdraws
 every card that has not gone to print; a partial one leaves the schedule alone.
 Discount codes are created in the Stripe dashboard and accepted at checkout.
 
+## Deploying
+
+One DigitalOcean droplet, deployed by `git push production main`. See
+[docs/deploy.md](docs/deploy.md).
+
 ## Secrets
 
 Never commit keys. `.env` locally, platform environment variables in

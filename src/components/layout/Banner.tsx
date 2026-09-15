@@ -40,7 +40,7 @@ export function Banner() {
             alt={store.theme.logo.alt || store.name}
           />
         ) : (
-          store.name
+          <span className={styles.wordmark}>postcards</span>
         )}
       </Link>
 
@@ -75,7 +75,7 @@ export function Banner() {
         aria-expanded={open}
       />
 
-      <Drawer title={store.name} placement="right" open={open} onClose={() => setOpen(false)}>
+      <Drawer title="Menu" placement="right" open={open} onClose={() => setOpen(false)}>
         <nav className={styles.drawerNav} aria-label="Main">
           <Link to="/" onClick={() => setOpen(false)}>
             Home

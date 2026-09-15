@@ -40,8 +40,7 @@ export function Footer() {
       </div>
 
       <p className={styles.legal}>
-        © {new Date().getFullYear()} {store.name} · made by{" "}
-        <a href="https://rachelbinx.com">rachel binx</a>, for the love of mail
+        made by <a href="https://rachelbinx.com">rachel binx</a>, for the love of mail
       </p>
     </footer>
   );

@@ -9,10 +9,16 @@
 
 .brand {
   margin-right: auto;
-  font-size: 1.125rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
   text-decoration: none;
+  color: var(--beluga-ink);
+}
+
+/* The wordmark from the landing page at banner size; too small for plates. */
+.wordmark {
+  font-family: Sacramento, cursive;
+  font-weight: 400;
+  font-size: 1.875rem;
+  line-height: 1;
 }
 
 /* Height-bounded so the banner keeps its shape whatever the shop uploads. */

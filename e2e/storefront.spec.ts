@@ -32,7 +32,7 @@ async function selectState(page: Page, code: string) {
 
 test("browses from the landing page to the designer", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Postcard Gifts", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "postcards", level: 1 })).toBeVisible();
   await page.getByRole("link", { name: /sold already/i }).click();
   await expect(page).toHaveURL(/\/create$/);
 });

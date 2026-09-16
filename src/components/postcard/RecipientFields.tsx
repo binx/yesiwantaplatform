@@ -84,7 +84,7 @@ export function RecipientFields({ draft, errors, onChange, nameRef, line1Ref, lo
               optionFilterProp="label"
               options={countries}
               onChange={(value: string) => onChange("country", value)}
-              className={cx(styles.countrySelect)}
+              className={cx(styles.select)}
             />
           )}
         </Field>
@@ -107,7 +107,7 @@ export function RecipientFields({ draft, errors, onChange, nameRef, line1Ref, lo
             abroad ? (
               <Input id={id} value={draft.state} maxLength={64} autoComplete="off" onChange={(e) => onChange("state", e.target.value)} />
             ) : (
-              <Select id={id} showSearch value={draft.state || null} placeholder="Choose a state" optionFilterProp="label" options={states} onChange={(value: string) => onChange("state", value)} />
+              <Select id={id} showSearch value={draft.state || null} placeholder="Select" optionFilterProp="label" options={states} onChange={(value: string) => onChange("state", value)} className={cx(styles.select)} />
             )
           }
         </Field>

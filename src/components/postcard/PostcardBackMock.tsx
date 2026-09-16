@@ -82,7 +82,10 @@ export function PostcardBackMock({ back, replyLink = false, onFit }: PostcardBac
           // The QR itself is drawn at print time from the card's own code; this is its footprint.
           <div className={styles.backReply} style={{ paddingTop: 0.1 * PX_PER_INCH }}>
             <div className={styles.backQr} style={{ width: 0.6 * PX_PER_INCH, height: 0.6 * PX_PER_INCH }} />
-            <span className={styles.backReplyCaption}>Scan to see this card online, or to send one back.</span>
+            <span className={styles.backReplyCaption}>
+              Scan to send your own postcard
+              <span className={styles.backReplyUrl}>postcardgifts.com</span>
+            </span>
           </div>
         ) : null}
       </div>

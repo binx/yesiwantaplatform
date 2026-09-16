@@ -108,11 +108,12 @@ describe("renderBack", () => {
     const back = { text: "Hi", valediction: "", fontName: "Quicksand", fontSize: 12, fontColor: "#000000" };
     const withCode = await renderBack(back, "https://postcards.example/r/AB7X3KQM");
     expect(withCode).toContain("<svg");
-    expect(withCode).toContain("Scan to see this card online");
+    expect(withCode).toContain("Scan to send your own postcard");
+    expect(withCode).toContain("postcardgifts.com");
     expect(withCode).not.toContain("https://postcards.example/r/AB7X3KQM");
     const without = await renderBack(back, null);
     expect(without).not.toContain("<svg");
-    expect(without).not.toContain("Scan to see");
+    expect(without).not.toContain("Scan to send");
   });
 
   it("omits the closing line when there is none", async () => {

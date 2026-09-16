@@ -178,7 +178,7 @@ export function toAntdTheme(theme: Theme): ThemeConfig {
        * antd derives a placeholder from `colorTextBase` at low opacity, same
        * failure mode as the secondary/tertiary/description trio above: from
        * near-black ink that lands well under 4.5:1 on a light surface. The
-       * state picker's "Choose a state" is the first placeholder the storefront
+       * state picker's "Select" is the first placeholder the storefront
        * ever showed long enough to be read rather than instantly replaced.
        */
       colorTextPlaceholder: palette.muted,

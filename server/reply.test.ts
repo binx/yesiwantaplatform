@@ -160,18 +160,20 @@ describe("the code on the back", () => {
     const { code } = await sentCard();
     expect(code).toMatch(/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/);
 
-    // The URL is only ever in the QR itself: the printed back names no address.
+    // The reply URL is only ever in the QR itself: the printed back names the
+    // site, never the code.
     const sent = lobRequests.find((r) => r.url.includes("/postcards"))!;
     expect(sent.body).toContain("<svg");
     expect(sent.body).not.toContain(`/r/${code}`);
-    expect(sent.body).toContain("Scan to see this card online");
+    expect(sent.body).toContain("Scan to send your own postcard");
+    expect(sent.body).toContain("postcardgifts.com");
 
     lobRequests.length = 0;
     const plain = await sentCard({ replyLink: false });
     expect(plain.code).toBeNull();
     const plainSent = lobRequests.find((r) => r.url.includes("/postcards"))!;
     expect(plainSent.body).not.toContain("<svg");
-    expect(plainSent.body).not.toContain("Scan to see");
+    expect(plainSent.body).not.toContain("Scan to send");
   });
 
   it("is dark until the card lands, then shows the card and the sender's first name — never their address", async () => {

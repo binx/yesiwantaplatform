@@ -16,14 +16,9 @@ import styles from "./PagePage.module.css";
  * downloading ten policies. The summary arrives with the store, the body
  * arrives here.
  */
-interface PagePageProps {
-  /** Overrides the route parameter; `/about` renders its page by slug. */
-  slug?: string;
-}
-
-export function PagePage({ slug: override }: PagePageProps = {}) {
+export function PagePage() {
   const params = useParams<{ slug: string }>();
-  const slug = override ?? params.slug ?? "";
+  const slug = params.slug ?? "";
 
   const page = useQuery({
     // Shares a key prefix with the admin's invalidations, so publishing an edit

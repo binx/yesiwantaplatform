@@ -117,7 +117,6 @@ export const router = createBrowserRouter([
         path: "address/:token",
         lazy: async () => ({ Component: (await import("./pages/AddressRequestPage")).AddressRequestPage }),
       },
-      { path: "about", element: <PagePage slug="about" /> },
       {
         // Customer accounts, loaded on demand like /admin.
         path: "account",

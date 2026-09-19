@@ -106,7 +106,7 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
       return fallback;
     }
 
-    const slug = path === "/about" ? "about" : decodeURIComponent(path.slice(1));
+    const slug = decodeURIComponent(path.slice(1));
     if (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
       const page = await findPageBySlug(slug, true);
       if (!page) return { ...fallback, status: 404 };

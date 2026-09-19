@@ -53,14 +53,14 @@ describe("Schedule", () => {
     renderSchedule("cadence");
     expect(screen.getByText("Pick each date")).toBeInTheDocument();
     expect(screen.getByLabelText("Mail the first one on")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Mail date for design 1")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Mail date for postcard 1")).not.toBeInTheDocument();
   });
 
   it("shows one date input per design in custom mode and reports which design changed", () => {
     const { onDateChange } = renderSchedule("custom");
     expect(screen.queryByLabelText("Mail the first one on")).not.toBeInTheDocument();
 
-    const second = screen.getByLabelText("Mail date for design 2");
+    const second = screen.getByLabelText("Mail date for postcard 2");
     expect(second).toHaveValue(addDaysIso(today, 7));
 
     // A date input takes a whole value or nothing, so this is a change event rather than keystrokes.
@@ -93,7 +93,7 @@ describe("Schedule", () => {
 
   it("reports which design's Edit button was pressed, in both modes", async () => {
     const { onEdit } = renderSchedule("cadence");
-    await userEvent.click(screen.getByRole("button", { name: "Edit design 2" }));
+    await userEvent.click(screen.getByRole("button", { name: "Edit postcard 2" }));
     expect(onEdit).toHaveBeenCalledWith(1);
   });
 

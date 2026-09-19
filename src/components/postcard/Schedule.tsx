@@ -76,7 +76,7 @@ export function Schedule({
   return (
     <div>
       {items.length === 0 ? (
-        <p className={styles.empty}>No saved designs yet.</p>
+        <p className={styles.empty}>No saved postcards yet.</p>
       ) : (
         <>
           {items.length > 1 ? (
@@ -94,7 +94,7 @@ export function Schedule({
 
           {perDesign ? (
             <p className={styles.scheduleControls}>
-              Choose a mail date under each design.
+              Choose a mail date under each postcard.
               <ArriveBy items={items} locale={locale} onArriveBy={onArriveBy} />
             </p>
           ) : (
@@ -139,7 +139,7 @@ export function Schedule({
                   type="date"
                   min={today}
                   value={item.mailDate}
-                  aria-label={`Mail date for design ${index + 1}`}
+                  aria-label={`Mail date for postcard ${index + 1}`}
                   onChange={(event) => onDateChange(item.design.id, event.target.value || today)}
                 />
                 <div className={styles.designMeta}>
@@ -148,14 +148,14 @@ export function Schedule({
                       type="text"
                       size="small"
                       icon={<EditOutlined />}
-                      aria-label={`Edit design ${index + 1}`}
+                      aria-label={`Edit postcard ${index + 1}`}
                       onClick={() => onEdit(index)}
                     />
                     <Button
                       type="text"
                       size="small"
                       icon={<DeleteOutlined />}
-                      aria-label={`Remove design ${index + 1}`}
+                      aria-label={`Remove postcard ${index + 1}`}
                       onClick={() => onRemove(index)}
                     />
                   </span>
@@ -169,14 +169,14 @@ export function Schedule({
                     type="text"
                     size="small"
                     icon={<EditOutlined />}
-                    aria-label={`Edit design ${index + 1}`}
+                    aria-label={`Edit postcard ${index + 1}`}
                     onClick={() => onEdit(index)}
                   />
                   <Button
                     type="text"
                     size="small"
                     icon={<DeleteOutlined />}
-                    aria-label={`Remove design ${index + 1}`}
+                    aria-label={`Remove postcard ${index + 1}`}
                     onClick={() => onRemove(index)}
                   />
                 </span>
@@ -236,10 +236,10 @@ function ArriveBy({
     <div className={styles.arriveBy}>
       {items.length > 1 ? (
         <Select
-          aria-label="Which design"
+          aria-label="Which postcard"
           value={chosen}
           onChange={setDesignId}
-          options={items.map((item, index) => ({ value: item.design.id, label: `Design ${index + 1}` }))}
+          options={items.map((item, index) => ({ value: item.design.id, label: `Postcard ${index + 1}` }))}
         />
       ) : null}
       <label htmlFor={targetId}>The day that matters</label>

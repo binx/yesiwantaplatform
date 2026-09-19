@@ -288,7 +288,7 @@ export function Recipients({ recipients, onChange, onBlockedChange }: Recipients
           type="error"
           showIcon
           title={`${blocked} address${blocked === 1 ? "" : "es"} need${blocked === 1 ? "s" : ""} checking`}
-          description="USPS doesn't recognize them. Fix or remove them before adding this batch to the cart."
+          description="USPS doesn't recognize them. Fix or remove them before adding these postcards to the cart."
         />
       ) : null}
 

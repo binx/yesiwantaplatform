@@ -70,7 +70,7 @@ export function CreatePage() {
     seeded.current = true;
     const found = handedIn.map((id) => incoming.data.get(id)).filter((d): d is PostcardDesign => d !== undefined);
     if (found.length > 0) setDesigns((current) => [...current, ...found.filter((d) => !current.some((c) => c.id === d.id))]);
-    if (found.length < handedIn.length) message.warning("One of the designs you chose is no longer available.");
+    if (found.length < handedIn.length) message.warning("One of the postcards you chose is no longer available.");
     setParams((current) => {
       const next = new URLSearchParams(current);
       next.delete("designs");
@@ -206,7 +206,7 @@ export function CreatePage() {
       <h1>Make a postcard</h1>
 
       <section className={cx(styles.panel)} aria-labelledby="design-heading">
-        <h2 id="design-heading">1. Create a postcard design</h2>
+        <h2 id="design-heading">1. Design your postcard</h2>
         <DesignForm
           onSaved={addDesign}
           replyLink={replyLink}
@@ -240,7 +240,7 @@ export function CreatePage() {
         <h2 id="recipients-heading">3. Postcard recipients</h2>
         {designs.length > 1 ? (
           <p className={cx(postcard.note, styles.subhead)}>
-            All {designs.length} designs go to each person below.
+            All {designs.length} postcards go to each person below.
           </p>
         ) : null}
         {replying ? (
@@ -262,7 +262,7 @@ export function CreatePage() {
         <p className={postcard.total}>
           <span className={postcard.factors}>
             <span className={postcard.term}>
-              <span className={postcard.count}>{designs.length}</span> design{designs.length === 1 ? "" : "s"}
+              <span className={postcard.count}>{designs.length}</span> postcard{designs.length === 1 ? "" : "s"}
             </span>
             <span className={postcard.term}>
               × <span className={postcard.count}>{recipientCount}</span> recipient{recipientCount === 1 ? "" : "s"}
@@ -293,10 +293,10 @@ export function CreatePage() {
             </Button>
           ) : null}
           {count === 0 ? (
-            <span className={postcard.note}>Save at least one design and add at least one recipient.</span>
+            <span className={postcard.note}>Save at least one postcard and add at least one recipient.</span>
           ) : blocked > 0 ? (
             <span className={postcard.note}>
-              {blocked} address{blocked === 1 ? "" : "es"} need{blocked === 1 ? "s" : ""} checking before this batch can go in the cart.
+              {blocked} address{blocked === 1 ? "" : "es"} need{blocked === 1 ? "s" : ""} checking before these postcards can go in the cart.
             </span>
           ) : (
             <span className={postcard.note}>

@@ -132,7 +132,7 @@ designsRouter.put("/designs/:id", writeRateLimit, async (req, res) => {
 
   const design = await getDesign(id);
   if (!design) throw httpError(404, "That design does not exist, or has been cleaned up.");
-  if (design.orderId) throw httpError(409, "That design has already been ordered and cannot be changed.");
+  if (design.orderId) throw httpError(409, "That postcard has already been ordered and cannot be changed.");
 
   await updateDesignBack(design.id, parsed.data);
   const updated = await getDesign(design.id);

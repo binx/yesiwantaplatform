@@ -101,8 +101,8 @@ export function CartPage() {
           className={cx(styles.alert)}
           title={
             missing === 1
-              ? "A design in your cart is no longer available. Remove that batch and make it again."
-              : `${missing} designs in your cart are no longer available. Remove those batches and make them again.`
+              ? "A postcard in your cart is no longer available. Remove it and make it again."
+              : `${missing} postcards in your cart are no longer available. Remove them and make them again.`
           }
         />
       )}
@@ -140,8 +140,8 @@ export function CartPage() {
                   <div className={styles.details}>
                     <p className={styles.title}>
                       {line.replyTo
-                        ? `${line.designs.length} design${line.designs.length === 1 ? "" : "s"} back to ${line.replyToName ?? "the sender"}`
-                        : `${line.designs.length} design${line.designs.length === 1 ? "" : "s"} to ${line.recipients.length} recipient${line.recipients.length === 1 ? "" : "s"}`}
+                        ? `${line.designs.length} postcard${line.designs.length === 1 ? "" : "s"} back to ${line.replyToName ?? "the sender"}`
+                        : `${line.designs.length} postcard${line.designs.length === 1 ? "" : "s"} to ${line.recipients.length} recipient${line.recipients.length === 1 ? "" : "s"}`}
                     </p>
                     <p className={styles.meta}>
                       {first === last
@@ -175,7 +175,7 @@ export function CartPage() {
                     type="text"
                     icon={<DeleteOutlined />}
                     onClick={() => remove(index)}
-                    aria-label={`Remove batch ${index + 1} from cart`}
+                    aria-label={`Remove set ${index + 1} from cart`}
                   />
                 </li>
               );
@@ -184,7 +184,7 @@ export function CartPage() {
 
           <div className={styles.summary}>
             <Link to="/create" className={styles.another}>
-              <Button>Create another batch</Button>
+              <Button>Make another postcard</Button>
             </Link>
 
             <div className={styles.subtotal}>

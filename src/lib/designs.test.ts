@@ -42,11 +42,11 @@ describe("updateDesignBack", () => {
 
   it("surfaces the server's 409 message when the design has already been ordered", async () => {
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ error: "That design has already been ordered and cannot be changed." }), { status: 409 }),
+      new Response(JSON.stringify({ error: "That postcard has already been ordered and cannot be changed." }), { status: 409 }),
     );
 
     await expect(updateDesignBack({ id: "abc-123", back })).rejects.toMatchObject({
-      message: "That design has already been ordered and cannot be changed.",
+      message: "That postcard has already been ordered and cannot be changed.",
       status: 409,
     });
   });

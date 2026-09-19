@@ -88,7 +88,7 @@ export function PostcardSchedule({
       <table className={styles.scheduleTable}>
         <thead>
           <tr>
-            <th scope="col">Design</th>
+            <th scope="col">Postcard</th>
             <th scope="col">To</th>
             <th scope="col">Mailed on</th>
             <th scope="col">Status</th>

@@ -271,7 +271,7 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
           role={editing || picked ? "img" : undefined}
           aria-label={
             editing
-              ? "The saved photo for this design"
+              ? "The saved photo for this postcard"
               : picked
                 ? "Your photo in the card. Drag it, or use the arrow keys, to choose what shows."
                 : undefined
@@ -342,7 +342,7 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
 
         <div className={styles.frontNotes}>
           {editing ? (
-            <p className={styles.note}>To change the photo, remove this design and save a new one.</p>
+            <p className={styles.note}>To change the photo, remove this postcard and save a new one.</p>
           ) : (
             <>
               <p className={styles.note} id={hintId}>
@@ -433,7 +433,7 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
         <Alert
           type="error"
           showIcon
-          title="That design could not be saved"
+          title="That postcard could not be saved"
           description={
             update.error instanceof ApiError && update.error.status === 409
               ? `${update.error.message} Remove it from the schedule and save a fresh copy to change the note.`
@@ -448,7 +448,7 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
         <Alert
           type="error"
           showIcon
-          title="That design could not be saved"
+          title="That postcard could not be saved"
           description={save.error instanceof Error ? save.error.message : "Try again."}
         />
       ) : null}
@@ -461,7 +461,7 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
           loading={editing ? update.isPending : save.isPending}
           onClick={submit}
         >
-          {editing ? "Save changes" : savedFlash ? "Saved!" : "Save this design"}
+          {editing ? "Save changes" : savedFlash ? "Saved!" : "Save this postcard"}
         </Button>
         {editing ? (
           <Button size="large" onClick={cancelEdit}>
@@ -477,7 +477,7 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
                 : "Added to the schedule below. Save another, or scroll down to add recipients."
               : editing
                 ? "Change the note, style, size or ink, then save."
-                : "Save each design, then choose who gets it and when."}
+                : "Save each postcard, then choose who gets it and when."}
         </span>
       </div>
     </div>

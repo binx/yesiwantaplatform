@@ -71,7 +71,7 @@ describe("DesignForm", () => {
     renderWithProviders(<DesignForm onSaved={() => {}} />);
     await pickPhoto();
 
-    const save = screen.getByRole("button", { name: "Save this design" });
+    const save = screen.getByRole("button", { name: "Save this postcard" });
     const note = screen.getByLabelText("Note for the back");
 
     expect(screen.queryByText("That's more than fits on the card")).not.toBeInTheDocument();
@@ -99,7 +99,7 @@ describe("DesignForm", () => {
     await userEvent.type(screen.getByLabelText("Note for the back"), "Wish you were here.");
 
     expect(screen.queryByText("That's more than fits on the card")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save this design" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Save this postcard" })).toBeEnabled();
   });
 });
 
@@ -123,7 +123,7 @@ describe("DesignForm editing a saved design", () => {
     renderWithProviders(<DesignForm onSaved={() => {}} editing={design} />);
 
     expect(screen.getByDisplayValue("Miss you lots")).toBeInTheDocument();
-    expect(screen.getByText("To change the photo, remove this design and save a new one.")).toBeInTheDocument();
+    expect(screen.getByText("To change the photo, remove this postcard and save a new one.")).toBeInTheDocument();
     expect(screen.queryByText("Upload a photo")).not.toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: "Portrait" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save changes" })).toBeInTheDocument();
@@ -147,7 +147,7 @@ describe("DesignForm editing a saved design", () => {
 
   it("shows the server's 409 message with the removal hint, and does not clear the note", async () => {
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ error: "That design has already been ordered and cannot be changed." }), { status: 409 }),
+      new Response(JSON.stringify({ error: "That postcard has already been ordered and cannot be changed." }), { status: 409 }),
     );
 
     renderWithProviders(<DesignForm onSaved={() => {}} editing={design} />);
@@ -156,7 +156,7 @@ describe("DesignForm editing a saved design", () => {
 
     expect(
       await screen.findByText(
-        "That design has already been ordered and cannot be changed. Remove it from the schedule and save a fresh copy to change the note.",
+        "That postcard has already been ordered and cannot be changed. Remove it from the schedule and save a fresh copy to change the note.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByDisplayValue("Miss you lots")).toBeInTheDocument();

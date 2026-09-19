@@ -19,7 +19,7 @@ async function designOne(page: Page) {
 
   await page.locator('input[type="file"][accept="image/*"]').setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: PNG });
   await page.getByLabel("Note for the back").fill("Wish you were here");
-  await page.getByRole("button", { name: "Save this design" }).click();
+  await page.getByRole("button", { name: "Save this postcard" }).click();
   await expect(page.getByRole("button", { name: "Saved!" })).toBeVisible();
 }
 
@@ -40,7 +40,7 @@ test("browses from the landing page to the designer", async ({ page }) => {
 test("designs a card, adds a recipient and sees the right total in the cart", async ({ page }) => {
   await designOne(page);
 
-  await expect(page.getByRole("button", { name: "Remove design 1" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove postcard 1" })).toBeVisible();
 
   // The freshly saved thumbnail must render on first paint, not a broken
   // image while Vite's public-directory watcher catches up to the API's
@@ -60,7 +60,7 @@ test("designs a card, adds a recipient and sees the right total in the cart", as
 
   await page.getByRole("button", { name: "Add to cart" }).click();
   await expect(page).toHaveURL(/\/cart$/);
-  await expect(page.getByText("1 design to 1 recipient")).toBeVisible();
+  await expect(page.getByText("1 postcard to 1 recipient")).toBeVisible();
   await expect(page.getByText("$1.40").first()).toBeVisible();
 });
 
@@ -69,15 +69,15 @@ test("mails two designs on two chosen dates", async ({ page }) => {
 
   // A second design, saved on the same page so the first is still there.
   await page.locator('input[type="file"][accept="image/*"]').setInputFiles({ name: "photo2.png", mimeType: "image/png", buffer: PNG });
-  await page.getByRole("button", { name: "Save this design" }).click();
-  await expect(page.getByRole("button", { name: "Remove design 2" })).toBeVisible();
+  await page.getByRole("button", { name: "Save this postcard" }).click();
+  await expect(page.getByRole("button", { name: "Remove postcard 2" })).toBeVisible();
 
   await page.getByText("Pick each date").click();
   const farOff = new Date();
   farOff.setDate(farOff.getDate() + 40);
   const target = farOff.toISOString().slice(0, 10);
-  await page.getByLabel("Mail date for design 2").fill(target);
-  await expect(page.getByLabel("Mail date for design 2")).toHaveValue(target);
+  await page.getByLabel("Mail date for postcard 2").fill(target);
+  await expect(page.getByLabel("Mail date for postcard 2")).toHaveValue(target);
 
   await page.getByLabel("Name").fill("Grandma");
   await page.getByLabel("Street address").fill("1 Test Street");
@@ -88,7 +88,7 @@ test("mails two designs on two chosen dates", async ({ page }) => {
 
   await page.getByRole("button", { name: "Add to cart" }).click();
   await expect(page).toHaveURL(/\/cart$/);
-  await expect(page.getByText("2 designs to 1 recipient")).toBeVisible();
+  await expect(page.getByText("2 postcards to 1 recipient")).toBeVisible();
   // Two dates, forty days apart, not one plus a cadence.
   await expect(page.getByText(/Mails .+ to .+/)).toBeVisible();
 });
@@ -96,10 +96,10 @@ test("mails two designs on two chosen dates", async ({ page }) => {
 test("edits a saved design's note and the change carries through to the cart", async ({ page }) => {
   await designOne(page);
 
-  await page.getByRole("button", { name: "Edit design 1" }).click();
+  await page.getByRole("button", { name: "Edit postcard 1" }).click();
   const note = page.getByLabel("Note for the back");
   await expect(note).toHaveValue("Wish you were here");
-  await expect(page.getByText("To change the photo, remove this design and save a new one.")).toBeVisible();
+  await expect(page.getByText("To change the photo, remove this postcard and save a new one.")).toBeVisible();
 
   await note.fill("Miss you lots");
   await page.getByRole("button", { name: "Save changes" }).click();
@@ -139,7 +139,7 @@ test("repositions the photo with the arrow keys and saves that crop", async ({ p
   await expect(photo).not.toHaveAttribute("style", centred ?? "");
   await expect(page.getByText("Drag to reposition")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Save this design" }).click();
+  await page.getByRole("button", { name: "Save this postcard" }).click();
   await expect(page.getByRole("button", { name: "Saved!" })).toBeVisible();
 });
 
@@ -148,7 +148,7 @@ test("warns when a note overflows the card and disables Save, then clears when i
   await page.locator('input[type="file"][accept="image/*"]').setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: PNG });
 
   const note = page.getByLabel("Note for the back");
-  const save = page.getByRole("button", { name: "Save this design" });
+  const save = page.getByRole("button", { name: "Save this postcard" });
   await expect(save).toBeEnabled();
 
   await note.fill("Seen from the road. ".repeat(20)); // 400 characters, at the default size and font
@@ -308,9 +308,9 @@ test("survives a reload without losing the cart", async ({ page }) => {
   await expect(page).toHaveURL(/\/cart$/);
 
   await page.reload();
-  await expect(page.getByText("1 design to 1 recipient")).toBeVisible();
+  await expect(page.getByText("1 postcard to 1 recipient")).toBeVisible();
 
-  await page.getByRole("button", { name: /Remove batch 1/ }).click();
+  await page.getByRole("button", { name: /Remove set 1/ }).click();
   await expect(page.getByText("nothing in your cart yet")).toBeVisible();
 });
 
@@ -374,7 +374,7 @@ test("registering from the cart returns there, without waiting for the email", a
   await page.getByRole("button", { name: "Add recipient" }).click();
   await page.getByRole("button", { name: "Add to cart" }).click();
   await expect(page).toHaveURL(/\/cart$/);
-  await expect(page.getByText("1 design to 1 recipient")).toBeVisible();
+  await expect(page.getByText("1 postcard to 1 recipient")).toBeVisible();
 
   await page.getByText(/keep your recipients for next time/).getByRole("link", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/account\/login$/);
@@ -394,7 +394,7 @@ test("registering from the cart returns there, without waiting for the email", a
   await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
   await page.getByRole("button", { name: "Back to your cart" }).click();
   await expect(page).toHaveURL(/\/cart$/);
-  await expect(page.getByText("1 design to 1 recipient")).toBeVisible();
+  await expect(page.getByText("1 postcard to 1 recipient")).toBeVisible();
 });
 
 test("an emailed verification link returns the shopper to where they registered from", async ({ page }) => {

@@ -37,7 +37,7 @@ export function AccountPostcardDetailPage() {
       <Result
         status="404"
         title={<h2>No postcard found</h2>}
-        subTitle="This design doesn't exist, or isn't on your account."
+        subTitle="This postcard doesn't exist, or isn't on your account."
         extra={
           <Link to="/account/postcards">
             <Button type="primary">Back to your postcards</Button>
@@ -77,7 +77,7 @@ export function AccountPostcardDetailPage() {
                 onClick={() =>
                   duplicate.mutate(data.id, {
                     onSuccess: (copy) => void navigate(`/create?designs=${copy.id}`),
-                    onError: (error: unknown) => void message.error(error instanceof Error ? error.message : "Could not copy the design."),
+                    onError: (error: unknown) => void message.error(error instanceof Error ? error.message : "Could not copy the postcard."),
                   })
                 }
               >

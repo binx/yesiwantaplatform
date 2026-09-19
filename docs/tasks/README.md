@@ -177,6 +177,13 @@ desktop and a phone). None needs a migration. Suggested order:
 10. **08**, **09**, **13** — the designer's layout, editing a saved design,
     and the sign-up flow; half a day each.
 
+Brief 16 came out of a second walkthrough on 2026-09-19, as a new and a
+returning customer. Nine independent parts; C (one noun) goes first because
+the others are written in its vocabulary, I is the only migration.
+
+11. **16C**, then **16B, D, E, F, G** in an afternoon, then **16H**, **16A**,
+    **16I**.
+
 ## Tasks
 
 | # | Title | Status | Tier | Size | Migration |
@@ -197,6 +204,7 @@ desktop and a phone). None needs a migration. Suggested order:
 | 13 | [Sign up without leaving the checkout](13-signup-in-checkout.md) | done | 1 | M | none |
 | 14 | [Shell: card fonts always loaded, footer stays down](14-shell-fonts-and-footer.md) | done | 0 | S | none |
 | 15 | [Dev only: fresh thumbnails broken in the schedule](15-dev-thumbnail-proxy.md) | done | 3 | S | none |
+| 16 | [Second walkthrough: show the product, one noun, fewer knobs](16-walkthrough-two.md) | todo | 1 | L | drop four columns (part I) |
 
 ## Backlog
 

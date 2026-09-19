@@ -135,6 +135,22 @@ export function themeCssVars(theme: Theme): Record<string, string> {
   };
 }
 
+/**
+ * The colour of every primary button on the storefront.
+ *
+ * Deliberately not the store's primary: that colour also carries links, focus
+ * rings and selected rows, and the near-black it defaults to made "Save this
+ * design" and "Add to cart" read as chrome rather than as the thing to press.
+ * The label is always ink, whatever the scheme — dark text is what stays
+ * legible on a yellow this bright (12.7:1 against `#18181b`).
+ */
+export const ACTION_BUTTON = {
+  fill: "#ffd60a",
+  hover: "#ffe14d",
+  active: "#f0c500",
+  label: "#18181b",
+} as const;
+
 /** Map a store's theme onto antd's design tokens. */
 export function toAntdTheme(theme: Theme): ThemeConfig {
   const palette = schemePalette[theme.colorScheme];
@@ -189,6 +205,18 @@ export function toAntdTheme(theme: Theme): ThemeConfig {
         fontWeight: 500,
         primaryShadow: "none",
         defaultShadow: "none",
+        // Primary buttons are the bright yellow, not the theme's primary — see ACTION_BUTTON.
+        colorPrimary: ACTION_BUTTON.fill,
+        colorPrimaryHover: ACTION_BUTTON.hover,
+        colorPrimaryActive: ACTION_BUTTON.active,
+        primaryColor: ACTION_BUTTON.label,
+        // antd colours a default button's hover and active states from the
+        // same primary, which would put pale yellow text on a white button.
+        // Those stay on the store's primary, as they were.
+        defaultHoverColor: theme.colorPrimary,
+        defaultHoverBorderColor: theme.colorPrimary,
+        defaultActiveColor: theme.colorPrimary,
+        defaultActiveBorderColor: theme.colorPrimary,
       },
       Card: {
         paddingLG: 28,

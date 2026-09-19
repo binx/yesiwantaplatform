@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { stripEmoji, type PostcardBack } from "@shared/postcards";
 import { cx } from "@/lib/cx";
 import styles from "./Postcard.module.css";
@@ -11,8 +11,15 @@ import styles from "./Postcard.module.css";
  * inside the safe area, and the rest left for the address Lob prints. The
  * font size is in points on the card and scaled by the same factor here,
  * which is what keeps "24" meaning the same thing on screen and on paper.
+ *
+ * Narrower than that — a phone — the whole card is transformed down to the
+ * width it has, inside a frame that keeps the card's shape in the layout. A
+ * transform leaves the wrapping alone, so what fits on the phone's card is
+ * exactly what fits on the printed one; the alternative, letting the card
+ * keep its 468px, is what made the create page wider than the phone.
  */
 const CARD_WIDTH_PX = 468;
+const CARD_HEIGHT_PX = 4.25 * (CARD_WIDTH_PX / 6.25);
 const PX_PER_INCH = CARD_WIDTH_PX / 6.25;
 
 interface PostcardBackMockProps {
@@ -25,6 +32,25 @@ interface PostcardBackMockProps {
 export function PostcardBackMock({ back, replyLink = false, onFit }: PostcardBackMockProps) {
   const fontPx = (back.fontSize / 72) * PX_PER_INCH;
   const textRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  // The frame is as wide as its column lets it be, up to the card's own width.
+  useLayoutEffect(() => {
+    const el = frameRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      // jsdom measures 0; leave the card unscaled rather than invisible.
+      const width = el.clientWidth;
+      setScale(width > 0 ? Math.min(1, width / CARD_WIDTH_PX) : 1);
+    };
+    measure();
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   /*
    * The column's height is fixed (an inch measurement, not content-driven),
@@ -58,46 +84,52 @@ export function PostcardBackMock({ back, replyLink = false, onFit }: PostcardBac
 
   return (
     <div
-      className={cx(styles.backCard)}
-      style={{ width: CARD_WIDTH_PX, height: 4.25 * PX_PER_INCH }}
+      ref={frameRef}
+      className={styles.backFrame}
+      style={{ maxWidth: CARD_WIDTH_PX, aspectRatio: `${CARD_WIDTH_PX} / ${CARD_HEIGHT_PX}` }}
       aria-hidden
     >
       <div
-        ref={textRef}
-        className={cx(styles.backText)}
-        style={{
-          left: 0.25 * PX_PER_INCH,
-          top: 0.25 * PX_PER_INCH,
-          width: 2.8 * PX_PER_INCH,
-          height: 3.75 * PX_PER_INCH,
-          paddingRight: 0.1 * PX_PER_INCH,
-          fontFamily: `"${back.fontName}", cursive`,
-          fontSize: fontPx,
-          color: back.fontColor,
-        }}
+        className={cx(styles.backCard)}
+        style={{ width: CARD_WIDTH_PX, height: CARD_HEIGHT_PX, transform: `scale(${scale})` }}
       >
-        <div className={styles.backMessage}>{stripEmoji(back.text)}</div>
-        {back.valediction ? <div className={styles.backValediction}>{stripEmoji(back.valediction)}</div> : null}
-        {replyLink ? (
-          // The QR itself is drawn at print time from the card's own code; this is its footprint.
-          <div className={styles.backReply} style={{ paddingTop: 0.1 * PX_PER_INCH }}>
-            <div className={styles.backQr} style={{ width: 0.6 * PX_PER_INCH, height: 0.6 * PX_PER_INCH }} />
-            <span className={styles.backReplyCaption}>
-              Scan to send your own postcard
-              <span className={styles.backReplyUrl}>postcardgifts.com</span>
-            </span>
-          </div>
-        ) : null}
+        <div
+          ref={textRef}
+          className={cx(styles.backText)}
+          style={{
+            left: 0.25 * PX_PER_INCH,
+            top: 0.25 * PX_PER_INCH,
+            width: 2.8 * PX_PER_INCH,
+            height: 3.75 * PX_PER_INCH,
+            paddingRight: 0.1 * PX_PER_INCH,
+            fontFamily: `"${back.fontName}", cursive`,
+            fontSize: fontPx,
+            color: back.fontColor,
+          }}
+        >
+          <div className={styles.backMessage}>{stripEmoji(back.text)}</div>
+          {back.valediction ? <div className={styles.backValediction}>{stripEmoji(back.valediction)}</div> : null}
+          {replyLink ? (
+            // The QR itself is drawn at print time from the card's own code; this is its footprint.
+            <div className={styles.backReply} style={{ paddingTop: 0.1 * PX_PER_INCH }}>
+              <div className={styles.backQr} style={{ width: 0.6 * PX_PER_INCH, height: 0.6 * PX_PER_INCH }} />
+              <span className={styles.backReplyCaption}>
+                Scan to send your own postcard
+                <span className={styles.backReplyUrl}>postcardgifts.com</span>
+              </span>
+            </div>
+          ) : null}
+        </div>
+        <div
+          className={styles.backAddress}
+          style={{ right: 0.3 * PX_PER_INCH, bottom: 0.4 * PX_PER_INCH, width: 2.6 * PX_PER_INCH }}
+        >
+          <span />
+          <span />
+          <span />
+        </div>
+        <div className={styles.backStamp} style={{ right: 0.3 * PX_PER_INCH, top: 0.3 * PX_PER_INCH }} />
       </div>
-      <div
-        className={styles.backAddress}
-        style={{ right: 0.3 * PX_PER_INCH, bottom: 0.4 * PX_PER_INCH, width: 2.6 * PX_PER_INCH }}
-      >
-        <span />
-        <span />
-        <span />
-      </div>
-      <div className={styles.backStamp} style={{ right: 0.3 * PX_PER_INCH, top: 0.3 * PX_PER_INCH }} />
     </div>
   );
 }

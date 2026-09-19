@@ -30,4 +30,9 @@ const base = toAntdTheme(defaultTheme);
 export const adminTheme = {
   ...base,
   token: { ...base.token, colorInfo: "#2563eb", colorLink: "#2563eb" },
+  components: {
+    ...base.components,
+    // The storefront's yellow action button is the shop's, not the control panel's.
+    Button: { fontWeight: 500, primaryShadow: "none", defaultShadow: "none" },
+  },
 };

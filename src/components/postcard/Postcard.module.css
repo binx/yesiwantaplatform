@@ -19,12 +19,17 @@
  * absolutely positioned — and on a desktop viewport the box collapsed to a
  * couple of pixels. Below 800px the grid is one column and 100% is the page.
  *
+ * The width follows the orientation, through `--frame-ratio` on the row: a
+ * portrait card is sized to stand 28rem tall, a landscape one to lie 34rem
+ * wide. One fixed width gave a landscape card a third of the height of a
+ * portrait one, and the photo is the thing people came to look at.
+ *
  * The four areas are flat grid items rather than one nested controls column so
  * that the phone breakpoint can reorder them — switch and upload above the
  * frame, zoom and the hint below — without a second copy of the markup.
  */
 .frontRow {
-  grid-template-columns: min(16rem, 100%) minmax(0, 1fr);
+  grid-template-columns: min(100%, 34rem, calc(28rem * var(--frame-ratio, 1))) minmax(0, 1fr);
   /*
    * The third row is a spacer: the frame is taller than the two controls, and
    * without somewhere for its leftover height to go the grid shares it out
@@ -50,7 +55,7 @@
 
 .frontZoom {
   grid-area: zoom;
-  max-width: 32rem;
+  max-width: 20rem;
 }
 
 .frontNotes {
@@ -60,8 +65,13 @@
   max-width: 32rem;
 }
 
+/*
+ * The card column is definite for the same reason the frame's is: the back
+ * mock's frame is `width: 100%` of it, and a percentage in an `auto` track
+ * resolves to nothing. 468px is the card's own width (`CARD_WIDTH_PX`).
+ */
 .backRow {
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) min(468px, 100%);
 }
 
 .frontPreview {
@@ -194,6 +204,12 @@
   min-width: 0;
 }
 
+/* Five stops from 12 to 32 do not need the whole column to sit on. */
+.sizeField {
+  flex: 0 1 14rem;
+  min-width: 0;
+}
+
 .label {
   font-size: 0.8125rem;
   font-weight: 600;
@@ -231,10 +247,19 @@
 
 /* ------------------------------------------------------------ the back mock */
 
-.backCard {
+/* Holds the card's shape in the layout; the card itself is drawn at full
+   size and transformed down to fit. Width and ratio are inline, from the
+   same constants as the card. */
+.backFrame {
   position: relative;
-  flex-shrink: 0;
-  max-width: 100%;
+  width: 100%;
+}
+
+.backCard {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
   background: #ffffff;
   border: 1px solid #333;
   box-shadow: 3px 3px 5px rgb(0 0 0 / 15%);
@@ -543,9 +568,6 @@
     margin-inline: auto;
   }
 
-  .backCard {
-    transform-origin: top left;
-  }
 }
 
 /* The multiplication on one line, the answer on the next. */

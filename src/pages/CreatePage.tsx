@@ -204,10 +204,6 @@ export function CreatePage() {
   return (
     <PageWrapper width="wide">
       <h1>Make a postcard</h1>
-      <p className={cx(postcard.note, styles.intro)}>
-        Every design you save here goes to every recipient you add, on the dates you choose. Want
-        different cards for different people? Add this batch to the cart and make another.
-      </p>
 
       <section className={cx(styles.panel)} aria-labelledby="design-heading">
         <h2 id="design-heading">1. Create a postcard design</h2>

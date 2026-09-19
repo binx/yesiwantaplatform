@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contrastRatio, googleFontFamilies, themeCssVars, toAntdTheme } from "./theme";
+import { ACTION_BUTTON, contrastRatio, googleFontFamilies, themeCssVars, toAntdTheme } from "./theme";
 import { defaultTheme } from "@shared/schema";
 import type { ColorScheme } from "@shared/schema";
 
@@ -48,6 +48,16 @@ describe.each(schemes)("the %s palette", (colorScheme) => {
     expect(contrastRatio(vars["--beluga-on-primary"] as string, primary)).toBeGreaterThanOrEqual(
       TEXT,
     );
+  });
+
+  it("paints primary buttons the action yellow, with an ink label that reads on it", () => {
+    const button = toAntdTheme({ ...defaultTheme, colorScheme, colorPage: null }).components?.Button;
+
+    expect(button?.colorPrimary).toBe(ACTION_BUTTON.fill);
+    expect(button?.primaryColor).toBe(ACTION_BUTTON.label);
+    for (const fill of [ACTION_BUTTON.fill, ACTION_BUTTON.hover, ACTION_BUTTON.active]) {
+      expect(contrastRatio(ACTION_BUTTON.label, fill)).toBeGreaterThanOrEqual(TEXT);
+    }
   });
 
   it("pins antd's secondary text to the palette rather than a derived grey", () => {

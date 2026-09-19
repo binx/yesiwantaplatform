@@ -97,16 +97,16 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
     if (picked) URL.revokeObjectURL(picked.url);
   }, [picked]);
 
-  // `--frame-ratio` is the same shape as `aspect-ratio`, as a number the phone
-  // breakpoint can multiply a viewport height by to cap the frame's width.
-  const previewStyle = useMemo(
-    () =>
-      ({
-        aspectRatio: `${size.width} / ${size.height}`,
-        "--frame-ratio": size.width / size.height,
-      }) as CSSProperties,
+  // `--frame-ratio` is the same shape as `aspect-ratio`, as a number the
+  // stylesheet can multiply a length by: the desktop grid sizes the frame's
+  // column from it, and the phone breakpoint caps the frame by viewport
+  // height. It sits on the row so the column track can see it; the frame
+  // itself inherits it.
+  const rowStyle = useMemo(
+    () => ({ "--frame-ratio": size.width / size.height }) as CSSProperties,
     [size],
   );
+  const previewStyle = useMemo(() => ({ aspectRatio: `${size.width} / ${size.height}` }), [size]);
 
   // The preview's rendered size: it follows the orientation and the viewport,
   // and the photo's geometry is computed from whatever it is right now.
@@ -230,7 +230,7 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
 
   return (
     <div className={cx(styles.form)}>
-      <div className={styles.frontRow}>
+      <div className={styles.frontRow} style={rowStyle}>
         {editing ? null : (
           <div className={styles.frontSwitches}>
             <label htmlFor={fileId} className={styles.fileLabel}>
@@ -376,16 +376,6 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
             />
           </label>
 
-          <label className={styles.field}>
-            <span className={styles.label}>Closing line</span>
-            <Input
-              value={back.valediction}
-              maxLength={80}
-              placeholder="e.g. Love, Grandma"
-              onChange={(event) => set("valediction", event.target.value)}
-            />
-          </label>
-
           <div className={styles.field}>
             <span className={styles.label} id="font-label">
               Style
@@ -402,7 +392,7 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
           </div>
 
           <div className={styles.inline}>
-            <div className={cx(styles.field, styles.grow)}>
+            <div className={cx(styles.field, styles.sizeField)}>
               <span className={styles.label} id="size-label">
                 Size
               </span>
@@ -486,7 +476,7 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
                 ? "Updated."
                 : "Added to the schedule below. Save another, or scroll down to add recipients."
               : editing
-                ? "Change the note, closing line, style, size or ink, then save."
+                ? "Change the note, style, size or ink, then save."
                 : "Save each design, then choose who gets it and when."}
         </span>
       </div>

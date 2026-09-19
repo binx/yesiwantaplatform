@@ -4,56 +4,47 @@
  */
 .footer {
   margin-top: 4rem;
-  padding: 3rem var(--beluga-gutter) 2rem;
+  padding: 2rem var(--beluga-gutter);
   border-top: 1px solid var(--beluga-line);
   background: var(--beluga-surface);
 }
 
+/* Links on the left, the sign-off on the right; one column when it gets tight. */
 .inner {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));
-  gap: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem 2rem;
   max-width: 72rem;
   margin: 0 auto;
 }
 
-.column {
+.links {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.625rem;
-}
-
-.heading {
-  margin: 0 0 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--beluga-muted);
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
 }
 
 /* A list of links, not links inside a sentence — so no underline until hover.
    See src/styles/muted.module.css for the inline case, which is different. */
-.column a {
+.links a {
   font-size: 0.9375rem;
   color: var(--beluga-ink);
   text-decoration: none;
 }
 
-.column a:hover {
+.links a:hover {
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
 
 .legal {
-  max-width: 72rem;
-  margin: 2.5rem auto 0;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--beluga-line);
+  margin: 0;
   font-size: 0.8125rem;
   color: var(--beluga-muted);
 }
+
 .legal a {
   text-decoration: underline;
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { Badge, Button, Drawer } from "antd";
+import { Badge, Button, Drawer, Tooltip } from "antd";
 import {
   MenuOutlined,
   ShoppingOutlined,
@@ -65,20 +65,24 @@ export function Banner() {
         ))}
       </nav>
 
-      <Link to={accountHref} className={styles.cart} aria-label={accountLabel}>
-        <UserOutlined className={styles.cartIcon} aria-hidden />
-      </Link>
+      <Tooltip title={accountLabel}>
+        <Link to={accountHref} className={styles.cart} aria-label={accountLabel}>
+          <UserOutlined className={styles.cartIcon} aria-hidden />
+        </Link>
+      </Tooltip>
 
-      <Link to="/cart" className={styles.cart} aria-label={cartLabel}>
-        <Badge
-          count={count}
-          size="small"
-          color="var(--beluga-accent)"
-          offset={[2, -2]}
-        >
-          <ShoppingOutlined className={styles.cartIcon} aria-hidden />
-        </Badge>
-      </Link>
+      <Tooltip title="Cart">
+        <Link to="/cart" className={styles.cart} aria-label={cartLabel}>
+          <Badge
+            count={count}
+            size="small"
+            color="var(--beluga-accent)"
+            offset={[2, -2]}
+          >
+            <ShoppingOutlined className={styles.cartIcon} aria-hidden />
+          </Badge>
+        </Link>
+      </Tooltip>
 
       <Button
         type="text"

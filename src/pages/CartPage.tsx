@@ -195,7 +195,6 @@ export function CartPage() {
               <strong>{price(cost(lines))}</strong>
             </div>
 
-            <p className={styles.note}>Discount codes can be entered at checkout.</p>
 
             {!customer.isPending && !customer.data ? (
               <p className={styles.note}>

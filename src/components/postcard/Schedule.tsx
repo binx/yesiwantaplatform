@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { Button, Checkbox, Drawer, InputNumber, Popover, Segmented, Select } from "antd";
+import { Button, Drawer, InputNumber, Popover, Segmented, Select } from "antd";
 import { CalendarOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { addDaysIso, todayIso, type PostcardDesign } from "@shared/postcards";
 import { DELIVERY_ESTIMATE } from "@shared/copy";
@@ -44,9 +44,6 @@ interface ScheduleProps {
   onRemove: (index: number) => void;
   onEdit: (index: number) => void;
   locale: string;
-  /** Print a QR code on the back so the recipient can see the card online and send one back. */
-  replyLink: boolean;
-  onReplyLinkChange: (on: boolean) => void;
 }
 
 export function Schedule({
@@ -62,8 +59,6 @@ export function Schedule({
   onRemove,
   onEdit,
   locale,
-  replyLink,
-  onReplyLinkChange,
 }: ScheduleProps) {
   const dateId = useId();
   const cadenceId = useId();
@@ -186,16 +181,7 @@ export function Schedule({
         ))}
       </ul>
 
-      {items.length > 0 ? (
-        <>
-          <p className={styles.note}>{DELIVERY_ESTIMATE}</p>
-          <p className={styles.replyOption}>
-            <Checkbox checked={replyLink} onChange={(event) => onReplyLinkChange(event.target.checked)}>
-              Print a small QR code on the back, so they can see the card online and send one back.
-            </Checkbox>
-          </p>
-        </>
-      ) : null}
+      {items.length > 0 ? <p className={styles.note}>{DELIVERY_ESTIMATE}</p> : null}
     </div>
   );
 }

@@ -30,6 +30,6 @@ describe("the cart", () => {
       { lines: [line, { designs: [], recipients: [] }, { nonsense: true }] },
       useCart.getState(),
     ) as { lines: unknown[] };
-    expect(merged.lines).toEqual([{ ...line, replyLink: true, replyTo: null, replyToName: null }]);
+    expect(merged.lines).toEqual([{ ...line, replyTo: null, replyToName: null }]);
   });
 });

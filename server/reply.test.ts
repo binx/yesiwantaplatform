@@ -131,12 +131,12 @@ async function checkout(agent: request.Agent, lines: unknown) {
 }
 
 /** The sender, with replies allowed, mails one card to Grandma; it goes to Lob. */
-async function sentCard(options: { replyLink?: boolean } = {}) {
+async function sentCard() {
   const sender = await signIn("sender@example.com");
   await sender.agent.put("/api/account/reply-address").set("x-csrf-token", sender.csrf).send({ displayName: "Rachel", address: SENDER_ADDRESS }).expect(204);
 
   const designId = await design(sender.agent);
-  const { orderId, sessionId } = await checkout(sender.agent, [{ designs: [{ designId, mailDate: todayIso() }], recipients: [GRANDMA], replyLink: options.replyLink ?? true }]);
+  const { orderId, sessionId } = await checkout(sender.agent, [{ designs: [{ designId, mailDate: todayIso() }], recipients: [GRANDMA] }]);
   await pay(sessionId, orderId);
 
   const { sendDuePostcards } = await import("./fulfilment.js");
@@ -155,7 +155,7 @@ async function delivered(postcardId: string) {
 }
 
 describe("the code on the back", () => {
-  it("prints a QR to the card's page, and nothing when the buyer turned it off", async () => {
+  it("prints a QR to the card's page", async () => {
     lobRequests.length = 0;
     const { code } = await sentCard();
     expect(code).toMatch(/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/);
@@ -167,13 +167,6 @@ describe("the code on the back", () => {
     expect(sent.body).not.toContain(`/r/${code}`);
     expect(sent.body).toContain("Scan to send your own postcard");
     expect(sent.body).toContain("postcardgifts.com");
-
-    lobRequests.length = 0;
-    const plain = await sentCard({ replyLink: false });
-    expect(plain.code).toBeNull();
-    const plainSent = lobRequests.find((r) => r.url.includes("/postcards"))!;
-    expect(plainSent.body).not.toContain("<svg");
-    expect(plainSent.body).not.toContain("Scan to send");
   });
 
   it("is dark until the card lands, then shows the card and the sender's first name — never their address", async () => {

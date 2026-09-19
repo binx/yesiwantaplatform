@@ -78,7 +78,6 @@ export function CreatePage() {
     }, { replace: true });
   }, [handedIn, incoming.data, message, setParams]);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
-  const [replyLink, setReplyLink] = useState(true);
   const [mode, setMode] = useState<ScheduleMode>("cadence");
 
   // A reply: `?replyTo=CODE` from the page behind a card's QR. The recipient
@@ -191,7 +190,6 @@ export function CreatePage() {
   const line = () => ({
     designs: scheduled.map(({ design, mailDate }) => ({ designId: design.id, mailDate })),
     recipients: replying ? [] : recipients,
-    replyLink,
     replyTo: replying ? replyTo : null,
     replyToName: replying ? (replyCard.data?.senderName ?? null) : null,
   });
@@ -209,7 +207,6 @@ export function CreatePage() {
         <h2 id="design-heading">1. Design your postcard</h2>
         <DesignForm
           onSaved={addDesign}
-          replyLink={replyLink}
           editing={editingDesign}
           onEdited={editDesign}
           onCancelEdit={() => setEditingIndex(null)}
@@ -231,8 +228,6 @@ export function CreatePage() {
           onRemove={removeDesign}
           onEdit={startEdit}
           locale={store.locale}
-          replyLink={replyLink}
-          onReplyLinkChange={setReplyLink}
         />
       </section>
 

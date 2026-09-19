@@ -24,12 +24,11 @@ const PX_PER_INCH = CARD_WIDTH_PX / 6.25;
 
 interface PostcardBackMockProps {
   back: PostcardBack;
-  replyLink?: boolean;
   /** Called whenever the message column's content fits or stops fitting. */
   onFit?: (fits: boolean) => void;
 }
 
-export function PostcardBackMock({ back, replyLink = false, onFit }: PostcardBackMockProps) {
+export function PostcardBackMock({ back, onFit }: PostcardBackMockProps) {
   const fontPx = (back.fontSize / 72) * PX_PER_INCH;
   const textRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -109,16 +108,14 @@ export function PostcardBackMock({ back, replyLink = false, onFit }: PostcardBac
         >
           <div className={styles.backMessage}>{stripEmoji(back.text)}</div>
           {back.valediction ? <div className={styles.backValediction}>{stripEmoji(back.valediction)}</div> : null}
-          {replyLink ? (
-            // The QR itself is drawn at print time from the card's own code; this is its footprint.
-            <div className={styles.backReply} style={{ paddingTop: 0.1 * PX_PER_INCH }}>
-              <div className={styles.backQr} style={{ width: 0.6 * PX_PER_INCH, height: 0.6 * PX_PER_INCH }} />
-              <span className={styles.backReplyCaption}>
-                Scan to send your own postcard
-                <span className={styles.backReplyUrl}>postcardgifts.com</span>
-              </span>
-            </div>
-          ) : null}
+          {/* The QR itself is drawn at print time from the card's own code; this is its footprint. */}
+          <div className={styles.backReply} style={{ paddingTop: 0.1 * PX_PER_INCH }}>
+            <div className={styles.backQr} style={{ width: 0.6 * PX_PER_INCH, height: 0.6 * PX_PER_INCH }} />
+            <span className={styles.backReplyCaption}>
+              Scan to send your own postcard
+              <span className={styles.backReplyUrl}>postcardgifts.com</span>
+            </span>
+          </div>
         </div>
         <div
           className={styles.backAddress}

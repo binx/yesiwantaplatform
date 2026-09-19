@@ -144,7 +144,7 @@ for (const { name, context } of dialects) {
         unitPriceCents: 140,
         lines: [
           { designs: [{ designId: a.id, mailDate: "2026-10-01" }, { designId: b.id, mailDate: "2026-10-08" }], recipients: [RECIPIENT, { ...RECIPIENT, name: "Grandpa" }] },
-          { designs: [{ designId: a.id, mailDate: "2026-11-01" }], recipients: [RECIPIENT], replyLink: true, replyTo: null, replyToName: null },
+          { designs: [{ designId: a.id, mailDate: "2026-11-01" }], recipients: [RECIPIENT], replyTo: null, replyToName: null },
         ],
       });
 
@@ -240,7 +240,7 @@ for (const { name, context } of dialects) {
         email: "buyer@example.com",
         currency: "USD",
         unitPriceCents: 140,
-        lines: [{ designs: [{ designId: a.id, mailDate: "2026-09-14" }], recipients: [RECIPIENT], replyLink: true, replyTo: null, replyToName: null }],
+        lines: [{ designs: [{ designId: a.id, mailDate: "2026-09-14" }], recipients: [RECIPIENT], replyTo: null, replyToName: null }],
       });
       const card = (await db.orders.getOrder(orderId))!.postcards[0]!;
 
@@ -272,15 +272,14 @@ for (const { name, context } of dialects) {
         unitPriceCents: 140,
         customerId,
         lines: [
-          { designs: [{ designId: a.id, mailDate: "2026-09-14" }], recipients: [RECIPIENT, { ...RECIPIENT, name: "Grandpa" }], replyLink: true, replyTo: null, replyToName: null },
-          { designs: [{ designId: a.id, mailDate: "2026-09-21" }], recipients: [RECIPIENT], replyLink: false, replyTo: null, replyToName: null },
+          { designs: [{ designId: a.id, mailDate: "2026-09-14" }], recipients: [RECIPIENT, { ...RECIPIENT, name: "Grandpa" }], replyTo: null, replyToName: null },
+          { designs: [{ designId: a.id, mailDate: "2026-09-21" }], recipients: [RECIPIENT], replyTo: null, replyToName: null },
         ],
       });
       const cards = (await db.orders.getOrder(orderId))!.postcards;
       const codes = cards.map((c) => c.replyCode);
-      expect(codes.filter(Boolean)).toHaveLength(2);
-      expect(new Set(codes.filter(Boolean)).size).toBe(2);
-      expect(codes[2]).toBeNull();
+      expect(codes.every(Boolean)).toBe(true);
+      expect(new Set(codes).size).toBe(3);
 
       const code = codes[0]!;
       const found = await db.orders.findPostcardByReplyCode(code);
@@ -424,7 +423,7 @@ for (const { name, context } of dialects) {
     it("round-trips a cart's JSON lines", async () => {
       const { createCustomer } = await import("../server/auth.js");
       const customerId = await createCustomer(`cart-${randomUUID()}@example.com`, "a-sufficiently-long-password", null);
-      const line = { designs: [{ designId: "d1", mailDate: "2026-10-01" }], recipients: [RECIPIENT], replyLink: true, replyTo: null, replyToName: null };
+      const line = { designs: [{ designId: "d1", mailDate: "2026-10-01" }], recipients: [RECIPIENT], replyTo: null, replyToName: null };
       const cart = await db.carts.upsertActiveCart(customerId, "x@example.com", "USD", [line]);
       expect(cart?.lines).toEqual([line]);
     });

@@ -45,8 +45,6 @@ import styles from "./Postcard.module.css";
  */
 interface DesignFormProps {
   onSaved: (design: PostcardDesign) => void;
-  /** Whether the back will carry the reply QR, so the preview shows its footprint. */
-  replyLink?: boolean;
   /** The design being edited, if any — its photo is fixed, only the back changes. */
   editing?: PostcardDesign | null;
   onEdited?: (design: PostcardDesign) => void;
@@ -60,7 +58,7 @@ interface Picked {
   height: number;
 }
 
-export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited, onCancelEdit }: DesignFormProps) {
+export function DesignForm({ onSaved, editing = null, onEdited, onCancelEdit }: DesignFormProps) {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [orientation, setOrientation] = useState<Orientation>("portrait");
   const [back, setBack] = useState<PostcardBack>(defaultPostcardBack);
@@ -417,7 +415,7 @@ export function DesignForm({ onSaved, replyLink = true, editing = null, onEdited
           </div>
         </div>
 
-        <PostcardBackMock back={back} replyLink={replyLink} onFit={setFits} />
+        <PostcardBackMock back={back} onFit={setFits} />
       </div>
 
       {!fits ? (

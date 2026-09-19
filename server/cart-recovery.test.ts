@@ -67,7 +67,7 @@ function freshEmail(): string {
 async function line() {
   const png = await sharp({ create: { width: 100, height: 150, channels: 3, background: "#123456" } }).png().toBuffer();
   const uploaded = await request(app).post("/api/designs").field("orientation", "portrait").attach("file", png, { filename: "a.png", contentType: "image/png" }).expect(201);
-  return { designs: [{ designId: uploaded.body.id as string, mailDate: todayIso() }], recipients: [RECIPIENT], replyLink: true, replyTo: null, replyToName: null };
+  return { designs: [{ designId: uploaded.body.id as string, mailDate: todayIso() }], recipients: [RECIPIENT], replyTo: null, replyToName: null };
 }
 
 beforeAll(async () => {
@@ -136,7 +136,7 @@ describe("the sweep", () => {
     const real = await line();
     await upsertActiveCart(customerId, email, "USD", [
       real,
-      { designs: [{ designId: "gone", mailDate: todayIso() }], recipients: [RECIPIENT], replyLink: true, replyTo: null, replyToName: null },
+      { designs: [{ designId: "gone", mailDate: todayIso() }], recipients: [RECIPIENT], replyTo: null, replyToName: null },
     ]);
     await backdateCart(customerId, 5);
 

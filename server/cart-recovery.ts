@@ -175,7 +175,6 @@ export function linesFromOrder(order: Order): CartLine[] {
       return {
         designs: [...designs.values()],
         recipients: [...recipients.values()],
-        replyLink: postcards.some((p) => p.replyCode !== null),
         replyTo: null,
         replyToName: null,
       };

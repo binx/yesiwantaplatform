@@ -25,8 +25,6 @@ export const cartLineSchema = z
   .object({
     designs: z.array(scheduledDesignSchema).min(1).max(50),
     recipients: z.array(recipientSchema).max(500).default([]),
-    /** Print a QR code on the back so the recipient can see the card online and send one back. */
-    replyLink: z.boolean().default(true),
     /**
      * A reply: the recipient is the sender of the card with this code, and
      * is resolved on the server at checkout. The line carries no address.

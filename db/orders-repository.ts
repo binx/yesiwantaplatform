@@ -102,7 +102,7 @@ export async function createPendingOrder(input: CreatePendingOrderInput): Promis
           recipientCountry: recipient.country,
           mailDate: design.mailDate,
           status: "pending",
-          replyCode: (line.replyLink ?? true) ? generateReplyCode() : null,
+          replyCode: generateReplyCode(),
           isReply: (line.replyTo ?? null) !== null,
         });
       }

@@ -298,11 +298,7 @@ export function CreatePage() {
             <span className={postcard.note}>
               {blocked} address{blocked === 1 ? "" : "es"} need{blocked === 1 ? "s" : ""} checking before these postcards can go in the cart.
             </span>
-          ) : (
-            <span className={postcard.note}>
-              {count} postcard{count === 1 ? "" : "s"} in this batch. You can add another batch from the cart.
-            </span>
-          )}
+          ) : null}
         </div>
       </section>
     </PageWrapper>

@@ -1,29 +1,34 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Alert, Button, Form, Input, Tag, type InputRef } from "antd";
-import { useClearReplySettings, useCustomer, useCustomerLogout, useSetReplySettings, useUpdateProfile } from "@/lib/account";
+import { Alert, App, Button, Form, Input, Popconfirm, Skeleton, Tag } from "antd";
+import { formatMoney } from "@shared/money";
+import type { Subscription } from "@shared/platform";
+import { useCancelSubscription, useCustomer, useCustomerLogout, useResumeSubscription, useSubscriptions, useUpdateProfile } from "@/lib/account";
 import { useStore } from "@/lib/useStore";
-import { RecipientFields, VerificationNotice } from "@/components/postcard/RecipientFields";
-import { BLANK_RECIPIENT, useRecipientCheck, validateRecipient, type RecipientErrors } from "@/lib/recipient-form";
-import { formatRecipient, type Recipient } from "@shared/postcards";
-import { useGallery } from "@/lib/gallery";
-import { DesignCard } from "./AccountPostcardsPage";
-import gallery from "./Gallery.module.css";
+import { formatDay, subscriptionStatusLabel } from "@/lib/postcards";
+import { assetUrl } from "@/lib/store-source";
 import { cx } from "@/lib/cx";
 import styles from "./Account.module.css";
 
+/**
+ * The account's front page: who you are, and who you get mail from.
+ *
+ * The subscriptions list is the point — like a patron's page, each artist
+ * with what it costs and a way out. Cancelling winds down at the period end
+ * rather than stopping dead, and says so.
+ */
 export function AccountOverviewPage() {
+  const store = useStore();
   const customer = useCustomer();
+  const subscriptions = useSubscriptions();
   const update = useUpdateProfile();
   const logout = useCustomerLogout();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
-  const recent = useGallery(3);
-  const recentDesigns = recent.data?.pages[0]?.designs ?? [];
 
   useEffect(() => {
-    document.title = "Account overview · Your account";
-  }, []);
+    document.title = `Your subscriptions · ${store.name}`;
+  }, [store.name]);
 
   if (!customer.data) return null;
   const profile = customer.data;
@@ -37,214 +42,114 @@ export function AccountOverviewPage() {
               <strong>{profile.name ?? "No name set"}</strong>
             </p>
             <p className={cx(styles.meta)}>
-              {profile.email}{" "}
-              {profile.emailVerified ? (
-                <Tag color="green">Verified</Tag>
-              ) : (
-                <Tag color="gold">Not verified</Tag>
-              )}
+              {profile.email} {profile.emailVerified ? <Tag color="green">Verified</Tag> : <Tag color="gold">Not verified</Tag>}
             </p>
           </div>
           <div className={cx(styles.cardActions)}>
-            <Button onClick={() => setEditing((v) => !v)}>{editing ? "Cancel" : "Edit name"}</Button>
+            <Button size="small" onClick={() => setEditing((v) => !v)}>
+              {editing ? "Cancel" : "Edit name"}
+            </Button>
+            <Button size="small" loading={logout.isPending} onClick={() => logout.mutate(undefined, { onSuccess: () => void navigate("/") })}>
+              Sign out
+            </Button>
           </div>
         </div>
-
         {editing ? (
           <Form
-            layout="vertical"
-            requiredMark={false}
-            className={cx(styles.form)}
-            disabled={update.isPending}
+            layout="inline"
             initialValues={{ name: profile.name ?? "" }}
-            onFinish={(values: { name: string }) => {
-              update.mutate(
-                { name: values.name.trim() === "" ? null : values.name },
-                { onSuccess: () => setEditing(false) },
-              );
-            }}
+            onFinish={(values: { name: string }) => update.mutate({ name: values.name.trim() || null }, { onSuccess: () => setEditing(false) })}
           >
-            {update.isError ? (
-              <Alert
-                className={cx(styles.alert)}
-                type="error"
-                showIcon
-                title={update.error instanceof Error ? update.error.message : "Could not save."}
-              />
-            ) : null}
             <Form.Item name="name" label="Name">
-              <Input autoComplete="name" />
+              <Input autoFocus />
             </Form.Item>
             <Button type="primary" htmlType="submit" loading={update.isPending}>
               Save
             </Button>
           </Form>
         ) : null}
-
-        {!profile.emailVerified ? (
-          <Alert
-            className={cx(styles.alert)}
-            type="warning"
-            showIcon
-            title="Verify your email to see orders placed before you had an account."
-          />
-        ) : null}
+        {profile.artistSlug ? (
+          <p className={cx(styles.meta, styles.studioLink)}>
+            You have an artist page at <Link to={`/a/${profile.artistSlug}`}>/a/{profile.artistSlug}</Link>. <Link to="/studio">Open your studio</Link>.
+          </p>
+        ) : (
+          <p className={cx(styles.meta, styles.studioLink)}>
+            Are you an artist? <Link to="/studio/new">Open a studio</Link> and start sending your own.
+          </p>
+        )}
       </div>
 
-      {recentDesigns.length > 0 ? (
-        <section className={cx(gallery.recent)} aria-labelledby="recent-heading">
-          <h2 id="recent-heading">Your latest postcards</h2>
-          <ul className={gallery.grid} aria-label="Latest postcards">
-            {recentDesigns.map((design) => (
-              <li key={design.id} className={gallery.card}>
-                <DesignCard design={design} />
-              </li>
-            ))}
-          </ul>
-          <Link to="/account/postcards">All your postcards</Link>
-        </section>
-      ) : null}
-
-      <ReplySettings displayName={profile.replyDisplayName} address={profile.replyAddress} />
-
-      <Button
-        loading={logout.isPending}
-        onClick={() => logout.mutate(undefined, { onSuccess: () => void navigate("/") })}
-      >
-        Sign out
-      </Button>
+      <h2>Your subscriptions</h2>
+      {subscriptions.isPending ? (
+        <Skeleton active paragraph={{ rows: 4 }} />
+      ) : subscriptions.isError ? (
+        <Alert type="error" showIcon title="Your subscriptions could not be loaded." />
+      ) : subscriptions.data.length === 0 ? (
+        <p className={cx(styles.empty)}>
+          You don't get postcards from anyone yet. <Link to="/artists">Find an artist</Link>.
+        </p>
+      ) : (
+        subscriptions.data.map((subscription) => <SubscriptionCard key={subscription.id} subscription={subscription} locale={store.locale} />)
+      )}
     </div>
   );
 }
 
-/**
- * Where a reply comes. Off until the customer fills it in, and never shown to
- * the person replying: checkout puts it on the card, and their order shows
- * only the name.
- */
-function ReplySettings({ displayName, address }: { displayName: string | null; address: Recipient | null }) {
-  const { locale } = useStore();
-  const save = useSetReplySettings();
-  const clear = useClearReplySettings();
-  const check = useRecipientCheck();
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(displayName ?? "");
-  const [draft, setDraft] = useState<Recipient>(address ?? BLANK_RECIPIENT);
-  const [errors, setErrors] = useState<RecipientErrors>({});
-  const [nameError, setNameError] = useState<string | null>(null);
-  const line1Ref = useRef<InputRef>(null);
-  const on = address !== null;
-
-  const open = () => {
-    setName(displayName ?? "");
-    setDraft(address ?? BLANK_RECIPIENT);
-    setErrors({});
-    setNameError(null);
-    setEditing(true);
-  };
-  const close = () => {
-    check.dismiss();
-    setEditing(false);
-  };
-
-  const commit = (value: Recipient) => {
-    save.mutate({ displayName: name.trim(), address: value }, { onSuccess: close });
-  };
-  const submit = () => {
-    const trimmedName = name.trim();
-    const result = validateRecipient(draft);
-    setNameError(trimmedName === "" ? "A name is required." : trimmedName.length > 40 ? "40 characters at most." : null);
-    if (!result.ok) setErrors(result.errors);
-    if (trimmedName === "" || trimmedName.length > 40 || !result.ok) return;
-    void check.run(result.value, commit);
-  };
+function SubscriptionCard({ subscription, locale }: { subscription: Subscription; locale: string }) {
+  const { message } = App.useApp();
+  const cancel = useCancelSubscription();
+  const resume = useResumeSubscription();
+  const price = formatMoney(subscription.priceCents, subscription.currency, locale);
+  const status = subscriptionStatusLabel(subscription.status, subscription.cancelAtPeriodEnd);
+  const color = subscription.status === "active" && !subscription.cancelAtPeriodEnd ? "green" : subscription.status === "past_due" ? "red" : "default";
+  const fail = (fallback: string) => (error: unknown) => void message.error(error instanceof Error ? error.message : fallback);
 
   return (
-    <section className={cx(styles.card)} aria-labelledby="replies-heading">
+    <div className={cx(styles.card)}>
       <div className={cx(styles.cardHeader)}>
-        <div>
-          <h2 id="replies-heading">Replies</h2>
-          {on ? (
-            <p className={cx(styles.meta)}>
-              Replies are addressed to <strong>{displayName}</strong>, {formatRecipient(address, locale)}.
+        <div className={styles.subscriptionHead}>
+          {subscription.artist.avatar ? <img className={styles.avatar} src={assetUrl(subscription.artist.avatar.path)} alt="" width={48} height={48} /> : null}
+          <div>
+            <p>
+              <Link to={`/a/${subscription.artist.slug}`}>
+                <strong>{subscription.artist.name}</strong>
+              </Link>{" "}
+              <Tag color={color}>{status}</Tag>
             </p>
-          ) : (
             <p className={cx(styles.meta)}>
-              Each card you send carries a small QR code. Scan it and the recipient can send you one back, without ever seeing
-              your address. Add an address here to allow that.
+              {price} a month · {subscription.postcardCount} card{subscription.postcardCount === 1 ? "" : "s"} received · since {formatDay(subscription.createdAt, locale)}
             </p>
-          )}
+            {subscription.status === "active" && subscription.currentPeriodEnd ? (
+              <p className={cx(styles.meta)}>
+                {subscription.cancelAtPeriodEnd ? "Ends" : "Renews"} {formatDay(subscription.currentPeriodEnd, locale)}
+              </p>
+            ) : null}
+            {subscription.status === "past_due" ? <p className={cx(styles.meta)}>The last payment didn't go through. Stripe will retry; no cards go out until it does.</p> : null}
+          </div>
         </div>
         <div className={cx(styles.cardActions)}>
-          {editing ? (
-            <Button onClick={close}>Cancel</Button>
+          {subscription.status === "cancelled" ? (
+            <Link to={`/subscribe/${subscription.artist.slug}`}>
+              <Button size="small">Subscribe again</Button>
+            </Link>
+          ) : subscription.cancelAtPeriodEnd ? (
+            <Button size="small" loading={resume.isPending} onClick={() => resume.mutate(subscription.id, { onError: fail("Could not resume.") })}>
+              Keep it going
+            </Button>
           ) : (
-            <>
-              <Button onClick={open}>{on ? "Change" : "Allow replies"}</Button>
-              {on ? (
-                <Button danger loading={clear.isPending} onClick={() => clear.mutate()}>
-                  Turn off
-                </Button>
-              ) : null}
-            </>
+            <Popconfirm
+              title="Stop the postcards?"
+              description="You've paid for this month, so its card still comes. Nothing more is charged after that."
+              okText="Cancel subscription"
+              onConfirm={() => cancel.mutate(subscription.id, { onError: fail("Could not cancel.") })}
+            >
+              <Button size="small" danger loading={cancel.isPending}>
+                Cancel
+              </Button>
+            </Popconfirm>
           )}
         </div>
       </div>
-
-      {editing ? (
-        <form
-          className={cx(styles.form)}
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit();
-          }}
-        >
-          {save.isError ? (
-            <Alert className={cx(styles.alert)} type="error" showIcon title={save.error instanceof Error ? save.error.message : "Could not save."} />
-          ) : null}
-          <label className={cx(styles.field)}>
-            <span>Name on the card</span>
-            <Input
-              value={name}
-              maxLength={40}
-              autoComplete="name"
-              status={nameError ? "error" : ""}
-              onChange={(event) => {
-                setName(event.target.value);
-                setNameError(null);
-              }}
-            />
-            {nameError ? <span className={cx(styles.fieldError)}>{nameError}</span> : null}
-          </label>
-          <RecipientFields
-            draft={draft}
-            errors={errors}
-            locale={locale}
-            allowInternational={false}
-            line1Ref={line1Ref}
-            onChange={(key, value) => {
-              setDraft((current) => ({ ...current, [key]: value }));
-              if (errors[key]) setErrors((current) => ({ ...current, [key]: undefined }));
-            }}
-          />
-          {check.check ? (
-            <VerificationNotice
-              check={check.check}
-              locale={locale}
-              onUse={check.useSuggested}
-              onKeep={check.keepMine}
-              onDismiss={check.dismiss}
-              onEdit={() => {
-                check.dismiss();
-                line1Ref.current?.focus();
-              }}
-            />
-          ) : null}
-          <Button type="primary" htmlType="submit" loading={check.verifying || save.isPending}>
-            Save
-          </Button>
-        </form>
-      ) : null}
-    </section>
+    </div>
   );
 }

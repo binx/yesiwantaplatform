@@ -1,25 +1,36 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { storeSchema, defaultHero } from "@shared/schema";
 import { demoStore } from "@shared/demo-store";
 import { renderWithProviders, screen } from "@/test-utils";
 import { LandingPage } from "./LandingPage";
 
-const withHero = (hero: Partial<typeof defaultHero>, priceCents = 140) =>
-  storeSchema.parse({ ...demoStore, postcardPriceCents: priceCents, hero: { ...defaultHero, ...hero } });
+vi.mock("@/lib/platform", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    useArtists: () => ({ data: [], isPending: false }),
+    useGallery: () => ({ data: { pages: [{ cards: [], nextCursor: null }] }, isPending: false }),
+  };
+});
+
+vi.mock("@/lib/account", () => ({ useCustomer: () => ({ data: null }) }));
+
+const withHero = (hero: Partial<typeof defaultHero>, minMonthlyPriceCents = 300) =>
+  storeSchema.parse({ ...demoStore, pricing: { ...demoStore.pricing, minMonthlyPriceCents }, hero: { ...defaultHero, ...hero } });
 
 describe("the landing page", () => {
-  it("titles the page with the wordmark and a button to the designer", () => {
+  it("titles the page with the wordmark and a button to the artists", () => {
     renderWithProviders(<LandingPage />, { store: withHero({}) });
-    expect(screen.getByRole("heading", { level: 1, name: "postcards" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /sold already/i })).toHaveAttribute("href", "/create");
+    expect(screen.getByRole("heading", { level: 1, name: /yes.*i want a postcard/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /YES I WANT A POSTCARD/ })).toHaveAttribute("href", "/artists");
   });
 
-  it("prints the price from settings, never from prose", () => {
-    renderWithProviders(<LandingPage />, { store: withHero({}, 175) });
-    expect(screen.getAllByText(/\$1\.75/).length).toBeGreaterThan(0);
+  it("prints the price floor from settings, never from prose", () => {
+    renderWithProviders(<LandingPage />, { store: withHero({}, 475) });
+    expect(screen.getAllByText(/\$4\.75/).length).toBeGreaterThan(0);
   });
 
-  it("renders every field a store has set", () => {
+  it("renders every field the operator has set", () => {
     renderWithProviders(<LandingPage />, { store: withHero({ heading: "Mail is nice", buttonLabel: "Start", buttonHref: "https://example.com/x" }) });
     expect(screen.getByRole("heading", { level: 1, name: "Mail is nice" })).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Start" });
@@ -27,14 +38,9 @@ describe("the landing page", () => {
     expect(link).toHaveAttribute("target", "_blank");
   });
 
-  it("apologises for the US-only reach until an international price is set", () => {
+  it("invites the first artist when nobody is live yet", () => {
     renderWithProviders(<LandingPage />, { store: withHero({}) });
-    expect(screen.getByText(/Apologies to our international customers/)).toBeInTheDocument();
-  });
-
-  it("switches to the international answer once the store has a price for it", () => {
-    const store = storeSchema.parse({ ...demoStore, internationalPostcardPriceCents: 250 });
-    renderWithProviders(<LandingPage />, { store });
-    expect(screen.getByText(/and to \d+ other countries — international cards cost \$2\.50/)).toBeInTheDocument();
+    expect(screen.getByText(/No artists have gone live yet/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Yours could be first/ })).toHaveAttribute("href", "/studio/new");
   });
 });

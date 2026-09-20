@@ -8,18 +8,20 @@ import {
   themeSchema,
   heroSchema,
   defaultHero,
+  pricingSchema,
 } from "./schema.js";
 import { cropSchema, defaultCrop, orientationSchema, postcardBackSchema, recipientSchema } from "./postcards.js";
 
 /**
  * Request and response contracts, validated on both sides of the wire.
  *
- * Note what is absent: no request carries a price for something being bought.
- * The postcard's price is read from settings by the checkout route.
+ * Note what is absent: no request carries a price for something being
+ * bought. An artist's monthly price is read from their row by the checkout
+ * route, and the platform's cut from settings by the payout ledger.
  */
 
 /**
- * A store page.
+ * A site page.
  *
  * The slug check is here rather than in the route so both sides of the wire
  * enforce it; the message names the route it would collide with.
@@ -56,22 +58,20 @@ export const settingsInputSchema = z.object({
     .startsWith("pk_", "That looks like a secret key. Only the publishable key belongs here.")
     .nullable()
     .default(null),
-  /** The price of one postcard. Stripe's floor for a charge is 50 cents. */
-  postcardPriceCents: centsSchema.min(50, "Stripe cannot charge less than 50 cents."),
-  /** The price of one postcard mailed abroad. Null keeps the shop US-only. */
-  internationalPostcardPriceCents: centsSchema.min(50, "Stripe cannot charge less than 50 cents.").nullable().default(null),
+  pricing: pricingSchema.extend({
+    /** Stripe's floor for a charge is 50 cents. */
+    minMonthlyPriceCents: centsSchema.min(50, "Stripe cannot charge less than 50 cents."),
+  }),
   /**
-   * The shop's own US address. Lob requires one on every international
-   * piece — it is printed as the return address — so international mail
-   * cannot be turned on without it.
+   * The platform's own US address. Lob prints it as the return address on
+   * every card mailed abroad and will not send one without it; domestically
+   * it is optional and, when set, is where an undeliverable card comes back.
    */
   returnAddress: recipientSchema
     .refine((address) => address.country === "US", "The return address must be in the United States.")
     .nullable()
     .default(null),
   hero: heroSchema.default(defaultHero),
-  cartRecoveryEnabled: z.boolean().default(false),
-  cartRecoveryDelayHours: z.number().int().min(1).max(168).default(4),
   theme: themeSchema,
 });
 
@@ -122,7 +122,7 @@ export const environmentStatusSchema = z.object({
   /** Whether a Lob API key is on the server, and which environment it is for. */
   hasLob: z.boolean(),
   lobMode: z.enum(["test", "live"]).nullable(),
-  /** Whether Lob's tracking webhook can be verified, so the order pages get a timeline. */
+  /** Whether Lob's tracking webhook can be verified, so the card pages get a timeline. */
   hasLobWebhook: z.boolean(),
   database: z.enum(["sqlite", "postgres"]),
   publicUrl: z.string(),
@@ -150,7 +150,7 @@ export const reorderInputSchema = z.object({
   ids: z.array(z.string().min(1)).max(1000),
 });
 
-/** What the designer posts alongside the front image. */
+/** What the studio posts alongside the front image. */
 export const designInputSchema = z.object({
   orientation: orientationSchema,
   back: postcardBackSchema,

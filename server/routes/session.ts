@@ -71,7 +71,7 @@ sessionRouter.delete("/session", verifyCsrf, async (req, res) => {
     req.session.destroy(() => resolve());
   });
 
-  res.clearCookie("beluga.sid");
+  res.clearCookie("yiwap.sid");
   res.status(204).end();
 });
 

@@ -13,12 +13,18 @@
   color: var(--beluga-ink);
 }
 
-/* The wordmark from the landing page at banner size; too small for plates. */
+/* The wordmark: a heavy "yes" and the rest in the theme face, as the original site set it. */
 .wordmark {
-  font-family: Sacramento, cursive;
-  font-weight: 400;
-  font-size: 1.875rem;
+  font-weight: 600;
+  font-size: 1.0625rem;
   line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.wordmarkYes {
+  font-weight: 700;
+  font-size: 1.5rem;
+  margin-right: 0.25rem;
 }
 
 /* Height-bounded so the banner keeps its shape whatever the shop uploads. */
@@ -54,21 +60,12 @@
   border-bottom-color: var(--beluga-primary);
 }
 
-.cart {
+.account {
   display: inline-flex;
   text-decoration: none;
 }
 
-/*
- * antd paints badge text white whatever colour the badge is, and the default
- * accent is light enough that white lands at 2.95:1. Hand the count the same
- * ink-or-white choice `readableOn` already makes for the "Sold out" badge.
- */
-.cart :global(.ant-badge-count) {
-  color: var(--beluga-on-accent);
-}
-
-.cartIcon {
+.accountIcon {
   font-size: 1.25rem;
 }
 

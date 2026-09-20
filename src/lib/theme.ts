@@ -21,7 +21,8 @@ interface Palette {
 const schemePalette: Record<ColorScheme, Palette> = {
   light: {
     ink: "#18181b",
-    muted: "#71717a",
+    // Darker than antd's own secondary grey: it has to clear 4.5:1 on a warm paper page, not only on white.
+    muted: "#64646b",
     line: "#e4e4e7",
     surface: "#ffffff",
     page: "#fafaf9",
@@ -229,6 +230,11 @@ export function toAntdTheme(theme: Theme): ThemeConfig {
       },
       Table: {
         headerBg: "transparent",
+      },
+      Segmented: {
+        // antd's unselected label is a 65% alpha grey that lands under 4.5:1 on the track.
+        itemColor: palette.muted,
+        itemHoverColor: palette.ink,
       },
     },
   };

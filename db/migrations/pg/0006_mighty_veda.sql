@@ -1,1 +1,0 @@
-ALTER TABLE "postcard_designs" ADD COLUMN "origin_id" text;

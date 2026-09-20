@@ -22,7 +22,8 @@ import {
   type PostcardDesign,
 } from "@shared/postcards";
 import { ApiError } from "@/lib/api";
-import { useSaveDesign, useUpdateDesignBack } from "@/lib/designs";
+import { useSaveDesign } from "@/lib/designs";
+import { useUpdateDesignBack } from "@/lib/platform";
 import { cropFromDrag, nudgeCrop, previewGeometry } from "@/lib/crop";
 import { cx } from "@/lib/cx";
 import { ProductImage } from "@/components/ui/ProductImage";
@@ -45,6 +46,8 @@ import styles from "./Postcard.module.css";
  */
 interface DesignFormProps {
   onSaved: (design: PostcardDesign) => void;
+  /** Printed under the message, so the preview shows the whole back. */
+  artistName?: string;
   /** The design being edited, if any — its photo is fixed, only the back changes. */
   editing?: PostcardDesign | null;
   onEdited?: (design: PostcardDesign) => void;
@@ -58,7 +61,7 @@ interface Picked {
   height: number;
 }
 
-export function DesignForm({ onSaved, editing = null, onEdited, onCancelEdit }: DesignFormProps) {
+export function DesignForm({ onSaved, artistName = "You", editing = null, onEdited, onCancelEdit }: DesignFormProps) {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [orientation, setOrientation] = useState<Orientation>("portrait");
   const [back, setBack] = useState<PostcardBack>(defaultPostcardBack);
@@ -306,7 +309,7 @@ export function DesignForm({ onSaved, editing = null, onEdited, onCancelEdit }: 
             <button type="button" className={styles.frontEmpty} onClick={openPicker}>
               <UploadOutlined aria-hidden />
               <span>Add a photo</span>
-              <span className={styles.note}>JPG, PNG or HEIC, straight from your phone is fine.</span>
+              <span className={styles.note}>JPG, PNG or HEIC. A photo you took, ideally.</span>
             </button>
           )}
           <div className={styles.safeArea} aria-hidden />
@@ -415,7 +418,7 @@ export function DesignForm({ onSaved, editing = null, onEdited, onCancelEdit }: 
           </div>
         </div>
 
-        <PostcardBackMock back={back} onFit={setFits} />
+        <PostcardBackMock back={back} artistName={artistName} onFit={setFits} />
       </div>
 
       {!fits ? (
@@ -434,7 +437,7 @@ export function DesignForm({ onSaved, editing = null, onEdited, onCancelEdit }: 
           title="That postcard could not be saved"
           description={
             update.error instanceof ApiError && update.error.status === 409
-              ? `${update.error.message} Remove it from the schedule and save a fresh copy to change the note.`
+              ? `${update.error.message} Save a fresh copy to change the note.`
               : update.error instanceof Error
                 ? update.error.message
                 : "Try again."
@@ -472,10 +475,10 @@ export function DesignForm({ onSaved, editing = null, onEdited, onCancelEdit }: 
             : savedFlash
               ? editing
                 ? "Updated."
-                : "Added to the schedule below. Save another, or scroll down to add recipients."
+                : "Saved. Queue it for a month below, or save another."
               : editing
                 ? "Change the note, style, size or ink, then save."
-                : "Save each postcard, then choose who gets it and when."}
+                : "Save it, then queue it for a month below."}
         </span>
       </div>
     </div>

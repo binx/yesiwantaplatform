@@ -227,7 +227,7 @@ async function checkStripeKey(key: string): Promise<StripeCheck> {
 /* --------------------------------------------------------------------- main */
 
 async function main(): Promise<void> {
-  console.log(`\n${bold("✉️  Postcards setup")}`);
+  console.log(`\n${bold("✉️  Yes I Want A Postcard — setup")}`);
   console.log(dim("Nothing is written until the end, and existing values are kept.\n"));
 
   if (!stdin.isTTY) {
@@ -263,7 +263,7 @@ async function main(): Promise<void> {
 
   const databaseUrl = await ask(
     "Database URL",
-    currentValue(lines, "DATABASE_URL") ?? "file:./data/postcards.sqlite",
+    currentValue(lines, "DATABASE_URL") ?? "file:./data/platform.sqlite",
   );
   lines = setEnvValue(lines, "DATABASE_URL", databaseUrl);
 
@@ -443,7 +443,7 @@ async function main(): Promise<void> {
 
   /* --- 8. store + demo data ----------------------------------------------- */
 
-  heading("7. Your store");
+  heading("7. Your platform");
 
   const { getSettings } = await import("../db/repository.js");
   const settings = await getSettings();
@@ -451,34 +451,33 @@ async function main(): Promise<void> {
   if (settings) {
     console.log(`${green("✓")} "${settings.name}" already exists — leaving it alone.`);
   } else {
-    const name = await ask("Store name", "Postcard Gifts");
+    const name = await ask("Platform name", "Yes I Want A Postcard");
     const currency = (await ask("Currency (ISO 4217)", "USD")).toUpperCase();
 
-    let priceCents = 140;
-    for (;;) {
-      const { parseCents } = await import("../shared/money.js");
-      const answer = parseCents(await ask("Price of one postcard", "1.40"));
-      if (answer !== null && answer >= 50) {
-        priceCents = answer;
-        break;
-      }
-      console.log(red("  Enter an amount like 1.40. Stripe cannot charge less than 0.50."));
-    }
-
-    const { defaultTheme, defaultHero } = await import("../shared/schema.js");
+    const { parseCents } = await import("../shared/money.js");
+    const { defaultTheme, defaultHero, defaultPricing } = await import("../shared/schema.js");
     const { updateSettings } = await import("../db/admin-repository.js");
+
+    const askCents = async (question: string, fallbackCents: number): Promise<number> => {
+      for (;;) {
+        const answer = parseCents(await ask(question, (fallbackCents / 100).toFixed(2)));
+        if (answer !== null && answer >= 0) return answer;
+        console.log(red("  Enter an amount like 1.20."));
+      }
+    };
+
+    console.log(dim("  Each sent card costs the platform its print price and keeps its fee; the rest is the artist's."));
+    const printCostCents = await askCents("What one printed and mailed card costs you", defaultPricing.printCostCents);
+    const platformFeeCents = await askCents("What the platform keeps per card", defaultPricing.platformFeeCents);
+    const minMonthlyPriceCents = Math.max(50, await askCents("The least an artist may charge a month", defaultPricing.minMonthlyPriceCents));
 
     await updateSettings({
       name,
       currency,
       locale: "en-US",
       stripePublishableKey: publishableKey?.startsWith("pk_") ? publishableKey : null,
-      internationalPostcardPriceCents: null,
+      pricing: { printCostCents, platformFeeCents, minMonthlyPriceCents },
       returnAddress: null,
-      postcardPriceCents: priceCents,
-      // Off until the merchant opts in from Settings — see the Settings copy.
-      cartRecoveryEnabled: false,
-      cartRecoveryDelayHours: 4,
       hero: defaultHero,
       theme: defaultTheme,
     });

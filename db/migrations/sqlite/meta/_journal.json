@@ -5,57 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1788997627071,
-      "tag": "0000_loose_banshee",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1789018128869,
-      "tag": "0001_tough_patch",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1789018834278,
-      "tag": "0002_lean_mindworm",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1789044125605,
-      "tag": "0003_legal_black_tom",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1789044291498,
-      "tag": "0004_charming_shape",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1789044383141,
-      "tag": "0005_bumpy_argent",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1789044991003,
-      "tag": "0006_complex_iron_monger",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1789046769258,
-      "tag": "0007_easy_marten_broadcloak",
+      "when": 1789834608830,
+      "tag": "0000_superb_epoch",
       "breakpoints": true
     }
   ]

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "4d8c00a1-c05a-4317-b063-e3ef05a9b707",
+  "id": "e7c7e6eb-5d4d-44e7-b48e-308672501a6e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "admin_users": {
@@ -80,8 +80,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "carts": {
-      "name": "carts",
+    "artists": {
+      "name": "artists",
       "columns": {
         "id": {
           "name": "id",
@@ -97,113 +97,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "lines": {
-          "name": "lines",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "currency": {
-          "name": "currency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "recovery_token_hash": {
-          "name": "recovery_token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "reminder_sent_at": {
-          "name": "reminder_sent_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "recovered_at": {
-          "name": "recovered_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(unixepoch())"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(unixepoch())"
-        }
-      },
-      "indexes": {
-        "carts_customer_idx": {
-          "name": "carts_customer_idx",
-          "columns": [
-            "customer_id"
-          ],
-          "isUnique": false
-        },
-        "carts_updated_idx": {
-          "name": "carts_updated_idx",
-          "columns": [
-            "updated_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "carts_customer_id_customers_id_fk": {
-          "name": "carts_customer_id_customers_id_fk",
-          "tableFrom": "carts",
-          "tableTo": "customers",
-          "columnsFrom": [
-            "customer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "customer_addresses": {
-      "name": "customer_addresses",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "customer_id": {
-          "name": "customer_id",
+        "slug": {
+          "name": "slug",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -216,48 +111,86 @@
           "notNull": true,
           "autoincrement": false
         },
-        "line1": {
-          "name": "line1",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "line2": {
-          "name": "line2",
+        "tagline": {
+          "name": "tagline",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "city": {
-          "name": "city",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "postal_code": {
-          "name": "postal_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "country": {
-          "name": "country",
+        "bio": {
+          "name": "bio",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'US'"
+          "default": "''"
+        },
+        "avatar_path": {
+          "name": "avatar_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "avatar_width": {
+          "name": "avatar_width",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "avatar_height": {
+          "name": "avatar_height",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "avatar_alt": {
+          "name": "avatar_alt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "monthly_price_cents": {
+          "name": "monthly_price_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "send_day": {
+          "name": "send_day",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 15
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'draft'"
+        },
+        "stripe_account_id": {
+          "name": "stripe_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "payouts_enabled": {
+          "name": "payouts_enabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -277,18 +210,32 @@
         }
       },
       "indexes": {
-        "customer_addresses_customer_idx": {
-          "name": "customer_addresses_customer_idx",
+        "artists_slug_idx": {
+          "name": "artists_slug_idx",
+          "columns": [
+            "slug"
+          ],
+          "isUnique": true
+        },
+        "artists_customer_idx": {
+          "name": "artists_customer_idx",
           "columns": [
             "customer_id"
+          ],
+          "isUnique": true
+        },
+        "artists_status_idx": {
+          "name": "artists_status_idx",
+          "columns": [
+            "status"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "customer_addresses_customer_id_customers_id_fk": {
-          "name": "customer_addresses_customer_id_customers_id_fk",
-          "tableFrom": "customer_addresses",
+        "artists_customer_id_customers_id_fk": {
+          "name": "artists_customer_id_customers_id_fk",
+          "tableFrom": "artists",
           "tableTo": "customers",
           "columnsFrom": [
             "customer_id"
@@ -377,15 +324,15 @@
           "notNull": false,
           "autoincrement": false
         },
-        "cart_recovery_opt_out_at": {
-          "name": "cart_recovery_opt_out_at",
-          "type": "integer",
+        "address": {
+          "name": "address",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "cart_recovery_unsubscribe_token_hash": {
-          "name": "cart_recovery_unsubscribe_token_hash",
+        "stripe_customer_id": {
+          "name": "stripe_customer_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -422,8 +369,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "orders": {
-      "name": "orders",
+    "mailings": {
+      "name": "mailings",
       "columns": {
         "id": {
           "name": "id",
@@ -432,32 +379,39 @@
           "notNull": true,
           "autoincrement": false
         },
-        "stripe_checkout_session_id": {
-          "name": "stripe_checkout_session_id",
+        "artist_id": {
+          "name": "artist_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "stripe_payment_intent_id": {
-          "name": "stripe_payment_intent_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "email": {
-          "name": "email",
+        "design_id": {
+          "name": "design_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "customer_id": {
-          "name": "customer_id",
+        "title": {
+          "name": "title",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false
+        },
+        "mail_date": {
+          "name": "mail_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "period": {
+          "name": "period",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
           "autoincrement": false
         },
         "status": {
@@ -466,61 +420,30 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'pending'"
+          "default": "'queued'"
         },
-        "currency": {
-          "name": "currency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'USD'"
-        },
-        "unit_price_cents": {
-          "name": "unit_price_cents",
+        "in_gallery": {
+          "name": "in_gallery",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "subscriber_count": {
+          "name": "subscriber_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "mailed_at": {
+          "name": "mailed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
-        },
-        "postcard_count": {
-          "name": "postcard_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "subtotal_cents": {
-          "name": "subtotal_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "discount_cents": {
-          "name": "discount_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "total_cents": {
-          "name": "total_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "refunded_cents": {
-          "name": "refunded_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -540,24 +463,181 @@
         }
       },
       "indexes": {
-        "orders_checkout_session_idx": {
-          "name": "orders_checkout_session_idx",
+        "mailings_artist_period_idx": {
+          "name": "mailings_artist_period_idx",
           "columns": [
-            "stripe_checkout_session_id"
+            "artist_id",
+            "period"
           ],
           "isUnique": true
         },
-        "orders_status_idx": {
-          "name": "orders_status_idx",
+        "mailings_due_idx": {
+          "name": "mailings_due_idx",
           "columns": [
-            "status"
+            "status",
+            "mail_date"
           ],
           "isUnique": false
         },
-        "orders_created_idx": {
-          "name": "orders_created_idx",
+        "mailings_artist_idx": {
+          "name": "mailings_artist_idx",
           "columns": [
-            "created_at"
+            "artist_id",
+            "mail_date"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "mailings_artist_id_artists_id_fk": {
+          "name": "mailings_artist_id_artists_id_fk",
+          "tableFrom": "mailings",
+          "tableTo": "artists",
+          "columnsFrom": [
+            "artist_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mailings_design_id_postcard_designs_id_fk": {
+          "name": "mailings_design_id_postcard_designs_id_fk",
+          "tableFrom": "mailings",
+          "tableTo": "postcard_designs",
+          "columnsFrom": [
+            "design_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "orders": {
+      "name": "orders",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "subscription_id": {
+          "name": "subscription_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "artist_id": {
+          "name": "artist_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "stripe_invoice_id": {
+          "name": "stripe_invoice_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "stripe_payment_intent_id": {
+          "name": "stripe_payment_intent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'paid'"
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "refunded_cents": {
+          "name": "refunded_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "period_start": {
+          "name": "period_start",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "period_end": {
+          "name": "period_end",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "orders_invoice_idx": {
+          "name": "orders_invoice_idx",
+          "columns": [
+            "stripe_invoice_id"
+          ],
+          "isUnique": true
+        },
+        "orders_subscription_idx": {
+          "name": "orders_subscription_idx",
+          "columns": [
+            "subscription_id"
           ],
           "isUnique": false
         },
@@ -568,15 +648,35 @@
           ],
           "isUnique": false
         },
-        "orders_email_idx": {
-          "name": "orders_email_idx",
+        "orders_artist_idx": {
+          "name": "orders_artist_idx",
           "columns": [
-            "email"
+            "artist_id"
+          ],
+          "isUnique": false
+        },
+        "orders_created_idx": {
+          "name": "orders_created_idx",
+          "columns": [
+            "created_at"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
+        "orders_subscription_id_subscriptions_id_fk": {
+          "name": "orders_subscription_id_subscriptions_id_fk",
+          "tableFrom": "orders",
+          "tableTo": "subscriptions",
+          "columnsFrom": [
+            "subscription_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "orders_customer_id_customers_id_fk": {
           "name": "orders_customer_id_customers_id_fk",
           "tableFrom": "orders",
@@ -587,7 +687,20 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "orders_artist_id_artists_id_fk": {
+          "name": "orders_artist_id_artists_id_fk",
+          "tableFrom": "orders",
+          "tableTo": "artists",
+          "columnsFrom": [
+            "artist_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -689,6 +802,182 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "payouts": {
+      "name": "payouts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "artist_id": {
+          "name": "artist_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "postcard_id": {
+          "name": "postcard_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "mailing_id": {
+          "name": "mailing_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "gross_cents": {
+          "name": "gross_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "print_cost_cents": {
+          "name": "print_cost_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "platform_fee_cents": {
+          "name": "platform_fee_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
+        },
+        "stripe_transfer_id": {
+          "name": "stripe_transfer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "last_error": {
+          "name": "last_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "paid_at": {
+          "name": "paid_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "payouts_postcard_idx": {
+          "name": "payouts_postcard_idx",
+          "columns": [
+            "postcard_id"
+          ],
+          "isUnique": true
+        },
+        "payouts_artist_status_idx": {
+          "name": "payouts_artist_status_idx",
+          "columns": [
+            "artist_id",
+            "status"
+          ],
+          "isUnique": false
+        },
+        "payouts_status_idx": {
+          "name": "payouts_status_idx",
+          "columns": [
+            "status"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "payouts_artist_id_artists_id_fk": {
+          "name": "payouts_artist_id_artists_id_fk",
+          "tableFrom": "payouts",
+          "tableTo": "artists",
+          "columnsFrom": [
+            "artist_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payouts_postcard_id_postcards_id_fk": {
+          "name": "payouts_postcard_id_postcards_id_fk",
+          "tableFrom": "payouts",
+          "tableTo": "postcards",
+          "columnsFrom": [
+            "postcard_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "postcard_designs": {
       "name": "postcard_designs",
       "columns": {
@@ -699,18 +988,11 @@
           "notNull": true,
           "autoincrement": false
         },
-        "customer_id": {
-          "name": "customer_id",
+        "artist_id": {
+          "name": "artist_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "order_id": {
-          "name": "order_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "orientation": {
@@ -724,7 +1006,7 @@
           "name": "print_path",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "thumbnail_path": {
@@ -774,17 +1056,10 @@
         }
       },
       "indexes": {
-        "postcard_designs_customer_idx": {
-          "name": "postcard_designs_customer_idx",
+        "postcard_designs_artist_idx": {
+          "name": "postcard_designs_artist_idx",
           "columns": [
-            "customer_id"
-          ],
-          "isUnique": false
-        },
-        "postcard_designs_order_idx": {
-          "name": "postcard_designs_order_idx",
-          "columns": [
-            "order_id"
+            "artist_id"
           ],
           "isUnique": false
         },
@@ -797,17 +1072,93 @@
         }
       },
       "foreignKeys": {
-        "postcard_designs_customer_id_customers_id_fk": {
-          "name": "postcard_designs_customer_id_customers_id_fk",
+        "postcard_designs_artist_id_artists_id_fk": {
+          "name": "postcard_designs_artist_id_artists_id_fk",
           "tableFrom": "postcard_designs",
-          "tableTo": "customers",
+          "tableTo": "artists",
           "columnsFrom": [
-            "customer_id"
+            "artist_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "postcard_tracking_events": {
+      "name": "postcard_tracking_events",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "postcard_id": {
+          "name": "postcard_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "location": {
+          "name": "location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "postcard_tracking_postcard_idx": {
+          "name": "postcard_tracking_postcard_idx",
+          "columns": [
+            "postcard_id",
+            "occurred_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "postcard_tracking_events_postcard_id_postcards_id_fk": {
+          "name": "postcard_tracking_events_postcard_id_postcards_id_fk",
+          "tableFrom": "postcard_tracking_events",
+          "tableTo": "postcards",
+          "columnsFrom": [
+            "postcard_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -825,8 +1176,22 @@
           "notNull": true,
           "autoincrement": false
         },
-        "order_id": {
-          "name": "order_id",
+        "mailing_id": {
+          "name": "mailing_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "subscription_id": {
+          "name": "subscription_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "artist_id": {
+          "name": "artist_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -838,14 +1203,6 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "batch_index": {
-          "name": "batch_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
         },
         "recipient_name": {
           "name": "recipient_name",
@@ -889,6 +1246,14 @@
           "notNull": true,
           "autoincrement": false
         },
+        "recipient_country": {
+          "name": "recipient_country",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'US'"
+        },
         "mail_date": {
           "name": "mail_date",
           "type": "text",
@@ -902,7 +1267,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'pending'"
+          "default": "'scheduled'"
         },
         "lob_id": {
           "name": "lob_id",
@@ -947,6 +1312,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "tracking_status": {
+          "name": "tracking_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -965,17 +1337,25 @@
         }
       },
       "indexes": {
-        "postcards_order_idx": {
-          "name": "postcards_order_idx",
+        "postcards_mailing_subscription_idx": {
+          "name": "postcards_mailing_subscription_idx",
           "columns": [
-            "order_id"
+            "mailing_id",
+            "subscription_id"
+          ],
+          "isUnique": true
+        },
+        "postcards_subscription_idx": {
+          "name": "postcards_subscription_idx",
+          "columns": [
+            "subscription_id"
           ],
           "isUnique": false
         },
-        "postcards_design_idx": {
-          "name": "postcards_design_idx",
+        "postcards_artist_idx": {
+          "name": "postcards_artist_idx",
           "columns": [
-            "design_id"
+            "artist_id"
           ],
           "isUnique": false
         },
@@ -986,15 +1366,48 @@
             "mail_date"
           ],
           "isUnique": false
+        },
+        "postcards_lob_idx": {
+          "name": "postcards_lob_idx",
+          "columns": [
+            "lob_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
-        "postcards_order_id_orders_id_fk": {
-          "name": "postcards_order_id_orders_id_fk",
+        "postcards_mailing_id_mailings_id_fk": {
+          "name": "postcards_mailing_id_mailings_id_fk",
           "tableFrom": "postcards",
-          "tableTo": "orders",
+          "tableTo": "mailings",
           "columnsFrom": [
-            "order_id"
+            "mailing_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "postcards_subscription_id_subscriptions_id_fk": {
+          "name": "postcards_subscription_id_subscriptions_id_fk",
+          "tableFrom": "postcards",
+          "tableTo": "subscriptions",
+          "columnsFrom": [
+            "subscription_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "postcards_artist_id_artists_id_fk": {
+          "name": "postcards_artist_id_artists_id_fk",
+          "tableFrom": "postcards",
+          "tableTo": "artists",
+          "columnsFrom": [
+            "artist_id"
           ],
           "columnsTo": [
             "id"
@@ -1076,7 +1489,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'Postcard Gifts'"
+          "default": "'Yes I Want A Postcard'"
         },
         "currency": {
           "name": "currency",
@@ -1101,29 +1514,36 @@
           "notNull": false,
           "autoincrement": false
         },
-        "postcard_price_cents": {
-          "name": "postcard_price_cents",
+        "print_cost_cents": {
+          "name": "print_cost_cents",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 140
+          "default": 120
         },
-        "cart_recovery_enabled": {
-          "name": "cart_recovery_enabled",
+        "platform_fee_cents": {
+          "name": "platform_fee_cents",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": false
+          "default": 60
         },
-        "cart_recovery_delay_hours": {
-          "name": "cart_recovery_delay_hours",
+        "min_monthly_price_cents": {
+          "name": "min_monthly_price_cents",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 4
+          "default": 300
+        },
+        "return_address": {
+          "name": "return_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "theme_color_primary": {
           "name": "theme_color_primary",
@@ -1131,7 +1551,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'#333333'"
+          "default": "'#1c1917'"
         },
         "theme_color_accent": {
           "name": "theme_color_accent",
@@ -1139,7 +1559,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'#ffff37'"
+          "default": "'#f5c542'"
         },
         "theme_font_family": {
           "name": "theme_font_family",
@@ -1162,7 +1582,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 2
+          "default": 4
         },
         "theme_color_scheme": {
           "name": "theme_color_scheme",
@@ -1282,6 +1702,176 @@
       },
       "indexes": {},
       "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "subscriptions": {
+      "name": "subscriptions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "artist_id": {
+          "name": "artist_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'incomplete'"
+        },
+        "stripe_checkout_session_id": {
+          "name": "stripe_checkout_session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "stripe_subscription_id": {
+          "name": "stripe_subscription_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "price_cents": {
+          "name": "price_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'USD'"
+        },
+        "current_period_end": {
+          "name": "current_period_end",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cancel_at_period_end": {
+          "name": "cancel_at_period_end",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cancelled_at": {
+          "name": "cancelled_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "subscriptions_checkout_session_idx": {
+          "name": "subscriptions_checkout_session_idx",
+          "columns": [
+            "stripe_checkout_session_id"
+          ],
+          "isUnique": true
+        },
+        "subscriptions_stripe_idx": {
+          "name": "subscriptions_stripe_idx",
+          "columns": [
+            "stripe_subscription_id"
+          ],
+          "isUnique": true
+        },
+        "subscriptions_customer_idx": {
+          "name": "subscriptions_customer_idx",
+          "columns": [
+            "customer_id"
+          ],
+          "isUnique": false
+        },
+        "subscriptions_artist_status_idx": {
+          "name": "subscriptions_artist_status_idx",
+          "columns": [
+            "artist_id",
+            "status"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "subscriptions_customer_id_customers_id_fk": {
+          "name": "subscriptions_customer_id_customers_id_fk",
+          "tableFrom": "subscriptions",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "subscriptions_artist_id_artists_id_fk": {
+          "name": "subscriptions_artist_id_artists_id_fk",
+          "tableFrom": "subscriptions",
+          "tableTo": "artists",
+          "columnsFrom": [
+            "artist_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}

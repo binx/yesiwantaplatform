@@ -7,13 +7,13 @@ import { jsonFor } from "./repository.js";
  * Admin writes.
  *
  * Every function here is reachable only behind `requireAdmin` and a CSRF
- * check. There is no catalogue to write any more; what is left is the
- * settings row.
+ * check. What is left to write from the admin is the settings row; artists
+ * write their own rows through the studio.
  */
 
 export class SlugTakenError extends Error {
   constructor(slug: string) {
-    super(`The slug "${slug}" is already in use.`);
+    super(`The address "${slug}" is already in use.`);
     this.name = "SlugTakenError";
   }
 }
@@ -32,11 +32,10 @@ export async function updateSettings(input: SettingsInput): Promise<void> {
     currency: input.currency,
     locale: input.locale,
     stripePublishableKey: input.stripePublishableKey,
-    postcardPriceCents: input.postcardPriceCents,
-    internationalPostcardPriceCents: input.internationalPostcardPriceCents,
+    printCostCents: input.pricing.printCostCents,
+    platformFeeCents: input.pricing.platformFeeCents,
+    minMonthlyPriceCents: input.pricing.minMonthlyPriceCents,
     returnAddress: input.returnAddress ? jsonFor(dialect, input.returnAddress) : null,
-    cartRecoveryEnabled: input.cartRecoveryEnabled,
-    cartRecoveryDelayHours: input.cartRecoveryDelayHours,
     themeColorPrimary: input.theme.colorPrimary,
     themeColorAccent: input.theme.colorAccent,
     themeFontFamily: input.theme.fontFamily,
@@ -48,8 +47,8 @@ export async function updateSettings(input: SettingsInput): Promise<void> {
     themeLogoWidth: input.theme.logo?.width ?? null,
     themeLogoHeight: input.theme.logo?.height ?? null,
     themeLogoAlt: input.theme.logo?.alt ?? null,
-    // Empty is not a value here: a merchant clearing the heading means "go
-    // back to the store name", and storing "" would render an empty <h1>.
+    // Empty is not a value here: an operator clearing the heading means "go
+    // back to the built-in one", and storing "" would render an empty <h1>.
     heroHeading: blankToNull(input.hero.heading),
     heroText: blankToNull(input.hero.text),
     heroButtonLabel: blankToNull(input.hero.buttonLabel),

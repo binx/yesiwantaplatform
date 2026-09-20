@@ -1,15 +1,10 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { Badge, Button, Drawer, Tooltip } from "antd";
-import {
-  MenuOutlined,
-  ShoppingOutlined,
-  UserOutlined,
-} from "@ant-design/icons";
+import { Button, Drawer, Tooltip } from "antd";
+import { MenuOutlined, UserOutlined } from "@ant-design/icons";
 import { useStore } from "@/lib/useStore";
 import { assetUrl } from "@/lib/store-source";
 import { useCustomer } from "@/lib/account";
-import { useCartCount } from "@/store/cart";
 import { cx } from "@/lib/cx";
 import styles from "./Banner.module.css";
 
@@ -19,7 +14,6 @@ import styles from "./Banner.module.css";
  */
 export function Banner() {
   const store = useStore();
-  const count = useCartCount();
   const customer = useCustomer();
   const [open, setOpen] = useState(false);
 
@@ -27,78 +21,42 @@ export function Banner() {
   const accountLabel = customer.data ? "Your account" : "Sign in";
 
   const links = [
-    { to: "/create", label: "Make a postcard" },
-    ...store.pages
-      .filter((page) => page.inNav)
-      .map((page) => ({ to: `/${page.slug}`, label: page.title })),
+    { to: "/artists", label: "Artists" },
+    { to: "/gallery", label: "Gallery" },
+    ...store.pages.filter((page) => page.inNav).map((page) => ({ to: `/${page.slug}`, label: page.title })),
+    // The studio is where an artist works; for everyone else it is the door in.
+    { to: customer.data?.artistSlug ? "/studio" : "/studio/new", label: customer.data?.artistSlug ? "Your studio" : "For artists" },
   ];
-
-  const cartLabel =
-    count > 0 ? `Cart, ${count} postcard${count === 1 ? "" : "s"}` : "Cart";
-  const cartText = count > 0 ? `Cart (${count})` : "Cart";
 
   return (
     <header className={styles.header}>
       <Link to="/" className={styles.brand}>
         {store.theme.logo ? (
-          <img
-            className={cx(styles.logo)}
-            src={assetUrl(store.theme.logo.path)}
-            alt={store.theme.logo.alt || store.name}
-          />
+          <img className={cx(styles.logo)} src={assetUrl(store.theme.logo.path)} alt={store.theme.logo.alt || store.name} />
         ) : (
-          <span className={styles.wordmark}>postcard gifts</span>
+          <span className={styles.wordmark}>
+            <span className={styles.wordmarkYes}>yes</span> i want a postcard
+          </span>
         )}
       </Link>
 
       <nav className={styles.desktopNav} aria-label="Main">
         {links.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            className={({ isActive }) =>
-              isActive ? `${styles.link} ${styles.active}` : styles.link
-            }
-          >
+          <NavLink key={link.to} to={link.to} className={({ isActive }) => (isActive ? `${styles.link} ${styles.active}` : styles.link)}>
             {link.label}
           </NavLink>
         ))}
       </nav>
 
       <Tooltip title={accountLabel}>
-        <Link to={accountHref} className={styles.cart} aria-label={accountLabel}>
-          <UserOutlined className={styles.cartIcon} aria-hidden />
+        <Link to={accountHref} className={styles.account} aria-label={accountLabel}>
+          <UserOutlined className={styles.accountIcon} aria-hidden />
         </Link>
       </Tooltip>
 
-      <Tooltip title="Cart">
-        <Link to="/cart" className={styles.cart} aria-label={cartLabel}>
-          <Badge
-            count={count}
-            size="small"
-            color="var(--beluga-accent)"
-            offset={[2, -2]}
-          >
-            <ShoppingOutlined className={styles.cartIcon} aria-hidden />
-          </Badge>
-        </Link>
-      </Tooltip>
+      <Button type="text" className={cx(styles.menuButton)} icon={<MenuOutlined />} onClick={() => setOpen(true)} aria-label="Open menu" aria-expanded={open} />
 
-      <Button
-        type="text"
-        className={cx(styles.menuButton)}
-        icon={<MenuOutlined />}
-        onClick={() => setOpen(true)}
-        aria-label="Open menu"
-        aria-expanded={open}
-      />
-
-      <Drawer
-        title="Menu"
-        placement="right"
-        open={open}
-        onClose={() => setOpen(false)}
-      >
+      <Drawer title="Menu" placement="right" open={open} onClose={() => setOpen(false)}>
         <nav className={styles.drawerNav} aria-label="Main">
           <Link to="/" onClick={() => setOpen(false)}>
             Home
@@ -108,9 +66,6 @@ export function Banner() {
               {link.label}
             </Link>
           ))}
-          <Link to="/cart" onClick={() => setOpen(false)}>
-            {cartText}
-          </Link>
           <Link to={accountHref} onClick={() => setOpen(false)}>
             {accountLabel}
           </Link>

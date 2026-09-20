@@ -14,14 +14,15 @@ export function Footer() {
   const store = useStore();
   const customer = useCustomer();
 
-  // Same rule as the banner: a guest lands on sign-in, a customer on their account.
   const accountHref = customer.data ? "/account" : "/account/login";
 
   return (
     <footer className={styles.footer}>
       <div className={styles.inner}>
         <nav className={styles.links} aria-label="Footer">
-          <Link to="/create">Make a postcard</Link>
+          <Link to="/artists">Artists</Link>
+          <Link to="/gallery">Gallery</Link>
+          <Link to={customer.data?.artistSlug ? "/studio" : "/studio/new"}>For artists</Link>
           <Link to={accountHref}>Your account</Link>
           {store.pages.map((page) => (
             <Link key={page.id} to={`/${page.slug}`}>
@@ -31,7 +32,7 @@ export function Footer() {
         </nav>
 
         <p className={styles.legal}>
-          made by <a href="https://rachelbinx.com">rachel binx</a>, for the love of mail
+          {store.name} · a project by <a href="https://rachelbinx.com">rachel binx</a>, for the love of mail
         </p>
       </div>
     </footer>

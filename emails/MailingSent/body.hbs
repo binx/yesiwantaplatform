@@ -1,0 +1,9 @@
+<h1 style="margin:0 0 12px;font-size:24px;font-weight:600;">Your card is in the post</h1>
+<p style="margin:0 0 8px;color:#52525b;line-height:1.6;">
+  {{#if title}}<strong style="color:#18181b;">{{title}}</strong> went{{else}}Your postcard went{{/if}} to the printer on {{day}}, addressed to
+  <strong style="color:#18181b;">{{subscriberCount}}</strong> {{#if (eq subscriberCount 1)}}subscriber{{else}}subscribers{{/if}}.
+  Each card's share is added to your earnings as the printer accepts it.
+</p>
+<p style="margin:16px 0 0;">
+  <a href="{{queueUrl}}" style="color:#18181b;">Your queue</a>
+</p>

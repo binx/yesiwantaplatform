@@ -3,7 +3,7 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { ZodError } from "zod";
 import { setupInputSchema, type SetupStatus, type SessionResponse } from "../../shared/api.js";
-import { defaultHero } from "../../shared/schema.js";
+import { defaultHero, defaultPricing } from "../../shared/schema.js";
 import { countAdmins, createAdmin, safeEqual } from "../auth.js";
 import { getSettings, isConfigured } from "../../db/repository.js";
 import { updateSettings } from "../../db/admin-repository.js";
@@ -102,7 +102,7 @@ setupRouter.post("/setup", setupRateLimit, verifyCsrf, async (req, res) => {
 
   const adminId = await serialise(async () => {
     if (await isConfigured()) {
-      throw httpError(410, "This store is already set up. Sign in instead.");
+      throw httpError(410, "This platform is already set up. Sign in instead.");
     }
 
     await verifyFontUrl(input.theme.fontUrl);
@@ -114,13 +114,10 @@ setupRouter.post("/setup", setupRateLimit, verifyCsrf, async (req, res) => {
       currency: input.currency.toUpperCase(),
       locale: "en-US",
       stripePublishableKey: input.stripePublishableKey,
-      internationalPostcardPriceCents: null,
-      returnAddress: null,
-      // v1's price, and the one on the landing page copy. Settings is where
-      // it changes.
-      postcardPriceCents: existing?.postcardPriceCents ?? 140,
-      cartRecoveryEnabled: false,
-      cartRecoveryDelayHours: 4,
+      // The platform's economics start at the defaults; Settings → Pricing
+      // is where they change once the operator knows their Lob rate.
+      pricing: existing?.pricing ?? defaultPricing,
+      returnAddress: existing?.returnAddress ?? null,
       hero: defaultHero,
       theme: input.theme,
     });

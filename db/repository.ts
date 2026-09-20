@@ -7,6 +7,7 @@ import {
   fontUrlSchema,
   localeSchema,
   type Hero,
+  type Pricing,
   type Store,
   type Theme,
 } from "../shared/schema.js";
@@ -15,11 +16,13 @@ import { getDatabase } from "./client.js";
 import { listPageSummaries } from "./pages-repository.js";
 
 /**
- * Store settings and the snapshot the storefront boots from.
+ * Platform settings and the snapshot the site boots from — and the small
+ * helpers every other repository uses to read a row the same way on both
+ * dialects.
  *
  * Every value that leaves this module is parsed with the shared zod schemas,
  * so a mapping mistake surfaces as a validation error rather than as bad data
- * on the storefront.
+ * on the site.
  */
 
 /** createdAt/updatedAt are unix seconds on SQLite and a Date on Postgres. */
@@ -27,6 +30,11 @@ export function toEpochMs(value: unknown): number {
   if (value instanceof Date) return value.getTime();
   if (typeof value === "number") return value * 1000;
   return Date.now();
+}
+
+/** The same, for a nullable column. */
+export function epochOrNull(value: unknown): number | null {
+  return value === null || value === undefined ? null : toEpochMs(value);
 }
 
 export function toBool(value: unknown): boolean {
@@ -54,16 +62,50 @@ export function nowFor(dialect: string): Date | number {
   return dialect === "pg" ? new Date() : Math.floor(Date.now() / 1000);
 }
 
+/** A moment in epoch milliseconds, as the dialect stores it. */
+export function timeFor(dialect: string, epochMs: number): Date | number {
+  return dialect === "pg" ? new Date(epochMs) : Math.floor(epochMs / 1000);
+}
+
+/** `count()` comes back as a number on SQLite and a bigint-as-string on Postgres. */
+export function toCount(value: unknown): number {
+  return Number(value ?? 0);
+}
+
+/**
+ * Whether a driver error is a violated unique index.
+ *
+ * SQLite says `UNIQUE constraint failed` in the message; Postgres says
+ * `duplicate key value` — but drizzle wraps the driver's error in a
+ * `DrizzleQueryError` whose message is the SQL, with the real one on
+ * `cause`, so the chain is walked rather than the top read.
+ */
+export function isUniqueViolation(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current; depth += 1) {
+    const shape = current as { message?: unknown; code?: unknown; cause?: unknown };
+    const message = typeof shape.message === "string" ? shape.message : "";
+    if (shape.code === "23505" || /UNIQUE constraint failed|duplicate key value|23505/i.test(message)) return true;
+    current = shape.cause;
+  }
+  return false;
+}
+
+/** Rows changed by an update, across both drivers. */
+export function affectedRows(result: unknown): number {
+  const shape = result as { changes?: number; rowCount?: number } | null;
+  return shape?.changes ?? shape?.rowCount ?? 0;
+}
+
 interface SettingsRow {
   name: string;
   currency: string;
   locale: string;
   stripePublishableKey: string | null;
-  postcardPriceCents: number;
-  internationalPostcardPriceCents: number | null;
+  printCostCents: number;
+  platformFeeCents: number;
+  minMonthlyPriceCents: number;
   returnAddress: unknown;
-  cartRecoveryEnabled: unknown;
-  cartRecoveryDelayHours: number;
   themeColorPrimary: string;
   themeColorAccent: string;
   themeFontFamily: string;
@@ -90,12 +132,9 @@ export interface Settings {
   currency: string;
   locale: string;
   stripePublishableKey: string | null;
-  postcardPriceCents: number;
-  internationalPostcardPriceCents: number | null;
-  /** Null until the merchant sets one; international checkout refuses without it. */
+  pricing: Pricing;
+  /** Null until the operator sets one; international mail refuses without it. */
   returnAddress: Recipient | null;
-  cartRecoveryEnabled: boolean;
-  cartRecoveryDelayHours: number;
   theme: Theme;
   hero: Hero;
 }
@@ -114,13 +153,14 @@ export async function getSettings(): Promise<Settings | null> {
     // would otherwise throw inside every `Intl` constructor downstream.
     locale: localeSchema.catch("en-US").parse(row.locale),
     stripePublishableKey: row.stripePublishableKey,
-    postcardPriceCents: row.postcardPriceCents,
-    internationalPostcardPriceCents: row.internationalPostcardPriceCents,
+    pricing: {
+      printCostCents: row.printCostCents,
+      platformFeeCents: row.platformFeeCents,
+      minMonthlyPriceCents: row.minMonthlyPriceCents,
+    },
     // Parsed with a fallback: a hand-edited row that no longer passes reads
     // as "no return address", which is the safe answer.
     returnAddress: recipientSchema.nullable().catch(null).parse(parseJson(row.returnAddress, null)),
-    cartRecoveryEnabled: toBool(row.cartRecoveryEnabled),
-    cartRecoveryDelayHours: row.cartRecoveryDelayHours,
     theme: themeSchema.parse({
       colorPrimary: row.themeColorPrimary,
       colorAccent: row.themeColorAccent,
@@ -161,7 +201,7 @@ export async function getSettings(): Promise<Settings | null> {
   };
 }
 
-/** The whole store in one object, for the storefront's initial render. */
+/** The whole platform in one object, for the site's initial render. */
 export async function getStoreSnapshot(): Promise<Store | null> {
   const settings = await getSettings();
   if (!settings) return null;
@@ -176,8 +216,7 @@ export async function getStoreSnapshot(): Promise<Store | null> {
     stripePublishableKey: settings.stripePublishableKey,
     currency: settings.currency,
     locale: settings.locale,
-    postcardPriceCents: settings.postcardPriceCents,
-    internationalPostcardPriceCents: settings.internationalPostcardPriceCents,
+    pricing: settings.pricing,
     theme: settings.theme,
     hero: settings.hero,
     pages,
@@ -193,5 +232,5 @@ export async function isConfigured(): Promise<boolean> {
     db.select({ value: count() }).from(schema.adminUsers) as unknown as Promise<{ value: number }[]>,
   ]);
 
-  return (settings[0]?.value ?? 0) > 0 && (admins[0]?.value ?? 0) > 0;
+  return toCount(settings[0]?.value) > 0 && toCount(admins[0]?.value) > 0;
 }

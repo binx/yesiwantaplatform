@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { ZodError } from "zod";
+import { ZodError, z } from "zod";
 import {
   imageInputSchema,
   pageInputSchema,
@@ -11,66 +11,41 @@ import {
   type EnvironmentStatus,
   type LobTestResult,
 } from "../../shared/api.js";
+import { artistStatusSchema, mailingStatusSchema, payoutStatusSchema, subscriptionStatusSchema } from "../../shared/platform.js";
+import { postcardBackSchema } from "../../shared/postcards.js";
 import { SlugTakenError, updateSettings } from "../../db/admin-repository.js";
 import { getSettings } from "../../db/repository.js";
-import {
-  createPage,
-  deletePage,
-  listPageDrafts,
-  pageExists,
-  reorderPages,
-  updatePage,
-} from "../../db/pages-repository.js";
-import {
-  cancelOrder,
-  cancelPostcard,
-  completeOrderIfDone,
-  countPostcardsByStatus,
-  createPendingOrder,
-  getOrder,
-  getOrderPaymentIntentId,
-  getPostcard,
-  listOrders,
-  markOrderPaid,
-  requeuePostcard,
-} from "../../db/orders-repository.js";
-import { formatMoney } from "../../shared/money.js";
-import { CSV_BOM, csvRow } from "../../shared/csv.js";
-import { complimentaryOrderInputSchema, orderStatusSchema, refundInputSchema } from "../../shared/orders.js";
-import { formatRecipient, postcardBackSchema } from "../../shared/postcards.js";
+import { createPage, deletePage, listPageDrafts, pageExists, reorderPages, updatePage } from "../../db/pages-repository.js";
+import { countArtistsByStatus, countForArtists, findArtistsByIds, getArtist, listArtists, setArtistStatus } from "../../db/artists-repository.js";
+import { findDesignsByIds } from "../../db/designs-repository.js";
+import { countMailingsByStatus, countPostcardsByMailing, getMailing, listMailings, listMailingsForArtist } from "../../db/mailings-repository.js";
+import { cancelPostcard, countPostcardsByStatus, getPostcard, listPostcardsByStatus, listPostcardsForMailing, requeuePostcard } from "../../db/postcards-repository.js";
+import { countSubscriptionsByStatus, listSubscriptions, listSubscriptionsForArtist } from "../../db/subscriptions-repository.js";
+import { listOrders, sumRevenueCents } from "../../db/orders-repository.js";
+import { listPayouts, requeuePayout, sumPayoutsByStatus } from "../../db/payouts-repository.js";
+import { getDatabase } from "../../db/client.js";
 import { refreshFontOrigins, verifyFontUrl } from "../fonts.js";
-import {
-  adminLoginRateLimit,
-  emailRateLimit,
-  httpError,
-  requireAdmin,
-  verifyCsrf,
-  writeRateLimit,
-} from "../middleware.js";
+import { adminLoginRateLimit, emailRateLimit, httpError, requireAdmin, verifyCsrf, writeRateLimit } from "../middleware.js";
 import { env, hasLob, hasLobWebhook, hasStripe, isProduction, isSqlite, lobMode } from "../env.js";
 import { mapUploadError, storeImage, uploadMiddleware } from "../uploads.js";
-import { StripeNotConfiguredError, classifyStripeError, getStripeKeyCheck, requireStripe } from "../stripe.js";
+import { StripeNotConfiguredError, classifyStripeError, getStripeKeyCheck } from "../stripe.js";
 import { renderMarkdown } from "../markdown.js";
 import { escapeHtml } from "../html.js";
-import { sendEmailReportingFailure, sendOrderEmail } from "../email.js";
+import { sendEmailReportingFailure } from "../email.js";
 import { LobError, LobNotConfiguredError, sendTestPostcard } from "../lob.js";
-import { cleanUp, getLastSweep, kickSweep, sendDuePostcards } from "../fulfilment.js";
-import { assertMailable, assertOrderable, resolveReplyLines } from "./checkout.js";
-import { attachDesignsToOrder } from "../../db/designs-repository.js";
-import { randomUUID } from "node:crypto";
-import {
-  destroySessionsForUser,
-  findAdminById,
-  updateAdminPassword,
-  verifyPasswordFor,
-} from "../auth.js";
+import { getLastPayoutSweep, getLastSweep, sendDueMailings, sendDuePostcards, sendPendingPayouts } from "../fulfilment.js";
+import { toMailing, toOrder, toPayout, toPublicArtist, toSubscription } from "../presenters.js";
+import { destroySessionsForUser, findAdminById, updateAdminPassword, verifyPasswordFor } from "../auth.js";
+import { toEpochMs } from "../../db/repository.js";
+import { desc } from "drizzle-orm";
 
 /**
- * Admin API.
+ * Admin API — the platform operator's view.
  *
  * Every route below is gated by `requireAdmin` and `verifyCsrf`, applied once
  * to the whole router so a new endpoint cannot be added unprotected by
- * accident. In v1 these operations were completely open.
+ * accident. This is the one place Lob's refusals and Stripe's transfer
+ * failures are shown in full, because this is the one person who can act on them.
  */
 export const adminRouter: Router = Router();
 
@@ -95,11 +70,7 @@ function toHttp(error: unknown): never {
 adminRouter.get("/environment", (_req, res) => {
   res.json({
     hasStripeSecret: hasStripe,
-    stripeMode: env.STRIPE_SECRET_KEY
-      ? env.STRIPE_SECRET_KEY.startsWith("sk_live_")
-        ? "live"
-        : "test"
-      : null,
+    stripeMode: env.STRIPE_SECRET_KEY ? (env.STRIPE_SECRET_KEY.startsWith("sk_live_") ? "live" : "test") : null,
     stripeKeyStatus: getStripeKeyCheck().status,
     hasWebhookSecret: Boolean(env.STRIPE_WEBHOOK_SECRET),
     hasEmail: Boolean(env.SMTP_URL),
@@ -118,34 +89,25 @@ adminRouter.post("/email/test", emailRateLimit, async (req, res) => {
   if (!admin) throw httpError(401, "Sign in again.");
 
   const settings = await getSettings();
-  const storeName = settings?.name ?? "Postcard Gifts";
+  const storeName = settings?.name ?? "Yes I Want A Postcard";
 
   const result = await sendEmailReportingFailure(
     admin.email,
     `${storeName}: test email`,
     `<p>This is a test from the ${escapeHtml(storeName)} admin.</p>` +
-      "<p>If you are reading it, order confirmations, postcard notices and password resets will reach their recipients too.</p>",
+      "<p>If you are reading it, welcome emails, postcard notices and password resets will reach their recipients too.</p>",
   );
 
   res.json(result satisfies EmailTestResult);
 });
 
-/**
- * Send one test postcard to Lob's own test address.
- *
- * This is the check v1 never had. The whole pipeline runs — a print file at
- * Lob's size and density, the back rendered from the template, the request
- * Lob actually receives — and whatever Lob says comes back verbatim. With a
- * `test_` key nothing is printed; the UI says what a live key would cost.
- */
+/** Send one test postcard to Lob's own test address, through the whole pipeline. */
 adminRouter.post("/lob/test", emailRateLimit, async (req, res) => {
   const back = postcardBackSchema.safeParse(req.body ?? {});
 
   try {
     const card = await sendTestPostcard(
-      back.success
-        ? back.data
-        : postcardBackSchema.parse({ text: "This is a test postcard from the admin.", valediction: "— the printer check" }),
+      back.success ? back.data : postcardBackSchema.parse({ text: "This is a test postcard from the admin.", valediction: "— the printer check" }),
     );
 
     res.json({
@@ -157,13 +119,7 @@ adminRouter.post("/lob/test", emailRateLimit, async (req, res) => {
       url: card.url,
     } satisfies LobTestResult);
   } catch (error) {
-    if (error instanceof LobNotConfiguredError) {
-      res.json({ ok: false, message: error.message, url: null } satisfies LobTestResult);
-      return;
-    }
-    if (error instanceof LobError) {
-      // Lob's own words: this is the whole diagnosis, and the reason the
-      // button exists.
+    if (error instanceof LobNotConfiguredError || error instanceof LobError) {
       res.json({ ok: false, message: error.message, url: null } satisfies LobTestResult);
       return;
     }
@@ -171,19 +127,48 @@ adminRouter.post("/lob/test", emailRateLimit, async (req, res) => {
   }
 });
 
-/** An overview of fulfilment: how many cards are where. */
+/* ---------------------------------------------------------------- overview */
+
+/** Everything the dashboard needs in one read: counts of every noun, and the last sweeps. */
+adminRouter.get("/overview", async (_req, res) => {
+  const [artists, subscriptions, mailings, postcards, payouts, revenueCents, settings] = await Promise.all([
+    countArtistsByStatus(),
+    countSubscriptionsByStatus(),
+    countMailingsByStatus(),
+    countPostcardsByStatus(),
+    sumPayoutsByStatus(),
+    sumRevenueCents(),
+    getSettings(),
+  ]);
+  res.json({
+    artists,
+    subscriptions,
+    mailings,
+    postcards,
+    payouts,
+    revenueCents,
+    currency: settings?.currency ?? "USD",
+    hasLob,
+    lobMode,
+    lastSweep: getLastSweep(),
+    lastPayoutSweep: getLastPayoutSweep(),
+  });
+});
+
+/** The old name, kept for the dashboard's fulfilment card. */
 adminRouter.get("/fulfilment", async (_req, res) => {
   res.json({ postcards: await countPostcardsByStatus(), hasLob, lobMode, lastRun: getLastSweep() });
 });
 
-/** Run the sweep now rather than waiting for the next tick. */
+/** Run the sweeps now rather than waiting for the next tick. */
 adminRouter.post("/fulfilment/run", async (_req, res) => {
-  const result = await sendDuePostcards();
-  res.json(result);
+  const mailings = await sendDueMailings();
+  const postcards = await sendDuePostcards();
+  res.json({ ...postcards, mailings });
 });
 
-adminRouter.post("/fulfilment/cleanup", async (_req, res) => {
-  res.json(await cleanUp());
+adminRouter.post("/payouts/run", async (_req, res) => {
+  res.json(await sendPendingPayouts());
 });
 
 /* ------------------------------------------------------------------- pages */
@@ -201,7 +186,7 @@ adminRouter.post("/pages", async (req, res) => {
   }
 });
 
-/** What a body will look like once it is published, rendered by the same sanitiser the storefront uses. */
+/** What a body will look like once it is published, rendered by the same sanitiser the site uses. */
 adminRouter.post("/pages/preview", (req, res) => {
   const parsed = pagePreviewInputSchema.safeParse(req.body);
   if (!parsed.success) throw httpError(400, "A Markdown body is required.");
@@ -253,7 +238,7 @@ adminRouter.put("/settings", async (req, res) => {
     const input = settingsInputSchema.parse(req.body);
 
     // Before the write: a font URL that cannot be fetched is a typo, and the
-    // merchant has to be told while the field is still in front of them.
+    // operator has to be told while the field is still in front of them.
     await verifyFontUrl(input.theme.fontUrl);
 
     await updateSettings(input);
@@ -267,370 +252,207 @@ adminRouter.put("/settings", async (req, res) => {
   }
 });
 
+function imageUpload(owner: string) {
+  return (req: Parameters<typeof uploadMiddleware>[0], res: Parameters<typeof uploadMiddleware>[1], next: Parameters<typeof uploadMiddleware>[2]) => {
+    uploadMiddleware(req, res, (uploadError: unknown) => {
+      void (async () => {
+        try {
+          if (uploadError) return next(mapUploadError(uploadError));
+          if (!req.file) throw httpError(400, "No file was uploaded.");
+
+          const { alt } = imageInputSchema.parse(req.body ?? {});
+          const stored = await storeImage(owner, req.file.buffer);
+
+          res.status(201).json({ ...stored, alt });
+        } catch (error) {
+          next(error);
+        }
+      })();
+    });
+  };
+}
+
 /** Stores a logo and hands the image back; it is persisted on Save with the rest of the theme. */
-adminRouter.post("/settings/logo", (req, res, next) => {
-  uploadMiddleware(req, res, (uploadError: unknown) => {
-    void (async () => {
-      try {
-        if (uploadError) return next(mapUploadError(uploadError));
-        if (!req.file) throw httpError(400, "No file was uploaded.");
+adminRouter.post("/settings/logo", imageUpload("store-logo"));
+adminRouter.post("/settings/hero-image", imageUpload("store-hero"));
 
-        const { alt } = imageInputSchema.parse(req.body ?? {});
-        const stored = await storeImage("store-logo", req.file.buffer);
+/* ----------------------------------------------------------------- artists */
 
-        res.status(201).json({ ...stored, alt });
-      } catch (error) {
-        next(error);
-      }
-    })();
+adminRouter.get("/artists", async (req, res) => {
+  const status = artistStatusSchema.safeParse(req.query.status);
+  const [settings, page] = await Promise.all([getSettings(), listArtists({ ...(status.success ? { status: status.data } : {}), limit: 500 })]);
+  const counts = await countForArtists(page.artists.map((a) => a.id));
+  const currency = settings?.currency ?? "USD";
+  res.json({
+    artists: page.artists.map((artist) => ({
+      ...toPublicArtist(artist, counts.get(artist.id), currency),
+      payoutsEnabled: artist.payoutsEnabled,
+      hasStripeAccount: artist.stripeAccountId !== null,
+      customerId: artist.customerId,
+    })),
+    total: page.total,
   });
 });
 
-adminRouter.post("/settings/hero-image", (req, res, next) => {
-  uploadMiddleware(req, res, (uploadError: unknown) => {
-    void (async () => {
-      try {
-        if (uploadError) return next(mapUploadError(uploadError));
-        if (!req.file) throw httpError(400, "No file was uploaded.");
-
-        const { alt } = imageInputSchema.parse(req.body ?? {});
-        const stored = await storeImage("store-hero", req.file.buffer);
-
-        res.status(201).json({ ...stored, alt });
-      } catch (error) {
-        next(error);
-      }
-    })();
+adminRouter.get("/artists/:id", async (req, res) => {
+  const artist = await getArtist(req.params.id);
+  if (!artist) throw httpError(404, "Artist not found.");
+  const [settings, counts, mailings, subscriptions] = await Promise.all([
+    getSettings(),
+    countForArtists([artist.id]),
+    listMailingsForArtist(artist.id),
+    listSubscriptionsForArtist(artist.id),
+  ]);
+  const currency = settings?.currency ?? "USD";
+  const [designs, mailingCounts] = await Promise.all([findDesignsByIds(mailings.map((m) => m.designId)), countPostcardsByMailing(mailings.map((m) => m.id))]);
+  const designById = new Map(designs.map((d) => [d.id, d]));
+  res.json({
+    artist: { ...toPublicArtist(artist, counts.get(artist.id), currency), bio: artist.bio, payoutsEnabled: artist.payoutsEnabled, stripeAccountId: artist.stripeAccountId, customerId: artist.customerId },
+    mailings: mailings.flatMap((m) => {
+      const design = designById.get(m.designId);
+      return design ? [toMailing(m, design, mailingCounts.get(m.id), artist.name)] : [];
+    }),
+    subscriptions: subscriptions.map((s) => toSubscription(s, artist, 0)),
   });
+});
+
+/** Moderation: pause an artist, or put a paused one back. Draft is the artist's own to leave. */
+adminRouter.post("/artists/:id/status", async (req, res) => {
+  const parsed = z.object({ status: artistStatusSchema }).safeParse(req.body);
+  if (!parsed.success) throw httpError(400, "Choose draft, live or paused.");
+  if (!(await setArtistStatus(req.params.id, parsed.data.status))) throw httpError(404, "Artist not found.");
+  res.status(204).end();
+});
+
+/* --------------------------------------------------------------- customers */
+
+adminRouter.get("/customers", async (_req, res) => {
+  const { drizzle: db, schema } = await getDatabase();
+  const rows = (await db
+    .select({ id: schema.customers.id, email: schema.customers.email, name: schema.customers.name, emailVerifiedAt: schema.customers.emailVerifiedAt, createdAt: schema.customers.createdAt })
+    .from(schema.customers)
+    .orderBy(desc(schema.customers.createdAt))
+    .limit(500)) as unknown as { id: string; email: string; name: string | null; emailVerifiedAt: unknown; createdAt: unknown }[];
+  const { artists } = await listArtists({ limit: 500 });
+  const slugByCustomer = new Map(artists.map((a) => [a.customerId, a.slug]));
+  const { subscriptions } = await listSubscriptions({ status: "active", limit: 200 });
+  const activeByCustomer = new Map<string, number>();
+  for (const s of subscriptions) activeByCustomer.set(s.customerId, (activeByCustomer.get(s.customerId) ?? 0) + 1);
+  res.json(
+    rows.map((row) => ({
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      emailVerified: row.emailVerifiedAt !== null && row.emailVerifiedAt !== undefined,
+      createdAt: toEpochMs(row.createdAt),
+      artistSlug: slugByCustomer.get(row.id) ?? null,
+      activeSubscriptions: activeByCustomer.get(row.id) ?? 0,
+    })),
+  );
+});
+
+/* ----------------------------------------------------------- subscriptions */
+
+adminRouter.get("/subscriptions", async (req, res) => {
+  const status = subscriptionStatusSchema.safeParse(req.query.status);
+  const page = await listSubscriptions({ ...(status.success ? { status: status.data } : {}), limit: Number(req.query.limit ?? 50), offset: Number(req.query.offset ?? 0) });
+  const artists = await findArtistsByIds(page.subscriptions.map((s) => s.artistId));
+  const artistById = new Map(artists.map((a) => [a.id, a]));
+  res.json({ subscriptions: page.subscriptions.map((s) => ({ ...toSubscription(s, artistById.get(s.artistId), 0), customerId: s.customerId })), total: page.total });
+});
+
+/* ---------------------------------------------------------------- mailings */
+
+adminRouter.get("/mailings", async (req, res) => {
+  const status = mailingStatusSchema.safeParse(req.query.status);
+  const page = await listMailings({ ...(status.success ? { status: status.data } : {}), limit: Number(req.query.limit ?? 50), offset: Number(req.query.offset ?? 0) });
+  const [designs, artists, counts] = await Promise.all([
+    findDesignsByIds(page.mailings.map((m) => m.designId)),
+    findArtistsByIds(page.mailings.map((m) => m.artistId)),
+    countPostcardsByMailing(page.mailings.map((m) => m.id)),
+  ]);
+  const designById = new Map(designs.map((d) => [d.id, d]));
+  const artistById = new Map(artists.map((a) => [a.id, a]));
+  res.json({
+    mailings: page.mailings.flatMap((m) => {
+      const design = designById.get(m.designId);
+      const artist = artistById.get(m.artistId);
+      return design ? [{ ...toMailing(m, design, counts.get(m.id), artist?.name), artist: artist ? { id: artist.id, slug: artist.slug, name: artist.name } : null }] : [];
+    }),
+    total: page.total,
+  });
+});
+
+/** One mailing, card by card, with Lob's words on each failure. */
+adminRouter.get("/mailings/:id", async (req, res) => {
+  const mailing = await getMailing(req.params.id);
+  if (!mailing) throw httpError(404, "Mailing not found.");
+  const [designs, artist, counts, cards] = await Promise.all([
+    findDesignsByIds([mailing.designId]),
+    getArtist(mailing.artistId),
+    countPostcardsByMailing([mailing.id]),
+    listPostcardsForMailing(mailing.id),
+  ]);
+  const design = designs[0];
+  if (!design) throw httpError(404, "The mailing's design is gone.");
+  res.json({
+    mailing: toMailing(mailing, design, counts.get(mailing.id), artist?.name),
+    artist: artist ? { id: artist.id, slug: artist.slug, name: artist.name } : null,
+    postcards: cards,
+  });
+});
+
+/** Cards Lob refused, across every mailing: the "needs attention" list. */
+adminRouter.get("/postcards/errors", async (_req, res) => {
+  res.json(await listPostcardsByStatus("error"));
+});
+
+/** Put an errored card back on the schedule. The next sweep tries it again. */
+adminRouter.post("/postcards/:id/retry", async (req, res) => {
+  const postcard = await getPostcard(req.params.id);
+  if (!postcard) throw httpError(404, "Postcard not found.");
+  if (!(await requeuePostcard(postcard.id))) throw httpError(409, "Only a postcard that failed or was cancelled can be retried.");
+  res.json({ postcard: await getPostcard(postcard.id) });
+});
+
+/** Withdraw one card that has not gone out. */
+adminRouter.post("/postcards/:id/cancel", async (req, res) => {
+  const postcard = await getPostcard(req.params.id);
+  if (!postcard) throw httpError(404, "Postcard not found.");
+  if (!(await cancelPostcard(postcard.id))) throw httpError(409, "That postcard has already gone to print, or was already cancelled.");
+  res.json({ postcard: await getPostcard(postcard.id) });
+});
+
+/* ----------------------------------------------------------------- payouts */
+
+adminRouter.get("/payouts", async (req, res) => {
+  const status = payoutStatusSchema.safeParse(req.query.status);
+  const page = await listPayouts({ ...(status.success ? { status: status.data } : {}), limit: Number(req.query.limit ?? 50), offset: Number(req.query.offset ?? 0) });
+  const artists = await findArtistsByIds(page.payouts.map((p) => p.artistId));
+  const artistById = new Map(artists.map((a) => [a.id, a]));
+  res.json({
+    payouts: page.payouts.map((p) => {
+      const artist = artistById.get(p.artistId);
+      return { ...toPayout(p), artist: artist ? { id: artist.id, slug: artist.slug, name: artist.name, payoutsEnabled: artist.payoutsEnabled } : null };
+    }),
+    total: page.total,
+    totals: await sumPayoutsByStatus(),
+  });
+});
+
+adminRouter.post("/payouts/:id/retry", async (req, res) => {
+  if (!(await requeuePayout(req.params.id))) throw httpError(409, "Only a failed payout can be retried.");
+  res.status(204).end();
 });
 
 /* ------------------------------------------------------------------ orders */
 
-/**
- * `status` and `returned` are separate parameters because they ask different
- * questions — the order's own status, and whether any card on it came back —
- * even though the list's chips let a person pick only one at a time.
- */
+/** Every paid invoice, newest first. */
 adminRouter.get("/orders", async (req, res) => {
-  const status = orderStatusSchema.safeParse(req.query.status);
-
-  res.json(
-    await listOrders({
-      ...(status.success ? { status: status.data } : {}),
-      ...(req.query.returned === "true" ? { returnedToSender: true } : {}),
-      limit: Number(req.query.limit ?? 25),
-      offset: Number(req.query.offset ?? 0),
-    }),
-  );
-});
-
-const CSV_COLUMNS = [
-  "order_reference",
-  "order_id",
-  "placed_at",
-  "order_status",
-  "email",
-  "recipient_name",
-  "recipient_address",
-  "mail_date",
-  "postcard_status",
-  "lob_id",
-  "expected_delivery",
-  "last_error",
-  "unit_price_cents",
-  "order_postcards",
-  "order_international_postcards",
-  "international_unit_price_cents",
-  "order_subtotal_cents",
-  "order_discount_cents",
-  "order_total_cents",
-  "order_refunded_cents",
-  "currency",
-] as const;
-
-/**
- * Place an order for free — v1's "free postcards" route, for the one admin.
- *
- * The same lines the cart sends to checkout, held to the same checks, but
- * with no Stripe session and no money: the order is written and moved
- * straight to `paid` here, which is the one place other than the webhook
- * that ever does so. That is deliberate, and it is why this lives behind
- * `requireAdmin` rather than being a zero-price path through checkout — a
- * zero price is a thing a tampered cart would love to ask for.
- *
- * Registered before `/orders/:id` on purpose, as `/orders.csv` is.
- */
-adminRouter.post("/orders/complimentary", async (req, res) => {
-  let input;
-  try {
-    input = complimentaryOrderInputSchema.parse(req.body);
-  } catch (error) {
-    toHttp(error);
-  }
-
-  const admin = await findAdminById(req.session.adminId!);
-  if (!admin) throw httpError(401, "Sign in again.");
-
-  const settings = await getSettings();
-  if (!settings) throw httpError(503, "This store has not been set up yet.");
-
-  await assertOrderable(input.lines);
-  const { lines, replyToPostcardId } = await resolveReplyLines(input.lines);
-  // Free or not, an international card still needs the return address Lob prints.
-  assertMailable(lines, { internationalPostcardPriceCents: settings.internationalPostcardPriceCents ?? 0, returnAddress: settings.returnAddress });
-
-  const orderId = randomUUID();
-  await createPendingOrder({
-    id: orderId,
-    // Not a Stripe session; the column is unique, so it still has to be one of a kind.
-    checkoutSessionId: `complimentary-${orderId}`,
-    email: admin.email,
-    currency: settings.currency,
-    unitPriceCents: 0,
-    internationalUnitPriceCents: 0,
-    lines,
-    replyToPostcardId,
-  });
-
-  await markOrderPaid(orderId, {
-    paymentIntentId: null,
-    email: admin.email,
-    subtotalCents: 0,
-    discountCents: 0,
-    totalCents: 0,
-    currency: settings.currency,
-  });
-
-  const order = await getOrder(orderId);
-  if (!order) throw httpError(500, "The order was not written.");
-
-  await attachDesignsToOrder(
-    order.postcards.map((p) => p.designId),
-    orderId,
-  );
-
-  // Today's cards should not wait for the next tick, same as a paid one.
-  kickSweep();
-
-  res.status(201).json({ order });
-});
-
-const CSV_ROW_CAP = 50_000;
-
-/**
- * Orders as CSV, one row per postcard, so the file pivots usefully.
- *
- * Registered before `/orders/:id` on purpose: Express matches in order, and
- * "orders.csv" would otherwise arrive as an order id. Every money column is
- * named `*_cents` and holds an integer.
- */
-adminRouter.get("/orders.csv", async (req, res) => {
-  const status = orderStatusSchema.safeParse(req.query.status);
-  const from = Number(req.query.from);
-  const to = Number(req.query.to);
-
-  const filters = {
-    ...(status.success ? { status: status.data } : {}),
-    ...(req.query.returned === "true" ? { returnedToSender: true } : {}),
-    ...(Number.isFinite(from) ? { from } : {}),
-    ...(Number.isFinite(to) ? { to } : {}),
-  };
-
-  const stamp = new Date().toISOString().slice(0, 10);
-  res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="orders-${stamp}.csv"`);
-
-  res.write(CSV_BOM);
-  res.write(csvRow(CSV_COLUMNS));
-
-  let offset = 0;
-  let written = 0;
-  let truncated = false;
-
-  for (;;) {
-    const page = await listOrders({ ...filters, limit: 100, offset });
-    if (page.orders.length === 0) break;
-
-    for (const order of page.orders) {
-      const placedAt = new Date(order.createdAt).toISOString();
-      const orderFields = [
-        order.unitPriceCents,
-        order.postcardCount,
-        order.internationalCount,
-        order.internationalUnitPriceCents,
-        order.subtotalCents,
-        order.discountCents,
-        order.totalCents,
-        order.refundedCents,
-        order.currency,
-      ];
-
-      const postcards = order.postcards.length > 0 ? order.postcards : [null];
-
-      for (const postcard of postcards) {
-        if (written >= CSV_ROW_CAP) {
-          truncated = true;
-          break;
-        }
-
-        res.write(
-          csvRow([
-            order.reference,
-            order.id,
-            placedAt,
-            order.status,
-            order.email,
-            postcard?.recipient.name ?? "",
-            postcard ? formatRecipient(postcard.recipient) : "",
-            postcard?.mailDate ?? "",
-            postcard?.status ?? "",
-            postcard?.lobId ?? "",
-            postcard?.expectedDeliveryDate ?? "",
-            postcard?.lastError ?? "",
-            ...orderFields,
-          ]),
-        );
-        written += 1;
-      }
-
-      if (truncated) break;
-    }
-
-    if (truncated) break;
-    offset += page.orders.length;
-    if (offset >= page.total) break;
-  }
-
-  if (truncated) {
-    console.warn(`Order CSV export stopped at the ${CSV_ROW_CAP} row cap. Narrow it with ?from= and ?to=.`);
-  }
-
-  res.end();
-});
-
-adminRouter.get("/orders/:id", async (req, res) => {
-  const order = await getOrder(req.params.id);
-  if (!order) throw httpError(404, "Order not found.");
-  res.json(order);
-});
-
-/**
- * Cancel an order. Whatever has not gone to print is withdrawn; cards Lob
- * already has are left alone — the mail has gone. Money is not touched: a
- * refund is its own decision, below.
- */
-adminRouter.post("/orders/:id/cancel", async (req, res) => {
-  const order = await getOrder(req.params.id);
-  if (!order) throw httpError(404, "Order not found.");
-  if (order.status === "cancelled" || order.status === "refunded") {
-    throw httpError(409, `This order is already ${order.status}.`);
-  }
-
-  const withdrawn = await cancelOrder(order.id);
-  const updated = await getOrder(order.id);
-  res.json({ order: updated, withdrawn });
-});
-
-/** Put an errored card back on the schedule. The next sweep tries it again. */
-adminRouter.post("/orders/:id/postcards/:postcardId/retry", async (req, res) => {
-  const order = await getOrder(req.params.id);
-  if (!order) throw httpError(404, "Order not found.");
-  if (order.status !== "paid" && order.status !== "completed") {
-    throw httpError(409, "Only a paid order's postcards can be retried.");
-  }
-
-  const postcard = await getPostcard(order.id, req.params.postcardId);
-  if (!postcard) throw httpError(404, "Postcard not found on that order.");
-
-  if (!(await requeuePostcard(order.id, postcard.id))) {
-    throw httpError(409, "Only a postcard that failed or was cancelled can be retried.");
-  }
-
-  // A completed order that gets a card back is open again.
-  if (order.status === "completed") {
-    const { setOrderStatus } = await import("../../db/orders-repository.js");
-    await setOrderStatus(order.id, "paid");
-  }
-
-  const updated = await getOrder(order.id);
-  res.json({ order: updated });
-});
-
-/** Withdraw one card that has not gone out. */
-adminRouter.post("/orders/:id/postcards/:postcardId/cancel", async (req, res) => {
-  const order = await getOrder(req.params.id);
-  if (!order) throw httpError(404, "Order not found.");
-
-  const postcard = await getPostcard(order.id, req.params.postcardId);
-  if (!postcard) throw httpError(404, "Postcard not found on that order.");
-
-  if (!(await cancelPostcard(order.id, postcard.id))) {
-    throw httpError(409, "That postcard has already gone to print, or was already cancelled.");
-  }
-
-  await completeOrderIfDone(order.id);
-  const updated = await getOrder(order.id);
-  res.json({ order: updated });
-});
-
-/**
- * Refund an order, in whole or in part.
- *
- * Money moves here; order state does not. The `charge.refunded` webhook is
- * the only thing that writes `refundedCents` or flips the status.
- */
-adminRouter.post("/orders/:id/refund", async (req, res) => {
-  const order = await getOrder(req.params.id);
-  if (!order) throw httpError(404, "Order not found.");
-
-  let input;
-  try {
-    input = refundInputSchema.parse(req.body);
-  } catch (error) {
-    toHttp(error);
-  }
-
-  const paymentIntentId = await getOrderPaymentIntentId(order.id);
-  if (!paymentIntentId) {
-    throw httpError(409, "This order has no payment to refund. It was never paid, or payment is still pending.");
-  }
-
-  const remaining = order.totalCents - order.refundedCents;
-  if (remaining <= 0) throw httpError(409, "This order has already been refunded in full.");
-
-  const amountCents = input.amountCents ?? remaining;
-  if (amountCents <= 0) throw httpError(400, "A refund has to be for more than zero.");
-  if (amountCents > remaining) {
-    const locale = (await getSettings())?.locale ?? "en-US";
-    throw httpError(
-      409,
-      `That is more than the ${formatMoney(remaining, order.currency, locale)} still refundable on this order.`,
-    );
-  }
-
-  const stripe = requireStripe();
-
-  try {
-    await stripe.refunds.create(
-      {
-        payment_intent: paymentIntentId,
-        amount: amountCents,
-        reason: input.reason,
-        metadata: { postcards_order_id: order.id },
-      },
-      { idempotencyKey: `refund-${order.id}-${input.amountCents ?? "full"}` },
-    );
-  } catch (error) {
-    toHttp(error);
-  }
-
-  const updated = await getOrder(order.id);
-  if (!updated) throw httpError(404, "Order not found.");
-
-  let emailed = false;
-  if (input.notify) emailed = await sendOrderEmail("Refunded", updated);
-
-  res.json({ order: updated, emailed });
+  const page = await listOrders({ limit: Number(req.query.limit ?? 50), offset: Number(req.query.offset ?? 0) });
+  const artists = await findArtistsByIds(page.orders.map((o) => o.artistId));
+  const artistById = new Map(artists.map((a) => [a.id, a]));
+  res.json({ orders: page.orders.map((o) => ({ ...toOrder(o, artistById.get(o.artistId)), customerId: o.customerId })), total: page.total });
 });
 
 /* ----------------------------------------------------------------- account */

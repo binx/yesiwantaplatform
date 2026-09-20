@@ -43,7 +43,7 @@ export function LoginPage() {
         <Typography.Title level={1} className={cx(styles.title)}>
           <span aria-hidden="true">✉️</span> Postcards
         </Typography.Title>
-        <p className={cx(styles.subtitle)}>Sign in to manage the postcard shop.</p>
+        <p className={cx(styles.subtitle)}>Sign in to run the platform.</p>
 
         {login.isError ? (
           <Alert
@@ -96,7 +96,7 @@ export function LoginPage() {
         </p>
 
         <p className={cx(styles.footer)}>
-          <Link to="/">← Back to the storefront</Link>
+          <Link to="/">← Back to the site</Link>
         </p>
       </Card>
     </main>

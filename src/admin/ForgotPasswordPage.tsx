@@ -66,7 +66,7 @@ export function ForgotPasswordPage() {
         )}
 
         <p className={cx(styles.footer)}>
-          If this store has no email provider, the link is in the API&apos;s log.
+          If this platform has no email provider, the link is in the API&apos;s log.
         </p>
 
         <p className={cx(styles.footer)}>

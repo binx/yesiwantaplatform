@@ -185,3 +185,21 @@ a {
 .skip-link:focus {
   top: 0.5rem;
 }
+
+/*
+ * antd's preset tag colours put a mid-tone on a pale tint — green on
+ * #f6ffed reads at about 4:1 — and preset colours are not tokens, so the
+ * text is darkened here for every filled tag on the site and in the admin.
+ */
+.ant-tag-green {
+  color: #15803d !important;
+}
+.ant-tag-gold {
+  color: #92400e !important;
+}
+.ant-tag-red {
+  color: #b91c1c !important;
+}
+.ant-tag-blue {
+  color: #1d4ed8 !important;
+}

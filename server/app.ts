@@ -8,20 +8,15 @@ import { errorHandler, notFound, securityHeaders } from "./middleware.js";
 import { publicRouter } from "./routes/public.js";
 import { sessionRouter } from "./routes/session.js";
 import { accountRouter } from "./routes/account.js";
-import { recipientsRouter } from "./routes/recipients.js";
-import { addressRequestsRouter } from "./routes/address-requests.js";
-import { replyRouter } from "./routes/reply.js";
+import { studioRouter } from "./routes/studio.js";
 import { setupRouter } from "./routes/setup.js";
 import { adminRouter } from "./routes/admin.js";
 import { checkoutRouter } from "./routes/checkout.js";
-import { designsRouter } from "./routes/designs.js";
-import { cartRouter } from "./routes/cart.js";
 import { webhookRouter } from "./routes/webhook.js";
 import { lobWebhookRouter } from "./routes/lob-webhook.js";
 import { siteRouter } from "./routes/site.js";
 import { injectMeta } from "./html.js";
 import { metaForPath } from "./seo.js";
-import { startCartRecoveryScheduler } from "./cart-recovery.js";
 import { setAutoSweep, startFulfilmentScheduler } from "./fulfilment.js";
 import { ASSETS_ROOT } from "./uploads.js";
 import { imageStore, redirectToImageStore } from "./image-store.js";
@@ -35,30 +30,27 @@ export function createApp(options: { schedulers?: boolean } = {}): Express {
   app.use(securityHeaders);
 
   /*
-   * Two `setInterval`s in this process: the cart-recovery reminder and the
-   * fulfilment sweep that sends due postcards to Lob. Both unref'd, both safe
-   * to run on more than one instance — see each module for the conditional
-   * update that makes that true. Off under test, where a sweep firing
-   * mid-assertion is noise.
+   * The sweeps — mailings into cards, cards to Lob, shares to artists — run
+   * on timers in this process. All unref'd, all safe to run on more than one
+   * instance; see server/fulfilment.ts for the conditional updates that make
+   * that true. Off under test, where a sweep firing mid-assertion is noise.
    */
   const schedulers = options.schedulers ?? env.NODE_ENV !== "test";
   setAutoSweep(schedulers);
-  if (schedulers) {
-    startCartRecoveryScheduler();
-    startFulfilmentScheduler();
-  }
+  if (schedulers) startFulfilmentScheduler();
 
-  // Widen the CSP to the store's font before the first request, if it has one.
+  // Widen the CSP to the platform's font before the first request, if it has one.
   void refreshFontOrigins();
 
-  // Stripe signs the raw request body, so the webhook must be mounted before
-  // any body parser rewrites it — and before sessions, which it does not use.
+  // Stripe and Lob sign the raw request body, so the webhooks are mounted
+  // before any body parser rewrites it — and before sessions, which they do
+  // not use.
   app.use("/api", webhookRouter);
   app.use("/api", lobWebhookRouter);
 
   app.use(
     session({
-      name: "postcards.sid",
+      name: "yiwap.sid",
       secret: env.SESSION_SECRET,
       store: new DrizzleSessionStore(),
       resave: false,
@@ -68,7 +60,7 @@ export function createApp(options: { schedulers?: boolean } = {}): Express {
         httpOnly: true,
         sameSite: "lax",
         secure: isProduction,
-        maxAge: 24 * 60 * 60 * 1000,
+        maxAge: 30 * 24 * 60 * 60 * 1000,
         path: "/",
       },
     }),
@@ -85,20 +77,14 @@ export function createApp(options: { schedulers?: boolean } = {}): Express {
   app.use(siteRouter);
 
   app.use("/api", publicRouter);
-  app.use("/api", designsRouter);
-  app.use("/api", recipientsRouter);
-  app.use("/api", addressRequestsRouter);
-  app.use("/api", replyRouter);
   app.use("/api/account", accountRouter);
+  app.use("/api/studio", studioRouter);
   app.use("/api", checkoutRouter);
-  app.use("/api/cart", cartRouter);
   app.use("/api/admin", adminRouter);
 
   /*
-   * Uploaded imagery: the store's own, and every postcard design's thumbnail
-   * and print file. Filenames are UUIDs, which is what stands between one
-   * buyer's photo and another buyer's browser — the same posture as the
-   * confirmation page's session id.
+   * Uploaded imagery: the platform's own, every artist's avatar, and every
+   * design's thumbnail and print file. Filenames are UUIDs.
    */
   app.use(
     "/assets",

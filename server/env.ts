@@ -50,8 +50,8 @@ const schema = z.object({
    */
   SETUP_TOKEN: z.string().min(16, "SETUP_TOKEN must be at least 16 characters.").optional(),
 
-  /** file:./data/postcards.sqlite for SQLite, postgres://… for Postgres. */
-  DATABASE_URL: z.string().default("file:./data/postcards.sqlite"),
+  /** file:./data/platform.sqlite for SQLite, postgres://… for Postgres. */
+  DATABASE_URL: z.string().default("file:./data/platform.sqlite"),
 
   /** Signs session cookies. Required in production; generated in dev if absent. */
   SESSION_SECRET: z.string().min(32).optional(),

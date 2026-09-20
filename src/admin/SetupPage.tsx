@@ -65,7 +65,7 @@ interface WizardState {
 // Adding a Stripe key means editing `.env` and restarting the API, which is
 // reason enough to reload the tab. sessionStorage survives that reload, so
 // the admin account you already typed on step 1 doesn't vanish for it.
-const WIZARD_STORAGE_KEY = "postcards:setup-wizard";
+const WIZARD_STORAGE_KEY = "yiwap:setup-wizard";
 
 function loadWizardState(): WizardState | null {
   try {
@@ -190,7 +190,7 @@ function SetupWizard() {
                 {submit.data.isAdmin ? "Open the admin" : "Sign in"}
               </Button>,
               <Button key="store" onClick={() => void navigate("/")}>
-                View the storefront
+                View the site
               </Button>,
             ]}
           />
@@ -351,10 +351,10 @@ function IdentityStep({
 
       <Form.Item
         name="storeName"
-        label="Store name"
+        label="Platform name"
         rules={[{ required: true, message: "Your store needs a name." }]}
       >
-        <Input autoFocus={!requiresToken} placeholder="Postcard Gifts" size="large" />
+        <Input autoFocus={!requiresToken} placeholder="Yes I Want A Postcard" size="large" />
       </Form.Item>
 
       <Form.Item

@@ -40,14 +40,14 @@ export class StoreErrorBoundary extends Component<Props, State> {
         // catches before it does — so this fallback needs its own landmark.
         <main id="main">
           <PageWrapper width="prose">
-            <h1>Welcome to Postcards</h1>
+            <h1>Welcome to Yes I Want A Postcard</h1>
             <p>
               This store has not been set up yet. The wizard takes three steps and ends with you
               signed in to the admin.
             </p>
             <p>
               <Button type="primary" href="/setup">
-                Set up this store
+                Set up the platform
               </Button>
             </p>
             <Typography.Paragraph type="secondary">

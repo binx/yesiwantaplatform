@@ -22,7 +22,7 @@ export function getStripe(): Stripe | null {
 
   client ??= new Stripe(env.STRIPE_SECRET_KEY, {
     apiVersion: STRIPE_API_VERSION,
-    appInfo: { name: "Beluga", url: "https://belugajs.com" },
+    appInfo: { name: "Yes I Want A Postcard" },
     // Retry idempotently on network blips rather than failing a checkout.
     maxNetworkRetries: 2,
     timeout: 20_000,

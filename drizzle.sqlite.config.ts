@@ -5,6 +5,6 @@ export default defineConfig({
   schema: "./db/schema.sqlite.ts",
   out: "./db/migrations/sqlite",
   dbCredentials: {
-    url: (process.env.DATABASE_URL ?? "file:./data/postcards.sqlite").replace(/^file:/, ""),
+    url: (process.env.DATABASE_URL ?? "file:./data/platform.sqlite").replace(/^file:/, ""),
   },
 });

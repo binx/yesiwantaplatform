@@ -1,13 +1,16 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Button } from "antd";
+import { Button, Skeleton } from "antd";
 import { formatMoney } from "@shared/money";
-import { DELIVERY_ESTIMATE } from "@shared/copy";
-import { COUNTRY_CODES } from "@shared/countries";
+import { PITCH_LINES } from "@shared/copy";
 import { PageWrapper } from "@/components/layout/PageWrapper";
+import { ArtistTile, GalleryTile } from "@/components/platform/ArtistTile";
+import { useArtists, useGallery } from "@/lib/platform";
 import { useStore } from "@/lib/useStore";
+import { useCustomer } from "@/lib/account";
 import { assetUrl } from "@/lib/store-source";
 import { cx } from "@/lib/cx";
+import platform from "@/components/platform/Platform.module.css";
 import styles from "./LandingPage.module.css";
 
 /**
@@ -32,101 +35,125 @@ function HeroButton({ href, children }: { href: string; children: ReactNode }) {
 }
 
 /**
- * The front page: v1's copy and v1's look, with the parts the admin can
- * edit read from settings. The price is never typed into prose — it is the
- * same setting checkout charges, formatted the same way.
- *
- * The title is v1's wordmark: "postcards" in Sacramento with the three
- * CMYK plates knocked out of register behind it, over a dotted rule. The
- * offset is a text-shadow now rather than four stacked copies of the text,
- * so it is one heading to a screen reader and one line to change.
+ * The front page: yesiwantapostcard.com's pitch, with the artists you can
+ * say yes to under it, and what recently went out in the post. The parts the
+ * operator can edit are read from settings; the price floor is never typed
+ * into prose — it is the same setting the studio enforces.
  */
 export function LandingPage() {
   const store = useStore();
   const hero = store.hero;
-  const price = formatMoney(store.postcardPriceCents, store.currency, store.locale);
-  const internationalPrice =
-    store.internationalPostcardPriceCents != null
-      ? formatMoney(store.internationalPostcardPriceCents, store.currency, store.locale)
-      : null;
-  const image = hero.image ? assetUrl(hero.image.path) : "/hero.jpg";
+  const artists = useArtists();
+  const gallery = useGallery(8);
+  const customer = useCustomer();
+  const floor = formatMoney(store.pricing.minMonthlyPriceCents, store.currency, store.locale);
+  const recent = gallery.data?.pages[0]?.cards ?? [];
+  const featured = (artists.data ?? []).slice(0, 6);
 
   return (
     <>
       <section className={cx(styles.hero)}>
         <div className={styles.heroInner}>
-          <div className={styles.wordmark}>
-            <h1 className={styles.wordmarkText}>{hero.heading ?? "postcards"}</h1>
-          </div>
           <div className={styles.heroCopy}>
-            {hero.text && <p className={styles.heroText}>{hero.text}</p>}
+            <h1 className={styles.wordmark}>
+              <span className={styles.yes}>{hero.heading ?? "yes"}</span>
+              {hero.heading ? null : <span className={styles.rest}>i want a postcard</span>}
+            </h1>
+            <p className={styles.heroText}>{hero.text ?? "an artist would like to send you a postcard."}</p>
             <ul className={styles.points}>
-              <li className={styles.magenta}>
-                <strong>Create and send a postcard for {price}.</strong>
-              </li>
-              <li className={styles.cyan}>
-                <strong>Upload your photos for the postcard designs.</strong> Write a personalized note on the back, too!
-              </li>
-              <li className={styles.magenta}>
-                <strong>Send your cards to multiple addresses.</strong> Share photos with your friends and family!
-              </li>
-              <li className={styles.cyan}>
-                <strong>Schedule how often to send your postcards.</strong> What's the fun in sending everything at once? Set them up to ship every few days, weeks, or months.
-              </li>
+              {PITCH_LINES.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+              <li>from {floor} a month, once a month, straight to your letterbox</li>
             </ul>
-            <HeroButton href={hero.buttonHref ?? "/create"}>
-              {hero.buttonLabel ?? "Let's go, I'm sold already"}
-            </HeroButton>
+            <div className={styles.heroActions}>
+              <HeroButton href={hero.buttonHref ?? "/artists"}>{hero.buttonLabel ?? "YES I WANT A POSTCARD"}</HeroButton>
+              <Link to="#wtf" className={styles.wtf}>
+                WTF?
+              </Link>
+            </div>
           </div>
-          <img
-            className={styles.heroImage}
-            src={image}
-            alt={hero.image?.alt ?? "A stack of printed postcards"}
-            width={hero.image?.width ?? 400}
-            height={hero.image?.height ?? 600}
-            fetchPriority="high"
-          />
+          {hero.image ? (
+            <img className={styles.heroImage} src={assetUrl(hero.image.path)} alt={hero.image.alt} width={hero.image.width} height={hero.image.height} fetchPriority="high" />
+          ) : (
+            <div className={styles.heroCard} aria-hidden>
+              <div className={styles.heroCardFront} />
+              <div className={styles.heroCardBack}>
+                <span className={styles.heroCardLine} />
+                <span className={styles.heroCardLine} />
+                <span className={styles.heroCardStamp} />
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
-      <PageWrapper>
-        <div className={styles.columns}>
-          <section className={styles.column}>
-            <h2 className={styles.script}>Information</h2>
-            <dl className={styles.faq}>
-              <dt>How much do these cost?</dt>
-              <dd>Each postcard costs {price}. No add-ons, no upsells.</dd>
-              <dt>How long do they take to be delivered?</dt>
-              <dd>{DELIVERY_ESTIMATE}</dd>
-              <dt>Where can I send them to?</dt>
-              <dd>
-                {internationalPrice
-                  ? `Anywhere in the United States, and to ${COUNTRY_CODES.length - 1} other countries — international cards cost ${internationalPrice} and take about two weeks longer.`
-                  : "Anywhere in the United States, thanks to the USPS! Apologies to our international customers — we have yet to find a well-priced global postcard printing company."}
-              </dd>
-            </dl>
-          </section>
-          <section className={styles.column}>
-            <h2 className={styles.script}>Inspiration</h2>
-            <p>Why would you want to schedule postcards?</p>
-            <p>
-              Well, the reason I built this site is that my grandmother doesn't have the internet! If I
-              want to share updates about my life, I need to print and mail photos for her. I thought
-              it would be more fun for her to receive a postcard every few days, rather than all of
-              them at once. And thus was born the idea for a postcard batch scheduler!
-            </p>
-          </section>
+      <PageWrapper width="wide">
+        <div className={platform.sectionHeading}>
+          <h2>Artists you can say yes to</h2>
+          <Link to="/artists">All artists</Link>
         </div>
+        {artists.isPending ? (
+          <Skeleton active paragraph={{ rows: 4 }} />
+        ) : featured.length === 0 ? (
+          <p className={platform.empty}>No artists have gone live yet. {customer.data?.artistSlug ? <Link to="/studio">Yours could be first.</Link> : <Link to="/studio/new">Yours could be first.</Link>}</p>
+        ) : (
+          <div className={platform.grid}>
+            {featured.map((artist) => (
+              <ArtistTile key={artist.id} artist={artist} locale={store.locale} />
+            ))}
+          </div>
+        )}
 
-        <p className={styles.cta}>
-          <Link to="/create">
-            <Button type="primary" size="large">
-              Get started on your postcards
-            </Button>
-          </Link>
-        </p>
+        <section id="wtf" className={styles.wtf}>
+          <div className={styles.columns}>
+            <div className={styles.column}>
+              <h2>WTF?</h2>
+              <p>
+                An artist you like takes photos, makes pictures, goes places. Instead of posting them, once a month they mail one to
+                everyone who said yes: a real postcard, with a photo they took on the front and a short note on the back.
+              </p>
+              <p>
+                The postcards you receive are the only documentation of it. Nothing goes online. What will it feel like? Will you and
+                the artist deepen your connection? Say yes and find out.
+              </p>
+            </div>
+            <div className={styles.column}>
+              <h2>How it works</h2>
+              <ol className={styles.steps}>
+                <li>
+                  <strong>Pick an artist.</strong> Each sets their own monthly price.
+                </li>
+                <li>
+                  <strong>Give us your address.</strong> Once. Change it anytime.
+                </li>
+                <li>
+                  <strong>Check your letterbox.</strong> Around the same day each month, a card arrives. Cancel whenever; you won't hurt
+                  anyone's feelings.
+                </li>
+              </ol>
+              <h3>Are you an artist?</h3>
+              <p>
+                Make a page, set a price, queue a card a month. We print it, mail it, and send you the difference after printing and
+                a small fee. <Link to="/studio/new">Open a studio</Link>.
+              </p>
+            </div>
+          </div>
+        </section>
 
-        <img className={styles.table} src="/table.jpg" alt="" width={1600} height={600} loading="lazy" />
+        {recent.length > 0 ? (
+          <>
+            <div className={platform.sectionHeading}>
+              <h2>Recently in the post</h2>
+              <Link to="/gallery">The gallery</Link>
+            </div>
+            <div className={platform.galleryGrid}>
+              {recent.map((card) => (
+                <GalleryTile key={card.mailingId} card={card} locale={store.locale} />
+              ))}
+            </div>
+          </>
+        ) : null}
       </PageWrapper>
     </>
   );

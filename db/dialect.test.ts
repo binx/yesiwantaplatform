@@ -3,7 +3,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { eq } from "drizzle-orm";
 
 /**
  * The same repository assertions against both dialects.
@@ -19,7 +18,7 @@ interface Harness {
 }
 
 function sqliteHarness(): Harness {
-  const directory = mkdtempSync(path.join(tmpdir(), "postcards-sqlite-"));
+  const directory = mkdtempSync(path.join(tmpdir(), "yiwap-sqlite-"));
   return {
     databaseUrl: `file:${path.join(directory, "test.sqlite")}`,
     cleanup: () => {
@@ -32,14 +31,14 @@ function sqliteHarness(): Harness {
 async function postgresHarness(): Promise<Harness | null> {
   try {
     const { default: EmbeddedPostgres } = await import("embedded-postgres");
-    const directory = mkdtempSync(path.join(tmpdir(), "postcards-pg-"));
+    const directory = mkdtempSync(path.join(tmpdir(), "yiwap-pg-"));
     const port = 54329;
-    const pg = new EmbeddedPostgres({ databaseDir: path.join(directory, "data"), user: "postcards", password: "postcards", port, persistent: false });
+    const pg = new EmbeddedPostgres({ databaseDir: path.join(directory, "data"), user: "yiwap", password: "yiwap", port, persistent: false });
     await pg.initialise();
     await pg.start();
-    await pg.createDatabase("postcards_test");
+    await pg.createDatabase("yiwap_test");
     return {
-      databaseUrl: `postgres://postcards:postcards@localhost:${port}/postcards_test`,
+      databaseUrl: `postgres://yiwap:yiwap@localhost:${port}/yiwap_test`,
       cleanup: async () => {
         await pg.stop();
         rmSync(directory, { recursive: true, force: true });
@@ -59,21 +58,25 @@ async function loadWith(databaseUrl: string) {
   const { seedIfEmpty } = await import("./seed.js");
   const repository = await import("./repository.js");
   const admin = await import("./admin-repository.js");
-  const orders = await import("./orders-repository.js");
+  const artists = await import("./artists-repository.js");
   const designs = await import("./designs-repository.js");
+  const subscriptions = await import("./subscriptions-repository.js");
+  const mailings = await import("./mailings-repository.js");
+  const postcards = await import("./postcards-repository.js");
+  const orders = await import("./orders-repository.js");
+  const payouts = await import("./payouts-repository.js");
   const pages = await import("./pages-repository.js");
-  const carts = await import("./carts-repository.js");
   const customers = await import("./customers-repository.js");
-  const requests = await import("./address-requests-repository.js");
+  const auth = await import("../server/auth.js");
   const { getDatabase, resetDatabase } = await import("./client.js");
 
   await runMigrations();
   await seedIfEmpty();
 
-  return { ...repository, admin, orders, designs, pages, carts, customers, requests, getDatabase, resetDatabase };
+  return { ...repository, admin, artists, designs, subscriptions, mailings, postcards, orders, payouts, pages, customers, auth, getDatabase, resetDatabase };
 }
 
-const RECIPIENT = { name: "Grandma", line1: "1 Test Street", line2: null, city: "Marfa", state: "TX", postalCode: "79843", country: "US" };
+const ADDRESS = { name: "Grandma", line1: "1 Test Street", line2: null, city: "Marfa", state: "TX", postalCode: "79843", country: "US" };
 
 const dialects = [
   { name: "sqlite", context: sqliteHarness() },
@@ -93,11 +96,21 @@ for (const { name, context } of dialects) {
       await context?.cleanup();
     });
 
-    async function design() {
+    async function customer(name = "Someone") {
+      const id = await db.auth.createCustomer(`${randomUUID()}@example.com`, "a-sufficiently-long-password", name);
+      return id;
+    }
+
+    async function artist(slug = `artist-${randomUUID().slice(0, 8)}`) {
+      const owner = await customer("Rachel");
+      return db.artists.createArtist(owner, { slug, name: "Rachel", tagline: "photos from the road", bio: "# Hello", monthlyPriceCents: 500, sendDay: 15, avatar: null });
+    }
+
+    async function design(artistId: string) {
       return db.designs.createDesign({
-        customerId: null,
+        artistId,
         orientation: "portrait",
-        printPath: "designs/x/print.png",
+        printPath: `designs/${randomUUID()}/print.png`,
         thumbnailPath: "designs/x/thumb.webp",
         thumbnailWidth: 400,
         thumbnailHeight: 588,
@@ -105,311 +118,235 @@ for (const { name, context } of dialects) {
       });
     }
 
-    it("returns a schema-valid store snapshot with the price", async () => {
+    async function activeSubscription(artistId: string, address = ADDRESS) {
+      const who = await customer(address.name);
+      const id = db.subscriptions.newSubscriptionId();
+      await db.subscriptions.createIncompleteSubscription({ id, customerId: who, artistId, checkoutSessionId: `cs_${id}`, priceCents: 500, currency: "USD", address });
+      await db.subscriptions.activateSubscription(id, { stripeSubscriptionId: `sub_${id}`, currentPeriodEnd: Date.now() + 30 * 86_400_000 });
+      return (await db.subscriptions.getSubscription(id))!;
+    }
+
+    it("returns a schema-valid snapshot with the pricing", async () => {
       const store = await db.getStoreSnapshot();
-      expect(store?.postcardPriceCents).toBe(140);
+      expect(store?.pricing).toEqual({ printCostCents: 120, platformFeeCents: 60, minMonthlyPriceCents: 300 });
       expect(store?.pages).toEqual([]);
     });
 
-    it("round-trips settings, the hero and the price", async () => {
+    it("round-trips settings, the hero, the pricing and the return address", async () => {
       const settings = (await db.getSettings())!;
+      const returnAddress = { name: "Yes I Want A Postcard", line1: "185 Berry St", line2: null, city: "San Francisco", state: "CA", postalCode: "94107", country: "US" };
       await db.admin.updateSettings({
         ...settings,
-        postcardPriceCents: 175,
-        hero: { heading: "Hello", text: null, buttonLabel: null, buttonHref: "/create", image: null },
+        pricing: { printCostCents: 150, platformFeeCents: 75, minMonthlyPriceCents: 400 },
+        returnAddress,
+        hero: { heading: "Hello", text: null, buttonLabel: null, buttonHref: "/artists", image: null },
       });
-      const updated = await db.getSettings();
-      expect(updated?.postcardPriceCents).toBe(175);
-      expect(updated?.hero.heading).toBe("Hello");
-      expect(updated?.hero.buttonHref).toBe("/create");
+      const updated = (await db.getSettings())!;
+      expect(updated.pricing).toEqual({ printCostCents: 150, platformFeeCents: 75, minMonthlyPriceCents: 400 });
+      expect(updated.returnAddress).toEqual(returnAddress);
+      expect(updated.hero.heading).toBe("Hello");
+      expect(updated.hero.buttonHref).toBe("/artists");
+
+      await db.admin.updateSettings({ ...settings, returnAddress: null });
+      expect((await db.getSettings())?.returnAddress).toBeNull();
+    });
+
+    it("creates an artist once per customer and refuses a taken slug", async () => {
+      const a = await artist("first-artist");
+      expect(a.status).toBe("draft");
+      expect(a.payoutsEnabled).toBe(false);
+      expect(await db.artists.findArtistBySlug("first-artist")).toMatchObject({ id: a.id });
+      expect(await db.artists.slugIsTaken("first-artist")).toBe(true);
+      expect(await db.artists.slugIsTaken("first-artist", a.id)).toBe(false);
+
+      await expect(artist("first-artist")).rejects.toThrow(/already in use/);
+
+      await db.artists.setArtistStripeAccount(a.id, "acct_1", true);
+      expect((await db.artists.findArtistByStripeAccount("acct_1"))?.payoutsEnabled).toBe(true);
+      expect(await db.artists.setArtistStatus(a.id, "live")).toBe(true);
+      expect((await db.artists.listArtists({ status: "live" })).artists.map((x) => x.id)).toContain(a.id);
     });
 
     it("round-trips a design's JSON back on either engine", async () => {
-      const created = await design();
+      const a = await artist();
+      const created = await design(a.id);
       const found = await db.designs.getDesign(created.id);
       expect(found?.back).toEqual({ text: "Hi", valediction: "Love", fontName: "Sacramento", fontSize: 16, fontColor: "#112233" });
       expect(found?.orientation).toBe("portrait");
       expect(db.designs.toPublicDesign(found!).thumbnail.path).toBe("designs/x/thumb.webp");
+      expect(await db.designs.getDesignForArtist(created.id, randomUUID())).toBeNull();
+      expect(await db.designs.designIsUsed(created.id)).toBe(false);
     });
 
-    it("writes one postcard per design per recipient, and schedules them on payment", async () => {
-      const a = await design();
-      const b = await design();
-      const orderId = randomUUID();
-      await db.orders.createPendingOrder({
-        id: orderId,
-        checkoutSessionId: `cs_${orderId}`,
-        email: "buyer@example.com",
-        currency: "USD",
-        unitPriceCents: 140,
-        lines: [
-          { designs: [{ designId: a.id, mailDate: "2026-10-01" }, { designId: b.id, mailDate: "2026-10-08" }], recipients: [RECIPIENT, { ...RECIPIENT, name: "Grandpa" }] },
-          { designs: [{ designId: a.id, mailDate: "2026-11-01" }], recipients: [RECIPIENT], replyTo: null, replyToName: null },
-        ],
-      });
+    it("keeps a subscription's address as JSON and only activates an incomplete one", async () => {
+      const a = await artist();
+      const who = await customer("Maya");
+      const id = db.subscriptions.newSubscriptionId();
+      await db.subscriptions.createIncompleteSubscription({ id, customerId: who, artistId: a.id, checkoutSessionId: `cs_${id}`, priceCents: 500, currency: "USD", address: ADDRESS });
+      expect(await db.subscriptions.findOpenSubscription(who, a.id)).toBeNull();
 
-      let order = (await db.orders.getOrder(orderId))!;
-      expect(order.postcardCount).toBe(5);
-      expect(order.subtotalCents).toBe(700);
-      expect(order.postcards).toHaveLength(5);
-      expect(order.designs.map((d) => d.id).sort()).toEqual([a.id, b.id].sort());
-      expect(order.postcards.map((p) => p.batchIndex)).toEqual([0, 0, 0, 0, 1]);
+      expect(await db.subscriptions.activateSubscription(id, { stripeSubscriptionId: "sub_a", currentPeriodEnd: 1_800_000_000_000 })).toBe(true);
+      expect(await db.subscriptions.activateSubscription(id, { stripeSubscriptionId: "sub_b", currentPeriodEnd: null })).toBe(false);
 
-      await db.orders.markOrderPaid(orderId, { paymentIntentId: "pi_1", email: "buyer@example.com", subtotalCents: 700, discountCents: 0, totalCents: 700, currency: "USD" });
-      order = (await db.orders.getOrder(orderId))!;
-      expect(order.status).toBe("paid");
-      expect(order.postcards.every((p) => p.status === "scheduled")).toBe(true);
+      const found = (await db.subscriptions.findSubscriptionByStripeId("sub_a"))!;
+      expect(found).toMatchObject({ id, status: "active", currentPeriodEnd: 1_800_000_000_000, cancelAtPeriodEnd: false, address: ADDRESS });
+      expect(await db.subscriptions.findOpenSubscription(who, a.id)).toMatchObject({ id });
 
-      // Due on the 8th: the first batch's two cards for design b only.
-      const due = await db.orders.findDuePostcards("2026-10-08", 50);
-      expect(due.filter((row) => row.orderId === orderId)).toHaveLength(4);
-      expect(await db.orders.claimPostcard(due[0]!.id)).toBe(true);
-      expect(await db.orders.claimPostcard(due[0]!.id)).toBe(false);
+      await db.subscriptions.syncSubscription(id, { status: "past_due", currentPeriodEnd: null, cancelAtPeriodEnd: true });
+      expect((await db.subscriptions.getSubscription(id))).toMatchObject({ status: "past_due", cancelAtPeriodEnd: true });
 
-      await db.orders.markPostcardSent(due[0]!.id, { id: "psc_1", url: null, expectedDeliveryDate: "2026-10-14" });
-      order = (await db.orders.getOrder(orderId))!;
-      const sent = order.postcards.find((p) => p.id === due[0]!.id)!;
+      const moved = { ...ADDRESS, line1: "9 New Road" };
+      expect(await db.subscriptions.updateSubscriptionAddresses(who, moved)).toBe(1);
+      expect((await db.subscriptions.getSubscription(id))?.address.line1).toBe("9 New Road");
+
+      await db.subscriptions.syncSubscription(id, { status: "cancelled", currentPeriodEnd: null, cancelAtPeriodEnd: false });
+      expect((await db.subscriptions.getSubscription(id))?.cancelledAt).toBeTypeOf("number");
+      expect(await db.subscriptions.listActiveSubscriptionsForArtist(a.id)).toHaveLength(0);
+    });
+
+    it("queues one mailing a month, materialises a card per active subscriber, and sends it", async () => {
+      const a = await artist();
+      const d = await design(a.id);
+      const grandma = await activeSubscription(a.id);
+      const grandpa = await activeSubscription(a.id, { ...ADDRESS, name: "Grandpa" });
+      // A paused-out subscriber gets nothing.
+      const lapsed = await activeSubscription(a.id, { ...ADDRESS, name: "Lapsed" });
+      await db.subscriptions.syncSubscription(lapsed.id, { status: "past_due", currentPeriodEnd: null, cancelAtPeriodEnd: false });
+
+      const mailing = await db.mailings.createMailing({ artistId: a.id, designId: d.id, mailDate: "2026-10-15", title: "October", inGallery: true });
+      expect(mailing.period).toBe("2026-10");
+      await expect(db.mailings.createMailing({ artistId: a.id, designId: d.id, mailDate: "2026-10-20", title: null, inGallery: true })).rejects.toThrow(/already scheduled/);
+      expect(await db.mailings.takenMailDates(a.id)).toEqual(["2026-10-15"]);
+      expect(await db.designs.designIsUsed(d.id)).toBe(true);
+
+      expect((await db.mailings.findDueMailings("2026-10-14", 10)).map((m) => m.id)).not.toContain(mailing.id);
+      expect((await db.mailings.findDueMailings("2026-10-15", 10)).map((m) => m.id)).toContain(mailing.id);
+
+      const active = await db.subscriptions.listActiveSubscriptionsForArtist(a.id);
+      expect(active.map((s) => s.id).sort()).toEqual([grandma.id, grandpa.id].sort());
+      expect(await db.postcards.materialisePostcards(mailing, active)).toBe(2);
+      // Idempotent: a second sweep writes nothing new.
+      expect(await db.postcards.materialisePostcards(mailing, active)).toBe(0);
+      expect(await db.mailings.markMailingMailed(mailing.id, active.length)).toBe(true);
+      expect(await db.mailings.markMailingMailed(mailing.id, active.length)).toBe(false);
+      expect(await db.designs.designIsMailed(d.id)).toBe(true);
+
+      const cards = await db.postcards.listPostcardsForMailing(mailing.id);
+      expect(cards.map((c) => c.recipient.name)).toEqual(["Grandma", "Grandpa"]);
+      expect(cards.every((c) => c.status === "scheduled" && c.mailDate === "2026-10-15")).toBe(true);
+
+      const due = await db.postcards.findDuePostcards("2026-10-15", 50);
+      const first = due.find((row) => row.mailingId === mailing.id)!;
+      expect(await db.postcards.claimPostcard(first.id)).toBe(true);
+      expect(await db.postcards.claimPostcard(first.id)).toBe(false);
+
+      await db.postcards.markPostcardSent(first.id, { id: "psc_1", url: null, expectedDeliveryDate: "2026-10-20" });
+      const sent = (await db.postcards.getPostcard(first.id))!;
       expect(sent.status).toBe("sent");
       expect(sent.sentAt).toBeTypeOf("number");
-      expect(await db.orders.completeOrderIfDone(orderId)).toBe(false);
 
-      expect(await db.orders.cancelOrder(orderId)).toBe(4);
-      order = (await db.orders.getOrder(orderId))!;
-      expect(order.status).toBe("cancelled");
-      expect(order.postcards.filter((p) => p.status === "cancelled")).toHaveLength(4);
-    });
+      const counts = (await db.mailings.countPostcardsByMailing([mailing.id])).get(mailing.id);
+      expect(counts).toEqual({ scheduled: 1, sent: 1, error: 0, cancelled: 0 });
+      expect((await db.artists.countForArtists([a.id])).get(a.id)).toEqual({ subscribers: 2, mailed: 1 });
+      expect((await db.artists.latestMailedDesignIds([a.id])).get(a.id)).toBe(d.id);
 
-    it("records when a saved recipient was verified, and forgets it on edit", async () => {
-      const { drizzle, schema } = await db.getDatabase();
-      const customerId = randomUUID();
-      await drizzle.insert(schema.customers).values({ id: customerId, email: `${customerId}@example.com`, passwordHash: null, name: null });
+      // The subscriber sees their card; the gallery shows the mailing.
+      const received = await db.postcards.listPostcardsForCustomer(grandma.customerId);
+      expect(received.map((c) => c.mailingId)).toEqual([mailing.id]);
+      expect((await db.mailings.listGalleryMailings({ limit: 10 })).mailings.map((m) => m.id)).toContain(mailing.id);
 
-      const verified = await db.customers.createAddress(customerId, RECIPIENT, { verified: true });
-      const plain = await db.customers.createAddress(customerId, { ...RECIPIENT, name: "Grandpa" });
-      expect(typeof verified.verifiedAt).toBe("number");
-      expect(plain.verifiedAt).toBeNull();
-
-      const listed = await db.customers.listAddresses(customerId);
-      expect(listed.find((a) => a.id === verified.id)?.verifiedAt).toBeTypeOf("number");
-      expect(listed.find((a) => a.id === plain.id)?.verifiedAt).toBeNull();
-
-      const edited = await db.customers.updateAddress(verified.id, customerId, { ...RECIPIENT, line1: "2 Test Street" });
-      expect(edited.verifiedAt).toBeNull();
-      expect((await db.customers.listAddresses(customerId)).find((a) => a.id === verified.id)?.verifiedAt).toBeNull();
-    });
-
-    it("round-trips the international price and the return address, on either engine", async () => {
-      const settings = (await db.getSettings())!;
-      const returnAddress = { name: "Postcard Gifts", line1: "185 Berry St", line2: null, city: "San Francisco", state: "CA", postalCode: "94107", country: "US" };
-      await db.admin.updateSettings({ ...settings, internationalPostcardPriceCents: 250, returnAddress });
-      const updated = (await db.getSettings())!;
-      expect(updated.internationalPostcardPriceCents).toBe(250);
-      expect(updated.returnAddress).toEqual(returnAddress);
-      expect((await db.getStoreSnapshot())?.internationalPostcardPriceCents).toBe(250);
-
-      await db.admin.updateSettings({ ...settings, internationalPostcardPriceCents: null, returnAddress: null });
-      expect((await db.getSettings())?.returnAddress).toBeNull();
-    });
-
-    it("keeps a recipient's country on the postcard, and the second price on the order", async () => {
-      const a = await design();
-      const orderId = randomUUID();
-      const abroad = { ...RECIPIENT, name: "Maya", state: "QC", postalCode: "H2X 1K4", country: "CA" };
-      await db.orders.createPendingOrder({
-        id: orderId,
-        checkoutSessionId: `cs_${orderId}`,
-        email: "buyer@example.com",
-        currency: "USD",
-        unitPriceCents: 140,
-        internationalUnitPriceCents: 250,
-        lines: [{ designs: [{ designId: a.id, mailDate: "2026-09-14" }], recipients: [RECIPIENT, abroad] }],
-      });
-      const order = (await db.orders.getOrder(orderId))!;
-      expect(order.internationalCount).toBe(1);
-      expect(order.internationalUnitPriceCents).toBe(250);
-      expect(order.subtotalCents).toBe(390);
-      expect(order.postcards.map((p) => p.recipient.country).sort()).toEqual(["CA", "US"]);
+      // A queued one can be withdrawn and the month reused; a mailed one cannot.
+      expect(await db.mailings.cancelQueuedMailing(mailing.id, a.id)).toBe(false);
+      const next = await db.mailings.createMailing({ artistId: a.id, designId: d.id, mailDate: "2026-11-15", title: null, inGallery: false });
+      expect(await db.mailings.cancelQueuedMailing(next.id, randomUUID())).toBe(false);
+      expect(await db.mailings.cancelQueuedMailing(next.id, a.id)).toBe(true);
+      const again = await db.mailings.createMailing({ artistId: a.id, designId: d.id, mailDate: "2026-11-01", title: null, inGallery: false });
+      expect(again.period).toBe("2026-11");
     });
 
     it("keeps tracking events per card and moves the status only forward, on either engine", async () => {
-      const a = await design();
-      const orderId = randomUUID();
-      await db.orders.createPendingOrder({
-        id: orderId,
-        checkoutSessionId: `cs_${orderId}`,
-        email: "buyer@example.com",
-        currency: "USD",
-        unitPriceCents: 140,
-        lines: [{ designs: [{ designId: a.id, mailDate: "2026-09-14" }], recipients: [RECIPIENT], replyTo: null, replyToName: null }],
-      });
-      const card = (await db.orders.getOrder(orderId))!.postcards[0]!;
+      const a = await artist();
+      const d = await design(a.id);
+      const sub = await activeSubscription(a.id);
+      const mailing = await db.mailings.createMailing({ artistId: a.id, designId: d.id, mailDate: "2026-09-14", title: null, inGallery: true });
+      await db.postcards.materialisePostcards(mailing, [sub]);
+      const card = (await db.postcards.listPostcardsForMailing(mailing.id))[0]!;
 
-      expect(await db.orders.recordTrackingEvent(card.id, { id: `evt_${orderId}_2`, type: "postcard.delivered", occurredAt: Date.parse("2026-09-18T15:00:00Z"), location: null })).toBe(true);
-      expect(await db.orders.recordTrackingEvent(card.id, { id: `evt_${orderId}_1`, type: "postcard.in_transit", occurredAt: Date.parse("2026-09-15T10:00:00Z"), location: "MARFA TX" })).toBe(true);
-      expect(await db.orders.recordTrackingEvent(card.id, { id: `evt_${orderId}_1`, type: "postcard.in_transit", occurredAt: Date.parse("2026-09-15T10:00:00Z"), location: "MARFA TX" })).toBe(false);
-      expect(await db.orders.recordTrackingEvent(card.id, { id: `evt_${orderId}_3`, type: "postcard.rendered_pdf", occurredAt: Date.parse("2026-09-19T10:00:00Z"), location: null })).toBe(true);
+      expect(await db.postcards.recordTrackingEvent(card.id, { id: `evt_${mailing.id}_2`, type: "postcard.delivered", occurredAt: Date.parse("2026-09-18T15:00:00Z"), location: null })).toBe(true);
+      expect(await db.postcards.recordTrackingEvent(card.id, { id: `evt_${mailing.id}_1`, type: "postcard.in_transit", occurredAt: Date.parse("2026-09-15T10:00:00Z"), location: "MARFA TX" })).toBe(true);
+      expect(await db.postcards.recordTrackingEvent(card.id, { id: `evt_${mailing.id}_1`, type: "postcard.in_transit", occurredAt: Date.parse("2026-09-15T10:00:00Z"), location: "MARFA TX" })).toBe(false);
+      expect(await db.postcards.recordTrackingEvent(card.id, { id: `evt_${mailing.id}_3`, type: "postcard.rendered_pdf", occurredAt: Date.parse("2026-09-19T10:00:00Z"), location: null })).toBe(true);
 
-      const tracked = (await db.orders.getOrder(orderId))!.postcards[0]!;
+      const tracked = (await db.postcards.getPostcard(card.id))!;
       expect(tracked.trackingStatus).toBe("postcard.delivered");
       expect(tracked.tracking).toEqual([
         { type: "postcard.in_transit", occurredAt: Date.parse("2026-09-15T10:00:00Z"), location: "MARFA TX" },
         { type: "postcard.delivered", occurredAt: Date.parse("2026-09-18T15:00:00Z"), location: null },
       ]);
-      expect(await db.orders.findPostcardForTracking(card.id, null)).toMatchObject({ id: card.id });
-      expect(await db.orders.findPostcardForTracking(null, "psc_nope")).toBeNull();
+      expect(await db.postcards.findPostcardForTracking(card.id, null)).toMatchObject({ id: card.id });
+      expect(await db.postcards.findPostcardForTracking(null, "psc_nope")).toBeNull();
+
+      // Withdraw, retry, cancel.
+      expect(await db.postcards.cancelPostcard(card.id)).toBe(true);
+      expect(await db.postcards.cancelPostcard(card.id)).toBe(false);
+      expect(await db.postcards.requeuePostcard(card.id)).toBe(true);
+      expect((await db.postcards.getPostcard(card.id))?.status).toBe("scheduled");
     });
 
-    it("gives each card a unique reply code, and keeps a reply address, on either engine", async () => {
-      const a = await design();
-      const orderId = randomUUID();
-      const { createCustomer } = await import("../server/auth.js");
-      const customerId = await createCustomer(`reply-${orderId}@example.com`, "a-sufficiently-long-password", "Rachel");
-      await db.orders.createPendingOrder({
-        id: orderId,
-        checkoutSessionId: `cs_${orderId}`,
-        email: "buyer@example.com",
-        currency: "USD",
-        unitPriceCents: 140,
-        customerId,
-        lines: [
-          { designs: [{ designId: a.id, mailDate: "2026-09-14" }], recipients: [RECIPIENT, { ...RECIPIENT, name: "Grandpa" }], replyTo: null, replyToName: null },
-          { designs: [{ designId: a.id, mailDate: "2026-09-21" }], recipients: [RECIPIENT], replyTo: null, replyToName: null },
-        ],
-      });
-      const cards = (await db.orders.getOrder(orderId))!.postcards;
-      const codes = cards.map((c) => c.replyCode);
-      expect(codes.every(Boolean)).toBe(true);
-      expect(new Set(codes).size).toBe(3);
+    it("writes one ledger row per sent card, sums it, and pays it out once", async () => {
+      const a = await artist();
+      const d = await design(a.id);
+      const sub = await activeSubscription(a.id);
+      const mailing = await db.mailings.createMailing({ artistId: a.id, designId: d.id, mailDate: "2026-09-14", title: null, inGallery: true });
+      await db.postcards.materialisePostcards(mailing, [sub]);
+      const card = (await db.postcards.listPostcardsForMailing(mailing.id))[0]!;
 
-      const code = codes[0]!;
-      const found = await db.orders.findPostcardByReplyCode(code);
-      expect(found).toMatchObject({ postcard: { id: cards[0]!.id }, order: { id: orderId, customerId } });
-      expect(await db.orders.findPostcardByReplyCode("NOTACODE")).toBeNull();
+      const earning = { artistId: a.id, postcardId: card.id, mailingId: mailing.id, grossCents: 500, printCostCents: 120, platformFeeCents: 60, amountCents: 320, currency: "USD" };
+      expect(await db.payouts.recordEarning(earning)).toBe(true);
+      expect(await db.payouts.recordEarning(earning)).toBe(false);
+      expect(await db.payouts.sumEarningsForArtist(a.id)).toEqual({ pendingCents: 320, paidCents: 0 });
 
-      expect(await db.orders.disableReplyLink(orderId, cards[0]!.id, "someone-else")).toBe(false);
-      expect(await db.orders.disableReplyLink(orderId, cards[0]!.id, customerId)).toBe(true);
-      expect((await db.orders.getOrder(orderId))!.postcards[0]!.replyCode).toBeNull();
-      expect((await db.orders.findPostcardByReplyCode(code))?.postcard.replyDisabledAt).not.toBeNull();
+      // Not payable until the artist's account is.
+      expect((await db.payouts.findPayablePayouts(10)).map((p) => p.artistId)).not.toContain(a.id);
+      await db.artists.setArtistStripeAccount(a.id, `acct_${a.id}`, true);
+      const [payable] = (await db.payouts.findPayablePayouts(10)).filter((p) => p.artistId === a.id);
+      expect(payable).toMatchObject({ postcardId: card.id, amountCents: 320, status: "pending" });
 
-      await db.customers.setReplySettings(customerId, { displayName: "Rachel", address: RECIPIENT });
-      expect(await db.customers.getReplySettings(customerId)).toEqual({ displayName: "Rachel", address: RECIPIENT });
-      await db.customers.clearReplySettings(customerId);
-      expect(await db.customers.getReplySettings(customerId)).toEqual({ displayName: null, address: null });
+      expect(await db.payouts.claimPayout(payable!.id)).toBe(true);
+      expect(await db.payouts.claimPayout(payable!.id)).toBe(false);
+      await db.payouts.markPayoutPaid(payable!.id, "tr_1");
+      expect(await db.payouts.sumEarningsForArtist(a.id)).toEqual({ pendingCents: 0, paidCents: 320 });
+      expect((await db.payouts.getPayout(payable!.id))).toMatchObject({ status: "paid", stripeTransferId: "tr_1", paidAt: expect.any(Number) });
+
+      await db.payouts.markPayoutFailed(payable!.id, "no", "failed");
+      expect(await db.payouts.requeuePayout(payable!.id)).toBe(true);
+      expect((await db.payouts.getPayout(payable!.id))?.status).toBe("pending");
     });
 
-    it("keeps the address book's label, tags, birthday and notes, on either engine", async () => {
-      const { drizzle, schema } = await db.getDatabase();
-      const customerId = randomUUID();
-      await drizzle.insert(schema.customers).values({ id: customerId, email: `${customerId}@example.com`, passwordHash: null, name: null });
+    it("records a paid invoice once and a refund additively", async () => {
+      const a = await artist();
+      const sub = await activeSubscription(a.id);
+      const input = { subscriptionId: sub.id, customerId: sub.customerId, artistId: a.id, stripeInvoiceId: `in_${sub.id}`, stripePaymentIntentId: `pi_${sub.id}`, amountCents: 500, currency: "USD", periodStart: 1_700_000_000_000, periodEnd: 1_702_600_000_000 };
+      expect(await db.orders.recordPaidInvoice(input)).toBe(true);
+      expect(await db.orders.recordPaidInvoice(input)).toBe(false);
 
-      const saved = await db.customers.createAddress(
-        customerId,
-        { ...RECIPIENT, label: "Mom", tags: ["family", "holiday"], birthday: "10-14", notes: "Likes the beach ones." },
-        { source: "manual" },
-      );
-      const listed = (await db.customers.listAddresses(customerId)).find((a) => a.id === saved.id)!;
-      expect(listed).toMatchObject({ label: "Mom", tags: ["family", "holiday"], birthday: "10-14", notes: "Likes the beach ones.", source: "manual", lastSentAt: null });
+      const order = (await db.orders.findOrderByPaymentIntent(`pi_${sub.id}`))!;
+      expect(order).toMatchObject({ amountCents: 500, refundedCents: 0, status: "paid", periodStart: 1_700_000_000_000 });
+      await db.orders.recordRefund(order.id, 200, false);
+      await db.orders.recordRefund(order.id, 300, true);
+      expect(await db.orders.findOrderByPaymentIntent(`pi_${sub.id}`)).toMatchObject({ refundedCents: 500, status: "refunded" });
+      expect((await db.orders.listOrdersForCustomer(sub.customerId)).map((o) => o.id)).toEqual([order.id]);
+      expect(await db.orders.sumRevenueCents()).toBeGreaterThanOrEqual(0);
     });
 
-    it("updates 'last sent' for a known address and keeps a namesake's new address beside the old", async () => {
-      const { drizzle, schema } = await db.getDatabase();
-      const customerId = randomUUID();
-      await drizzle.insert(schema.customers).values({ id: customerId, email: `${customerId}@example.com`, passwordHash: null, name: null });
-      const grandma = { ...RECIPIENT, label: null, tags: [], birthday: null, notes: null };
-
-      expect(await db.customers.saveRecipientsFromOrder(customerId, [grandma])).toBe(1);
-      const first = (await db.customers.listAddresses(customerId))[0]!;
-      expect(first.source).toBe("order");
-      expect(first.lastSentAt).toBeTypeOf("number");
-
-      await db.customers.updateAddress(first.id, customerId, { ...grandma, label: "Grandma B" });
-      expect(await db.customers.saveRecipientsFromOrder(customerId, [grandma])).toBe(0);
-      const again = await db.customers.listAddresses(customerId);
-      expect(again).toHaveLength(1);
-      expect(again[0]?.label).toBe("Grandma B");
-
-      // She moved: two entries, the label carried over, nothing guessed.
-      expect(await db.customers.saveRecipientsFromOrder(customerId, [{ ...grandma, line1: "9 New Road" }])).toBe(1);
-      const both = await db.customers.listAddresses(customerId);
-      expect(both).toHaveLength(2);
-      expect(both.every((a) => a.label === "Grandma B")).toBe(true);
-    });
-
-    it("mints, answers, fulfils and expires address requests, on either engine", async () => {
-      const { drizzle, schema } = await db.getDatabase();
-      const customerId = randomUUID();
-      await drizzle.insert(schema.customers).values({ id: customerId, email: `${customerId}@example.com`, passwordHash: null, name: "Rachel" });
-
-      const single = await db.requests.createAddressRequest(customerId, { label: "Maya", multi: false, notifyByEmail: true, expiresInDays: 90 });
-      expect(single.token).toHaveLength(43);
-      expect(single.status).toBe("open");
-
-      const found = (await db.requests.findAddressRequestByToken(single.token))!;
-      expect(found.requester).toEqual({ id: customerId, email: `${customerId}@example.com`, name: "Rachel" });
-
-      const saved = await db.requests.recordAddressResponse(found.request, RECIPIENT, { verified: true });
-      expect(saved).toMatchObject({ label: "Maya", source: "request", verifiedAt: expect.any(Number) });
-      const fulfilled = (await db.requests.findAddressRequestByToken(single.token))!.request;
-      expect(fulfilled).toMatchObject({ status: "fulfilled", responses: 1 });
-      await expect(db.requests.recordAddressResponse(fulfilled, RECIPIENT, { verified: false })).rejects.toThrow(/already been used/);
-
-      const short = await db.requests.createAddressRequest(customerId, { label: "Sam", multi: true, notifyByEmail: false, expiresInDays: 1 });
-      const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      await drizzle
-        .update(schema.addressRequests)
-        .set({ expiresAt: (db.getDatabase && (await db.getDatabase()).dialect === "pg" ? past : Math.floor(past.getTime() / 1000)) as never })
-        .where(eq(schema.addressRequests.id, short.id));
-      expect((await db.requests.listAddressRequests(customerId)).find((r) => r.id === short.id)?.status).toBe("expired");
-      expect((await db.requests.renewAddressRequest(short.id, customerId))?.status).toBe("open");
-      expect(await db.requests.revokeAddressRequest(short.id, customerId)).toBe(true);
-      expect((await db.requests.renewAddressRequest(short.id, customerId))?.status).toBe("revoked");
-    });
-
-    it("lists a customer's designs newest first with counts, pages by cursor, and claims a guest's designs with their orders", async () => {
-      const { drizzle, schema } = await db.getDatabase();
-      const customerId = randomUUID();
-      const email = `${customerId}@example.com`;
-      await drizzle.insert(schema.customers).values({ id: customerId, email, passwordHash: null, name: "Rachel" });
-
-      // A guest order with one design, later claimed.
-      const guestDesign = await design();
-      const orderId = randomUUID();
-      await db.orders.createPendingOrder({
-        id: orderId,
-        checkoutSessionId: `cs_${orderId}`,
-        email,
-        currency: "USD",
-        unitPriceCents: 140,
-        lines: [{ designs: [{ designId: guestDesign.id, mailDate: "2026-09-14" }], recipients: [RECIPIENT, { ...RECIPIENT, name: "Grandpa" }] }],
-      });
-      await db.orders.markOrderPaid(orderId, { paymentIntentId: null, email, subtotalCents: 280, discountCents: 0, totalCents: 280, currency: "USD" });
-      await db.designs.attachDesignsToOrder([guestDesign.id], orderId);
-      expect(await db.orders.claimOrdersForCustomer(customerId, email)).toBe(1);
-      expect((await db.designs.getDesign(guestDesign.id))?.customerId).toBe(customerId);
-
-      // Two drafts of their own, made afterwards.
-      const draftA = await db.designs.createDesign({ customerId, orientation: "portrait", printPath: "designs/a/print.png", thumbnailPath: "designs/a/thumb.webp", thumbnailWidth: 400, thumbnailHeight: 588, back: { text: "A", valediction: "", fontName: "Quicksand", fontSize: 20, fontColor: "#000000" } });
-      const copy = await db.designs.createDesign({ customerId, originId: guestDesign.id, orientation: "portrait", printPath: "designs/c/print.png", thumbnailPath: "designs/c/thumb.webp", thumbnailWidth: 400, thumbnailHeight: 588, back: guestDesign.back });
-
-      const first = await db.designs.listDesignsForCustomer(customerId, { limit: 2 });
-      expect(first.designs).toHaveLength(2);
-      expect(first.nextCursor).not.toBeNull();
-      const second = await db.designs.listDesignsForCustomer(customerId, { limit: 2, cursor: first.nextCursor! });
-      expect(second.nextCursor).toBeNull();
-      const all = [...first.designs, ...second.designs];
-      expect(all.map((d) => d.id)).toContain(draftA.id);
-      const ordered = all.find((d) => d.id === guestDesign.id)!;
-      expect(ordered.postcards).toMatchObject({ total: 2, scheduled: 2, sent: 0, firstMailDate: "2026-09-14", lastMailDate: "2026-09-14" });
-      expect(ordered.canSendAgain).toBe(true);
-
-      expect((await db.designs.listCopiesOf(guestDesign.id, customerId)).map((d) => d.id)).toEqual([copy.id]);
-      expect(await db.orders.listPostcardsForDesign(guestDesign.id, customerId)).toHaveLength(2);
-      expect(await db.orders.listPostcardsForDesign(guestDesign.id, randomUUID())).toHaveLength(0);
-
-      expect(await db.designs.getDesignForCustomer(guestDesign.id, randomUUID())).toBeNull();
-      expect(await db.designs.deleteDraftDesign(guestDesign.id, customerId)).toBeNull();
-      expect((await db.designs.deleteDraftDesign(draftA.id, customerId))?.id).toBe(draftA.id);
-      expect(await db.designs.getDesign(draftA.id)).toBeNull();
+    it("keeps a customer's mailing address and Stripe customer", async () => {
+      const who = await customer();
+      expect(await db.customers.getMailingAddress(who)).toBeNull();
+      await db.customers.setMailingAddress(who, ADDRESS);
+      expect(await db.customers.getMailingAddress(who)).toEqual(ADDRESS);
+      await db.customers.setStripeCustomerId(who, `cus_${who}`);
+      expect(await db.customers.getStripeCustomerId(who)).toBe(`cus_${who}`);
+      expect(await db.customers.findCustomerByStripeId(`cus_${who}`)).toMatchObject({ id: who });
     });
 
     it("round-trips a page's booleans", async () => {
@@ -418,21 +355,6 @@ for (const { name, context } of dialects) {
       expect(page?.id).toBe(id);
       expect(page?.isLive).toBe(true);
       expect(page?.inNav).toBe(true);
-    });
-
-    it("round-trips a cart's JSON lines", async () => {
-      const { createCustomer } = await import("../server/auth.js");
-      const customerId = await createCustomer(`cart-${randomUUID()}@example.com`, "a-sufficiently-long-password", null);
-      const line = { designs: [{ designId: "d1", mailDate: "2026-10-01" }], recipients: [RECIPIENT], replyTo: null, replyToName: null };
-      const cart = await db.carts.upsertActiveCart(customerId, "x@example.com", "USD", [line]);
-      expect(cart?.lines).toEqual([line]);
-    });
-
-    it("bounds a listing by date on either engine", async () => {
-      const page = await db.orders.listOrders({ from: Date.now() - 60_000, to: Date.now() + 60_000, limit: 100 });
-      expect(page.orders.length).toBeGreaterThan(0);
-      const empty = await db.orders.listOrders({ from: Date.now() + 60_000 });
-      expect(empty.orders).toHaveLength(0);
     });
   });
 }

@@ -1,992 +1,164 @@
-import { randomInt, randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
-import { orderReference, orderSchema, type Order, type OrderStatus } from "../shared/orders.js";
-import { countPostcardsByDestination, type CartLineInput } from "../shared/cart.js";
-import { recipientSchema } from "../shared/postcards.js";
-import {
-  REPLY_CODE_ALPHABET,
-  REPLY_CODE_LENGTH,
-  RETURNED_TO_SENDER,
-  isShownTrackingEvent,
-  type Postcard,
-  type PostcardStatus,
-  type ReplySummary,
-  type TrackingEvent,
-} from "../shared/postcards.js";
+import { randomUUID } from "node:crypto";
+import { and, count, desc, eq, sql } from "drizzle-orm";
+import type { OrderStatus } from "../shared/platform.js";
 import { getDatabase } from "./client.js";
-import { affectedRows, claimDesignsForOrders, findDesignsByIds, toPublicDesign } from "./designs-repository.js";
-import { nowFor, toBool, toEpochMs } from "./repository.js";
+import { affectedRows, epochOrNull, timeFor, toCount, toEpochMs } from "./repository.js";
 
 /**
- * Orders and the postcards on them.
+ * Postcard orders: one row per paid Stripe invoice under a subscription.
  *
- * Stripe is still the authority on payment; fulfilment — which card goes to
- * Lob on which day, and whether it did — is entirely ours.
+ * Written by the `invoice.paid` webhook and nothing else. The invoice id is
+ * unique, so a redelivered event inserts nothing; the row is what a
+ * subscriber's receipts page shows and what the admin reconciles payouts
+ * against.
  */
 
-export interface CreatePendingOrderInput {
-  /** Minted by the caller so it can go into the Stripe session's metadata. */
+export interface OrderRow {
   id: string;
-  checkoutSessionId: string;
-  email: string;
-  currency: string;
-  unitPriceCents: number;
-  /** What a card mailed abroad costs. Null when the cart has none, or the shop is US-only. */
-  internationalUnitPriceCents?: number | null;
-  /** The cart, validated: every design id already checked against the table. */
-  lines: CartLineInput[];
-  /** Set only when the buyer was signed in at checkout. Null for a guest. */
-  customerId?: string | null;
-  /** The card this order replies to, when it does. Its lines were resolved by the caller. */
-  replyToPostcardId?: string | null;
-}
-
-/** Eight characters from the alphabet on the back of the card. */
-export function generateReplyCode(): string {
-  let code = "";
-  for (let i = 0; i < REPLY_CODE_LENGTH; i += 1) code += REPLY_CODE_ALPHABET[randomInt(REPLY_CODE_ALPHABET.length)];
-  return code;
-}
-
-/**
- * Record an order and its postcards before the buyer reaches Stripe.
- *
- * Postcards are written now, as `pending`, rather than reconstructed from the
- * cart later: the webhook that confirms payment gets a Stripe session and an
- * order id, and nothing else — so everything it needs to schedule has to be
- * here already.
- */
-export async function createPendingOrder(input: CreatePendingOrderInput): Promise<string> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  const { domestic, international } = countPostcardsByDestination(input.lines);
-  const postcardCount = domestic + international;
-  const internationalUnitPriceCents = international > 0 ? (input.internationalUnitPriceCents ?? null) : null;
-  if (international > 0 && internationalUnitPriceCents === null) {
-    throw new Error("An order with international postcards needs an international price.");
-  }
-
-  const subtotalCents = domestic * input.unitPriceCents + international * (internationalUnitPriceCents ?? 0);
-
-  await db.insert(schema.orders).values({
-    id: input.id,
-    stripeCheckoutSessionId: input.checkoutSessionId,
-    email: input.email,
-    status: "pending",
-    currency: input.currency,
-    unitPriceCents: input.unitPriceCents,
-    postcardCount,
-    internationalCount: international,
-    internationalUnitPriceCents,
-    subtotalCents,
-    totalCents: subtotalCents,
-    customerId: input.customerId ?? null,
-    replyToPostcardId: input.replyToPostcardId ?? null,
-  });
-
-  for (const [batchIndex, line] of input.lines.entries()) {
-    for (const design of line.designs) {
-      for (const raw of line.recipients ?? []) {
-        const recipient = recipientSchema.parse(raw);
-        await insertPostcard(db, schema, {
-          id: randomUUID(),
-          orderId: input.id,
-          designId: design.designId,
-          batchIndex,
-          recipientName: recipient.name,
-          recipientLine1: recipient.line1,
-          recipientLine2: recipient.line2,
-          recipientCity: recipient.city,
-          recipientState: recipient.state,
-          recipientPostalCode: recipient.postalCode,
-          recipientCountry: recipient.country,
-          mailDate: design.mailDate,
-          status: "pending",
-          replyCode: generateReplyCode(),
-          isReply: (line.replyTo ?? null) !== null,
-        });
-      }
-    }
-  }
-
-  return input.id;
-}
-
-/** Insert one card, minting a fresh code on the one-in-a-trillion collision. */
-async function insertPostcard(
-  db: Awaited<ReturnType<typeof getDatabase>>["drizzle"],
-  schema: Awaited<ReturnType<typeof getDatabase>>["schema"],
-  values: Record<string, unknown> & { replyCode: string | null },
-): Promise<void> {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      await db.insert(schema.postcards).values(values);
-      return;
-    } catch (error) {
-      if (!values.replyCode || attempt === 2) throw error;
-      values.replyCode = generateReplyCode();
-    }
-  }
-}
-
-interface OrderRow {
-  id: string;
-  stripeCheckoutSessionId: string;
-  email: string;
+  subscriptionId: string;
+  customerId: string;
+  artistId: string;
+  stripeInvoiceId: string;
+  stripePaymentIntentId: string | null;
   status: string;
-  currency: string;
-  unitPriceCents: number;
-  postcardCount: number;
-  internationalCount: number;
-  internationalUnitPriceCents: number | null;
-  subtotalCents: number;
-  discountCents: number;
-  totalCents: number;
+  amountCents: number;
   refundedCents: number;
-  replyToPostcardId: string | null;
+  currency: string;
+  periodStart: unknown;
+  periodEnd: unknown;
   createdAt: unknown;
 }
 
-export interface PostcardRow {
+export interface OrderRecord {
   id: string;
-  orderId: string;
-  designId: string;
-  batchIndex: number;
-  recipientName: string;
-  recipientLine1: string;
-  recipientLine2: string | null;
-  recipientCity: string;
-  recipientState: string;
-  recipientPostalCode: string;
-  recipientCountry: string;
-  mailDate: string;
-  status: string;
-  lobId: string | null;
-  lobUrl: string | null;
-  expectedDeliveryDate: string | null;
-  sentAt: unknown;
-  attempts: number;
-  lastError: string | null;
-  trackingStatus: string | null;
-  replyCode: string | null;
-  replyDisabledAt: unknown;
-  isReply: unknown;
+  subscriptionId: string;
+  customerId: string;
+  artistId: string;
+  stripeInvoiceId: string;
+  stripePaymentIntentId: string | null;
+  status: OrderStatus;
+  amountCents: number;
+  refundedCents: number;
+  currency: string;
+  periodStart: number | null;
+  periodEnd: number | null;
+  createdAt: number;
 }
 
-/** Everything a card carries beyond its own row: scans, and what came back. */
-export interface PostcardExtras {
-  tracking?: TrackingEvent[];
-  replies?: ReplySummary | null;
-}
-
-interface TrackingRow {
-  id: string;
-  postcardId: string;
-  type: string;
-  occurredAt: unknown;
-  location: string | null;
-}
-
-export function buildPostcard(row: PostcardRow, extras: PostcardExtras | TrackingEvent[] = {}): Postcard {
-  const { tracking = [], replies = null } = Array.isArray(extras) ? { tracking: extras } : extras;
+export function buildOrder(row: OrderRow): OrderRecord {
   return {
     id: row.id,
-    designId: row.designId,
-    batchIndex: row.batchIndex,
-    recipient: {
-      name: row.recipientName,
-      line1: row.recipientLine1,
-      line2: row.recipientLine2,
-      city: row.recipientCity,
-      state: row.recipientState,
-      postalCode: row.recipientPostalCode,
-      country: row.recipientCountry,
-    },
-    mailDate: row.mailDate,
-    status: row.status as PostcardStatus,
-    lobId: row.lobId,
-    lobUrl: row.lobUrl,
-    expectedDeliveryDate: row.expectedDeliveryDate,
-    sentAt: row.sentAt === null || row.sentAt === undefined ? null : toEpochMs(row.sentAt),
-    attempts: row.attempts,
-    lastError: row.lastError,
-    trackingStatus: row.trackingStatus,
-    tracking,
-    // Off, or turned off: the code is not shown, so nothing can be reached by it.
-    replyCode: row.replyCode && (row.replyDisabledAt === null || row.replyDisabledAt === undefined) ? row.replyCode : null,
-    isReply: toBool(row.isReply),
-    replies,
+    subscriptionId: row.subscriptionId,
+    customerId: row.customerId,
+    artistId: row.artistId,
+    stripeInvoiceId: row.stripeInvoiceId,
+    stripePaymentIntentId: row.stripePaymentIntentId,
+    status: row.status === "refunded" ? "refunded" : "paid",
+    amountCents: row.amountCents,
+    refundedCents: row.refundedCents,
+    currency: row.currency,
+    periodStart: epochOrNull(row.periodStart),
+    periodEnd: epochOrNull(row.periodEnd),
+    createdAt: toEpochMs(row.createdAt),
   };
 }
 
-async function buildOrders(rows: OrderRow[]): Promise<Order[]> {
-  if (rows.length === 0) return [];
-
-  const postcardsByOrder = await loadPostcards(rows.map((r) => r.id));
-
-  const designIds = new Set<string>();
-  for (const list of postcardsByOrder.values()) for (const p of list) designIds.add(p.designId);
-  const designs = await findDesignsByIds([...designIds]);
-  const designById = new Map(designs.map((d) => [d.id, toPublicDesign(d)]));
-
-  return rows.map((row) => {
-    const postcards = postcardsByOrder.get(row.id) ?? [];
-    const used = [...new Set(postcards.map((p) => p.designId))]
-      .map((id) => designById.get(id))
-      .filter((d): d is NonNullable<typeof d> => d !== undefined);
-
-    return orderSchema.parse({
-      id: row.id,
-      reference: orderReference(row.id),
-      checkoutSessionId: row.stripeCheckoutSessionId,
-      email: row.email,
-      status: row.status,
-      currency: row.currency,
-      unitPriceCents: row.unitPriceCents,
-      postcardCount: row.postcardCount,
-      internationalCount: row.internationalCount,
-      internationalUnitPriceCents: row.internationalUnitPriceCents,
-      subtotalCents: row.subtotalCents,
-      discountCents: row.discountCents,
-      totalCents: row.totalCents,
-      refundedCents: row.refundedCents,
-      replyToPostcardId: row.replyToPostcardId,
-      createdAt: toEpochMs(row.createdAt),
-      postcards,
-      designs: used,
-    });
-  });
+export interface CreateOrderInput {
+  subscriptionId: string;
+  customerId: string;
+  artistId: string;
+  stripeInvoiceId: string;
+  stripePaymentIntentId: string | null;
+  amountCents: number;
+  currency: string;
+  /** Epoch milliseconds, from the invoice's line. */
+  periodStart: number | null;
+  periodEnd: number | null;
 }
 
-/** SQLite's default limit is 999 bound parameters, so long id lists are chunked. */
-async function loadPostcards(orderIds: string[]): Promise<Map<string, Postcard[]>> {
-  const { drizzle: db, schema } = await getDatabase();
-  const map = new Map<string, Postcard[]>();
-
-  for (let start = 0; start < orderIds.length; start += 500) {
-    const chunk = orderIds.slice(start, start + 500);
-
-    const rows = (await db
-      .select()
-      .from(schema.postcards)
-      .where(inArray(schema.postcards.orderId, chunk))
-      // A stable order: by mail date, then batch, then the recipient's name.
-      .orderBy(
-        asc(schema.postcards.mailDate),
-        asc(schema.postcards.batchIndex),
-        asc(schema.postcards.recipientName),
-        asc(schema.postcards.id),
-      )) as unknown as PostcardRow[];
-
-    const extras = await loadExtras(rows.map((row) => row.id));
-    for (const row of rows) {
-      const existing = map.get(row.orderId);
-      const postcard = buildPostcard(row, extras(row.id));
-      if (existing) existing.push(postcard);
-      else map.set(row.orderId, [postcard]);
-    }
-  }
-
-  return map;
-}
-
-/** Scans and replies for a set of cards, two queries rather than two per card. */
-export async function loadExtras(postcardIds: string[]): Promise<(id: string) => PostcardExtras> {
-  const [tracking, replies] = await Promise.all([loadTracking(postcardIds), loadReplies(postcardIds)]);
-  return (id) => ({ tracking: tracking.get(id) ?? [], replies: replies.get(id) ?? null });
-}
-
-/**
- * What came back through each card's code: reply orders that were paid,
- * and the first reply's front once its own tracking says it landed. Until
- * then the sender sees only that one is on its way — the surprise is the
- * point of a postcard.
- */
-async function loadReplies(postcardIds: string[]): Promise<Map<string, ReplySummary>> {
-  const map = new Map<string, ReplySummary>();
-  if (postcardIds.length === 0) return map;
-  const { drizzle: db, schema } = await getDatabase();
-
-  const rows = (await db
-    .select({ to: schema.orders.replyToPostcardId, orderStatus: schema.orders.status, status: schema.postcards.status, trackingStatus: schema.postcards.trackingStatus, designId: schema.postcards.designId })
-    .from(schema.orders)
-    .innerJoin(schema.postcards, eq(schema.postcards.orderId, schema.orders.id))
-    .where(inArray(schema.orders.replyToPostcardId, postcardIds))) as unknown as { to: string; orderStatus: string; status: string; trackingStatus: string | null; designId: string }[];
-
-  const deliveredDesigns = new Map<string, string>();
-  for (const row of rows) {
-    if (row.orderStatus === "pending" || row.orderStatus === "cancelled" || row.status === "cancelled") continue;
-    const summary = map.get(row.to) ?? { onTheWay: 0, delivered: 0, thumbnail: null };
-    const delivered = row.status === "sent" && (row.trackingStatus === "postcard.delivered" || row.trackingStatus === "postcard.processed_for_delivery");
-    if (delivered) {
-      summary.delivered += 1;
-      if (!deliveredDesigns.has(row.to)) deliveredDesigns.set(row.to, row.designId);
-    } else summary.onTheWay += 1;
-    map.set(row.to, summary);
-  }
-
-  if (deliveredDesigns.size > 0) {
-    const designs = await findDesignsByIds([...deliveredDesigns.values()]);
-    const byId = new Map(designs.map((d) => [d.id, toPublicDesign(d)]));
-    for (const [to, designId] of deliveredDesigns) {
-      const summary = map.get(to);
-      const design = byId.get(designId);
-      if (summary && design) summary.thumbnail = design.thumbnail;
-    }
-  }
-  return map;
-}
-
-/** The shown tracking events for a set of cards, oldest first, one query per chunk rather than one per card. */
-async function loadTracking(postcardIds: string[]): Promise<Map<string, TrackingEvent[]>> {
-  const { drizzle: db, schema } = await getDatabase();
-  const map = new Map<string, TrackingEvent[]>();
-  if (postcardIds.length === 0) return map;
-
-  const rows = (await db
-    .select()
-    .from(schema.postcardTrackingEvents)
-    .where(inArray(schema.postcardTrackingEvents.postcardId, postcardIds))
-    .orderBy(asc(schema.postcardTrackingEvents.occurredAt), asc(schema.postcardTrackingEvents.id))) as unknown as TrackingRow[];
-
-  for (const row of rows) {
-    if (!isShownTrackingEvent(row.type)) continue;
-    const event: TrackingEvent = { type: row.type, occurredAt: toEpochMs(row.occurredAt), location: row.location };
-    const list = map.get(row.postcardId);
-    if (list) list.push(event);
-    else map.set(row.postcardId, [event]);
-  }
-  return map;
-}
-
-async function findOne(where: unknown): Promise<Order | null> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  const rows = (await db.select().from(schema.orders).where(where).limit(1)) as unknown as OrderRow[];
-  const [order] = await buildOrders(rows);
-  return order ?? null;
-}
-
-export async function getOrder(id: string): Promise<Order | null> {
-  const { schema } = await getDatabase();
-  return findOne(eq(schema.orders.id, id));
-}
-
-export async function findOrderByCheckoutSession(sessionId: string): Promise<Order | null> {
-  const { schema } = await getDatabase();
-  return findOne(eq(schema.orders.stripeCheckoutSessionId, sessionId));
-}
-
-/**
- * An order, but only if it belongs to this customer.
- *
- * Filtering by `customerId` in the query itself is what makes another
- * customer's order a 404 rather than a bug waiting for someone to remove the
- * comparison.
- */
-export async function getOrderForCustomer(id: string, customerId: string): Promise<Order | null> {
-  const { schema } = await getDatabase();
-  return findOne(and(eq(schema.orders.id, id), eq(schema.orders.customerId, customerId)));
-}
-
-export interface OrderPage {
-  orders: Order[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-export async function listOrdersForCustomer(
-  customerId: string,
-  options: { limit?: number; offset?: number } = {},
-): Promise<OrderPage> {
-  const { drizzle: db, schema } = await getDatabase();
-  const limit = Math.min(Math.max(options.limit ?? 25, 1), 100);
-  const offset = Math.max(options.offset ?? 0, 0);
-
-  const where = eq(schema.orders.customerId, customerId);
-
-  const [rows, totals] = await Promise.all([
-    db
-      .select()
-      .from(schema.orders)
-      .where(where)
-      .orderBy(desc(schema.orders.createdAt))
-      .limit(limit)
-      .offset(offset) as unknown as Promise<OrderRow[]>,
-    db.select({ value: count() }).from(schema.orders).where(where) as unknown as Promise<{ value: number }[]>,
-  ]);
-
-  return { orders: await buildOrders(rows), total: totals[0]?.value ?? 0, limit, offset };
-}
-
-/**
- * Link every unclaimed order for an email to a customer account.
- *
- * Callers only ever pass a *verified* customer's id, so this function does not
- * re-check verification itself.
- */
-export async function claimOrdersForCustomer(customerId: string, email: string): Promise<number> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  const where = and(eq(sql`lower(${schema.orders.email})`, email.toLowerCase()), isNull(schema.orders.customerId));
-  const unclaimed = (await db.select({ id: schema.orders.id }).from(schema.orders).where(where)) as unknown as { id: string }[];
-  if (unclaimed.length === 0) return 0;
-
-  const result = await db.update(schema.orders).set({ customerId }).where(where);
-
-  // The designs on those orders are theirs too, so the gallery shows them.
-  await claimDesignsForOrders(
-    customerId,
-    unclaimed.map((row) => row.id),
-  );
-
-  return affectedRows(result);
-}
-
-/** Every card of one design across this customer's orders, for the gallery's detail page. */
-export async function listPostcardsForDesign(designId: string, customerId: string): Promise<Postcard[]> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  const rows = (await db
-    .select({ postcard: schema.postcards })
-    .from(schema.postcards)
-    .innerJoin(schema.orders, eq(schema.orders.id, schema.postcards.orderId))
-    .where(and(eq(schema.postcards.designId, designId), eq(schema.orders.customerId, customerId)))
-    .orderBy(asc(schema.postcards.mailDate), asc(schema.postcards.recipientName), asc(schema.postcards.id))) as unknown as { postcard: PostcardRow }[];
-
-  const extras = await loadExtras(rows.map((row) => row.postcard.id));
-  return rows.map((row) => buildPostcard(row.postcard, extras(row.postcard.id)));
-}
-
-/* ------------------------------------------------------------- reply link */
-
-export interface ReplyTarget {
-  postcard: PostcardRow;
-  order: { id: string; customerId: string | null; status: string; email: string };
-}
-
-/** The card behind a code, with its order — for the public page and for checkout. Null for a code nobody was given. */
-export async function findPostcardByReplyCode(code: string): Promise<ReplyTarget | null> {
-  const { drizzle: db, schema } = await getDatabase();
-  const rows = (await db
-    .select({ postcard: schema.postcards, orderId: schema.orders.id, customerId: schema.orders.customerId, orderStatus: schema.orders.status, email: schema.orders.email })
-    .from(schema.postcards)
-    .innerJoin(schema.orders, eq(schema.orders.id, schema.postcards.orderId))
-    .where(eq(schema.postcards.replyCode, code))
-    .limit(1)) as unknown as { postcard: PostcardRow; orderId: string; customerId: string | null; orderStatus: string; email: string }[];
-  const row = rows[0];
-  return row ? { postcard: row.postcard, order: { id: row.orderId, customerId: row.customerId, status: row.orderStatus, email: row.email } } : null;
-}
-
-/** The sender turns a card's link off. Scoped to their own order. Returns false when it is not theirs. */
-export async function disableReplyLink(orderId: string, postcardId: string, customerId: string): Promise<boolean> {
+/** Record a paid invoice. Returns false when that invoice was already recorded. */
+export async function recordPaidInvoice(input: CreateOrderInput): Promise<boolean> {
   const { drizzle: db, schema, dialect } = await getDatabase();
-  const owned = (await db
-    .select({ id: schema.orders.id })
-    .from(schema.orders)
-    .where(and(eq(schema.orders.id, orderId), eq(schema.orders.customerId, customerId)))
-    .limit(1)) as unknown as { id: string }[];
-  if (owned.length === 0) return false;
   const result = await db
-    .update(schema.postcards)
-    .set({ replyDisabledAt: nowFor(dialect), updatedAt: nowFor(dialect) })
-    .where(and(eq(schema.postcards.id, postcardId), eq(schema.postcards.orderId, orderId)));
+    .insert(schema.orders)
+    .values({
+      id: randomUUID(),
+      subscriptionId: input.subscriptionId,
+      customerId: input.customerId,
+      artistId: input.artistId,
+      stripeInvoiceId: input.stripeInvoiceId,
+      stripePaymentIntentId: input.stripePaymentIntentId,
+      status: "paid",
+      amountCents: input.amountCents,
+      currency: input.currency,
+      periodStart: input.periodStart === null ? null : timeFor(dialect, input.periodStart),
+      periodEnd: input.periodEnd === null ? null : timeFor(dialect, input.periodEnd),
+    })
+    .onConflictDoNothing();
   return affectedRows(result) === 1;
 }
 
-/** Paid or paid-then-completed reply orders sent to one card, for the cap. */
-export async function countReplyOrders(postcardId: string): Promise<number> {
+export async function findOrderByPaymentIntent(paymentIntentId: string): Promise<OrderRecord | null> {
   const { drizzle: db, schema } = await getDatabase();
   const rows = (await db
-    .select({ value: count() })
+    .select()
     .from(schema.orders)
-    .where(and(eq(schema.orders.replyToPostcardId, postcardId), inArray(schema.orders.status, ["paid", "completed"])))) as unknown as { value: number }[];
-  return Number(rows[0]?.value ?? 0);
-}
-
-export async function listOrders(
-  options: {
-    status?: OrderStatus;
-    limit?: number;
-    offset?: number;
-    /** Inclusive bounds on `createdAt`, in epoch milliseconds. */
-    from?: number;
-    to?: number;
-    /** Only orders with a card USPS sent back. Independent of `status`: a returned card lives on a paid order. */
-    returnedToSender?: boolean;
-  } = {},
-): Promise<OrderPage> {
-  const { drizzle: db, schema, dialect } = await getDatabase();
-  const limit = Math.min(Math.max(options.limit ?? 25, 1), 100);
-  const offset = Math.max(options.offset ?? 0, 0);
-
-  // createdAt is unix *seconds* on SQLite and a timestamptz on Postgres.
-  const bound = (epochMs: number) => (dialect === "pg" ? new Date(epochMs) : Math.floor(epochMs / 1000));
-
-  /*
-   * The returned filter is the one clause here that is not about a column on
-   * the order. It asks about the cards, so it is an EXISTS rather than a
-   * join: an order with three returned cards must still be one row, and the
-   * count query has to agree with the page query about that. Written as SQL
-   * because it is the same SQL on both engines.
-   */
-  const returned = sql`exists (select 1 from ${schema.postcards} where ${schema.postcards.orderId} = ${schema.orders.id} and ${schema.postcards.trackingStatus} = ${RETURNED_TO_SENDER})`;
-
-  const where = and(
-    options.status ? eq(schema.orders.status, options.status) : undefined,
-    options.from !== undefined ? gte(schema.orders.createdAt, bound(options.from)) : undefined,
-    options.to !== undefined ? lte(schema.orders.createdAt, bound(options.to)) : undefined,
-    options.returnedToSender ? returned : undefined,
-  );
-
-  const [rows, totals] = await Promise.all([
-    db
-      .select()
-      .from(schema.orders)
-      .where(where)
-      .orderBy(desc(schema.orders.createdAt))
-      .limit(limit)
-      .offset(offset) as unknown as Promise<OrderRow[]>,
-    db.select({ value: count() }).from(schema.orders).where(where) as unknown as Promise<{ value: number }[]>,
-  ]);
-
-  return { orders: await buildOrders(rows), total: totals[0]?.value ?? 0, limit, offset };
-}
-
-export interface PaymentDetails {
-  paymentIntentId: string | null;
-  email: string;
-  subtotalCents: number;
-  discountCents: number;
-  totalCents: number;
-  currency: string;
-}
-
-/**
- * Confirm payment: the order becomes `paid` and every card on it becomes
- * `scheduled`, which is what the fulfilment sweep looks for.
- */
-export async function markOrderPaid(orderId: string, details: PaymentDetails): Promise<void> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  await db
-    .update(schema.orders)
-    .set({
-      status: "paid",
-      stripePaymentIntentId: details.paymentIntentId,
-      email: details.email,
-      subtotalCents: details.subtotalCents,
-      discountCents: details.discountCents,
-      totalCents: details.totalCents,
-      currency: details.currency,
-    })
-    .where(eq(schema.orders.id, orderId));
-
-  await db
-    .update(schema.postcards)
-    .set({ status: "scheduled" })
-    .where(and(eq(schema.postcards.orderId, orderId), eq(schema.postcards.status, "pending")));
-}
-
-export async function setOrderStatus(orderId: string, status: OrderStatus): Promise<void> {
-  const { drizzle: db, schema } = await getDatabase();
-  await db.update(schema.orders).set({ status }).where(eq(schema.orders.id, orderId));
-}
-
-/**
- * Cancel an order: whatever has not gone to print yet is withdrawn. Cards
- * already at Lob are left as they are — the mail has gone.
- */
-export async function cancelOrder(orderId: string, status: "cancelled" | "refunded" = "cancelled"): Promise<number> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  const result = await db
-    .update(schema.postcards)
-    .set({ status: "cancelled" })
-    .where(
-      and(
-        eq(schema.postcards.orderId, orderId),
-        inArray(schema.postcards.status, ["pending", "scheduled", "error"]),
-      ),
-    );
-
-  await setOrderStatus(orderId, status);
-  return affectedRows(result);
-}
-
-/** Deliberately not on the `Order` schema: only the refund path needs it. */
-export async function getOrderPaymentIntentId(orderId: string): Promise<string | null> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  const rows = (await db
-    .select({ paymentIntentId: schema.orders.stripePaymentIntentId })
-    .from(schema.orders)
-    .where(eq(schema.orders.id, orderId))
-    .limit(1)) as unknown as { paymentIntentId: string | null }[];
-
-  return rows[0]?.paymentIntentId ?? null;
-}
-
-export async function getOrderCustomerId(orderId: string): Promise<string | null> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  const rows = (await db
-    .select({ customerId: schema.orders.customerId })
-    .from(schema.orders)
-    .where(eq(schema.orders.id, orderId))
-    .limit(1)) as unknown as { customerId: string | null }[];
-
-  return rows[0]?.customerId ?? null;
+    .where(eq(schema.orders.stripePaymentIntentId, paymentIntentId))
+    .limit(1)) as unknown as OrderRow[];
+  const row = rows[0];
+  return row ? buildOrder(row) : null;
 }
 
 /**
  * Record a refund. Additive, in SQL rather than read-modify-write, so two
- * webhooks landing at once cannot lose one of the amounts.
+ * webhooks landing at once cannot lose one of the amounts. A full refund
+ * flips the status.
  */
-export async function recordRefund(orderId: string, amountCents: number): Promise<void> {
-  if (amountCents <= 0) return;
-
+export async function recordRefund(orderId: string, amountCents: number, full: boolean): Promise<void> {
+  if (amountCents <= 0 && !full) return;
   const { drizzle: db, schema } = await getDatabase();
   await db
     .update(schema.orders)
-    .set({ refundedCents: sql`${schema.orders.refundedCents} + ${amountCents}` })
+    .set({
+      refundedCents: sql`${schema.orders.refundedCents} + ${Math.max(0, amountCents)}`,
+      ...(full ? { status: "refunded" } : {}),
+    })
     .where(eq(schema.orders.id, orderId));
 }
 
-/* --------------------------------------------------------------- postcards */
-
-/**
- * Cards due to go to Lob: scheduled, on a paid order, with a mail date on or
- * before `today` (an ISO date). Stale claims are included: a card that has
- * sat in `sending` for longer than the stale window belonged to a sweep that
- * crashed, and nothing else will ever pick it up again.
- */
-export async function findDuePostcards(today: string, limit: number): Promise<PostcardRow[]> {
+export async function listOrdersForCustomer(customerId: string): Promise<OrderRecord[]> {
   const { drizzle: db, schema } = await getDatabase();
-
   const rows = (await db
     .select()
-    .from(schema.postcards)
-    .where(and(eq(schema.postcards.status, "scheduled"), lte(schema.postcards.mailDate, today)))
-    .orderBy(asc(schema.postcards.mailDate), asc(schema.postcards.id))
-    .limit(limit)) as unknown as PostcardRow[];
-
-  // The order has to still be paid: a cancelled order's cards are already
-  // `cancelled`, but a refund that landed between the query and the send is
-  // the case this guards.
-  if (rows.length === 0) return [];
-  const orderIds = [...new Set(rows.map((r) => r.orderId))];
-  const orders = (await db
-    .select({ id: schema.orders.id, status: schema.orders.status })
     .from(schema.orders)
-    .where(inArray(schema.orders.id, orderIds))) as unknown as { id: string; status: string }[];
-  const paid = new Set(orders.filter((o) => o.status === "paid").map((o) => o.id));
-
-  return rows.filter((row) => paid.has(row.orderId));
+    .where(eq(schema.orders.customerId, customerId))
+    .orderBy(desc(schema.orders.createdAt), desc(schema.orders.id))) as unknown as OrderRow[];
+  return rows.map(buildOrder);
 }
 
-/**
- * Claim a card for sending — the guard that makes two API instances send one
- * card. `UPDATE ... WHERE status = 'scheduled'` means only the first of two
- * racing claims can ever win.
- */
-export async function claimPostcard(id: string): Promise<boolean> {
-  const { drizzle: db, schema, dialect } = await getDatabase();
-
-  const result = await db
-    .update(schema.postcards)
-    .set({
-      status: "sending",
-      attempts: sql`${schema.postcards.attempts} + 1`,
-      updatedAt: nowFor(dialect),
-    })
-    .where(and(eq(schema.postcards.id, id), eq(schema.postcards.status, "scheduled")));
-
-  return affectedRows(result) === 1;
+export interface OrderPage {
+  orders: OrderRecord[];
+  total: number;
 }
 
-/** Cards a crashed sweep left claimed. Put back so the next sweep retries them. */
-export async function releaseStalePostcards(olderThan: Date): Promise<number> {
-  const { drizzle: db, schema, dialect } = await getDatabase();
-  const bound = dialect === "pg" ? olderThan : Math.floor(olderThan.getTime() / 1000);
-
-  const result = await db
-    .update(schema.postcards)
-    .set({ status: "scheduled" })
-    .where(and(eq(schema.postcards.status, "sending"), lte(schema.postcards.updatedAt, bound)));
-
-  return affectedRows(result);
-}
-
-export async function markPostcardSent(
-  id: string,
-  lob: { id: string; url: string | null; expectedDeliveryDate: string | null },
-): Promise<void> {
-  const { drizzle: db, schema, dialect } = await getDatabase();
-
-  await db
-    .update(schema.postcards)
-    .set({
-      status: "sent",
-      lobId: lob.id,
-      lobUrl: lob.url,
-      expectedDeliveryDate: lob.expectedDeliveryDate,
-      sentAt: nowFor(dialect),
-      lastError: null,
-      updatedAt: nowFor(dialect),
-    })
-    .where(eq(schema.postcards.id, id));
-}
-
-/**
- * A send that did not happen.
- *
- * `retry` puts the card back to `scheduled` so the next sweep tries again —
- * for a rate limit, a network blip, a 5xx. `error` parks it for a person:
- * Lob refused the card, and the reason is stored in Lob's own words, which is
- * the thing v1 never kept and the reason its failures could not be debugged.
- */
-export async function markPostcardFailed(
-  id: string,
-  message: string,
-  outcome: "retry" | "error",
-): Promise<void> {
-  const { drizzle: db, schema, dialect } = await getDatabase();
-
-  await db
-    .update(schema.postcards)
-    .set({
-      status: outcome === "retry" ? "scheduled" : "error",
-      lastError: message.slice(0, 2000),
-      updatedAt: nowFor(dialect),
-    })
-    .where(eq(schema.postcards.id, id));
-}
-
-/**
- * Put a claimed card back untouched.
- *
- * For a failure that was Lob's or the network's, not the card's: a rate
- * limit, or no answer at all. The claim's `attempts + 1` is undone, so an
- * hour of throttling cannot walk a card up to `MAX_ATTEMPTS` and park it for
- * a person who has nothing to fix. The message is kept so the admin can see
- * why the tick did nothing.
- */
-export async function releasePostcard(id: string, message: string): Promise<void> {
-  const { drizzle: db, schema, dialect } = await getDatabase();
-
-  await db
-    .update(schema.postcards)
-    .set({
-      status: "scheduled",
-      attempts: sql`CASE WHEN ${schema.postcards.attempts} > 0 THEN ${schema.postcards.attempts} - 1 ELSE 0 END`,
-      lastError: message.slice(0, 2000),
-      updatedAt: nowFor(dialect),
-    })
-    .where(and(eq(schema.postcards.id, id), eq(schema.postcards.status, "sending")));
-}
-
-/** A postcard by id and order — the order is the scope an admin acts within. */
-export async function getPostcard(orderId: string, id: string): Promise<Postcard | null> {
+export async function listOrders(options: { artistId?: string; limit?: number; offset?: number } = {}): Promise<OrderPage> {
   const { drizzle: db, schema } = await getDatabase();
+  const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
+  const offset = Math.max(options.offset ?? 0, 0);
+  const where = and(options.artistId ? eq(schema.orders.artistId, options.artistId) : undefined);
 
+  const [rows, totals] = await Promise.all([
+    db.select().from(schema.orders).where(where).orderBy(desc(schema.orders.createdAt), desc(schema.orders.id)).limit(limit).offset(offset) as unknown as Promise<OrderRow[]>,
+    db.select({ value: count() }).from(schema.orders).where(where) as unknown as Promise<{ value: unknown }[]>,
+  ]);
+  return { orders: rows.map(buildOrder), total: toCount(totals[0]?.value) };
+}
+
+/** Revenue after refunds, all time, for the admin overview. */
+export async function sumRevenueCents(): Promise<number> {
+  const { drizzle: db, schema } = await getDatabase();
   const rows = (await db
-    .select()
-    .from(schema.postcards)
-    .where(and(eq(schema.postcards.id, id), eq(schema.postcards.orderId, orderId)))
-    .limit(1)) as unknown as PostcardRow[];
-
-  const row = rows[0];
-  if (!row) return null;
-  const extras = await loadExtras([row.id]);
-  return buildPostcard(row, extras(row.id));
-}
-
-/* ---------------------------------------------------------------- tracking */
-
-/** The card a Lob tracking event is about: by our id from the metadata, else by Lob's own id. */
-export async function findPostcardForTracking(ours: string | null, lobId: string | null): Promise<PostcardRow | null> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  if (ours) {
-    const rows = (await db.select().from(schema.postcards).where(eq(schema.postcards.id, ours)).limit(1)) as unknown as PostcardRow[];
-    if (rows[0]) return rows[0];
-  }
-  if (lobId) {
-    const rows = (await db.select().from(schema.postcards).where(eq(schema.postcards.lobId, lobId)).limit(1)) as unknown as PostcardRow[];
-    if (rows[0]) return rows[0];
-  }
-  return null;
-}
-
-export interface TrackingEventInput {
-  /** Lob's event id. */
-  id: string;
-  type: string;
-  /** Epoch milliseconds. */
-  occurredAt: number;
-  location: string | null;
-}
-
-/**
- * Record one tracking event and move the card's status forward.
- *
- * The event id is the primary key, so Lob delivering twice inserts once.
- * The status only ever moves to a *later* shown event — USPS scans arrive
- * out of order often enough that "delivered, then in transit" would
- * otherwise read as a card going backwards.
- */
-export async function recordTrackingEvent(postcardId: string, event: TrackingEventInput): Promise<boolean> {
-  const { drizzle: db, schema, dialect } = await getDatabase();
-
-  const seen = (await db
-    .select({ id: schema.postcardTrackingEvents.id })
-    .from(schema.postcardTrackingEvents)
-    .where(eq(schema.postcardTrackingEvents.id, event.id))
-    .limit(1)) as unknown as { id: string }[];
-  if (seen.length > 0) return false;
-
-  await db.insert(schema.postcardTrackingEvents).values({
-    id: event.id,
-    postcardId,
-    type: event.type,
-    occurredAt: dialect === "pg" ? new Date(event.occurredAt) : Math.floor(event.occurredAt / 1000),
-    location: event.location,
-  });
-
-  if (isShownTrackingEvent(event.type)) {
-    const shown = (await loadTracking([postcardId])).get(postcardId) ?? [];
-    const latest = shown[shown.length - 1];
-    if (latest) {
-      await db
-        .update(schema.postcards)
-        .set({ trackingStatus: latest.type, updatedAt: nowFor(dialect) })
-        .where(eq(schema.postcards.id, postcardId));
-    }
-  }
-  return true;
-}
-
-/** USPS sent the card back. The status stays `sent` — it was — but the admin's error column says so. */
-export async function markPostcardReturned(postcardId: string): Promise<void> {
-  const { drizzle: db, schema, dialect } = await getDatabase();
-  await db
-    .update(schema.postcards)
-    .set({ lastError: "Returned to sender by USPS. Check the address.", updatedAt: nowFor(dialect) })
-    .where(eq(schema.postcards.id, postcardId));
-}
-
-/** Put an errored (or cancelled) card back on the schedule. Returns false if it was not one. */
-export async function requeuePostcard(orderId: string, id: string): Promise<boolean> {
-  const { drizzle: db, schema, dialect } = await getDatabase();
-
-  const result = await db
-    .update(schema.postcards)
-    .set({ status: "scheduled", lastError: null, attempts: 0, updatedAt: nowFor(dialect) })
-    .where(
-      and(
-        eq(schema.postcards.id, id),
-        eq(schema.postcards.orderId, orderId),
-        inArray(schema.postcards.status, ["error", "cancelled"]),
-      ),
-    );
-
-  return affectedRows(result) === 1;
-}
-
-/** Withdraw one card that has not gone out. Returns false if it already had. */
-export async function cancelPostcard(orderId: string, id: string): Promise<boolean> {
-  const { drizzle: db, schema, dialect } = await getDatabase();
-
-  const result = await db
-    .update(schema.postcards)
-    .set({ status: "cancelled", updatedAt: nowFor(dialect) })
-    .where(
-      and(
-        eq(schema.postcards.id, id),
-        eq(schema.postcards.orderId, orderId),
-        inArray(schema.postcards.status, ["scheduled", "error"]),
-      ),
-    );
-
-  return affectedRows(result) === 1;
-}
-
-/**
- * Move a paid order to `completed` once nothing on it is still waiting.
- *
- * "Waiting" is scheduled, sending or error — an errored card is still owed,
- * which is why an order with one stays open on the admin's list until someone
- * retries or cancels it.
- */
-export async function completeOrderIfDone(orderId: string): Promise<boolean> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  const waiting = (await db
-    .select({ value: count() })
-    .from(schema.postcards)
-    .where(
-      and(
-        eq(schema.postcards.orderId, orderId),
-        inArray(schema.postcards.status, ["pending", "scheduled", "sending", "error"]),
-      ),
-    )) as unknown as { value: number }[];
-
-  if ((waiting[0]?.value ?? 0) > 0) return false;
-
-  const result = await db
-    .update(schema.orders)
-    .set({ status: "completed" })
-    .where(and(eq(schema.orders.id, orderId), eq(schema.orders.status, "paid")));
-
-  return affectedRows(result) === 1;
-}
-
-/** Whether a design still has a card that has not gone out. */
-export async function designHasUnsentPostcards(designId: string): Promise<boolean> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  const rows = (await db
-    .select({ value: count() })
-    .from(schema.postcards)
-    .where(and(eq(schema.postcards.designId, designId), ne(schema.postcards.status, "sent"), ne(schema.postcards.status, "cancelled")))) as unknown as { value: number }[];
-
-  return (rows[0]?.value ?? 0) > 0;
-}
-
-/** For the admin overview: how many cards are in each state right now. */
-export async function countPostcardsByStatus(): Promise<Record<string, number>> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  const rows = (await db
-    .select({ status: schema.postcards.status, value: count() })
-    .from(schema.postcards)
-    .groupBy(schema.postcards.status)) as unknown as { status: string; value: number }[];
-
-  return Object.fromEntries(rows.map((row) => [row.status, row.value]));
-}
-
-/* ---------------------------------------------------------------- webhooks */
-
-/** Record a Stripe event id, returning false if it has been seen before. */
-export async function recordWebhookEvent(id: string, type: string): Promise<boolean> {
-  const { drizzle: db, schema } = await getDatabase();
-
-  const existing = (await db
-    .select({ id: schema.webhookEvents.id })
-    .from(schema.webhookEvents)
-    .where(eq(schema.webhookEvents.id, id))
-    .limit(1)) as unknown as { id: string }[];
-
-  if (existing.length > 0) return false;
-
-  await db.insert(schema.webhookEvents).values({ id, type });
-  return true;
-}
-
-/** Release a recorded event id, so Stripe's retry is processed rather than dismissed. */
-export async function forgetWebhookEvent(id: string): Promise<void> {
-  const { drizzle: db, schema } = await getDatabase();
-  await db.delete(schema.webhookEvents).where(eq(schema.webhookEvents.id, id));
+    .select({ value: sql<unknown>`coalesce(sum(${schema.orders.amountCents} - ${schema.orders.refundedCents}), 0)` })
+    .from(schema.orders)) as unknown as { value: unknown }[];
+  return toCount(rows[0]?.value);
 }

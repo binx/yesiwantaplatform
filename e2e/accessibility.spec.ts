@@ -9,17 +9,14 @@ import { report, scan } from "./axe";
 
 const routes: [name: string, path: string][] = [
   ["landing", "/"],
-  ["designer", "/create"],
-  ["empty cart", "/cart"],
+  ["artists", "/artists"],
+  ["gallery", "/gallery"],
+  ["unknown artist", "/a/nobody-by-this-name"],
   ["404", "/no-such-page-here"],
   ["customer sign-in", "/account/login"],
   ["customer registration", "/account/register"],
   ["forgot password", "/account/forgot-password"],
   ["reset password", "/account/reset-password?token=not-a-real-token"],
-  ["order confirmation", "/confirm"],
-  ["cart-email unsubscribe", "/unsubscribe"],
-  ["address request", "/address/not-a-real-token"],
-  ["postcard code", "/r/NOTACODE1"],
   ["admin sign-in", "/admin/login"],
 ];
 
@@ -37,7 +34,10 @@ test.describe("admin, signed in", () => {
 
   const adminRoutes: [name: string, path: string][] = [
     ["overview", "/admin"],
-    ["orders", "/admin/orders"],
+    ["artists", "/admin/artists"],
+    ["mailings", "/admin/mailings"],
+    ["payouts", "/admin/payouts"],
+    ["people", "/admin/customers"],
     ["pages", "/admin/pages"],
     ["settings", "/admin/settings"],
   ];
@@ -47,7 +47,7 @@ test.describe("admin, signed in", () => {
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       // antd's loading skeletons carry empty headings; scan the page, not
-      // the placeholder it shows while five queries are in flight.
+      // the placeholder it shows while the queries are in flight.
       await expect(page.locator(".ant-skeleton")).toHaveCount(0);
       const found = report(await scan(page));
       expect(found, found).toBe("");
@@ -66,7 +66,7 @@ test("the mobile nav drawer has no accessibility violations", async ({ page }) =
   expect(found, found).toBe("");
 });
 
-test("the storefront's first tab stop is the skip link", async ({ page }) => {
+test("the site's first tab stop is the skip link", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("banner")).toBeVisible();
   await page.keyboard.press("Tab");
@@ -95,9 +95,9 @@ async function openWizard(page: Page, status: Record<string, unknown> = {}) {
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 }
 
-test("the setup wizard's store step has no accessibility violations", async ({ page }) => {
+test("the setup wizard's first step has no accessibility violations", async ({ page }) => {
   await openWizard(page);
-  await expect(page.getByLabel("Store name")).toBeVisible();
+  await expect(page.getByLabel("Platform name")).toBeVisible();
   const found = report(await scan(page));
   expect(found, found).toBe("");
 });

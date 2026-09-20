@@ -1,21 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, App, Button, Card, Input, InputNumber, Select, Skeleton, Space, Switch, Tag, Upload } from "antd";
+import { Alert, App, Button, Card, Input, Select, Skeleton, Space, Tag, Upload } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import type { SettingsInput } from "@shared/api";
 import { formatMoney, parseCents } from "@shared/money";
 import type { Recipient } from "@shared/postcards";
+import { artistShareCents, defaultHero, defaultTheme, heroHrefSchema, localeSchema, type Hero, type Theme } from "@shared/schema";
 import { BLANK_RECIPIENT, validateRecipient, type RecipientErrors } from "@/lib/recipient-form";
 import { RecipientFields } from "@/components/postcard/RecipientFields";
-import { defaultHero, defaultTheme, heroHrefSchema, localeSchema, type Hero, type Theme } from "@shared/schema";
 import { cx } from "@/lib/cx";
-import {
-  useEnvironment,
-  useSendTestEmail,
-  useSendTestPostcard,
-  useSettings,
-  useUpdateSettings,
-  useUploadHeroImage,
-} from "./queries";
+import { useEnvironment, useSendTestEmail, useSendTestPostcard, useSettings, useUpdateSettings, useUploadHeroImage } from "./queries";
 import { Field } from "./Field";
 import { PageHeader } from "./RequireAdmin";
 import { ThemeEditor } from "./ThemeEditor";
@@ -33,18 +26,7 @@ const LOCALES = [
   { value: "es-ES", label: "Spanish (Spain) — es-ES" },
 ];
 
-function localeExample(locale: string, currency: string): string {
-  try {
-    return `Prices read ${formatMoney(140, currency, locale)}.`;
-  } catch {
-    return "";
-  }
-}
-
-/**
- * Store settings. The form does not exist until the saved values are in
- * hand, so nothing is ever submitted from a state that was never hydrated.
- */
+/** Platform settings. The form does not exist until the saved values are in hand. */
 export function SettingsPage() {
   const settings = useSettings();
 
@@ -53,10 +35,7 @@ export function SettingsPage() {
   }, []);
 
   if (settings.isPending) return <Skeleton active paragraph={{ rows: 10 }} />;
-
-  if (settings.isError || !settings.data) {
-    return <Alert type="error" showIcon title="Could not load your settings." />;
-  }
+  if (settings.isError || !settings.data) return <Alert type="error" showIcon title="Could not load your settings." />;
 
   return <SettingsForm initial={settings.data} />;
 }
@@ -70,67 +49,56 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
   const [currency, setCurrency] = useState(initial.currency);
   const [locale, setLocale] = useState(initial.locale);
   const [publishableKey, setPublishableKey] = useState(initial.stripePublishableKey ?? "");
-  const [price, setPrice] = useState((initial.postcardPriceCents / 100).toFixed(2));
-  const [internationalPrice, setInternationalPrice] = useState(
-    initial.internationalPostcardPriceCents === null ? "" : (initial.internationalPostcardPriceCents / 100).toFixed(2),
-  );
+  const [printCost, setPrintCost] = useState((initial.pricing.printCostCents / 100).toFixed(2));
+  const [fee, setFee] = useState((initial.pricing.platformFeeCents / 100).toFixed(2));
+  const [minPrice, setMinPrice] = useState((initial.pricing.minMonthlyPriceCents / 100).toFixed(2));
   const [returnAddress, setReturnAddress] = useState<Recipient>(initial.returnAddress ?? BLANK_RECIPIENT);
   const [returnAddressErrors, setReturnAddressErrors] = useState<RecipientErrors>({});
-  const [cartRecoveryEnabled, setCartRecoveryEnabled] = useState(initial.cartRecoveryEnabled);
-  const [cartRecoveryDelayHours, setCartRecoveryDelayHours] = useState(initial.cartRecoveryDelayHours);
   const [theme, setTheme] = useState<Theme>(initial.theme ?? defaultTheme);
   const [hero, setHero] = useState<Hero>(initial.hero ?? defaultHero);
 
   const saved = useRef(initial);
-  const priceCents = parseCents(price);
-  const priceWrong = priceCents === null || priceCents < 50;
+  const printCostCents = parseCents(printCost);
+  const feeCents = parseCents(fee);
+  const minPriceCents = parseCents(minPrice);
+  const pricingWrong = printCostCents === null || feeCents === null || minPriceCents === null || minPriceCents < 50;
+  const share = pricingWrong ? null : artistShareCents(minPriceCents, { printCostCents, platformFeeCents: feeCents });
+  const shareWrong = share !== null && share <= 0;
+  const money = (cents: number) => formatMoney(cents, currency, locale);
 
-  // International is on when there is a price. Empty means "US only", and
-  // then the return address is optional — Lob only needs it to mail abroad.
-  const internationalCents = internationalPrice.trim() === "" ? null : parseCents(internationalPrice);
-  const internationalWrong = internationalPrice.trim() !== "" && (internationalCents === null || internationalCents < 50);
   const returnAddressTyped = [returnAddress.name, returnAddress.line1, returnAddress.city, returnAddress.state, returnAddress.postalCode].some((v) => v.trim() !== "");
   const returnAddressResult = returnAddressTyped ? validateRecipient({ ...returnAddress, country: "US" }) : null;
   const returnAddressWrong = returnAddressResult !== null && !returnAddressResult.ok;
-  const returnAddressMissing = internationalCents !== null && !returnAddressTyped;
   const returnAddressValue = returnAddressResult?.ok ? returnAddressResult.value : null;
 
+  const pricing = pricingWrong ? null : { printCostCents, platformFeeCents: feeCents, minMonthlyPriceCents: minPriceCents };
   const dirty =
     name !== saved.current.name ||
     currency !== saved.current.currency ||
     locale !== saved.current.locale ||
     publishableKey !== (saved.current.stripePublishableKey ?? "") ||
-    priceCents !== saved.current.postcardPriceCents ||
-    internationalCents !== saved.current.internationalPostcardPriceCents ||
+    JSON.stringify(pricing) !== JSON.stringify(saved.current.pricing) ||
     JSON.stringify(returnAddressValue) !== JSON.stringify(saved.current.returnAddress) ||
-    cartRecoveryEnabled !== saved.current.cartRecoveryEnabled ||
-    cartRecoveryDelayHours !== saved.current.cartRecoveryDelayHours ||
     JSON.stringify(theme) !== JSON.stringify(saved.current.theme) ||
     JSON.stringify(hero) !== JSON.stringify(saved.current.hero);
 
   const keyLooksSecret = publishableKey.trim().startsWith("sk_");
-  const heroHrefWrong =
-    (hero.buttonHref ?? "").trim() !== "" && !heroHrefSchema.safeParse((hero.buttonHref ?? "").trim()).success;
+  const heroHrefWrong = (hero.buttonHref ?? "").trim() !== "" && !heroHrefSchema.safeParse((hero.buttonHref ?? "").trim()).success;
   const localeWrong = !localeSchema.safeParse(locale).success;
-  const blocked =
-    !dirty || keyLooksSecret || heroHrefWrong || localeWrong || priceWrong || internationalWrong || returnAddressWrong || returnAddressMissing || name.trim() === "";
+  const blocked = !dirty || keyLooksSecret || heroHrefWrong || localeWrong || pricingWrong || shareWrong || returnAddressWrong || name.trim() === "";
 
   const submit = () => {
-    if (priceCents === null) return;
+    if (!pricing) return;
     const input: SettingsInput = {
       name: name.trim(),
       currency,
       locale,
       stripePublishableKey: publishableKey.trim() || null,
-      postcardPriceCents: priceCents,
-      internationalPostcardPriceCents: internationalCents,
+      pricing,
       returnAddress: returnAddressValue,
-      cartRecoveryEnabled,
-      cartRecoveryDelayHours,
       hero,
       theme,
     };
-
     update.mutate(input, {
       onSuccess: () => {
         saved.current = input;
@@ -146,47 +114,44 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
     </Button>
   );
 
+  const cents = (value: string, set: (v: string) => void, label: string, help: string) => (
+    <Field label={label} help={help}>
+      {(control) => <Input {...control} className={cx(styles.currency)} value={value} prefix={currency === "USD" ? "$" : currency} inputMode="decimal" onChange={(event) => set(event.target.value)} />}
+    </Field>
+  );
+
   return (
     <>
-      <PageHeader title="Settings" description="The shop's name, the price of a postcard, and how it looks." actions={saveButton} />
+      <PageHeader title="Settings" description="The platform's name, what a card costs and earns, and how the site looks." actions={saveButton} />
 
       <Card title="Identity" className={cx(styles.card)}>
-        <Field label="Store name" help="Shown in the banner, the page title, and every email.">
+        <Field label="Platform name" help="Shown in the banner, the page title, on the back of every card and in every email.">
           {(control) => <Input {...control} value={name} onChange={(event) => setName(event.target.value)} />}
         </Field>
-
-        <Field
-          label="Price of one postcard"
-          {...(priceWrong
-            ? { error: "Enter an amount like 1.40. Stripe cannot charge less than 0.50." }
-            : { help: "Charged per card: every design to every recipient. Changing it affects new orders only." })}
-        >
-          {(control) => (
-            <Input
-              {...control}
-              className={cx(styles.currency)}
-              value={price}
-              prefix={currency === "USD" ? "$" : currency}
-              status={priceWrong ? "error" : ""}
-              onChange={(event) => setPrice(event.target.value)}
-            />
-          )}
+        <Field label="Currency" help="What subscribers are charged in and what artists are paid in. Every artist's price is in this currency.">
+          {(control) => <Select {...control} className={cx(styles.currency)} value={currency} onChange={setCurrency} showSearch options={CURRENCIES.map((code) => ({ label: code, value: code }))} />}
         </Field>
-
-        <Field label="Currency" help="Lob mails within the United States only, but the shop can charge in any currency Stripe supports.">
-          {(control) => (
-            <Select {...control} className={cx(styles.currency)} value={currency} onChange={setCurrency} showSearch options={CURRENCIES.map((code) => ({ label: code, value: code }))} />
-          )}
+        <Field label="Language" help={localeWrong ? "Use a language tag like en-US, de-DE or fr-CA." : "How the site writes numbers and dates."}>
+          {(control) => <Select {...control} className={cx(styles.currency)} value={locale} onChange={setLocale} showSearch options={LOCALES} {...(localeWrong ? { status: "error" as const } : {})} />}
         </Field>
+      </Card>
 
-        <Field
-          label="Language"
-          help={localeWrong ? "Use a language tag like en-US, de-DE or fr-CA." : `How the store writes numbers and dates. ${localeExample(locale, currency)}`}
-        >
-          {(control) => (
-            <Select {...control} className={cx(styles.currency)} value={locale} onChange={setLocale} showSearch options={LOCALES} {...(localeWrong ? { status: "error" as const } : {})} />
-          )}
-        </Field>
+      <Card title="Pricing" className={cx(styles.card)}>
+        <p className={cx(styles.wiring)}>
+          Every card a subscriber is sent earns its artist the subscriber's monthly price less these two amounts. Changing them affects cards sent from now on; the ledger keeps what each past card was computed with.
+        </p>
+        {cents(printCost, setPrintCost, "What one printed and mailed card costs you", "Lob's per-card price for a 4×6 first-class postcard, plus whatever you want to allow for the odd reprint.")}
+        {cents(fee, setFee, "What the platform keeps per card", "Your margin on each sent card.")}
+        {cents(minPrice, setMinPrice, "The least an artist may charge a month", "Stripe cannot charge less than 0.50. Below your costs, a card would lose money.")}
+        {pricingWrong ? (
+          <Alert className={cx(styles.notice)} type="error" showIcon title="Enter amounts like 1.20, and a minimum price of at least 0.50." />
+        ) : shareWrong ? (
+          <Alert className={cx(styles.notice)} type="error" showIcon title="At the minimum price an artist would earn nothing" description="Raise the minimum, or lower the print cost or fee." />
+        ) : (
+          <p className={cx(styles.help)}>
+            At the minimum price an artist earns {money(share ?? 0)} per card sent. At {money(500)} they would earn {money(artistShareCents(500, pricing!))}.
+          </p>
+        )}
       </Card>
 
       <Card title="Stripe" className={cx(styles.card)}>
@@ -194,62 +159,24 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
           <p className={cx(styles.wiring)}>
             {environment.data.hasStripeSecret ? (
               <>
-                Secret key configured on the server{" "}
-                <Tag color={environment.data.stripeMode === "live" ? "red" : "blue"}>{environment.data.stripeMode} mode</Tag>
+                Secret key configured on the server <Tag color={environment.data.stripeMode === "live" ? "red" : "blue"}>{environment.data.stripeMode} mode</Tag>
                 {environment.data.hasWebhookSecret ? <Tag color="green">webhooks on</Tag> : <Tag color="orange">no webhook secret</Tag>}
               </>
             ) : (
-              <>No secret key on the server, so nothing can be sold yet.</>
+              <>No secret key on the server, so nobody can subscribe and nobody can be paid.</>
             )}
           </p>
         ) : null}
-
-        <Field
-          label="Publishable key"
-          {...(keyLooksSecret
-            ? { error: "That is a secret key. It must never be stored here — it would be sent to every shopper's browser." }
-            : { help: "Public by design. The secret key lives only in the server's environment." })}
-        >
-          {(control) => (
-            <Input {...control} value={publishableKey} placeholder="pk_test_…" status={keyLooksSecret ? "error" : ""} onChange={(event) => setPublishableKey(event.target.value)} />
-          )}
+        <Field label="Publishable key" {...(keyLooksSecret ? { error: "That is a secret key. It must never be stored here — it would be sent to every visitor's browser." } : { help: "Public by design. The secret key lives only in the server's environment." })}>
+          {(control) => <Input {...control} value={publishableKey} placeholder="pk_test_…" status={keyLooksSecret ? "error" : ""} onChange={(event) => setPublishableKey(event.target.value)} />}
         </Field>
-
-        <p className={cx(styles.help)}>
-          Discount codes are created in the Stripe dashboard; the checkout page accepts them.
-        </p>
+        <p className={cx(styles.help)}>Artists are paid through Stripe Connect Express accounts, which they set up from their studio. Enable Connect in your Stripe dashboard first.</p>
       </Card>
 
       <Card title="Printing" className={cx(styles.card)}>
-        <PrintingCheck
-          hasLob={environment.data?.hasLob ?? false}
-          lobMode={environment.data?.lobMode ?? null}
-        />
-
-        <Field
-          label="Price of a postcard mailed abroad"
-          {...(internationalWrong
-            ? { error: "Enter a price of at least 0.50, or leave it empty to mail within the United States only." }
-            : { help: "Leave empty to mail within the United States only. Lob charges more to mail abroad, and international cards take about two weeks longer." })}
-        >
-          {(control) => (
-            <Input
-              {...control}
-              className={cx(styles.currency)}
-              prefix={currency === "USD" ? "$" : currency}
-              inputMode="decimal"
-              value={internationalPrice}
-              placeholder="US only"
-              status={internationalWrong ? "error" : ""}
-              onChange={(event) => setInternationalPrice(event.target.value)}
-            />
-          )}
-        </Field>
-
+        <PrintingCheck hasLob={environment.data?.hasLob ?? false} lobMode={environment.data?.lobMode ?? null} />
         <p className={cx(styles.help)}>
-          <strong>Return address.</strong> Lob prints it on every card mailed abroad and will not send one
-          without it, so international postcards need it. It must be in the United States.
-          {returnAddressMissing ? " Add it below to turn international mail on." : ""}
+          <strong>Return address.</strong> Printed on every card mailed abroad — Lob will not send one without it — and where a domestic card comes back to if it cannot be delivered. It must be in the United States.
         </p>
         <div className={cx(styles.returnAddress)}>
           <RecipientFields
@@ -264,53 +191,17 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
           />
         </div>
         {returnAddressWrong && returnAddressResult && !returnAddressResult.ok ? (
-          <Alert
-            className={cx(styles.notice)}
-            type="error"
-            showIcon
-            title="The return address is incomplete"
-            description={Object.values(returnAddressResult.errors).filter(Boolean).join(" ")}
-          />
+          <Alert className={cx(styles.notice)} type="error" showIcon title="The return address is incomplete" description={Object.values(returnAddressResult.errors).filter(Boolean).join(" ")} />
         ) : null}
       </Card>
 
       <Card title="Landing page" className={cx(styles.card)}>
-        <p className={cx(styles.wiring)}>
-          The opening block of your front page. Leave a field empty and the storefront falls back to
-          the store name, the built-in line about scheduling postcards, and a button to the designer.
-        </p>
-        <HeroEditor value={hero} onChange={setHero} storeName={name} hrefWrong={heroHrefWrong} />
+        <p className={cx(styles.wiring)}>The opening block of the front page. Leave a field empty and the site falls back to "yes, i want a postcard", the built-in line, and a button to the artists.</p>
+        <HeroEditor value={hero} onChange={setHero} hrefWrong={heroHrefWrong} />
       </Card>
 
       <Card title="Email" className={cx(styles.card)}>
         <EmailCheck hasEmail={environment.data?.hasEmail ?? false} />
-      </Card>
-
-      <Card title="Abandoned cart recovery" className={cx(styles.card)}>
-        <p className={cx(styles.wiring)}>
-          One reminder email, sent once, to a signed-in customer with a verified address who leaves
-          designs in their cart. It goes out under <strong>your own SMTP sending reputation</strong>.
-        </p>
-
-        <div className={cx(styles.toggleRow)}>
-          <Switch checked={cartRecoveryEnabled} onChange={setCartRecoveryEnabled} aria-label="Send abandoned cart reminders" />
-          <div>
-            <p className={cx(styles.toggleLabel)}>{cartRecoveryEnabled ? "Sending cart reminders" : "Not sending cart reminders"}</p>
-            <p className={cx(styles.help)}>
-              {cartRecoveryEnabled
-                ? "A customer who leaves designs untouched gets one email, with a link to recover their cart and an unsubscribe link."
-                : "No cart data is collected or emailed while this is off."}
-            </p>
-          </div>
-        </div>
-
-        {cartRecoveryEnabled ? (
-          <Field label="Wait before sending" help="Hours of inactivity before the one reminder goes out.">
-            {(control) => (
-              <InputNumber {...control} min={1} max={168} value={cartRecoveryDelayHours} onChange={(value) => setCartRecoveryDelayHours(value ?? 4)} suffix="hours" />
-            )}
-          </Field>
-        ) : null}
       </Card>
 
       <Card title="Look" className={cx(styles.card)}>
@@ -325,63 +216,35 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
   );
 }
 
-function HeroEditor({
-  value,
-  onChange,
-  storeName,
-  hrefWrong,
-}: {
-  value: Hero;
-  onChange: (hero: Hero) => void;
-  storeName: string;
-  hrefWrong: boolean;
-}) {
+function HeroEditor({ value, onChange, hrefWrong }: { value: Hero; onChange: (hero: Hero) => void; hrefWrong: boolean }) {
   const { message } = App.useApp();
   const upload = useUploadHeroImage();
 
   const set = <K extends keyof Hero>(key: K, next: Hero[K]) => onChange({ ...value, [key]: next });
-  const setText = (key: "heading" | "text" | "buttonLabel" | "buttonHref", next: string) =>
-    set(key, next.trim() === "" ? null : next);
+  const setText = (key: "heading" | "text" | "buttonLabel" | "buttonHref", next: string) => set(key, next.trim() === "" ? null : next);
 
   return (
     <>
-      <Field label="Heading" help="Falls back to the store name.">
-        {(control) => <Input {...control} value={value.heading ?? ""} placeholder={storeName || "Your store"} onChange={(event) => setText("heading", event.target.value)} />}
+      <Field label="Heading" help="Falls back to the big lowercase “yes”.">
+        {(control) => <Input {...control} value={value.heading ?? ""} placeholder="yes" onChange={(event) => setText("heading", event.target.value)} />}
       </Field>
-
       <Field label="Text" help="One line under the heading.">
-        {(control) => (
-          <Input.TextArea {...control} value={value.text ?? ""} autoSize={{ minRows: 2 }} placeholder="Design your own postcards, send them to the people you love, and schedule them to arrive every few days." onChange={(event) => setText("text", event.target.value)} />
-        )}
+        {(control) => <Input.TextArea {...control} value={value.text ?? ""} autoSize={{ minRows: 2 }} placeholder="an artist would like to send you a postcard." onChange={(event) => setText("text", event.target.value)} />}
       </Field>
-
-      <Field label="Button label" help="Falls back to “Let's go, I'm sold already”.">
-        {(control) => <Input {...control} value={value.buttonLabel ?? ""} placeholder="Let's go, I'm sold already" onChange={(event) => setText("buttonLabel", event.target.value)} />}
+      <Field label="Button label" help="Falls back to “YES I WANT A POSTCARD”.">
+        {(control) => <Input {...control} value={value.buttonLabel ?? ""} placeholder="YES I WANT A POSTCARD" onChange={(event) => setText("buttonLabel", event.target.value)} />}
       </Field>
-
-      <Field
-        label="Button link"
-        {...(hrefWrong
-          ? { error: "Use a path starting with / or a full https:// address." }
-          : { help: "A path like /create, or a full https:// address. Falls back to /create." })}
-      >
-        {(control) => <Input {...control} value={value.buttonHref ?? ""} placeholder="/create" status={hrefWrong ? "error" : ""} onChange={(event) => setText("buttonHref", event.target.value)} />}
+      <Field label="Button link" {...(hrefWrong ? { error: "Use a path starting with / or a full https:// address." } : { help: "A path like /artists, or a full https:// address. Falls back to /artists." })}>
+        {(control) => <Input {...control} value={value.buttonHref ?? ""} placeholder="/artists" status={hrefWrong ? "error" : ""} onChange={(event) => setText("buttonHref", event.target.value)} />}
       </Field>
-
-      <Field label="Photo" help="Beside the heading. Without one the built-in photo shows.">
+      <Field label="Photo" help="Beside the heading. Without one the built-in drawing of a postcard shows.">
         {() => (
           <Space>
             <Upload
               accept="image/*"
               showUploadList={false}
               beforeUpload={(file) => {
-                upload.mutate(
-                  { file, alt: "" },
-                  {
-                    onSuccess: (image) => set("image", image),
-                    onError: () => void message.error("That image could not be uploaded."),
-                  },
-                );
+                upload.mutate({ file, alt: "" }, { onSuccess: (image) => set("image", image), onError: () => void message.error("That image could not be uploaded.") });
                 return Upload.LIST_IGNORE;
               }}
             >
@@ -401,10 +264,7 @@ function HeroEditor({
   );
 }
 
-/**
- * Prove the SMTP transport works, before a customer does it for you.
- * Exported for its own test.
- */
+/** Prove the SMTP transport works, before a subscriber does it for you. */
 export function EmailCheck({ hasEmail }: { hasEmail: boolean }) {
   const send = useSendTestEmail();
 
@@ -412,37 +272,22 @@ export function EmailCheck({ hasEmail }: { hasEmail: boolean }) {
     <>
       <p className={cx(styles.wiring)}>
         {hasEmail
-          ? "Order confirmations, 'your postcard was mailed' notices and password resets are sent over SMTP."
+          ? "Welcome emails, 'your postcard was mailed' notices, artist notices and password resets are sent over SMTP."
           : "No SMTP_URL on the server, so mail is written to the log instead of sent. Set SMTP_URL and EMAIL_FROM, then restart the API."}
       </p>
-
       <Button disabled={!hasEmail} loading={send.isPending} onClick={() => send.mutate()}>
         Send a test email
       </Button>
-
-      {send.data ? (
-        <Alert className={cx(styles.notice)} type={send.data.ok ? "success" : "error"} showIcon title={send.data.ok ? "Sent" : "The transport refused it"} description={send.data.message} />
-      ) : null}
-
-      {send.isError ? (
-        <Alert className={cx(styles.notice)} type="error" showIcon title="Could not reach the server" description={send.error instanceof Error ? send.error.message : "Unknown error."} />
-      ) : null}
+      {send.data ? <Alert className={cx(styles.notice)} type={send.data.ok ? "success" : "error"} showIcon title={send.data.ok ? "Sent" : "The transport refused it"} description={send.data.message} /> : null}
+      {send.isError ? <Alert className={cx(styles.notice)} type="error" showIcon title="Could not reach the server" description={send.error instanceof Error ? send.error.message : "Unknown error."} /> : null}
     </>
   );
 }
 
-/**
- * Prove the printer works — the check v1 never had.
- *
- * Sends one card through the real pipeline to Lob's own test address and
- * shows whatever Lob said. With a test key nothing prints; with a live key
- * this costs one postcard, which the copy says before the button does it.
- * Exported for its own test.
- */
+/** Prove the printer works: one card through the real pipeline to Lob's own test address. */
 export function PrintingCheck({ hasLob, lobMode }: { hasLob: boolean; lobMode: "test" | "live" | null }) {
   const { modal } = App.useApp();
   const send = useSendTestPostcard();
-
   const run = () => send.mutate({ text: "This is a test postcard from the admin.", valediction: "— the printer check" });
 
   return (
@@ -450,26 +295,19 @@ export function PrintingCheck({ hasLob, lobMode }: { hasLob: boolean; lobMode: "
       <p className={cx(styles.wiring)}>
         {hasLob ? (
           <>
-            Postcards are printed and mailed by Lob{" "}
-            <Tag color={lobMode === "live" ? "red" : "blue"}>{lobMode} key</Tag>
-            The sweep runs every fifteen minutes and sends every card whose mailing day has come.
+            Postcards are printed and mailed by Lob <Tag color={lobMode === "live" ? "red" : "blue"}>{lobMode} key</Tag>
+            The sweep runs every fifteen minutes: due mailings become cards, and due cards go to Lob.
           </>
         ) : (
-          "No LOB_API_KEY on the server, so paid orders wait at Scheduled and nothing is printed. Set it, then restart the API."
+          "No LOB_API_KEY on the server, so mailings write cards that wait at Scheduled and nothing is printed. Set it, then restart the API."
         )}
       </p>
-
       <Button
         disabled={!hasLob}
         loading={send.isPending}
         onClick={() => {
           if (lobMode === "live") {
-            modal.confirm({
-              title: "Send a real test postcard?",
-              content: "This is a live Lob key, so a card will actually be printed and mailed to Lob's office, and it costs the usual postcard fee.",
-              okText: "Send it",
-              onOk: run,
-            });
+            modal.confirm({ title: "Send a real test postcard?", content: "This is a live Lob key, so a card will actually be printed and mailed to Lob's office, and it costs the usual postcard fee.", okText: "Send it", onOk: run });
           } else {
             run();
           }
@@ -477,7 +315,6 @@ export function PrintingCheck({ hasLob, lobMode }: { hasLob: boolean; lobMode: "
       >
         Send a test postcard
       </Button>
-
       {send.data ? (
         <Alert
           className={cx(styles.notice)}
@@ -500,10 +337,7 @@ export function PrintingCheck({ hasLob, lobMode }: { hasLob: boolean; lobMode: "
           }
         />
       ) : null}
-
-      {send.isError ? (
-        <Alert className={cx(styles.notice)} type="error" showIcon title="Could not reach the server" description={send.error instanceof Error ? send.error.message : "Unknown error."} />
-      ) : null}
+      {send.isError ? <Alert className={cx(styles.notice)} type="error" showIcon title="Could not reach the server" description={send.error instanceof Error ? send.error.message : "Unknown error."} /> : null}
     </>
   );
 }

@@ -1,7 +1,7 @@
 import { access, mkdir } from "node:fs/promises";
 import { constants } from "node:fs";
 import { createApp } from "./app.js";
-import { env, hasLob, lobMode } from "./env.js";
+import { env, hasLob, hasStripe, lobMode } from "./env.js";
 import { ASSETS_ROOT } from "./uploads.js";
 import { imageStore } from "./image-store.js";
 import { runMigrations } from "../db/migrate.js";
@@ -12,9 +12,8 @@ import { probeStripeKey } from "./stripe.js";
 /**
  * Boot.
  *
- * The server starts even when the store is unconfigured — it reports that
- * state over the API and the client shows a setup screen. v1 threw an
- * uncaught ENOENT on a missing config.env and never bound a port at all.
+ * The server starts even when the platform is unconfigured — it reports that
+ * state over the API and the client shows a setup screen.
  */
 async function main(): Promise<void> {
   await runMigrations();
@@ -28,12 +27,13 @@ async function main(): Promise<void> {
   const app = createApp();
 
   const server = app.listen(env.API_PORT, env.API_HOST, () => {
-    console.log(`Postcards API listening on http://${env.API_HOST}:${env.API_PORT}`);
+    console.log(`Yes I Want A Postcard API listening on http://${env.API_HOST}:${env.API_PORT}`);
     console.log(
       hasLob
         ? `Printing: Lob, ${lobMode} key${env.LOB_BACK_TEMPLATE_ID ? ` with back template ${env.LOB_BACK_TEMPLATE_ID}` : ", back rendered from print/back.hbs"}`
-        : "Printing: LOB_API_KEY is not set, so scheduled postcards will wait.",
+        : "Printing: LOB_API_KEY is not set, so mailed postcards will wait at Scheduled.",
     );
+    console.log(hasStripe ? "Billing: Stripe, subscriptions and Connect payouts." : "Billing: STRIPE_SECRET_KEY is not set, so nobody can subscribe and nothing is paid out.");
     // Where uploads go, in the deploy log, next to where the API is: the two
     // things an operator checks first when a deploy looks wrong.
     console.log(imageStore.describe());
@@ -41,9 +41,9 @@ async function main(): Promise<void> {
 
   if (!(await isConfigured())) {
     console.log(
-      "\n  This store is not set up yet. Either:\n" +
-        "    npm run setup                 — three prompts in this terminal, or\n" +
-        `    open ${env.PUBLIC_URL}/setup  — the same three steps in a browser\n`,
+      "\n  This platform is not set up yet. Either:\n" +
+        "    npm run setup                 — a few prompts in this terminal, or\n" +
+        `    open ${env.PUBLIC_URL}/setup  — the same steps in a browser\n`,
     );
 
     /*
@@ -79,10 +79,8 @@ async function main(): Promise<void> {
  * Make the upload directory exist and say so if it cannot be written.
  *
  * A volume mounted at the wrong path, or owned by the wrong user, otherwise
- * shows up as a 500 on the first image upload — hours after the deploy, to a
- * merchant who has no way to connect the two. A warning here, not a crash:
- * a store with a broken image directory still browses and still sells, and
- * the operator reads the log either way.
+ * shows up as a 500 on the first image upload — hours after the deploy, to
+ * an artist who has no way to connect the two. A warning here, not a crash.
  */
 async function ensureAssetsDirectory(): Promise<void> {
   try {

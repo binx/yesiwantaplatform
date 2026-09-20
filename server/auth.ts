@@ -72,11 +72,8 @@ export class EmailTakenError extends Error {
   }
 }
 
-function isUniqueViolation(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  // SQLITE_CONSTRAINT_UNIQUE, and Postgres's 23505.
-  return /UNIQUE constraint failed|duplicate key value|23505/i.test(message);
-}
+// SQLITE_CONSTRAINT_UNIQUE, and Postgres's 23505, wherever drizzle put it.
+import { isUniqueViolation } from "../db/repository.js";
 
 export async function createAdmin(email: string, password: string): Promise<string> {
   const { drizzle: db, schema } = await getDatabase();

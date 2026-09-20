@@ -37,23 +37,20 @@
       .text { white-space: pre-wrap; }
       .valediction { text-align: right; margin-top: 0.15in; }
       /*
-       * The reply QR sits in the bottom-left of the message column, 0.6in
-       * square with a whisper of a caption, and pushes the message up by
-       * that much. Bottom-left keeps it clear of Lob's address block and
-       * the postal barcode zone on the right and along the bottom edge.
+       * The one line that is the platform's rather than the artist's: who
+       * sent the card and where it came from. Bottom-left keeps it clear of
+       * Lob's address block and the postal barcode zone.
        */
-      .reply { margin-top: auto; padding-top: 0.1in; display: flex; align-items: flex-end; gap: 0.08in; }
-      .reply svg { width: 0.6in; height: 0.6in; flex: 0 0 auto; }
-      .reply .caption { font-family: Quicksand, sans-serif; font-size: 6pt; line-height: 1.3; color: #666; max-width: 1.4in; }
-      .reply .url { font-weight: 600; }
+      .footer { margin-top: auto; padding-top: 0.1in; font-family: Quicksand, sans-serif; font-size: 6pt; line-height: 1.3; color: #666; }
+      .footer .artist { font-weight: 600; }
     </style>
   </head>
   <body>
     <div class="safe">
       <div class="text">{{text}}</div>
       {{#if valediction}}<div class="valediction">{{valediction}}</div>{{/if}}
-      {{#if replyQr}}
-      <div class="reply">{{{replyQr}}}<div class="caption">Scan to send your own postcard<div class="url">postcardgifts.com</div></div></div>
+      {{#if footer}}
+      <div class="footer"><span class="artist">{{footer.artist}}</span> · a monthly postcard via {{footer.site}}</div>
       {{/if}}
     </div>
   </body>

@@ -104,16 +104,15 @@ describe("renderBack", () => {
     expect(html).toContain("#123456");
   });
 
-  it("draws the reply QR only when the card has a code", async () => {
+  it("names the artist and the platform under the message, only when told to", async () => {
     const back = { text: "Hi", valediction: "", fontName: "Quicksand", fontSize: 12, fontColor: "#000000" };
-    const withCode = await renderBack(back, "https://postcards.example/r/AB7X3KQM");
-    expect(withCode).toContain("<svg");
-    expect(withCode).toContain("Scan to send your own postcard");
-    expect(withCode).toContain("postcardgifts.com");
-    expect(withCode).not.toContain("https://postcards.example/r/AB7X3KQM");
+    const withFooter = await renderBack(back, { artistName: "Rachel <Binx> 🎉", siteName: "yesiwantapostcard.com" });
+    expect(withFooter).toContain("Rachel &lt;Binx&gt;");
+    expect(withFooter).not.toContain("🎉");
+    expect(withFooter).toContain("yesiwantapostcard.com");
     const without = await renderBack(back, null);
-    expect(without).not.toContain("<svg");
-    expect(without).not.toContain("Scan to send");
+    expect(without).not.toContain("yesiwantapostcard.com");
+    expect(without).not.toContain('class="footer"');
   });
 
   it("omits the closing line when there is none", async () => {

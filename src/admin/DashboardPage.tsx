@@ -1,19 +1,9 @@
 import { useEffect, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Alert, App, Button, Card, Empty, Skeleton, Statistic, Table, Tag } from "antd";
-import type { Order } from "@shared/orders";
+import { Alert, App, Button, Card, Statistic, Tag } from "antd";
 import { formatMoney } from "@shared/money";
-import {
-  useEnvironment,
-  useFulfilment,
-  useOrders,
-  useRunFulfilment,
-  useSettings,
-  useStoreLocale,
-} from "./queries";
+import { useEnvironment, useOverview, useRunFulfilment, useRunPayouts, useSettings, useStoreLocale } from "./queries";
 import { PageHeader } from "./RequireAdmin";
-import { OrderStatusTag } from "./OrderStatusTag";
-import { formatOrderDate } from "./orderPresentation";
 import { cx } from "@/lib/cx";
 import { isLocalOrigin } from "@/lib/publicUrl";
 import styles from "./DashboardPage.module.css";
@@ -21,143 +11,115 @@ import styles from "./DashboardPage.module.css";
 /**
  * Overview.
  *
- * The point of the wiring panel is that a store can be *almost* working —
+ * The point of the wiring panel is that a platform can be *almost* working —
  * Stripe connected, no Lob key — and the failure mode is silent: the money
  * is taken and no postcard ever goes out. That is worth saying on the first
- * screen rather than leaving it to be discovered by a customer.
+ * screen rather than leaving it to be discovered by a subscriber.
  */
 export function DashboardPage() {
   const { message } = App.useApp();
   const settings = useSettings();
-  const orders = useOrders("all", 0);
+  const overview = useOverview();
   const environment = useEnvironment();
-  const fulfilment = useFulfilment();
   const run = useRunFulfilment();
+  const payouts = useRunPayouts();
   const locale = useStoreLocale();
 
   useEffect(() => {
     document.title = "Overview · Admin";
   }, []);
 
-  const paidOrders = orders.data?.orders.filter((order) => order.status !== "pending" && order.status !== "cancelled") ?? [];
-  const revenue = paidOrders.reduce((total, order) => total + order.totalCents - order.refundedCents, 0);
   const currency = settings.data?.currency ?? "USD";
-  const counts = fulfilment.data?.postcards ?? {};
+  const money = (cents: number) => formatMoney(cents, currency, locale);
+  const o = overview.data;
+  const fail = (error: unknown) => void message.error(error instanceof Error ? error.message : "Could not run that.");
 
   return (
     <>
       <PageHeader
         title="Overview"
-        description={settings.data ? `Managing ${settings.data.name}.` : undefined}
+        description={settings.data ? `Running ${settings.data.name}.` : undefined}
         actions={
-          <Button
-            loading={run.isPending}
-            onClick={() =>
-              run.mutate(undefined, {
-                onSuccess: (result) =>
-                  void message.info(
-                    result.skipped ??
-                      `${result.sent} sent, ${result.failed} to retry, ${result.parked} need attention.`,
-                  ),
-                onError: (error: unknown) =>
-                  void message.error(error instanceof Error ? error.message : "Could not run the sweep."),
-              })
-            }
-          >
-            Send due postcards now
-          </Button>
+          <>
+            <Button
+              loading={run.isPending}
+              onClick={() =>
+                run.mutate(undefined, {
+                  onSuccess: (result) => void message.info(result.skipped ?? `${result.mailings.mailed} mailing${result.mailings.mailed === 1 ? "" : "s"} went out; ${result.sent} sent, ${result.failed} to retry, ${result.parked} need attention.`),
+                  onError: fail,
+                })
+              }
+            >
+              Run the mail sweep now
+            </Button>
+            <Button loading={payouts.isPending} onClick={() => payouts.mutate(undefined, { onSuccess: (result) => void message.info(result.skipped ?? `${result.paid} paid, ${result.deferred} deferred, ${result.failed} failed.`), onError: fail })}>
+              Run payouts now
+            </Button>
+          </>
         }
       />
 
       {environment.data ? <Wiring environment={environment.data} /> : null}
 
-      {fulfilment.data?.lastRun?.result.skipped ? (
-        <Alert
-          className={cx(styles.wiring)}
-          type="warning"
-          showIcon
-          title="The last sweep stopped early"
-          description={`${fulfilment.data.lastRun.result.skipped} (${new Date(fulfilment.data.lastRun.at).toLocaleTimeString(locale)})`}
-        />
+      {o?.lastSweep?.result.skipped ? (
+        <Alert className={cx(styles.wiring)} type="warning" showIcon title="The last mail sweep stopped early" description={`${o.lastSweep.result.skipped} (${new Date(o.lastSweep.at).toLocaleTimeString(locale)})`} />
       ) : null}
 
-      {(counts.error ?? 0) > 0 ? (
+      {(o?.postcards.error ?? 0) > 0 ? (
         <Alert
           className={cx(styles.wiring)}
           type="error"
           showIcon
-          title={`${counts.error} postcard${counts.error === 1 ? "" : "s"} failed to send`}
+          title={`${o?.postcards.error} postcard${o?.postcards.error === 1 ? "" : "s"} failed to send`}
           description={
             <>
-              Lob refused them and the reason is on each order. Filter the{" "}
-              <Link to="/admin/orders?status=paid">orders in progress</Link> and look for the failed
-              count.
+              Lob refused them and the reason is on each. <Link to="/admin/mailings">See the mailings</Link>.
             </>
           }
         />
       ) : null}
 
+      {(o?.payouts.failed ?? 0) > 0 ? (
+        <Alert className={cx(styles.wiring)} type="error" showIcon title={`${money(o?.payouts.failed ?? 0)} in payouts failed`} description={<Link to="/admin/payouts?status=failed">See the payouts</Link>} />
+      ) : null}
+
       <div className={cx(styles.stats)}>
         <Card>
-          <Statistic title="Scheduled" value={counts.scheduled ?? 0} loading={fulfilment.isPending} />
-          <p className={cx(styles.statNote)}>Postcards waiting for their day</p>
-        </Card>
-        <Card>
-          <Statistic title="Sent" value={counts.sent ?? 0} loading={fulfilment.isPending} />
-          <p className={cx(styles.statNote)}>Handed to Lob, all time</p>
-        </Card>
-        <Card>
-          <Statistic title="Orders" value={orders.data?.total ?? 0} loading={orders.isPending} />
-        </Card>
-        <Card>
-          <Statistic title="Recent revenue" value={formatMoney(revenue, currency, locale)} loading={orders.isPending} />
+          <Statistic title="Live artists" value={o?.artists.live ?? 0} loading={overview.isPending} />
           <p className={cx(styles.statNote)}>
-            {paidOrders.length === 0
-              ? "No paid orders yet"
-              : `Across the most recent ${paidOrders.length} paid order${paidOrders.length === 1 ? "" : "s"}, after refunds`}
+            {o?.artists.draft ?? 0} drafting · {o?.artists.paused ?? 0} paused
           </p>
+        </Card>
+        <Card>
+          <Statistic title="Active subscriptions" value={o?.subscriptions.active ?? 0} loading={overview.isPending} />
+          <p className={cx(styles.statNote)}>
+            {o?.subscriptions.past_due ?? 0} past due · {o?.subscriptions.cancelled ?? 0} cancelled
+          </p>
+        </Card>
+        <Card>
+          <Statistic title="Postcards mailed" value={o?.postcards.sent ?? 0} loading={overview.isPending} />
+          <p className={cx(styles.statNote)}>
+            {o?.postcards.scheduled ?? 0} waiting · {o?.mailings.queued ?? 0} mailing{o?.mailings.queued === 1 ? "" : "s"} queued
+          </p>
+        </Card>
+        <Card>
+          <Statistic title="Revenue" value={money(o?.revenueCents ?? 0)} loading={overview.isPending} />
+          <p className={cx(styles.statNote)}>All invoices, after refunds</p>
+        </Card>
+        <Card>
+          <Statistic title="Owed to artists" value={money(o?.payouts.pending ?? 0)} loading={overview.isPending} />
+          <p className={cx(styles.statNote)}>{money(o?.payouts.paid ?? 0)} paid out so far</p>
         </Card>
       </div>
 
-      <Card className={cx(styles.recent)} title="Recent orders" extra={<Link to="/admin/orders">All orders</Link>}>
-        {orders.isPending ? (
-          <Skeleton active paragraph={{ rows: 4 }} />
-        ) : (orders.data?.orders.length ?? 0) === 0 ? (
-          <Empty description="No orders yet" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-        ) : (
-          <Table<Order>
-            dataSource={orders.data?.orders.slice(0, 5)}
-            rowKey="id"
-            pagination={false}
-            size="middle"
-            scroll={{ x: "max-content" }}
-            columns={[
-              {
-                title: "Reference",
-                dataIndex: "reference",
-                render: (reference: string, order) => <Link to={`/admin/orders/${order.id}`}>{reference}</Link>,
-              },
-              { title: "Email", dataIndex: "email" },
-              { title: "Postcards", dataIndex: "postcardCount", align: "right" },
-              {
-                title: "Status",
-                dataIndex: "status",
-                render: (_value, order) => <OrderStatusTag order={order} locale={locale} />,
-              },
-              {
-                title: "Total",
-                dataIndex: "totalCents",
-                align: "right",
-                render: (cents: number, order) => formatMoney(cents, order.currency, locale),
-              },
-              {
-                title: "Placed",
-                dataIndex: "createdAt",
-                render: (value: number) => formatOrderDate(value, false, locale),
-              },
-            ]}
-          />
-        )}
+      <Card className={cx(styles.recent)} title="The economics" extra={<Link to="/admin/settings">Settings</Link>}>
+        {settings.data ? (
+          <p style={{ margin: 0 }}>
+            Every sent card: the subscriber's monthly price, less <strong>{money(settings.data.pricing.printCostCents)}</strong> to print and mail and a{" "}
+            <strong>{money(settings.data.pricing.platformFeeCents)}</strong> platform fee, goes to the artist. Artists may charge no less than{" "}
+            <strong>{money(settings.data.pricing.minMonthlyPriceCents)}</strong> a month.
+          </p>
+        ) : null}
       </Card>
     </>
   );
@@ -185,7 +147,7 @@ interface Notice {
   description: ReactNode;
 }
 
-/** Exported for its own test: a truth table over the environment. */
+/** A truth table over the environment. */
 export function Wiring({ environment }: WiringProps) {
   const notices: Notice[] = [];
 
@@ -193,67 +155,40 @@ export function Wiring({ environment }: WiringProps) {
     notices.push({
       type: "warning",
       title: "Public URL is localhost",
-      description: `Stripe will send buyers back to ${environment.publicUrl} after paying, and emailed links will not open. Set PUBLIC_URL to this store's real address and restart the API.`,
+      description: `Stripe will send subscribers back to ${environment.publicUrl} after paying, and emailed links will not open. Set PUBLIC_URL to the platform's real address and restart the API.`,
     });
   }
 
   if (!environment.hasStripeSecret) {
-    notices.push({
-      type: "info",
-      title: "Stripe is not connected",
-      description: "The designer works, but nothing can be sold. Set STRIPE_SECRET_KEY in .env and restart the API.",
-    });
+    notices.push({ type: "info", title: "Stripe is not connected", description: "Artists can build pages, but nobody can subscribe and nobody can be paid. Set STRIPE_SECRET_KEY in .env and restart the API." });
   } else if (environment.stripeKeyStatus === "invalid") {
-    notices.push({
-      type: "error",
-      title: "The Stripe key on the server was rejected",
-      description: "Replace STRIPE_SECRET_KEY and restart the API.",
-    });
+    notices.push({ type: "error", title: "The Stripe key on the server was rejected", description: "Replace STRIPE_SECRET_KEY and restart the API." });
   } else if (!environment.hasWebhookSecret) {
     notices.push({
       type: "warning",
       title: "Stripe is connected, but webhooks are not",
-      description:
-        "The webhook is the only thing that marks an order paid — the success redirect proves nothing. Without STRIPE_WEBHOOK_SECRET a real payment will succeed at Stripe and no postcard will ever be scheduled.",
+      description: "The webhook is the only thing that activates a subscription and records a renewal. Without STRIPE_WEBHOOK_SECRET a real payment will succeed at Stripe and nobody will ever get a card. Point a webhook at /api/webhooks/stripe and listen to Connect events too.",
     });
   }
 
   if (environment.hasStripeSecret && environment.stripeMode === "live") {
-    notices.push({ type: "warning", title: "Stripe live mode", description: "Checkouts charge real cards." });
+    notices.push({ type: "warning", title: "Stripe live mode", description: "Subscriptions charge real cards, and payouts move real money." });
   }
 
   if (!environment.hasLob) {
-    notices.push({
-      type: "error",
-      title: "Lob is not connected, so nothing goes to print",
-      description:
-        "Paid orders will sit at Scheduled. Set LOB_API_KEY in .env and restart the API, then send a test postcard from Settings → Printing.",
-    });
+    notices.push({ type: "error", title: "Lob is not connected, so nothing goes to print", description: "Mailings will write cards that sit at Scheduled. Set LOB_API_KEY in .env and restart the API, then send a test postcard from Settings → Printing." });
   } else if (environment.lobMode === "test" && environment.stripeMode === "live") {
-    notices.push({
-      type: "error",
-      title: "Stripe is live but Lob is in test mode",
-      description: "Real money is being taken and no real postcards are being printed. Swap in a live_ Lob key.",
-    });
+    notices.push({ type: "error", title: "Stripe is live but Lob is in test mode", description: "Real money is being taken and no real postcards are being printed. Swap in a live_ Lob key." });
   } else if (environment.lobMode === "live") {
     notices.push({ type: "warning", title: "Lob live mode", description: "Every card the sweep sends is printed and mailed, and costs money." });
   }
 
   if (environment.hasLob && !environment.hasLobWebhook) {
-    notices.push({
-      type: "info",
-      title: "Lob tracking is not connected",
-      description:
-        "Cards still print and mail; the order pages just stop at \"Mailed\". Create a webhook in the Lob dashboard pointed at /api/webhooks/lob, subscribe it to the postcard events, and set LOB_WEBHOOK_SECRET.",
-    });
+    notices.push({ type: "info", title: "Lob tracking is not connected", description: 'Cards still print and mail; subscribers\' pages just stop at "Mailed". Create a webhook in the Lob dashboard pointed at /api/webhooks/lob and set LOB_WEBHOOK_SECRET.' });
   }
 
   if (!environment.hasEmail) {
-    notices.push({
-      type: "info",
-      title: "No email provider",
-      description: "Order confirmations and 'your postcard was mailed' notices are logged instead of sent. Set SMTP_URL and EMAIL_FROM when you are ready.",
-    });
+    notices.push({ type: "info", title: "No email provider", description: "Welcome emails, 'your postcard was mailed' notices and password resets are logged instead of sent. Set SMTP_URL and EMAIL_FROM when you are ready." });
   }
 
   if (notices.length === 0) {
@@ -265,8 +200,7 @@ export function Wiring({ environment }: WiringProps) {
           showIcon
           title={
             <>
-              Everything is wired up{" "}
-              <Tag color={environment.stripeMode === "live" ? "red" : "blue"}>Stripe {environment.stripeMode}</Tag>
+              Everything is wired up <Tag color={environment.stripeMode === "live" ? "red" : "blue"}>Stripe {environment.stripeMode}</Tag>
               <Tag color={environment.lobMode === "live" ? "red" : "blue"}>Lob {environment.lobMode}</Tag>
               <Tag>{environment.database}</Tag>
             </>

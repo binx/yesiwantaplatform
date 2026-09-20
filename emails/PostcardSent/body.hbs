@@ -1,13 +1,8 @@
 <h1 style="margin:0 0 12px;font-size:24px;font-weight:600;">A postcard went to print today</h1>
 <p style="margin:0 0 8px;color:#52525b;line-height:1.6;">
-  The card for <strong style="color:#18181b;">{{postcard.recipientName}}</strong> at {{postcard.address}} has gone to the printer.
-  {{#if postcard.expectedDelivery}}It should arrive around <strong style="color:#18181b;">{{postcard.expectedDelivery}}</strong>.{{else}}It should arrive within about a week.{{/if}}
+  This month's card from <a href="{{artistUrl}}" style="color:#18181b;"><strong>{{artistName}}</strong></a> has gone to the printer, addressed to {{recipientName}}.
+  {{#if expectedDelivery}}It should arrive around <strong style="color:#18181b;">{{expectedDelivery}}</strong>.{{else}}It should arrive within about a week.{{/if}}
 </p>
-{{#if postcard.proofUrl}}
-<p style="margin:0 0 8px;color:#52525b;line-height:1.6;">
-  <a href="{{postcard.proofUrl}}" style="color:#18181b;">See a proof of the printed card</a>
-</p>
-{{/if}}
 <p style="margin:16px 0 0;">
-  <a href="{{order.trackingUrl}}" style="color:#18181b;">Follow the rest of this order</a>
+  <a href="{{postcardsUrl}}" style="color:#18181b;">Follow it, and every card you've been sent</a>
 </p>

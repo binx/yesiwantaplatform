@@ -197,7 +197,7 @@ export function ThemeEditor({ value, onChange, storeName, savedFontUrl }: ThemeE
             </Space>
           </Form.Item>
 
-          <Form.Item label="Logo" help="Replaces the store name in the banner.">
+          <Form.Item label="Logo" help="Replaces the wordmark in the banner.">
             <Space>
               <Upload
                 accept="image/*"
@@ -318,7 +318,7 @@ export function ThemeEditor({ value, onChange, storeName, savedFontUrl }: ThemeE
 
           <Form.Item
             label={`Corner radius — ${value.borderRadius}px`}
-            help="0 reads as editorial and hard-edged; 4 is as soft as the storefront goes."
+            help="0 reads as editorial and hard-edged; 4 is as soft as the site goes."
           >
             <Slider
               /*
@@ -361,7 +361,7 @@ export function ThemeEditor({ value, onChange, storeName, savedFontUrl }: ThemeE
             showIcon
             className={cx(styles.previewNote)}
             title="Save to see this typeface"
-            description="The store only allows fonts from an address it has saved, so the preview keeps the fallback until you do."
+            description="The site only allows fonts from an address it has saved, so the preview keeps the fallback until you do."
           />
         ) : null}
 

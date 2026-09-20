@@ -1,163 +1,161 @@
 .hero {
-  padding: 3rem var(--beluga-gutter) 2rem;
-  background: var(--beluga-surface);
+  padding: 3rem var(--beluga-gutter) 3rem;
+  background: var(--beluga-page);
   border-bottom: 1px solid var(--beluga-line);
 }
 
 .heroInner {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(16rem, 24rem);
-  gap: 0 3rem;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  gap: 2rem 4rem;
+  align-items: center;
   max-width: 72rem;
   margin: 0 auto;
-}
-
-/*
- * v1's wordmark. The plates are text-shadows in the order they stack: magenta
- * on top, then cyan, then yellow; the glyph itself is the page's own surface
- * colour so it knocks the plates and the dotted rule out where it sits.
- * The offset scales with the type so it stays the same fraction of an x-height
- * on a phone.
- */
-.wordmark {
-  --plate: clamp(2px, 0.4vw, 5px);
-  grid-column: 1 / -1;
-  position: relative;
-  text-align: center;
-  padding: 0.25em 0 0.15em;
-  font-size: clamp(5.5rem, 3rem + 17vw, 18rem);
-  line-height: 0.9;
-}
-
-.wordmark::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0.3em;
-  border-bottom: 3px dotted var(--beluga-ink);
-}
-
-.wordmarkText {
-  position: relative;
-  margin: 0;
-  font-family: Sacramento, cursive;
-  font-weight: 400;
-  font-size: inherit;
-  line-height: inherit;
-  letter-spacing: 0;
-  color: var(--beluga-surface);
-  text-shadow:
-    var(--plate) calc(-1 * var(--plate)) 0 #ff00ff,
-    var(--plate) var(--plate) 0 #00ffff,
-    calc(-1 * var(--plate)) calc(-1 * var(--plate)) 0 #ffff37;
 }
 
 .heroCopy {
   display: grid;
   gap: 1.25rem;
   justify-items: start;
-  padding-top: 1.5rem;
+}
+
+/*
+ * The wordmark as the original site set it: a huge lowercase "yes" and the
+ * rest of the sentence under it, both in the theme face. Lowercase on
+ * purpose — the whole page spoke that way.
+ */
+.wordmark {
+  display: grid;
+  margin: 0;
+  line-height: 0.9;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.yes {
+  font-size: clamp(5rem, 3rem + 14vw, 12rem);
+}
+
+.rest {
+  margin-top: 0.35rem;
+  font-size: clamp(1.75rem, 1.2rem + 3vw, 3rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .heroText {
   margin: 0;
+  font-size: 1.125rem;
   max-width: 34rem;
-  color: var(--beluga-muted);
-}
-
-/* Tucked up under the wordmark's descenders, the way v1 hung the photo. */
-.heroImage {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 2 / 3;
-  object-fit: cover;
-  border-radius: var(--beluga-radius);
-  margin-top: -3rem;
 }
 
 .points {
-  display: grid;
-  gap: 0.75rem;
   margin: 0;
-  padding: 0;
-  list-style: none;
+  padding-left: 1.25rem;
   max-width: 34rem;
-}
-
-.points li {
-  padding: 0.75rem 1rem;
+  display: grid;
+  gap: 0.35rem;
   line-height: 1.5;
 }
 
-/* v1's CMYK offset accents, carried over as-is for the design pass to revisit. */
-.magenta {
-  border-top: 3px solid #ff00ff;
-  border-left: 3px solid #ff00ff;
-  background: rgb(255 0 255 / 8%);
+.heroActions {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
 }
 
-.cyan {
-  border-top: 3px solid #00ffff;
-  border-left: 3px solid #00ffff;
-  background: rgb(0 255 255 / 10%);
+.heroActions :global(.ant-btn) {
+  letter-spacing: 0.06em;
+}
+
+a.wtf {
+  font-size: 0.875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--beluga-muted);
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+}
+
+.heroImage {
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  border-radius: var(--beluga-radius);
+}
+
+/* A postcard on a table, drawn in CSS: the built-in picture until the operator uploads one. */
+.heroCard {
+  position: relative;
+  aspect-ratio: 6.25 / 4.25;
+  width: 100%;
+}
+
+.heroCardFront,
+.heroCardBack {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--beluga-line);
+  background: var(--beluga-surface);
+  box-shadow: 4px 4px 12px rgb(0 0 0 / 12%);
+}
+
+.heroCardFront {
+  transform: rotate(-8deg) translate(-8%, -14%);
+  background:
+    radial-gradient(circle at 30% 30%, var(--beluga-accent) 0 18%, transparent 19%),
+    linear-gradient(160deg, #d9e8f2 0 55%, #6f9c7d 55% 100%);
+}
+
+.heroCardBack {
+  transform: rotate(4deg) translate(6%, 10%);
+  padding: 8% 6%;
+  display: grid;
+  gap: 8%;
+  align-content: end;
+  justify-items: end;
+}
+
+.heroCardLine {
+  width: 45%;
+  height: 1px;
+  background: var(--beluga-line);
+}
+
+.heroCardStamp {
+  position: absolute;
+  top: 8%;
+  right: 6%;
+  width: 12%;
+  aspect-ratio: 4 / 5;
+  border: 1px dashed var(--beluga-muted);
+}
+
+.wtf {
+  scroll-margin-top: 2rem;
+  margin: 3rem 0 2rem;
+  padding: 2.5rem 0 1rem;
+  border-top: 3px dotted var(--beluga-ink);
 }
 
 .columns {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
   gap: 2.5rem;
-  padding-top: 1rem;
-  border-top: 3px dotted var(--beluga-ink);
 }
 
 .column p {
   margin: 0 0 0.75rem;
+  max-width: 40rem;
 }
 
-/* The same plates at a section heading's size, ink on top as in v1. */
-.script {
-  font-family: Sacramento, cursive;
-  font-weight: 400;
-  font-size: clamp(2.75rem, 2rem + 2vw, 4rem);
-  line-height: 1.1;
-  margin: 0 0 1rem;
-  text-align: center;
-  color: var(--beluga-ink);
-  text-shadow:
-    2px -2px 0 #ff00ff,
-    2px 2px 0 #00ffff,
-    -2px -2px 0 #ffff37;
-}
-
-.faq {
-  margin: 0;
-}
-
-.faq dt {
-  font-weight: 600;
-  margin-top: 1rem;
-  display: inline-block;
-  background: rgb(0 255 255 / 10%);
-}
-
-.faq dd {
-  margin: 0.25rem 0 0;
-  color: var(--beluga-muted);
-}
-
-.cta {
-  margin: 3rem 0;
-  text-align: center;
-}
-
-.table {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 16 / 6;
-  object-fit: cover;
-  border-radius: var(--beluga-radius);
+.steps {
+  margin: 0 0 1.5rem;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.5rem;
+  line-height: 1.5;
 }
 
 @media (max-width: 800px) {
@@ -165,9 +163,8 @@
     grid-template-columns: 1fr;
   }
 
-  .heroImage {
-    max-height: 20rem;
-    aspect-ratio: auto;
-    margin-top: 1rem;
+  .heroCard {
+    max-width: 18rem;
+    margin: 1rem auto 0;
   }
 }

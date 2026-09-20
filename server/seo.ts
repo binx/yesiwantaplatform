@@ -1,5 +1,6 @@
 import { getSettings } from "../db/repository.js";
 import { findPageBySlug } from "../db/pages-repository.js";
+import { findArtistBySlug } from "../db/artists-repository.js";
 import { languageOf } from "../shared/locale.js";
 import { formatMoney } from "../shared/money.js";
 import { env } from "./env.js";
@@ -7,10 +8,10 @@ import { env } from "./env.js";
 /**
  * Metadata for the HTML shell.
  *
- * The storefront is a client-rendered SPA, so a crawler or a link unfurler
- * sees only what is in `index.html` when it arrives. The production HTML
- * handler asks this what the `<head>` should say for the path being
- * requested, and injects it. The React app still boots normally.
+ * The site is a client-rendered SPA, so a crawler or a link unfurler sees
+ * only what is in `index.html` when it arrives. The production HTML handler
+ * asks this what the `<head>` should say for the path being requested, and
+ * injects it. The React app still boots normally.
  */
 
 export interface PageMeta {
@@ -21,7 +22,7 @@ export interface PageMeta {
   jsonLd: object | null;
   /** The theme's font stylesheet, or null for a system font. */
   fontUrl: string | null;
-  /** `<html lang>`, from the store's locale. */
+  /** `<html lang>`, from the platform's locale. */
   lang: string;
 }
 
@@ -54,31 +55,31 @@ function absolute(pathname: string): string {
   return new URL(pathname, env.PUBLIC_URL).toString();
 }
 
+const DEFAULT_DESCRIPTION = "Subscribe to an artist and get one of their postcards in the mail every month. Let's move beyond social media.";
+
+/** Client routes with nothing to say about themselves beyond the platform's own line. */
+const PLAIN_ROUTES = ["/account", "/studio", "/subscribe", "/admin", "/setup"];
+
 /**
  * Resolve the tags for one path.
  *
  * This runs on the HTML path for every request, bots probing nonsense URLs
- * included, so nothing in here may throw: a miss falls back to the store
+ * included, so nothing in here may throw: a miss falls back to the platform
  * defaults and the SPA still boots.
  */
 export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
   const settings = await getSettings().catch(() => null);
-  const storeName = settings?.name ?? "Postcard Gifts";
+  const storeName = settings?.name ?? "Yes I Want A Postcard";
   const fontUrl = settings?.theme.fontUrl ?? null;
   const lang = languageOf(settings?.locale ?? "en-US");
-  const price = settings
-    ? formatMoney(settings.postcardPriceCents, settings.currency, settings.locale)
-    : null;
-
-  const description =
-    settings?.hero.text ??
-    `Design your own postcards${price ? ` for ${price} each` : ""}, send them to multiple addresses, and schedule them to arrive every few days.`;
+  const currency = settings?.currency ?? "USD";
+  const locale = settings?.locale ?? "en-US";
 
   const fallback: ResolvedMeta = {
     title: storeName,
-    description: truncate(description),
+    description: truncate(settings?.hero.text ?? DEFAULT_DESCRIPTION),
     canonical: absolute(pathname),
-    image: settings?.hero.image ? absolute(`/assets/${settings.hero.image.path}`) : absolute("/hero.jpg"),
+    image: settings?.hero.image ? absolute(`/assets/${settings.hero.image.path}`) : absolute("/favicon.png"),
     jsonLd: null,
     fontUrl,
     lang,
@@ -90,21 +91,39 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
 
     if (path === "/") return fallback;
 
-    if (path === "/create") {
+    if (path === "/artists") {
+      return { ...fallback, title: `Artists · ${storeName}`, description: truncate("Every artist you can subscribe to, and what a month of their mail costs.") };
+    }
+
+    if (path === "/gallery") {
+      return { ...fallback, title: `Gallery · ${storeName}`, description: truncate("Postcards recently mailed to subscribers, by the artists who made them.") };
+    }
+
+    if (PLAIN_ROUTES.some((p) => path === p || path.startsWith(`${p}/`))) return fallback;
+
+    const artistMatch = /^\/a\/([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(path);
+    if (artistMatch) {
+      const artist = await findArtistBySlug(artistMatch[1]!);
+      if (!artist || artist.status === "draft") return { ...fallback, status: 404 };
+      const price = formatMoney(artist.monthlyPriceCents, currency, locale);
+      const bio = plainText(artist.bio);
       return {
         ...fallback,
-        title: `Make a postcard · ${storeName}`,
-        description: truncate(
-          `Upload a photo, write a note on the back, add the people you want to send it to and pick the days it goes out${price ? ` — ${price} a card` : ""}.`,
-        ),
+        title: `${artist.name} · ${storeName}`,
+        description: truncate(artist.tagline ?? (bio || `A postcard from ${artist.name} every month, for ${price}.`)),
+        canonical: absolute(path),
+        image: artist.avatar ? absolute(`/assets/${artist.avatar.path}`) : fallback.image,
+        jsonLd: {
+          "@context": "https://schema.org",
+          "@type": "Person",
+          name: artist.name,
+          url: absolute(path),
+          ...(artist.tagline ? { description: artist.tagline } : {}),
+        },
       };
     }
 
-    // Client routes with nothing to say about themselves beyond the store's
-    // own line. They exist, so they are 200s, not misses.
-    if (["/cart", "/confirm", "/unsubscribe", "/account", "/address", "/r", "/admin", "/setup"].some((p) => path === p || path.startsWith(`${p}/`))) {
-      return fallback;
-    }
+    if (path.startsWith("/a/")) return { ...fallback, status: 404 };
 
     const slug = decodeURIComponent(path.slice(1));
     if (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {

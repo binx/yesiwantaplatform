@@ -6,10 +6,13 @@ import sharp from "sharp";
 /**
  * The authorization model, asserted rather than spot-checked.
  *
- * Every admin route is behind `requireAdmin` + `verifyCsrf`, applied once to
- * the whole router; this file is what stops a new endpoint from shipping
- * outside it. A customer session must never reach an admin route, and an
- * admin session must never satisfy a customer one.
+ * Three surfaces: the admin (`adminId`), a signed-in customer (`customerId`),
+ * and an artist, which is a customer with an artist row. Every admin route is
+ * behind `requireAdmin` + `verifyCsrf`, every studio route behind
+ * `requireCustomer` + an artist row; this file is what stops a new endpoint
+ * from shipping outside them. A customer session must never reach an admin
+ * route, an admin session must never satisfy a customer one, and a customer
+ * with no artist page must never reach the studio.
  */
 
 let app: Express;
@@ -19,12 +22,15 @@ beforeAll(async () => {
   const { runMigrations } = await import("../db/migrate.js");
   const { seedIfEmpty } = await import("../db/seed.js");
   const { createAdmin, createCustomer } = await import("./auth.js");
+  const { createArtist } = await import("../db/artists-repository.js");
   const { createApp } = await import("./app.js");
 
   await runMigrations();
   await seedIfEmpty();
   await createAdmin("admin@example.com", PASSWORD);
   await createCustomer("customer@example.com", PASSWORD, null);
+  const artistCustomer = await createCustomer("artist@example.com", PASSWORD, "Rachel");
+  await createArtist(artistCustomer, { slug: "rachel", name: "Rachel", tagline: null, bio: "", monthlyPriceCents: 500, sendDay: 15, avatar: null });
 
   app = createApp();
 });
@@ -40,13 +46,13 @@ async function signIn() {
   return { agent, csrf: login.body.csrfToken as string };
 }
 
-async function signInCustomer() {
+async function signInCustomer(email = "customer@example.com") {
   const agent = request.agent(app);
   const bootstrap = await agent.get("/api/session").expect(200);
   const login = await agent
     .post("/api/account/session")
     .set("x-csrf-token", bootstrap.body.csrfToken as string)
-    .send({ email: "customer@example.com", password: PASSWORD })
+    .send({ email, password: PASSWORD })
     .expect(200);
   return { agent, csrf: login.body.csrfToken as string };
 }
@@ -63,52 +69,73 @@ const MUTATIONS = [
   { method: "post", path: "/api/admin/email/test" },
   { method: "post", path: "/api/admin/lob/test" },
   { method: "post", path: "/api/admin/fulfilment/run" },
-  { method: "post", path: "/api/admin/fulfilment/cleanup" },
-  { method: "post", path: "/api/admin/orders/complimentary" },
-  { method: "post", path: "/api/admin/orders/demo-order/cancel" },
-  { method: "post", path: "/api/admin/orders/demo-order/refund" },
-  { method: "post", path: "/api/admin/orders/demo-order/postcards/some-card/retry" },
-  { method: "post", path: "/api/admin/orders/demo-order/postcards/some-card/cancel" },
+  { method: "post", path: "/api/admin/payouts/run" },
+  { method: "post", path: "/api/admin/payouts/some-payout/retry" },
+  { method: "post", path: "/api/admin/artists/some-artist/status" },
+  { method: "post", path: "/api/admin/postcards/some-card/retry" },
+  { method: "post", path: "/api/admin/postcards/some-card/cancel" },
   { method: "put", path: "/api/admin/users/me/password" },
 ] as const;
 
 const READS = [
   "/api/admin/environment",
+  "/api/admin/overview",
   "/api/admin/fulfilment",
   "/api/admin/pages",
   "/api/admin/settings",
+  "/api/admin/artists",
+  "/api/admin/artists/some-artist",
+  "/api/admin/customers",
+  "/api/admin/subscriptions",
+  "/api/admin/mailings",
+  "/api/admin/mailings/some-mailing",
+  "/api/admin/postcards/errors",
+  "/api/admin/payouts",
   "/api/admin/orders",
-  "/api/admin/orders.csv",
-  "/api/admin/orders/demo-order",
 ] as const;
 
 const CUSTOMER_MUTATIONS = [
   { method: "put", path: "/api/account" },
-  { method: "post", path: "/api/account/addresses" },
-  { method: "put", path: "/api/account/addresses/some-address" },
-  { method: "delete", path: "/api/account/addresses/some-address" },
-  { method: "post", path: "/api/account/designs/some-design/duplicate" },
-  { method: "delete", path: "/api/account/designs/some-design" },
-  { method: "post", path: "/api/account/address-requests" },
-  { method: "post", path: "/api/account/address-requests/some-request/renew" },
-  { method: "delete", path: "/api/account/address-requests/some-request" },
-  { method: "put", path: "/api/account/reply-address" },
-  { method: "delete", path: "/api/account/reply-address" },
-  { method: "post", path: "/api/account/orders/some-order/postcards/some-card/reply/disable" },
-  { method: "post", path: "/api/cart/sync" },
+  { method: "put", path: "/api/account/address" },
+  { method: "post", path: "/api/account/subscriptions/some-subscription/cancel" },
+  { method: "post", path: "/api/account/subscriptions/some-subscription/resume" },
+  { method: "post", path: "/api/checkout/subscribe" },
+  { method: "post", path: "/api/studio" },
 ] as const;
 
 const CUSTOMER_READS = [
+  "/api/account/subscriptions",
+  "/api/account/postcards",
   "/api/account/orders",
-  "/api/account/orders/some-order",
-  "/api/account/addresses",
-  "/api/account/address-requests",
-  "/api/account/designs",
-  "/api/account/designs/some-design",
+  "/api/checkout/some-session",
+  "/api/checkout/address/me",
+  "/api/studio",
+  "/api/studio/slug/whatever",
 ] as const;
 
-const PUBLIC_CART_TOKEN_ROUTES = ["/api/cart/recover", "/api/cart/unsubscribe"] as const;
-const PUBLIC_WRITE_ROUTES = ["/api/recipients/verify", "/api/address-requests/some-token"] as const;
+const STUDIO_MUTATIONS = [
+  { method: "put", path: "/api/studio/profile" },
+  { method: "post", path: "/api/studio/avatar" },
+  { method: "post", path: "/api/studio/status" },
+  { method: "post", path: "/api/studio/designs" },
+  { method: "put", path: "/api/studio/designs/some-design" },
+  { method: "delete", path: "/api/studio/designs/some-design" },
+  { method: "post", path: "/api/studio/mailings" },
+  { method: "put", path: "/api/studio/mailings/some-mailing" },
+  { method: "delete", path: "/api/studio/mailings/some-mailing" },
+  { method: "post", path: "/api/studio/payouts/onboard" },
+  { method: "post", path: "/api/studio/payouts/refresh" },
+] as const;
+
+const STUDIO_READS = [
+  "/api/studio",
+  "/api/studio/designs",
+  "/api/studio/mailings",
+  "/api/studio/mailings/some-mailing/postcards",
+  "/api/studio/subscribers",
+  "/api/studio/earnings",
+] as const;
+
 const ADMIN_PASSWORD_RESET_ROUTES = ["/api/session/forgot-password", "/api/session/reset-password"] as const;
 
 describe("anonymous access", () => {
@@ -126,15 +153,23 @@ describe("anonymous access", () => {
     expect(response.body.isAdmin).toBe(false);
   });
 
-  it("still serves the public storefront", async () => {
+  it("still serves the public platform", async () => {
     const response = await request(app).get("/api/store").expect(200);
     expect(response.body.name).toBeTruthy();
-    expect(response.body.postcardPriceCents).toBe(140);
+    expect(response.body.pricing.printCostCents).toBe(120);
   });
 
   it("serves the crawler files", async () => {
     await request(app).get("/sitemap.xml").expect(200);
     await request(app).get("/robots.txt").expect(200);
+  });
+
+  it("lists only live artists, and hides a draft page", async () => {
+    const list = await request(app).get("/api/artists").expect(200);
+    expect(list.body).toEqual([]);
+    await request(app).get("/api/artists/rachel").expect(404);
+    const gallery = await request(app).get("/api/gallery").expect(200);
+    expect(gallery.body).toEqual({ cards: [], nextCursor: null });
   });
 });
 
@@ -144,13 +179,21 @@ describe("Content-Security-Policy", () => {
     expect(response.headers["content-security-policy"] ?? "").toContain("upgrade-insecure-requests");
   });
 
-  it("always allows the card fonts' own origins, regardless of the store's theme font", async () => {
+  it("always allows the card fonts' own origins, regardless of the theme font", async () => {
     const response = await request(app).get("/api/health").expect(200);
     const csp = response.headers["content-security-policy"] ?? "";
     expect(csp).toContain("https://fonts.googleapis.com");
     expect(csp).toContain("https://fonts.gstatic.com");
   });
 });
+
+const SETTINGS = {
+  name: "Renamed",
+  currency: "USD",
+  stripePublishableKey: null,
+  pricing: { printCostCents: 120, platformFeeCents: 60, minMonthlyPriceCents: 300 },
+  theme: { colorPrimary: "#18181b", colorAccent: "#e07a5f", fontFamily: "system-ui", borderRadius: 2 },
+};
 
 describe("CSRF", () => {
   it("rejects an authenticated write with no token", async () => {
@@ -165,17 +208,7 @@ describe("CSRF", () => {
 
   it("allows a write carrying the session's token", async () => {
     const { agent, csrf } = await signIn();
-    await agent
-      .put("/api/admin/settings")
-      .set("x-csrf-token", csrf)
-      .send({
-        name: "Renamed",
-        currency: "USD",
-        stripePublishableKey: null,
-        postcardPriceCents: 140,
-        theme: { colorPrimary: "#18181b", colorAccent: "#e07a5f", fontFamily: "system-ui", borderRadius: 2 },
-      })
-      .expect(204);
+    await agent.put("/api/admin/settings").set("x-csrf-token", csrf).send(SETTINGS).expect(204);
   });
 
   it("issues a fresh session on login, defeating fixation", async () => {
@@ -269,24 +302,108 @@ describe("customer routes", () => {
     expect(response.body).toEqual({ customer: null });
   });
 
-  it("refuses an unknown recovery token rather than returning a cart", async () => {
-    const { agent, csrf } = await anonymous();
-    const response = await agent.post("/api/cart/recover").set("x-csrf-token", csrf).send({ token: "not-a-real-token" });
-    expect(response.status).toBe(410);
-    expect(response.body.lines).toBeUndefined();
+  it("tells a customer which artist page is theirs, and a plain customer none", async () => {
+    const plain = await signInCustomer();
+    expect((await plain.agent.get("/api/account").expect(200)).body.customer.artistSlug).toBeNull();
+    const artist = await signInCustomer("artist@example.com");
+    expect((await artist.agent.get("/api/account").expect(200)).body.customer.artistSlug).toBe("rachel");
+  });
+});
+
+describe("studio routes", () => {
+  it.each(STUDIO_MUTATIONS)("refuses a customer with no artist page on $method $path", async ({ method, path }) => {
+    const { agent, csrf } = await signInCustomer();
+    const response = await agent[method](path).set("x-csrf-token", csrf).send({});
+    expect(response.status).toBe(404);
+    expect(response.body.needsArtist).toBe(true);
   });
 
-  it("does not disclose whether an unsubscribe token existed", async () => {
-    const { agent, csrf } = await anonymous();
-    await agent.post("/api/cart/unsubscribe").set("x-csrf-token", csrf).send({ token: "not-a-real-token" }).expect(204);
+  it.each(STUDIO_READS)("refuses a customer with no artist page on GET %s", async (path) => {
+    const { agent } = await signInCustomer();
+    const response = await agent.get(path);
+    expect(response.status).toBe(404);
+    expect(response.body.needsArtist).toBe(true);
   });
 
-  it.each(PUBLIC_CART_TOKEN_ROUTES)("still requires a CSRF token on %s", async (path) => {
-    await request(app).post(path).send({ token: "not-a-real-token" }).expect(403);
+  it.each(STUDIO_READS)("refuses an admin session on GET %s", async (path) => {
+    const { agent } = await signIn();
+    await agent.get(path).expect(401);
   });
 
-  it.each(PUBLIC_WRITE_ROUTES)("still requires a CSRF token on %s", async (path) => {
-    await request(app).post(path).send({}).expect(403);
+  it("answers the artist's own studio, and never another artist's id", async () => {
+    const { agent } = await signInCustomer("artist@example.com");
+    const studio = await agent.get("/api/studio").expect(200);
+    expect(studio.body.artist.slug).toBe("rachel");
+    expect(studio.body.artist.email).toBe("artist@example.com");
+    // A design id from nowhere is a 404, not a 403 with the body attached.
+    await agent.get("/api/studio/mailings/not-mine/postcards").expect(404);
+  });
+
+  it("refuses to go live with an empty queue", async () => {
+    const { agent, csrf } = await signInCustomer("artist@example.com");
+    const response = await agent.post("/api/studio/status").set("x-csrf-token", csrf).send({ status: "live" });
+    expect(response.status).toBe(409);
+    expect(response.body.error).toMatch(/queue/i);
+  });
+
+  it("refuses a second artist page for the same account", async () => {
+    const { agent, csrf } = await signInCustomer("artist@example.com");
+    await agent
+      .post("/api/studio")
+      .set("x-csrf-token", csrf)
+      .send({ slug: "rachel-two", name: "Rachel", monthlyPriceCents: 500 })
+      .expect(409);
+  });
+
+  it("refuses a price below the platform's floor", async () => {
+    const { agent, csrf } = await signInCustomer("artist@example.com");
+    const response = await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ slug: "rachel", name: "Rachel", monthlyPriceCents: 100 });
+    expect(response.status).toBe(400);
+    expect(response.body.error).toMatch(/at least/);
+  });
+});
+
+describe("design uploads", () => {
+  async function pngFixture() {
+    return sharp({ create: { width: 40, height: 30, channels: 3, background: "#cccccc" } })
+      .png()
+      .toBuffer();
+  }
+
+  it("rejects a non-image that claims an image content type", async () => {
+    const { agent, csrf } = await signInCustomer("artist@example.com");
+    await agent
+      .post("/api/studio/designs")
+      .set("x-csrf-token", csrf)
+      .field("orientation", "portrait")
+      .attach("file", Buffer.from("#!/bin/sh\nrm -rf /\n"), { filename: "innocent.png", contentType: "image/png" })
+      .expect(415);
+  });
+
+  it("discards the filename and stores under a generated id", async () => {
+    const { agent, csrf } = await signInCustomer("artist@example.com");
+    const response = await agent
+      .post("/api/studio/designs")
+      .set("x-csrf-token", csrf)
+      .field("orientation", "landscape")
+      .field("back", JSON.stringify({ text: "hi" }))
+      .attach("file", await pngFixture(), { filename: "../../../../tmp/pwned.png", contentType: "image/png" })
+      .expect(201);
+
+    expect(response.body.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(response.body.thumbnail.path).toMatch(/^designs\/[0-9a-f-]{36}\/thumb\.webp$/);
+    // Never the print path: a visitor is shown the thumbnail and nothing else.
+    expect(JSON.stringify(response.body)).not.toContain("print.png");
+  });
+
+  it("refuses an unknown orientation", async () => {
+    const { agent, csrf } = await signInCustomer("artist@example.com");
+    await agent
+      .post("/api/studio/designs")
+      .set("x-csrf-token", csrf)
+      .field("orientation", "square")
+      .attach("file", await pngFixture(), { filename: "a.png", contentType: "image/png" })
+      .expect(400);
   });
 });
 
@@ -324,73 +441,23 @@ describe("admin password reset", () => {
   });
 });
 
-describe("design uploads", () => {
-  async function pngFixture() {
-    return sharp({ create: { width: 40, height: 30, channels: 3, background: "#cccccc" } })
-      .png()
-      .toBuffer();
-  }
-
-  it("rejects a non-image that claims an image content type", async () => {
-    await request(app)
-      .post("/api/designs")
-      .field("orientation", "portrait")
-      .attach("file", Buffer.from("#!/bin/sh\nrm -rf /\n"), { filename: "innocent.png", contentType: "image/png" })
-      .expect(415);
-  });
-
-  it("discards the filename and stores under a generated id", async () => {
-    const response = await request(app)
-      .post("/api/designs")
-      .field("orientation", "landscape")
-      .field("back", JSON.stringify({ text: "hi" }))
-      .attach("file", await pngFixture(), { filename: "../../../../tmp/pwned.png", contentType: "image/png" })
-      .expect(201);
-
-    expect(response.body.id).toMatch(/^[0-9a-f-]{36}$/);
-    expect(response.body.thumbnail.path).toMatch(/^designs\/[0-9a-f-]{36}\/thumb\.webp$/);
-    // Never the print path: a shopper is shown the thumbnail and nothing else.
-    expect(JSON.stringify(response.body)).not.toContain("print.png");
-  });
-
-  it("refuses an unknown orientation", async () => {
-    await request(app)
-      .post("/api/designs")
-      .field("orientation", "square")
-      .attach("file", await pngFixture(), { filename: "a.png", contentType: "image/png" })
-      .expect(400);
-  });
-});
-
 describe("input validation", () => {
   it("refuses a Stripe secret key in the publishable key field", async () => {
     const { agent, csrf } = await signIn();
     const response = await agent
       .put("/api/admin/settings")
       .set("x-csrf-token", csrf)
-      .send({
-        name: "Store",
-        currency: "USD",
-        stripePublishableKey: "sk_test_thisisasecretkey",
-        postcardPriceCents: 140,
-        theme: { colorPrimary: "#000", colorAccent: "#000", fontFamily: "system-ui", borderRadius: 2 },
-      })
+      .send({ ...SETTINGS, stripePublishableKey: "sk_test_thisisasecretkey" })
       .expect(400);
     expect(response.body.error).toMatch(/secret key/i);
   });
 
-  it("refuses a postcard price below Stripe's floor", async () => {
+  it("refuses a minimum price below Stripe's floor", async () => {
     const { agent, csrf } = await signIn();
     const response = await agent
       .put("/api/admin/settings")
       .set("x-csrf-token", csrf)
-      .send({
-        name: "Store",
-        currency: "USD",
-        stripePublishableKey: null,
-        postcardPriceCents: 10,
-        theme: { colorPrimary: "#000", colorAccent: "#000", fontFamily: "system-ui", borderRadius: 2 },
-      })
+      .send({ ...SETTINGS, pricing: { ...SETTINGS.pricing, minMonthlyPriceCents: 10 } })
       .expect(400);
     expect(response.body.error).toMatch(/50 cents/i);
   });
@@ -400,6 +467,13 @@ describe("input validation", () => {
     const response = await agent.post("/api/admin/pages/reorder").set("x-csrf-token", csrf).send({ ids: "nope" }).expect(400);
     expect(response.body.error).toBeTruthy();
   });
+
+  it("refuses a reserved artist slug", async () => {
+    const { agent, csrf } = await signInCustomer("artist@example.com");
+    const response = await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ slug: "admin", name: "Rachel", monthlyPriceCents: 500 });
+    expect(response.status).toBe(400);
+    expect(response.body.error).toMatch(/already/);
+  });
 });
 
 describe("public API", () => {
@@ -408,8 +482,10 @@ describe("public API", () => {
     expect(JSON.stringify(response.body)).not.toMatch(/sk_(test|live)_/);
   });
 
-  it("caps the number of designs one request may ask for", async () => {
-    const ids = Array.from({ length: 101 }, (_, i) => `id-${i}`).join(",");
-    await request(app).get(`/api/designs?ids=${ids}`).expect(400);
+  it("refuses a subscription without Stripe, before it asks anything else", async () => {
+    const { agent, csrf } = await signInCustomer();
+    // The test environment sets a fake key, so this reaches the artist check: a draft artist is not subscribable.
+    const response = await agent.post("/api/checkout/subscribe").set("x-csrf-token", csrf).send({ artistId: "nobody", address: {} });
+    expect([400, 409, 503]).toContain(response.status);
   });
 });

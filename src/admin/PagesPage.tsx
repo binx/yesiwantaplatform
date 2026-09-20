@@ -416,7 +416,7 @@ export function PageEditorPage() {
             />
             <span>
               <strong>Link it in the menu</strong>
-              <em>Adds it to the storefront header.</em>
+              <em>Adds it to the site header.</em>
             </span>
           </label>
         </div>

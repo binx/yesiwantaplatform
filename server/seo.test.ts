@@ -8,7 +8,7 @@ const SHELL = `<!doctype html>
   <head>
     <meta charset="UTF-8" />
     <meta name="description" content="A storefront." />
-    <title>Postcard Gifts</title>
+    <title>Yes I Want A Postcard</title>
   </head>
   <body><div id="root"></div></body>
 </html>`;
@@ -44,7 +44,7 @@ describe("injectMeta", () => {
 
   it("loads the card fonts whether or not the store has a theme font", () => {
     const meta = {
-      title: "Postcard Gifts",
+      title: "Yes I Want A Postcard",
       description: "A storefront.",
       canonical: "https://example.com/",
       image: null,
@@ -60,11 +60,11 @@ describe("injectMeta", () => {
 
   it("does not add a second card-fonts link when the shell already carries one", () => {
     const shellWithCardFonts = SHELL.replace(
-      "<title>Postcard Gifts</title>",
-      `<title>Postcard Gifts</title>\n    <link id="${CARD_FONTS_LINK_ID}" rel="stylesheet" href="x" />`,
+      "<title>Yes I Want A Postcard</title>",
+      `<title>Yes I Want A Postcard</title>\n    <link id="${CARD_FONTS_LINK_ID}" rel="stylesheet" href="x" />`,
     );
     const html = injectMeta(shellWithCardFonts, {
-      title: "Postcard Gifts",
+      title: "Yes I Want A Postcard",
       description: "A storefront.",
       canonical: "https://example.com/",
       image: null,
@@ -85,20 +85,31 @@ describe("index.html", () => {
 });
 
 describe("metaForPath", () => {
-  it("names the store at the root and the designer at /create, with the price", async () => {
+  it("names the platform at the root, the directory and the gallery, and a live artist's page", async () => {
     const { metaForPath } = await import("./seo.js");
-    expect((await metaForPath("/")).title).toBe("Postcard Gifts");
-    const create = await metaForPath("/create");
-    expect(create.title).toBe("Make a postcard · Postcard Gifts");
-    expect(create.description).toContain("$1.40");
-    expect(create.status).toBe(200);
+    expect((await metaForPath("/")).title).toBe("Yes I Want A Postcard");
+    expect((await metaForPath("/artists")).title).toBe("Artists · Yes I Want A Postcard");
+    expect((await metaForPath("/gallery")).status).toBe(200);
+
+    const { createCustomer } = await import("./auth.js");
+    const { createArtist, setArtistStatus } = await import("../db/artists-repository.js");
+    const owner = await createCustomer("seo-artist@example.com", "a-sufficiently-long-password", "Rachel");
+    const artist = await createArtist(owner, { slug: "seo-rachel", name: "Rachel", tagline: "photos from the road", bio: "", monthlyPriceCents: 500, sendDay: 15, avatar: null });
+    expect((await metaForPath("/a/seo-rachel")).status).toBe(404);
+    await setArtistStatus(artist.id, "live");
+    const page = await metaForPath("/a/seo-rachel");
+    expect(page.status).toBe(200);
+    expect(page.title).toBe("Rachel · Yes I Want A Postcard");
+    expect(page.description).toBe("photos from the road");
+    expect(page.jsonLd).toMatchObject({ "@type": "Person", name: "Rachel" });
   });
 
   it("calls an unknown page a 404 and keeps the client routes at 200", async () => {
     const { metaForPath } = await import("./seo.js");
     expect((await metaForPath("/no-such-page")).status).toBe(404);
-    for (const path of ["/", "/create", "/cart", "/confirm", "/account/login", "/product/%%%"]) {
-      expect((await metaForPath(path)).status === 200 || path === "/product/%%%").toBe(true);
+    expect((await metaForPath("/a/no-such-artist")).status).toBe(404);
+    for (const path of ["/", "/artists", "/gallery", "/subscribe/confirm", "/studio", "/account/login"]) {
+      expect((await metaForPath(path)).status).toBe(200);
     }
   });
 });

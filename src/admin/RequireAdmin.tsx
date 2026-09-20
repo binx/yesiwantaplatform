@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button, Grid, Menu, Skeleton, Typography } from "antd";
-import { AppstoreOutlined, FileTextOutlined, LogoutOutlined, SettingOutlined, ShopOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, DollarOutlined, FileTextOutlined, LogoutOutlined, MailOutlined, SettingOutlined, TeamOutlined, UserOutlined } from "@ant-design/icons";
 import { useLogout, useSession } from "@/lib/session";
 import { useSettings } from "./queries";
 import { cx } from "@/lib/cx";
@@ -12,14 +12,15 @@ import styles from "./AdminLayout.module.css";
  *
  * This is a *convenience*, not the security boundary — every admin route
  * re-checks the session server-side, so a user who edits their way past this
- * component reaches an API that answers 401. That separation is the lesson
- * from v1, where the client decided who was an admin (`/user` returned
- * `isAdmin: true` outside production) and the API trusted it.
+ * component reaches an API that answers 401.
  */
 
 const NAV = [
   { key: "", icon: <AppstoreOutlined />, label: "Overview" },
-  { key: "orders", icon: <ShopOutlined />, label: "Orders" },
+  { key: "artists", icon: <TeamOutlined />, label: "Artists" },
+  { key: "mailings", icon: <MailOutlined />, label: "Mailings" },
+  { key: "payouts", icon: <DollarOutlined />, label: "Payouts" },
+  { key: "customers", icon: <UserOutlined />, label: "People" },
   { key: "pages", icon: <FileTextOutlined />, label: "Pages" },
   { key: "settings", icon: <SettingOutlined />, label: "Settings" },
 ];
@@ -46,8 +47,6 @@ export function RequireAdmin() {
     );
   }
 
-  // An unreachable API and a signed-out session both land here; the login page
-  // can report either without this component having to tell them apart.
   if (!session.data?.isAdmin) {
     if (session.data && !session.data.isConfigured) return <Navigate to="/setup" replace />;
     return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />;
@@ -61,29 +60,17 @@ export function RequireAdmin() {
         <div className={cx(styles.brand)}>
           <span aria-hidden="true">✉️</span>
           <span>
-            Postcards
+            Admin
             {settings.data ? <span className={cx(styles.brandStore)}>{settings.data.name}</span> : null}
           </span>
         </div>
 
-        {/*
-          * Only the wide layout gets an antd Menu.
-          *
-          * `mode="horizontal"` measures its items and folds whatever does not
-          * fit behind an "…" overflow — on a phone that was *every* item, so
-          * the admin had no navigation at all. A plain list that scrolls
-          * sideways keeps all five destinations reachable.
-          */}
         {isWide ? (
           <Menu
             className={cx(styles.nav)}
             mode="inline"
             selectedKeys={[selectedKey(location.pathname)]}
-            items={NAV.map((item) => ({
-              key: item.key,
-              icon: item.icon,
-              label: <Link to={`/admin/${item.key}`}>{item.label}</Link>,
-            }))}
+            items={NAV.map((item) => ({ key: item.key, icon: item.icon, label: <Link to={`/admin/${item.key}`}>{item.label}</Link> }))}
           />
         ) : (
           <ul className={cx(styles.navStrip)}>
@@ -91,11 +78,7 @@ export function RequireAdmin() {
               const current = selectedKey(location.pathname) === item.key;
               return (
                 <li key={item.key}>
-                  <Link
-                    to={`/admin/${item.key}`}
-                    className={cx(styles.navLink, current && styles.navLinkCurrent)}
-                    {...(current ? { "aria-current": "page" as const } : {})}
-                  >
+                  <Link to={`/admin/${item.key}`} className={cx(styles.navLink, current && styles.navLinkCurrent)} {...(current ? { "aria-current": "page" as const } : {})}>
                     {item.label}
                   </Link>
                 </li>
@@ -105,14 +88,8 @@ export function RequireAdmin() {
         )}
 
         <div className={cx(styles.sidebarFooter)}>
-          <Link to="/">{isWide ? "View storefront →" : "Storefront"}</Link>
-          <Button
-            icon={<LogoutOutlined />}
-            loading={logout.isPending}
-            onClick={() => {
-              logout.mutate(undefined, { onSuccess: () => void navigate("/admin/login") });
-            }}
-          >
+          <Link to="/">{isWide ? "View the site →" : "Site"}</Link>
+          <Button icon={<LogoutOutlined />} loading={logout.isPending} onClick={() => logout.mutate(undefined, { onSuccess: () => void navigate("/admin/login") })}>
             Sign out
           </Button>
         </div>

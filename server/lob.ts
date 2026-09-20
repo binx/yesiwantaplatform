@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import Handlebars from "handlebars";
-import QRCode from "qrcode";
 import sharp from "sharp";
 import { env, hasLob, lobMode } from "./env.js";
 import {
@@ -121,8 +120,8 @@ export interface SendPostcardInput {
   back: PostcardBack;
   /** Free text Lob shows in its dashboard. */
   description: string;
-  /** The card's reply link, printed as a QR on the back when the sender opted in. */
-  replyUrl?: string | null;
+  /** The line under the message naming the artist and the platform. */
+  footer?: BackFooter | null;
 }
 
 /* ----------------------------------------------------------------- the file */
@@ -215,7 +214,7 @@ function fontStack(fontName: string): string {
  * on their own postcard — which is not a security problem so much as a
  * printing one, since a stray `<` would otherwise vanish from the card.
  */
-export async function renderBack(back: PostcardBack, replyUrl: string | null = null): Promise<string> {
+export async function renderBack(back: PostcardBack, footer: BackFooter | null = null): Promise<string> {
   backTemplate ??= Handlebars.compile(await readFile(path.resolve("print", "back.hbs"), "utf8"));
 
   return backTemplate({
@@ -227,30 +226,30 @@ export async function renderBack(back: PostcardBack, replyUrl: string | null = n
     // Lob renders at 300 dpi, and a point is the unit both agree on.
     fontSize: back.fontSize,
     fontColor: back.fontColor,
-    // A QR, not the URL: a code is scanned from paper, not typed. Inline SVG
-    // so the back needs nothing fetched. Marked safe: it is ours, not the buyer's.
-    replyQr: replyUrl ? new Handlebars.SafeString(await replyQrSvg(replyUrl)) : null,
+    // The one line that is ours rather than the artist's: who sent it, and where from.
+    footer: footer ? { artist: stripEmoji(footer.artistName), site: footer.siteName } : null,
   });
 }
 
-/** The reply link as an SVG QR, medium error correction so a coffee ring still scans. */
-export async function replyQrSvg(url: string): Promise<string> {
-  return QRCode.toString(url, { type: "svg", errorCorrectionLevel: "M", margin: 0, color: { dark: "#000000ff", light: "#ffffff00" } });
+/** The small line under the message: the artist's name and the platform's. */
+export interface BackFooter {
+  artistName: string;
+  siteName: string;
 }
 
 /**
  * The merge variables v1's Lob template expected, under the same names, so a
  * store that sets LOB_BACK_TEMPLATE_ID to its old template keeps working.
  */
-function mergeVariables(back: PostcardBack, replyUrl: string | null): Record<string, string> {
+function mergeVariables(back: PostcardBack, footer: BackFooter | null): Record<string, string> {
   return {
     postcard_text: stripEmoji(back.text),
     postcard_valediction: stripEmoji(back.valediction),
     font_name: back.fontName,
     font_size: String(back.fontSize),
     font_color: back.fontColor,
-    // A store on v1's Lob template has to draw the QR itself: the URL is the merge variable.
-    reply_url: replyUrl ?? "",
+    artist_name: footer?.artistName ?? "",
+    site_name: footer?.siteName ?? "",
   };
 }
 
@@ -369,11 +368,11 @@ export async function sendPostcard(input: SendPostcardInput): Promise<LobPostcar
 
   if (env.LOB_BACK_TEMPLATE_ID) {
     form.append("back", env.LOB_BACK_TEMPLATE_ID);
-    for (const [key, value] of Object.entries(mergeVariables(input.back, input.replyUrl ?? null))) {
+    for (const [key, value] of Object.entries(mergeVariables(input.back, input.footer ?? null))) {
       form.append(`merge_variables[${key}]`, value);
     }
   } else {
-    form.append("back", await renderBack(input.back, input.replyUrl ?? null));
+    form.append("back", await renderBack(input.back, input.footer ?? null));
   }
 
   form.append("metadata[postcard_id]", input.id);
@@ -406,6 +405,7 @@ export async function sendTestPostcard(back: PostcardBack): Promise<LobPostcard>
 
   return sendPostcard({
     id: `test-${Date.now()}`,
+    footer: { artistName: "The printer check", siteName: "yesiwantapostcard.com" },
     to: {
       name: "Lob Test Address",
       line1: "185 Berry St",
@@ -417,7 +417,7 @@ export async function sendTestPostcard(back: PostcardBack): Promise<LobPostcard>
     },
     front: sample,
     back,
-    description: "Postcard Gifts admin test",
+    description: "Yes I Want A Postcard admin test",
   });
 }
 
@@ -428,7 +428,7 @@ export async function sendTestPostcard(back: PostcardBack): Promise<LobPostcard>
  *
  * This is the one place outside the fulfilment sweep that talks to Lob, and
  * it is a read: `POST /v1/us_verifications` answers in a second with what
- * USPS makes of an address, so a typo in a ZIP is caught while the buyer is
+ * USPS makes of an address, so a typo in a ZIP is caught while the subscriber is
  * looking at the field rather than by the sweep after payment. It is called
  * from a request handler behind its own rate limit (`verifyRateLimit`), and
  * cached here, because Lob bills verifications past the plan's allowance

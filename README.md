@@ -1,39 +1,60 @@
-# ✉️ Postcard Gifts
+# ✉️ Yes I Want A Postcard
 
-The site behind [postcardgifts.com](https://postcardgifts.com): design a postcard
-from your own photo, write a note on the back, send it to as many people as you
-like, and pick the days each one goes out. Printed and mailed by
-[Lob](https://lob.com), paid for through Stripe.
+A postcard subscription platform for artists.
 
-Built on [Beluga v2](https://github.com/binx/beluga-v2) and cut down to one
-product. Beluga's catalogue, collections, shipping zones, tax, staff accounts
-and outbound webhooks are gone; its payments, customer accounts, abandoned-cart
-reminders, email, image pipeline and admin stay.
+An artist opens a studio, sets a monthly price, and queues one postcard a
+month — a photo they took on the front, a short note on the back. People
+subscribe from the artist's page and give an address. On the mailing day,
+every active subscriber is printed and mailed a card by [Lob](https://lob.com).
+Billing is Stripe subscriptions; the platform keeps a print cost and a small
+fee from each sent card and transfers the rest to the artist through Stripe
+Connect.
+
+Built from three earlier projects: the pitch and the look of
+[yesiwantapostcard.com](https://yesiwantapostcard.com) (one artist, one
+subscription), the print pipeline of
+[Postcard Gifts](https://github.com/binx/postcards-v2) (design → Lob, tracking,
+refusals kept in Lob's words), and the foundation both stand on,
+[Beluga v2](https://github.com/binx/beluga-v2) (accounts, admin, Stripe
+webhooks, email, image storage, dual-dialect database).
 
 ## How it works
 
-1. **Design.** `/create` takes a photo and a note. Saving posts the photo to
-   `POST /api/designs`, which writes two files: the print-ready front — centre
-   cropped to 6.25″ × 4.25″ at 300 dpi, rotated to landscape, with the density
-   declared in the PNG — and a thumbnail. The buyer gets back a design id.
-2. **Schedule and address.** One start date and a cadence spread the designs
-   out; recipients come from a form, a CSV, or a signed-in customer's saved
-   list. Every design goes to every recipient. That is one cart line.
-3. **Pay.** Checkout reads the price of a postcard from settings, multiplies by
-   designs × recipients, and hands Stripe an inline `price_data`. There is no
-   Stripe Product to publish. The order and every postcard row are written as
-   `pending`.
-4. **Confirm.** Stripe's webhook marks the order paid and every card
-   `scheduled`. Nothing else ever does.
-5. **Print.** A sweep in the API process runs every fifteen minutes, claims
-   each card whose day has come with a conditional update, sends it to Lob
-   with the card's own id as the idempotency key, and records what Lob said.
-   A refusal is stored in Lob's own words, shown on the order in the admin
-   next to a Retry button, and emailed to nobody — the buyer sees "needs
-   attention" and the merchant sees why.
-6. **Tell the buyer.** One email at order time listing the schedule, and one
-   per card on the day it goes to print, with Lob's expected delivery date and
-   a link to the proof.
+1. **An artist opens a studio** at `/studio/new`: a name, an address under
+   `/a/`, a page in Markdown, a monthly price (no lower than the platform's
+   floor) and the day of the month their cards go out. The page starts as a
+   draft.
+2. **They queue a card.** The studio's designer takes a photo and a note,
+   makes the print-ready front at Lob's size and density on upload, and puts
+   the design on a month. One card per calendar month per artist — the
+   database enforces it, because each subscriber pays once a month.
+3. **They go live.** The page becomes public and listed under `/artists`.
+   Going live needs a card in the queue, so a new subscriber's first month is
+   never empty.
+4. **Someone says yes.** From the artist's page, a signed-in visitor gives an
+   address (checked against USPS, saved to their account) and is sent to
+   Stripe Checkout in subscription mode with the artist's price as an inline
+   monthly `price_data`. The subscription row is written `incomplete`.
+5. **The webhook activates it.** `checkout.session.completed` is the only thing
+   that makes a subscription active; `invoice.paid` records each month as an
+   order; `customer.subscription.*` mirrors Stripe's status; a cancellation
+   winds down at the period end.
+6. **The mailing day.** A sweep in the API process runs every fifteen minutes.
+   A due mailing is turned into one `postcards` row per active subscriber
+   (idempotently — a unique index on mailing × subscription), then each card
+   is sent to Lob with the card's own id as the idempotency key. Lob's refusal
+   is stored verbatim on the card and shown to the admin next to a Retry
+   button; the subscriber sees "we're looking into it".
+7. **The ledger.** The moment Lob accepts a card, a `payouts` row records the
+   subscriber's price, the print cost, the platform fee and the artist's share,
+   with the numbers as they were that moment. An hourly sweep transfers each
+   pending share to the artist's Stripe Connect account, keyed on the row id.
+   Artists still onboarding accrue and are paid the day they finish.
+
+Everyone signs in the same way. An artist is a customer with an artist row;
+the studio is a third authorization surface on top of the customer's, and the
+admin is a fourth that neither can reach. `server/security.test.ts` asserts
+every route against every session type.
 
 ## Requirements
 
@@ -44,33 +65,34 @@ Node 22 (`nvm use`).
 ```bash
 nvm use
 npm install
-npm run setup       # .env, database, admin account, price
-npm run dev:all     # storefront on :5173, API on :4000
+npm run setup       # .env, database, admin account, pricing
+npm run dev:all     # site on :5173, API on :4000
 ```
 
 Or skip `setup`, run `dev:all`, and open <http://localhost:5173/setup>.
 
-Neither needs Stripe or Lob to browse and design. To take a test payment:
+Neither needs Stripe or Lob to browse, open a studio and queue cards. To take
+a subscription:
 
 ```bash
 stripe listen --forward-to localhost:4000/api/webhooks/stripe
 ```
 
-Put the `whsec_…` it prints in `.env`, restart the API, and pay with
-`4242 4242 4242 4242`.
+Put the `whsec_…` it prints in `.env` with `sk_test_…`, restart the API, and
+pay with `4242 4242 4242 4242`. `stripe listen` forwards Connect events too,
+which is how an artist's onboarding status reaches the ledger. In the Stripe
+dashboard, enable Connect (Express accounts) before an artist tries to set up
+payouts.
 
 To send a card to Lob's sandbox, put a `test_` key in `.env` as `LOB_API_KEY`
-and press **Send a test postcard** under Settings → Printing. That exercises
-the whole print pipeline against a real Lob endpoint and shows Lob's answer,
-which is the check v1 never had and the reason its upload failures were
-invisible.
+and press **Send a test postcard** under Admin → Settings → Printing.
 
 ## Scripts
 
 | Command | What it does |
 | --- | --- |
 | `npm run setup` | Interactive first-run setup |
-| `npm run dev:all` | Storefront and API together |
+| `npm run dev:all` | Site and API together |
 | `npm run build` | Typecheck, compile the server to `dist-server/`, build the client to `dist/` |
 | `npm start` | Run the compiled server |
 | `npm run typecheck` / `npm run lint` / `npm test` | What it says. `npm test` runs the dual-dialect database tests too. |
@@ -80,112 +102,66 @@ invisible.
 ## Architecture
 
 ```
-src/            React 19 storefront (Vite). src/pages/CreatePage.tsx is the product.
-src/admin/      Admin and setup wizard, loaded on demand.
-server/         Express 5 API. lob.ts talks to Lob; fulfilment.ts is the sweep.
-db/             Drizzle schema (SQLite and Postgres), migrations, repositories.
-shared/         zod contracts imported by both sides. postcards.ts is the domain.
-print/back.hbs  The back of the card, rendered to HTML and sent to Lob.
-emails/         Handlebars email templates.
-e2e/            Playwright specs.
+src/              React 19 site (Vite).
+src/pages/        Landing, artists, an artist's page, the gallery, subscribe.
+src/pages/account The subscriber: subscriptions, postcards, address, receipts.
+src/pages/studio  The artist: overview, queue (designer), subscribers, earnings, page.
+src/admin/        The operator. Loaded on demand.
+server/           Express 5 API. fulfilment.ts is the three sweeps; connect.ts is Stripe Connect.
+server/routes/    public, account, studio, checkout, webhook, admin, lob-webhook.
+db/               Drizzle schema (SQLite and Postgres), migrations, repositories.
+shared/           zod contracts imported by both sides. platform.ts is the domain.
+print/back.hbs    The back of the card, rendered to HTML and sent to Lob.
+emails/           Handlebars email templates.
+e2e/              Playwright specs.
 ```
 
 Two things live on disk and must persist across a redeploy: the SQLite file
 under `data/` and uploaded imagery under `ASSETS_DIR` (`public/assets` by
-default) — the store's own images and every design's print file and thumbnail.
-Mount a volume for both, or point `ASSETS_S3_BUCKET` at a bucket and only the
+default) — avatars, and every design's print file and thumbnail. Mount a
+volume for both, or point `ASSETS_S3_BUCKET` at a bucket and only the
 database needs a home.
 
-### Lob
+### The money
 
-`server/lob.ts` talks to Lob's REST API directly. The front goes up as a file
-in the request rather than a public URL, so nothing has to be reachable from
-Lob's side and it works the same under a bucket driver or on a laptop.
+Three numbers in Admin → Settings → Pricing: what one printed and mailed card
+costs the platform, what the platform keeps per card, and the least an artist
+may charge a month. Every ledger row is computed from the subscriber's price
+snapshot on their subscription and the two costs as they stood when Lob
+accepted the card; changing the settings later changes nothing already
+recorded. `artistShareCents` in `shared/schema.ts` is the whole formula, and
+the studio shows an artist what a card will earn before they set a price.
 
-The back is rendered from `print/back.hbs` and sent as HTML, so nothing has to
-exist in the Lob dashboard. If you kept v1's Lob template, set
-`LOB_BACK_TEMPLATE_ID` and the same merge variables are sent instead.
+Subscriptions are charged on the platform's own Stripe account and shares are
+sent on as separate transfers, rather than as destination charges with an
+application fee: Stripe only offers a percentage fee on subscriptions, and
+this platform's fee is a fixed amount per card. A transfer that Stripe
+refuses for lack of settled balance is retried at the next hour; one it
+refuses for good is parked for the admin with Stripe's reason.
 
-Lob requires a `use_type` on every mailpiece; `LOB_USE_TYPE` defaults to
-`operational`, which is what a postcard a person writes to a friend is.
+### Invariants
 
-Designs nobody bought are deleted after a month. Once every card of a design
-has gone to Lob, its print file is removed and the thumbnail kept, so the order
-page still shows what was sent.
-
-The shop mails within the United States until Settings → Printing has a
-price for a card mailed abroad and the shop's own US return address, which
-Lob requires on every international piece. With both set, the recipient form
-offers a country, a foreign address needs no state or ZIP, and checkout charges
-the second price on its own Stripe line. International cards take about two
-weeks longer.
-
-Every recipient is checked against Lob's address verification as it is
-added, so a ZIP that USPS does not know is caught while the buyer is looking
-at the field rather than by the printer after payment. USPS's form of an
-address is offered back; an address USPS does not recognise keeps the batch
-out of the cart until it is fixed. With no `LOB_API_KEY`, or with Lob down,
-nothing is checked and nothing is blocked. The route is rate-limited and the
-answers cached for a day, because verifications past the plan's allowance
-are billed.
-
-After a card leaves, Lob reports where it is through a webhook. Create one in
-the Lob dashboard pointed at `<PUBLIC_URL>/api/webhooks/lob`, subscribe it to
-the postcard events, and put its signing secret in `.env` as
-`LOB_WEBHOOK_SECRET`. The order pages — the confirmation page, the account, the
-admin — then show a timeline under each sent card: in transit, near its
-destination, out for delivery, delivered, and returned to sender. Nothing about
-tracking is ever emailed. Lob's test environment sends no tracking events; the
-dashboard's webhook debugger can post samples.
-
-### Customer accounts
-
-Sign in, order history, password reset — and an **address book**: the people a
-customer has sent to are saved when an order is paid, with a label, tags for
-one-click groups, a birthday, notes and when each was last sent to. The
-designer's picker searches it and adds a whole tag at once; the page exports it
-as a CSV the designer's importer reads back. Orders are linked to an account
-only after the email is verified, so registering with a stranger's address
-cannot read their order history. Registering mid-checkout does not sign
-the shopper in — nor does it have to: checkout works while signed out, and
-"Check your email" sends them back to the cart or the designer to carry on
-as a guest, with the order attaching to their account once they click the
-verification link.
-
-**Your postcards** is a gallery of everything a customer has designed, newest
-first, with where each card got to. Opening one shows the front, the back as
-it printed, every recipient, and **Send again**, which copies the design into
-the designer for new recipients without uploading the photo twice. For that
-to work the sweep keeps a customer's print files rather than trimming them
-once every card has gone; a customer's unbought drafts are kept for six months
-and can be deleted from the gallery.
-
-A customer who does not have someone's address can **ask for it with a link**:
-the friend opens `/address/<token>`, sees a first name and a form, and their
-address lands in the customer's book. A single link works once; a collector
-link takes many, for a whole holiday list. Links expire after ninety days and
-can be renewed or revoked; the requester can opt in to an email when someone
-answers. The responder is never emailed.
-
-### Abandoned cart reminders
-
-Off by default. A signed-in customer with a verified email who leaves designs
-in their cart gets exactly one reminder, priced from settings at send time,
-with a single-use recovery link.
-
-### Payments
-
-Checkout Sessions, webhook-authoritative order state, refunds from the admin
-recorded only when Stripe's `charge.refunded` lands. A full refund withdraws
-every card that has not gone to print; a partial one leaves the schedule alone.
-Discount codes are created in the Stripe dashboard and accepted at checkout.
+1. **Money is integer cents, everywhere.** See `shared/money.ts`.
+2. **Money never comes from the request.** The artist's price is read from
+   their row at checkout; the platform's cut from settings by the ledger.
+3. **The Stripe webhook is the only thing that activates a subscription,
+   records a paid month, or marks an artist payable** (the studio's refresh
+   button asks Stripe directly, which is the same authority).
+4. **Webhook handling is idempotent.** Events are deduplicated by id.
+5. **Every admin route is behind `requireAdmin` + `verifyCsrf`; every studio
+   route behind `requireCustomer` + the caller's own artist row.** New routes
+   go in `server/security.test.ts`'s matrices.
+6. **Every schema change lands in both dialects.**
+7. **Only the sweeps talk to Lob and make transfers**, and only their
+   conditional claims decide who sends what. Our ids are the idempotency keys.
+8. **Lob's refusal and Stripe's refusal are stored in their own words.**
 
 ## Deploying
 
-One DigitalOcean droplet, deployed by `git push production main`. See
-[docs/deploy.md](docs/deploy.md).
-
-## Secrets
-
-Never commit keys. `.env` locally, platform environment variables in
-production. The Stripe secret key and the Lob key are server-only.
+Any host with a persistent disk and Node 22. `npm run build` then `npm start`.
+`.env` in production needs `SESSION_SECRET`, `PUBLIC_URL`, the Stripe keys,
+the Stripe webhook secret (a real endpoint in the Stripe dashboard pointed at
+`/api/webhooks/stripe`, listening to account events too), `LOB_API_KEY` (a
+`live_` key), `LOB_WEBHOOK_SECRET` (for delivery tracking), and `SMTP_URL`
+plus `EMAIL_FROM`. There is no cron: the sweeps run inside the API process.
+The admin overview warns about every one of these when it is missing.

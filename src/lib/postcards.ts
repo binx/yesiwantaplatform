@@ -1,34 +1,57 @@
-import type { PostcardStatus } from "@shared/postcards";
+import type { SubscriptionStatus } from "@shared/platform";
+import type { PostcardStatus as CardStatus } from "@shared/postcards";
 
-/** "Sep 14, 2026", in the store's language, for a YYYY-MM-DD mail date. */
+/**
+ * Words for states, in one place, so the account, the studio and the admin
+ * cannot call the same thing three different names.
+ */
+
+/** "14 September 2026", in the platform's language. */
 export function formatMailDate(isoDate: string, locale: string): string {
-  return new Date(`${isoDate}T12:00:00Z`).toLocaleDateString(locale, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  return new Date(`${isoDate}T12:00:00Z`).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
 }
 
-/** What a buyer is told about a card. Never Lob's error text — that is the admin's. */
-export function customerStatusLabel(status: PostcardStatus): string {
+/** "14 Sep", for tight tables. */
+export function formatShortDate(isoDate: string, locale: string): string {
+  return new Date(`${isoDate}T12:00:00Z`).toLocaleDateString(locale, { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+/** Epoch milliseconds as a day. */
+export function formatDay(epochMs: number, locale: string): string {
+  return new Date(epochMs).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" });
+}
+
+/** What a subscriber or artist is told about a card. Lob's own words never reach them. */
+export function customerStatusLabel(status: CardStatus): string {
   switch (status) {
-    case "pending":
-      return "Awaiting payment";
     case "scheduled":
-      return "Scheduled";
     case "sending":
       return "Going to print";
     case "sent":
       return "Mailed";
     case "error":
-      return "Needs attention";
+      return "We're looking into it";
+    case "cancelled":
+      return "Withdrawn";
+  }
+}
+
+/** The admin's, which names the state. */
+export function adminStatusLabel(status: CardStatus): string {
+  switch (status) {
+    case "scheduled":
+      return "Scheduled";
+    case "sending":
+      return "Sending";
+    case "sent":
+      return "Sent to Lob";
+    case "error":
+      return "Failed";
     case "cancelled":
       return "Cancelled";
   }
 }
 
-/** What a scan is called on the page. Never Lob's own type string. */
 export function trackingLabel(type: string): string {
   switch (type) {
     case "postcard.international_exit":
@@ -38,14 +61,28 @@ export function trackingLabel(type: string): string {
     case "postcard.in_local_area":
       return "Near its destination";
     case "postcard.processed_for_delivery":
-      return "Out for delivery";
-    case "postcard.delivered":
-      return "Delivered";
+      return "At the local post office";
     case "postcard.re-routed":
       return "Re-routed";
     case "postcard.returned_to_sender":
-      return "Returned to sender — check the address";
+      return "Returned to sender";
+    case "postcard.delivered":
+      return "Delivered";
     default:
-      return type.replace(/^postcard\./, "").replaceAll("_", " ");
+      return type.replace(/^postcard\./, "").replace(/[_-]/g, " ");
+  }
+}
+
+export function subscriptionStatusLabel(status: SubscriptionStatus, cancelAtPeriodEnd = false): string {
+  if (status === "active" && cancelAtPeriodEnd) return "Ending soon";
+  switch (status) {
+    case "incomplete":
+      return "Confirming";
+    case "active":
+      return "Active";
+    case "past_due":
+      return "Payment failed";
+    case "cancelled":
+      return "Cancelled";
   }
 }

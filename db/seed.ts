@@ -5,11 +5,11 @@ import { runMigrations } from "./migrate.js";
 import { createAdmin, countAdmins } from "../server/auth.js";
 
 /**
- * Populate an empty database so a clone has a store to look at.
+ * Populate an empty database so a clone has a platform to look at.
  *
- * There is no catalogue to seed — the one product is a setting — so this is
- * the settings row and nothing else. The tests lean on it for a store that
- * exists; `npm run db:seed` uses it for a first run without the wizard.
+ * There is no catalogue to seed — artists make their own pages — so this is
+ * the settings row and nothing else. The tests lean on it for a platform
+ * that exists; `npm run db:seed` uses it for a first run without the wizard.
  */
 export async function seedStore(store: Store = demoStore): Promise<void> {
   const { drizzle: db, schema } = await getDatabase();
@@ -20,7 +20,9 @@ export async function seedStore(store: Store = demoStore): Promise<void> {
     currency: store.currency,
     locale: store.locale,
     stripePublishableKey: store.stripePublishableKey,
-    postcardPriceCents: store.postcardPriceCents,
+    printCostCents: store.pricing.printCostCents,
+    platformFeeCents: store.pricing.platformFeeCents,
+    minMonthlyPriceCents: store.pricing.minMonthlyPriceCents,
     themeColorPrimary: store.theme.colorPrimary,
     themeColorAccent: store.theme.colorAccent,
     themeFontFamily: store.theme.fontFamily,
@@ -56,7 +58,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       await runMigrations();
 
       const seeded = await seedIfEmpty();
-      console.log(seeded ? "Store settings seeded." : "Store already has settings; nothing to do.");
+      console.log(seeded ? "Platform settings seeded." : "Platform already has settings; nothing to do.");
 
       if ((await countAdmins()) === 0) {
         const password = process.env.ADMIN_PASSWORD;

@@ -4,11 +4,12 @@ import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqli
 /**
  * SQLite schema. `db/schema.pg.ts` mirrors it for Postgres.
  *
- * Postcards v2 is a fork of Beluga v2 cut down to one product: a postcard,
- * designed by the buyer, printed and mailed by Lob on a date they choose.
- * There is no catalogue — the price lives on `store_settings` — and there is
- * no shipping address on an order: every postcard row carries its own
- * recipient, because that *is* what is being bought.
+ * Yes I Want A Postcard is a subscription platform: an artist queues one
+ * postcard a month, subscribers pay a monthly price, and on the mailing day
+ * every active subscriber is written one physical card that the print sweep
+ * sends to Lob. The money runs the other way through `payouts`: each sent
+ * card earns its artist the subscriber's price less the print cost and the
+ * platform's fee, transferred through Stripe Connect.
  *
  * Two rules run through the whole thing, inherited from Beluga:
  *   - Money is an INTEGER number of cents. Never a float, never a REAL column.
@@ -24,47 +25,36 @@ const timestamps = {
     .default(sql`(unixepoch())`),
 };
 
-/** Single row (id = 1). Store-wide settings. */
+/** Single row (id = 1). Platform-wide settings. */
 export const storeSettings = sqliteTable("store_settings", {
   id: integer("id").primaryKey().default(1),
-  name: text("name").notNull().default("Postcard Gifts"),
+  name: text("name").notNull().default("Yes I Want A Postcard"),
   currency: text("currency").notNull().default("USD"),
   /** BCP 47. Decides how money and dates are written — see `formatMoney`. */
   locale: text("locale").notNull().default("en-US"),
   /** Publishable key only — the secret key lives in the environment. */
   stripePublishableKey: text("stripe_publishable_key"),
   /**
-   * What one postcard costs, in cents. The whole "catalogue".
-   *
-   * Read by checkout on every order rather than sent by the client — the same
-   * rule Beluga's variants held to, applied to the one price this store has.
-   * Charged through Stripe's inline `price_data`, so changing it here is
-   * enough: there is no Stripe Price to republish.
+   * What one printed and mailed card costs the platform, in cents. Read by
+   * the payout ledger the moment Lob accepts a card, never recomputed later.
    */
-  postcardPriceCents: integer("postcard_price_cents").notNull().default(140),
-  /** The price of a card mailed abroad. Null means the shop is US-only. */
-  internationalPostcardPriceCents: integer("international_postcard_price_cents"),
-  /** The shop's US address, JSON in the recipient shape. Lob prints it as the return address on international mail. */
+  printCostCents: integer("print_cost_cents").notNull().default(120),
+  /** What the platform keeps per sent card, in cents. */
+  platformFeeCents: integer("platform_fee_cents").notNull().default(60),
+  /** The least an artist may charge a month. Below it a card loses money. */
+  minMonthlyPriceCents: integer("min_monthly_price_cents").notNull().default(300),
+  /** The platform's US address, JSON in the recipient shape. Lob prints it as the return address. */
   returnAddress: text("return_address"),
-  /**
-   * Abandoned cart reminders. Off by default — the merchant must opt in, and
-   * the email goes out under their own SMTP sending reputation.
-   */
-  cartRecoveryEnabled: integer("cart_recovery_enabled", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  /** Hours of inactivity before the one reminder goes out. */
-  cartRecoveryDelayHours: integer("cart_recovery_delay_hours").notNull().default(4),
-  themeColorPrimary: text("theme_color_primary").notNull().default("#333333"),
-  themeColorAccent: text("theme_color_accent").notNull().default("#ffff37"),
+  themeColorPrimary: text("theme_color_primary").notNull().default("#1c1917"),
+  themeColorAccent: text("theme_color_accent").notNull().default("#f5c542"),
   themeFontFamily: text("theme_font_family").notNull().default("Quicksand, system-ui, sans-serif"),
   /**
    * Stylesheet defining the faces named in `theme_font_family`. Null means a
    * system font — and, because its origin is what widens the CSP, null also
-   * means the store's security headers are unchanged. See server/fonts.ts.
+   * means the site's security headers are unchanged. See server/fonts.ts.
    */
   themeFontUrl: text("theme_font_url"),
-  themeBorderRadius: integer("theme_border_radius").notNull().default(2),
+  themeBorderRadius: integer("theme_border_radius").notNull().default(4),
   themeColorScheme: text("theme_color_scheme").notNull().default("light"),
   /** Null means "follow the scheme". */
   themeColorPage: text("theme_color_page"),
@@ -97,11 +87,12 @@ export const adminUsers = sqliteTable("admin_users", {
 });
 
 /**
- * Storefront customers — distinct from `admin_users`.
+ * Everyone who signs in on the site — subscribers and artists alike.
  *
- * A customer session must never be mistaken for an admin one: it sets
+ * Distinct from `admin_users`: a customer session sets
  * `req.session.customerId`, a different flag from `adminId`, so `requireAdmin`
- * refuses it exactly as it would an anonymous caller.
+ * refuses it exactly as it would an anonymous caller. An artist is a customer
+ * with a row in `artists` pointing back here.
  */
 export const customers = sqliteTable("customers", {
   id: text("id").primaryKey(),
@@ -109,11 +100,7 @@ export const customers = sqliteTable("customers", {
   /** argon2id, via the same path as admin_users. */
   passwordHash: text("password_hash"),
   name: text("name"),
-  /**
-   * Set once the emailed link is used. Orders are only ever linked to this
-   * account after this is set — see `claimOrdersForCustomer` — so
-   * registering with a stranger's address cannot read their order history.
-   */
+  /** Set once the emailed link is used. */
   emailVerifiedAt: integer("email_verified_at"),
   /** Hash only; the raw token lives in the emailed link. Single-use. */
   emailVerifyTokenHash: text("email_verify_token_hash"),
@@ -121,89 +108,52 @@ export const customers = sqliteTable("customers", {
   passwordResetTokenHash: text("password_reset_token_hash"),
   passwordResetExpiresAt: integer("password_reset_expires_at"),
   lastLoginAt: integer("last_login_at"),
-  /** Set once this customer clicks "unsubscribe" on a cart reminder. */
-  cartRecoveryOptOutAt: integer("cart_recovery_opt_out_at"),
-  /** Hash only. Minted fresh on every reminder send. */
-  cartRecoveryUnsubscribeTokenHash: text("cart_recovery_unsubscribe_token_hash"),
-  /** Where a reply to this customer's cards is mailed. JSON in the recipient shape; null means replies are off. */
-  replyAddress: text("reply_address"),
-  /** What a recipient is told the card came from. Never the email. */
-  replyDisplayName: text("reply_display_name"),
+  /** Where this person's postcards are mailed. JSON in the recipient shape; null until set. */
+  address: text("address"),
+  /** Stripe's Customer, made at the first checkout and reused for every later subscription. */
+  stripeCustomerId: text("stripe_customer_id"),
   ...timestamps,
 });
 
 /**
- * A customer's saved recipients — the people they send postcards to.
+ * An artist: a customer with a page under `/a/:slug`, a monthly price, and
+ * a queue of cards.
  *
- * Beluga called this the address book and used it to prefill the *buyer's*
- * shipping address. Here nothing ships to the buyer: every address is someone
- * else's, and the point of saving one is to pick it again next time.
+ * The Stripe Connect account is where their share of each subscription is
+ * transferred. `payoutsEnabled` mirrors Stripe's own flag and is refreshed
+ * from the `account.updated` webhook and the studio's own "check" button;
+ * until it is true the ledger accrues and nothing is transferred.
  */
-export const customerAddresses = sqliteTable(
-  "customer_addresses",
+export const artists = sqliteTable(
+  "artists",
   {
     id: text("id").primaryKey(),
     customerId: text("customer_id")
       .notNull()
       .references(() => customers.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull(),
     name: text("name").notNull(),
-    line1: text("line1").notNull(),
-    line2: text("line2"),
-    city: text("city").notNull(),
-    state: text("state").notNull(),
-    postalCode: text("postal_code").notNull(),
-    /** ISO 3166-1 alpha-2. */
-    country: text("country").notNull().default("US"),
-    /** When Lob's verification last called this address deliverable. Null: never, or edited since. */
-    verifiedAt: integer("verified_at"),
-    /** What the customer calls them — "Mom", "the Okafors". The card still prints `name`. */
-    label: text("label"),
-    /** Free tags for grouping, lowercase, as a JSON array in TEXT. */
-    tags: text("tags").notNull().default("[]"),
-    /** MM-DD, or YYYY-MM-DD when the year is known. */
-    birthday: text("birthday"),
-    notes: text("notes"),
-    /** How this entry arrived: a paid order, typed by hand, or a request link. */
-    source: text("source").notNull().default("order"),
-    /** The most recent paid order that mailed to this address. */
-    lastSentAt: integer("last_sent_at"),
-    /** The request link this entry came through, when it did. */
-    requestId: text("request_id"),
+    tagline: text("tagline"),
+    /** Markdown. Rendered to HTML at read time, never stored as HTML. */
+    bio: text("bio").notNull().default(""),
+    avatarPath: text("avatar_path"),
+    avatarWidth: integer("avatar_width"),
+    avatarHeight: integer("avatar_height"),
+    avatarAlt: text("avatar_alt"),
+    monthlyPriceCents: integer("monthly_price_cents").notNull(),
+    /** The day of the month the queue advances, 1–28. */
+    sendDay: integer("send_day").notNull().default(15),
+    /** draft | live | paused */
+    status: text("status").notNull().default("draft"),
+    stripeAccountId: text("stripe_account_id"),
+    payoutsEnabled: integer("payouts_enabled", { mode: "boolean" }).notNull().default(false),
     ...timestamps,
   },
-  (t) => [index("customer_addresses_customer_idx").on(t.customerId)],
-);
-
-/**
- * "Send me your address" links.
- *
- * The token is stored in the clear — the one token-shaped thing here that
- * is not hashed, on purpose. A collector link is re-copied for weeks, and
- * what it unlocks is submitting one address into someone's book and reading
- * their first name; a leaked database makes nothing of that worse. Do not
- * "fix" it to a hash without a way to show the link again.
- */
-export const addressRequests = sqliteTable(
-  "address_requests",
-  {
-    id: text("id").primaryKey(),
-    customerId: text("customer_id")
-      .notNull()
-      .references(() => customers.id, { onDelete: "cascade" }),
-    /** 32 random bytes, base64url. */
-    token: text("token").notNull(),
-    /** "Maya", or "Holiday card 2026". Shown to the requester; to the responder only for a collector. */
-    label: text("label").notNull(),
-    /** A collector takes many responses; a single link takes one. */
-    multi: integer("multi", { mode: "boolean" }).notNull().default(false),
-    /** open | fulfilled | revoked. Expiry is `expiresAt`, read at request time. */
-    status: text("status").notNull().default("open"),
-    notifyByEmail: integer("notify_by_email", { mode: "boolean" }).notNull().default(true),
-    responses: integer("responses").notNull().default(0),
-    expiresAt: integer("expires_at").notNull(),
-    ...timestamps,
-  },
-  (t) => [uniqueIndex("address_requests_token_idx").on(t.token), index("address_requests_customer_idx").on(t.customerId)],
+  (t) => [
+    uniqueIndex("artists_slug_idx").on(t.slug),
+    uniqueIndex("artists_customer_idx").on(t.customerId),
+    index("artists_status_idx").on(t.status),
+  ],
 );
 
 /** Sessions in the database, not express-session's in-memory default. */
@@ -232,7 +182,7 @@ export const pages = sqliteTable(
     /** Markdown. Rendered to HTML at read time, never stored as HTML. */
     body: text("body").notNull().default(""),
     isLive: integer("is_live", { mode: "boolean" }).notNull().default(false),
-    /** Show a link in the storefront banner. */
+    /** Show a link in the site banner. */
     inNav: integer("in_nav", { mode: "boolean" }).notNull().default(false),
     position: integer("position").notNull().default(0),
     ...timestamps,
@@ -241,33 +191,27 @@ export const pages = sqliteTable(
 );
 
 /**
- * A postcard design: one front image and one back message.
+ * A postcard design: one front image and one back message, made by an
+ * artist in their studio.
  *
- * Created the moment a buyer saves a design, before there is any order — the
- * image has to live somewhere while they add recipients and pick dates. The
- * print file is written at Lob's exact size on upload, so nothing is
- * re-rendered at send time and a bad image fails while the buyer is still
- * looking at it.
- *
- * `orderId` is set by the payment webhook. A design that never reaches a paid
- * order is swept away after a month — see server/fulfilment.ts — which is the
- * only cleanup a public upload route needs to stay honest.
+ * The print file is written at Lob's exact size on upload, so nothing is
+ * re-rendered at send time and a bad image fails while the artist is still
+ * looking at it. A design that has been mailed keeps its files: the gallery
+ * and every subscriber's account show the thumbnail, and the print file is
+ * what a retry sends.
  */
 export const postcardDesigns = sqliteTable(
   "postcard_designs",
   {
     id: text("id").primaryKey(),
-    /** Set when a signed-in customer designed it. Null for a guest. */
-    customerId: text("customer_id").references(() => customers.id, { onDelete: "set null" }),
-    /** Set once a paid order holds postcards of this design. */
-    orderId: text("order_id"),
-    /** The design this one was duplicated from, when "send again" made it. */
-    originId: text("origin_id"),
+    artistId: text("artist_id")
+      .notNull()
+      .references(() => artists.id, { onDelete: "cascade" }),
     /** "portrait" | "landscape" */
     orientation: text("orientation").notNull(),
-    /** Relative to the assets root — the file Lob prints. Null once cleaned up. */
-    printPath: text("print_path"),
-    /** Relative to the assets root — what the storefront shows. */
+    /** Relative to the assets root — the file Lob prints. */
+    printPath: text("print_path").notNull(),
+    /** Relative to the assets root — what the site shows. */
     thumbnailPath: text("thumbnail_path").notNull(),
     thumbnailWidth: integer("thumbnail_width").notNull(),
     thumbnailHeight: integer("thumbnail_height").notNull(),
@@ -275,78 +219,122 @@ export const postcardDesigns = sqliteTable(
     back: text("back").notNull().default("{}"),
     ...timestamps,
   },
-  (t) => [
-    index("postcard_designs_customer_idx").on(t.customerId),
-    index("postcard_designs_order_idx").on(t.orderId),
-    index("postcard_designs_created_idx").on(t.createdAt),
-  ],
+  (t) => [index("postcard_designs_artist_idx").on(t.artistId), index("postcard_designs_created_idx").on(t.createdAt)],
 );
 
-export const orders = sqliteTable(
-  "orders",
+/**
+ * A subscription: one person, one artist, one address, one monthly price.
+ *
+ * `priceCents` is a snapshot of the artist's price at the time — Stripe bills
+ * it, and the payout ledger reads it — so an artist raising their price later
+ * does not change what an existing subscriber pays or earns them.
+ *
+ *   incomplete  Checkout begun; the webhook has not confirmed payment
+ *   active      paid up; gets every mailing
+ *   past_due    a renewal failed; no cards until it clears
+ *   cancelled   over
+ */
+export const subscriptions = sqliteTable(
+  "subscriptions",
   {
     id: text("id").primaryKey(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    artistId: text("artist_id")
+      .notNull()
+      .references(() => artists.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("incomplete"),
     stripeCheckoutSessionId: text("stripe_checkout_session_id").notNull(),
-    stripePaymentIntentId: text("stripe_payment_intent_id"),
-    email: text("email").notNull(),
-    /** Nullable: guest checkout is the default and stays supported. */
-    customerId: text("customer_id").references(() => customers.id, { onDelete: "set null" }),
-    /** pending | paid | completed | cancelled | refunded */
-    status: text("status").notNull().default("pending"),
+    stripeSubscriptionId: text("stripe_subscription_id"),
+    priceCents: integer("price_cents").notNull(),
     currency: text("currency").notNull().default("USD"),
-    /** What one postcard cost when this order was placed — a snapshot. */
-    unitPriceCents: integer("unit_price_cents").notNull(),
-    /** How many postcards: every design × every recipient, summed over batches. */
-    postcardCount: integer("postcard_count").notNull(),
-    /** How many of those went abroad, and the price each of them was charged at. */
-    internationalCount: integer("international_count").notNull().default(0),
-    internationalUnitPriceCents: integer("international_unit_price_cents"),
-    subtotalCents: integer("subtotal_cents").notNull().default(0),
-    /** Total discount applied at Stripe. Zero when no code was used. */
-    discountCents: integer("discount_cents").notNull().default(0),
-    totalCents: integer("total_cents").notNull().default(0),
-    /** Cumulative amount refunded. Less than totalCents means a partial refund. */
-    refundedCents: integer("refunded_cents").notNull().default(0),
-    /** The card this order was sent back to, when it is a reply. */
-    replyToPostcardId: text("reply_to_postcard_id"),
+    currentPeriodEnd: integer("current_period_end"),
+    cancelAtPeriodEnd: integer("cancel_at_period_end", { mode: "boolean" }).notNull().default(false),
+    /** JSON in the recipient shape: where every card under this subscription is mailed. */
+    address: text("address").notNull(),
+    cancelledAt: integer("cancelled_at"),
     ...timestamps,
   },
   (t) => [
-    uniqueIndex("orders_checkout_session_idx").on(t.stripeCheckoutSessionId),
-    index("orders_status_idx").on(t.status),
-    index("orders_created_idx").on(t.createdAt),
-    index("orders_customer_idx").on(t.customerId),
-    index("orders_email_idx").on(t.email),
+    uniqueIndex("subscriptions_checkout_session_idx").on(t.stripeCheckoutSessionId),
+    uniqueIndex("subscriptions_stripe_idx").on(t.stripeSubscriptionId),
+    index("subscriptions_customer_idx").on(t.customerId),
+    index("subscriptions_artist_status_idx").on(t.artistId, t.status),
   ],
 );
 
 /**
- * One physical postcard: a design, a recipient, and a day to mail it.
+ * One card going to every subscriber on one day.
  *
- * This is the unit Lob deals in and the unit the buyer follows, so it is the
- * unit the database keeps. `batchIndex` remembers which cart line it came
- * from, which is what lets an expired checkout rebuild the exact cart for a
- * reminder email.
+ * `period` is the mailing's `YYYY-MM`, and the unique index on it with the
+ * artist is what enforces one mailing a month: a subscriber pays once a
+ * month, and each card earns the artist a month's share, so a second card
+ * in the same month would be paid for by nobody.
+ *
+ *   queued     waiting for `mailDate`
+ *   mailed     one `postcards` row per active subscriber has been written
+ *   cancelled  withdrawn before the date
+ */
+export const mailings = sqliteTable(
+  "mailings",
+  {
+    id: text("id").primaryKey(),
+    artistId: text("artist_id")
+      .notNull()
+      .references(() => artists.id, { onDelete: "cascade" }),
+    designId: text("design_id")
+      .notNull()
+      .references(() => postcardDesigns.id),
+    title: text("title"),
+    /** ISO date, YYYY-MM-DD, in the platform's day. */
+    mailDate: text("mail_date").notNull(),
+    period: text("period").notNull(),
+    status: text("status").notNull().default("queued"),
+    inGallery: integer("in_gallery", { mode: "boolean" }).notNull().default(true),
+    /** How many subscribers were written cards when it went. */
+    subscriberCount: integer("subscriber_count").notNull().default(0),
+    mailedAt: integer("mailed_at"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("mailings_artist_period_idx").on(t.artistId, t.period),
+    index("mailings_due_idx").on(t.status, t.mailDate),
+    index("mailings_artist_idx").on(t.artistId, t.mailDate),
+  ],
+);
+
+/**
+ * One physical postcard: a mailing's design, going to one subscriber.
+ *
+ * This is the unit Lob deals in and the unit a subscriber follows, so it is
+ * the unit the database keeps. The address is copied onto the row when the
+ * mailing goes, so a subscriber who moves later does not change what was
+ * sent.
  *
  * `status`:
- *   pending    the order has not been paid yet
- *   scheduled  paid; waiting for `mailDate`
+ *   scheduled  waiting for the print sweep
  *   sending    claimed by the sweep — a second instance skips it
  *   sent       accepted by Lob; `lobId` is theirs
  *   error      Lob refused it; `lastError` says why, in Lob's own words
- *   cancelled  the order was cancelled or refunded before it went out
+ *   cancelled  withdrawn before it went out
  */
 export const postcards = sqliteTable(
   "postcards",
   {
     id: text("id").primaryKey(),
-    orderId: text("order_id")
+    mailingId: text("mailing_id")
       .notNull()
-      .references(() => orders.id, { onDelete: "cascade" }),
+      .references(() => mailings.id, { onDelete: "cascade" }),
+    subscriptionId: text("subscription_id")
+      .notNull()
+      .references(() => subscriptions.id, { onDelete: "cascade" }),
+    artistId: text("artist_id")
+      .notNull()
+      .references(() => artists.id, { onDelete: "cascade" }),
     designId: text("design_id")
       .notNull()
       .references(() => postcardDesigns.id),
-    batchIndex: integer("batch_index").notNull().default(0),
     recipientName: text("recipient_name").notNull(),
     recipientLine1: text("recipient_line1").notNull(),
     recipientLine2: text("recipient_line2"),
@@ -355,9 +343,9 @@ export const postcards = sqliteTable(
     recipientPostalCode: text("recipient_postal_code").notNull(),
     /** ISO 3166-1 alpha-2, what Lob's `address_country` takes. */
     recipientCountry: text("recipient_country").notNull().default("US"),
-    /** ISO date, YYYY-MM-DD, in the store's day — the day it goes to Lob. */
+    /** ISO date, YYYY-MM-DD — the day it goes to Lob. */
     mailDate: text("mail_date").notNull(),
-    status: text("status").notNull().default("pending"),
+    status: text("status").notNull().default("scheduled"),
     lobId: text("lob_id"),
     /** Lob's rendered proof, when they return one. */
     lobUrl: text("lob_url"),
@@ -367,32 +355,23 @@ export const postcards = sqliteTable(
     /** How many times the sweep has tried. A transient failure retries; a refusal does not. */
     attempts: integer("attempts").notNull().default(0),
     lastError: text("last_error"),
-    /** The latest tracking event Lob reported, as its `event_type.id` — `postcard.in_transit`. Denormalised from the events table. */
+    /** The latest tracking event Lob reported, as its `event_type.id`. Denormalised from the events table. */
     trackingStatus: text("tracking_status"),
-    /**
-     * The code printed on the back as a QR, when the sender opted in. Holding
-     * the card is the credential: it opens the card online and, when the
-     * sender has a reply address, lets the recipient send one back.
-     */
-    replyCode: text("reply_code"),
-    /** The sender turned the link off. The page and the reply stop; nothing else changes. */
-    replyDisabledAt: integer("reply_disabled_at"),
-    /** A card sent back through a reply code: its recipient is the original sender, and is never shown to the replier. */
-    isReply: integer("is_reply", { mode: "boolean" }).notNull().default(false),
     ...timestamps,
   },
   (t) => [
-    index("postcards_order_idx").on(t.orderId),
-    index("postcards_design_idx").on(t.designId),
+    uniqueIndex("postcards_mailing_subscription_idx").on(t.mailingId, t.subscriptionId),
+    index("postcards_subscription_idx").on(t.subscriptionId),
+    index("postcards_artist_idx").on(t.artistId),
     index("postcards_due_idx").on(t.status, t.mailDate),
-    uniqueIndex("postcards_reply_code_idx").on(t.replyCode),
+    index("postcards_lob_idx").on(t.lobId),
   ],
 );
 
 /**
  * Where a card is, from Lob's tracking webhook: one row per event, keyed
  * by Lob's event id so a redelivery is a no-op. Shown as a timeline on the
- * order pages; never emailed.
+ * subscriber's postcards page; never emailed.
  */
 export const postcardTrackingEvents = sqliteTable(
   "postcard_tracking_events",
@@ -416,8 +395,86 @@ export const postcardTrackingEvents = sqliteTable(
 );
 
 /**
- * Stripe delivers webhooks at least once. Recording event ids makes replay a
- * no-op instead of a duplicate order.
+ * A postcard order: one paid Stripe invoice under a subscription. What the
+ * subscriber's receipts list, and what the admin reconciles a month's
+ * payouts against. Written by the `invoice.paid` webhook and nothing else.
+ */
+export const orders = sqliteTable(
+  "orders",
+  {
+    id: text("id").primaryKey(),
+    subscriptionId: text("subscription_id")
+      .notNull()
+      .references(() => subscriptions.id, { onDelete: "cascade" }),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    artistId: text("artist_id")
+      .notNull()
+      .references(() => artists.id, { onDelete: "cascade" }),
+    stripeInvoiceId: text("stripe_invoice_id").notNull(),
+    stripePaymentIntentId: text("stripe_payment_intent_id"),
+    /** paid | refunded */
+    status: text("status").notNull().default("paid"),
+    amountCents: integer("amount_cents").notNull(),
+    refundedCents: integer("refunded_cents").notNull().default(0),
+    currency: text("currency").notNull(),
+    periodStart: integer("period_start"),
+    periodEnd: integer("period_end"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("orders_invoice_idx").on(t.stripeInvoiceId),
+    index("orders_subscription_idx").on(t.subscriptionId),
+    index("orders_customer_idx").on(t.customerId),
+    index("orders_artist_idx").on(t.artistId),
+    index("orders_created_idx").on(t.createdAt),
+  ],
+);
+
+/**
+ * What one sent card earned its artist: the ledger the payout sweep works
+ * through. Written the moment Lob accepts a card, with the subscriber's
+ * price and the platform's numbers as they were that moment, so a later
+ * change to either never rewrites history.
+ *
+ *   pending  waiting for the artist's Stripe account, or the next sweep
+ *   paid     transferred; `stripeTransferId` is Stripe's
+ *   failed   Stripe refused the transfer; `lastError` says why
+ */
+export const payouts = sqliteTable(
+  "payouts",
+  {
+    id: text("id").primaryKey(),
+    artistId: text("artist_id")
+      .notNull()
+      .references(() => artists.id, { onDelete: "cascade" }),
+    postcardId: text("postcard_id")
+      .notNull()
+      .references(() => postcards.id, { onDelete: "cascade" }),
+    mailingId: text("mailing_id").notNull(),
+    grossCents: integer("gross_cents").notNull(),
+    printCostCents: integer("print_cost_cents").notNull(),
+    platformFeeCents: integer("platform_fee_cents").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull(),
+    status: text("status").notNull().default("pending"),
+    stripeTransferId: text("stripe_transfer_id"),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+    paidAt: integer("paid_at"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("payouts_postcard_idx").on(t.postcardId),
+    index("payouts_artist_status_idx").on(t.artistId, t.status),
+    index("payouts_status_idx").on(t.status),
+  ],
+);
+
+/**
+ * Stripe and Lob deliver webhooks at least once. Recording event ids makes
+ * replay a no-op instead of a duplicate order or a duplicate scan.
  */
 export const webhookEvents = sqliteTable("webhook_events", {
   id: text("id").primaryKey(),
@@ -426,31 +483,3 @@ export const webhookEvents = sqliteTable("webhook_events", {
     .notNull()
     .default(sql`(unixepoch())`),
 });
-
-/**
- * A signed-in customer's cart, mirrored server-side so there is something to
- * remind them about. Only ever populated for a customer with an account.
- */
-export const carts = sqliteTable(
-  "carts",
-  {
-    id: text("id").primaryKey(),
-    customerId: text("customer_id")
-      .notNull()
-      .references(() => customers.id, { onDelete: "cascade" }),
-    /** Snapshot of the customer's email at last sync — never a live join. */
-    email: text("email").notNull(),
-    /** JSON: CartLine[] — design ids, dates and recipients. */
-    lines: text("lines").notNull().default("[]"),
-    currency: text("currency").notNull(),
-    /** Hash only; single-use. Cleared on redemption. */
-    recoveryTokenHash: text("recovery_token_hash"),
-    reminderSentAt: integer("reminder_sent_at"),
-    recoveredAt: integer("recovered_at"),
-    ...timestamps,
-  },
-  (t) => [
-    index("carts_customer_idx").on(t.customerId),
-    index("carts_updated_idx").on(t.updatedAt),
-  ],
-);

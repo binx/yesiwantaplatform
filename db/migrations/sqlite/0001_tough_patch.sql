@@ -1,1 +1,0 @@
-ALTER TABLE `customer_addresses` ADD `verified_at` integer;

@@ -1,7 +1,8 @@
 import { createHmac } from "node:crypto";
 import { Router, raw } from "express";
 import { z } from "zod";
-import { findPostcardForTracking, forgetWebhookEvent, recordTrackingEvent, recordWebhookEvent, markPostcardReturned } from "../../db/orders-repository.js";
+import { findPostcardForTracking, recordTrackingEvent, markPostcardReturned } from "../../db/postcards-repository.js";
+import { forgetWebhookEvent, recordWebhookEvent } from "../../db/webhooks-repository.js";
 import { RETURNED_TO_SENDER } from "../../shared/postcards.js";
 import { safeEqual } from "../auth.js";
 import { env, hasLobWebhook } from "../env.js";
@@ -15,8 +16,8 @@ import { env, hasLobWebhook } from "../env.js";
  * reads the exact bytes. Events are deduplicated in the same table as
  * Stripe's, prefixed, because both providers' ids begin `evt_`.
  *
- * Nothing here sends an email. The timeline lives on the order pages the
- * buyer already has; a day-by-day feed of USPS scans is noise.
+ * Nothing here sends an email. The timeline lives on the postcards page the
+ * subscriber already has; a day-by-day feed of USPS scans is noise.
  */
 export const lobWebhookRouter: Router = Router();
 
@@ -111,7 +112,7 @@ lobWebhookRouter.post("/webhooks/lob", raw({ type: "*/*", limit: "1mb" }), async
     const postcard = await findPostcardForTracking(event.body?.metadata?.postcard_id ?? null, event.body?.id ?? event.reference_id ?? null);
     if (!postcard) {
       // Acknowledged: Lob would otherwise retry a card this database never had
-      // — a test card from the admin, or one from another store on the key.
+      // — a test card from the admin, or one from another site on the key.
       console.warn(`Lob tracking event ${event.id} (${type}) for a postcard this store does not know.`);
       res.json({ received: true, unknown: true });
       return;

@@ -1,226 +1,149 @@
-import { randomUUID } from "node:crypto";
 import { Router } from "express";
-import type Stripe from "stripe";
-import { checkoutRequestSchema } from "../../shared/orders.js";
-import { countPostcardsByDestination, type CartLine } from "../../shared/cart.js";
-import { todayIso } from "../../shared/postcards.js";
-import { getSettings, type Settings } from "../../db/repository.js";
-import { findDesignsByIds } from "../../db/designs-repository.js";
-import { countReplyOrders, createPendingOrder, findOrderByCheckoutSession, findPostcardByReplyCode } from "../../db/orders-repository.js";
-import { getReplySettings } from "../../db/customers-repository.js";
-import { env } from "../env.js";
-import { httpError, writeRateLimit } from "../middleware.js";
-import { getStripe } from "../stripe.js";
+import { subscribeInputSchema, subscribeResponseSchema } from "../../shared/platform.js";
+import { getSettings } from "../../db/repository.js";
+import { getArtist } from "../../db/artists-repository.js";
+import { getMailingAddress, getStripeCustomerId, setMailingAddress, setStripeCustomerId } from "../../db/customers-repository.js";
+import {
+  createIncompleteSubscription,
+  findOpenSubscription,
+  findSubscriptionByCheckoutSession,
+  newSubscriptionId,
+} from "../../db/subscriptions-repository.js";
 import { findCustomerById } from "../auth.js";
-import { toCustomerOrder } from "./account.js";
+import { env } from "../env.js";
+import { httpError, requireCustomer, verifyCsrf, writeRateLimit } from "../middleware.js";
+import { classifyStripeError, getStripe } from "../stripe.js";
+import { toSubscription } from "../presenters.js";
+import { verifyRecipient } from "../lob.js";
 
 /**
- * Checkout.
+ * Subscribing.
  *
- * The client sends design ids, mail dates and recipients — never a price.
- * The price of a postcard is read from settings here and multiplied by the
- * number of cards, so a tampered cart cannot change what anything costs.
+ * The client sends an artist id and an address — never a price. The monthly
+ * price is read from the artist's row here and handed to Stripe as an inline
+ * recurring `price_data`, so a tampered request cannot change what anything
+ * costs, and there is no Stripe Price to keep in step with the artist's
+ * settings.
  *
- * Stripe is given an inline `price_data` rather than a catalogue Price: there
- * is exactly one thing for sale and its price is a setting, so there is
- * nothing to publish and nothing to keep in step.
+ * Signed in only: a subscription has to belong to someone who can come back
+ * and cancel it, and the address lives on their account.
  */
 export const checkoutRouter: Router = Router();
 
-/** How far out a card may be scheduled. Lob keeps nothing this long; we do. */
-const MAX_DAYS_AHEAD = 365;
-
-/**
- * Everything about a cart that has to be true before it becomes an order,
- * whoever is placing it. Shared with the admin's complimentary route so the
- * two cannot drift: a design that was cleaned up, or a date in the past, is
- * refused with the same sentence either way.
- */
-export async function assertOrderable(lines: CartLine[]): Promise<void> {
-  const designIds = [...new Set(lines.flatMap((line) => line.designs.map((d) => d.designId)))];
-  const designs = await findDesignsByIds(designIds);
-  const known = new Map(designs.map((d) => [d.id, d]));
-
-  for (const id of designIds) {
-    const design = known.get(id);
-    if (!design) throw httpError(409, "A design in your cart is no longer available. Remove it and try again.");
-    if (design.orderId) throw httpError(409, "A design in your cart has already been ordered.");
-    if (!design.printPath) throw httpError(409, "A design in your cart can no longer be printed. Remove it and try again.");
-  }
-
-  // Dates: not in the past, not absurdly far out. Today is fine — the sweep
-  // runs every fifteen minutes and picks it up after payment.
-  const today = todayIso();
-  const horizon = new Date(Date.now() + MAX_DAYS_AHEAD * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  for (const line of lines) {
-    for (const design of line.designs) {
-      if (design.mailDate < today) throw httpError(400, "A postcard is scheduled for a day that has passed. Pick a new date.");
-      if (design.mailDate > horizon) throw httpError(400, "Postcards can be scheduled up to a year ahead.");
-    }
-  }
-}
-
-/**
- * Whether the shop can mail where a cart is going.
- *
- * A foreign recipient needs two things the merchant sets: a price for the
- * card and a US return address, which Lob requires on every international
- * piece. Refused here, before Stripe, with one sentence a buyer can act on.
- */
-export function assertMailable(lines: CartLine[], settings: Pick<Settings, "internationalPostcardPriceCents" | "returnAddress">): void {
-  const { international } = countPostcardsByDestination(lines);
-  if (international === 0) return;
-  if (settings.internationalPostcardPriceCents === null || !settings.returnAddress) {
-    throw httpError(409, "This shop can't mail postcards outside the United States yet. Remove the international recipients to continue.");
-  }
-}
-
-/** How many paid replies one card may receive. A conversation, not a mailing list. */
-const REPLY_CAP = 3;
-
-/**
- * A reply line names a card's code and no recipient; the recipient is the
- * card's sender, resolved here from their reply settings and written onto
- * the order like any other. The client never receives it — `toCustomerOrder`
- * blanks it on the way out — and a sender who moves later does not strand a
- * paid reply, because the address is snapshotted now.
- */
-export async function resolveReplyLines(lines: CartLine[]): Promise<{ lines: CartLine[]; replyToPostcardId: string | null }> {
-  let replyToPostcardId: string | null = null;
-  const resolved: CartLine[] = [];
-
-  for (const line of lines) {
-    if (line.replyTo === null) {
-      resolved.push(line);
-      continue;
-    }
-    const target = await findPostcardByReplyCode(line.replyTo);
-    const closed = !target || target.postcard.replyDisabledAt !== null || target.postcard.status !== "sent" || !target.order.customerId;
-    const settings = closed ? null : await getReplySettings(target.order.customerId!);
-    if (closed || !settings?.address || !settings.displayName) {
-      throw httpError(409, "That card can't be replied to any more. Remove it from the cart to continue.");
-    }
-    if ((await countReplyOrders(target.postcard.id)) >= REPLY_CAP) {
-      throw httpError(409, "That card has had as many replies as it can take. Remove it from the cart to continue.");
-    }
-    replyToPostcardId ??= target.postcard.id;
-    resolved.push({ ...line, recipients: [{ ...settings.address, name: settings.displayName }] });
-  }
-
-  return { lines: resolved, replyToPostcardId };
-}
-
-checkoutRouter.post("/checkout", writeRateLimit, async (req, res) => {
+checkoutRouter.post("/checkout/subscribe", writeRateLimit, verifyCsrf, requireCustomer, async (req, res) => {
   const stripe = getStripe();
-  if (!stripe) {
-    throw httpError(503, "This store cannot take payments yet: Stripe is not configured.");
-  }
+  if (!stripe) throw httpError(503, "Subscriptions aren't open yet: Stripe is not configured.");
 
-  const parsed = checkoutRequestSchema.safeParse(req.body);
-  if (!parsed.success) {
-    const first = parsed.error.issues[0];
-    throw httpError(400, first ? `That cart could not be read: ${first.path.join(".")} ${first.message}` : "That cart could not be read.");
-  }
+  const parsed = subscribeInputSchema.safeParse(req.body);
+  if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "That could not be read.");
 
   const settings = await getSettings();
-  if (!settings) throw httpError(503, "This store has not been set up yet.");
+  if (!settings) throw httpError(503, "This platform has not been set up yet.");
+
+  const customer = await findCustomerById(req.session.customerId!);
+  if (!customer) throw httpError(401, "Sign in again.");
+
+  const artist = await getArtist(parsed.data.artistId);
+  if (!artist || artist.status !== "live") throw httpError(409, "That artist isn't taking subscribers right now.");
+  if (artist.customerId === customer.id) throw httpError(409, "You can't subscribe to yourself, though it's a nice thought.");
+
+  if (await findOpenSubscription(customer.id, artist.id)) {
+    throw httpError(409, `You already get postcards from ${artist.name}. Manage it from your account.`);
+  }
+
+  // The address is checked against USPS and saved on the account, so the
+  // next subscription starts from it. A refusal is a 400 the form can act on.
+  const verification = await verifyRecipient(parsed.data.address);
+  if (verification.deliverability === "undeliverable") {
+    throw httpError(400, "USPS does not recognise that address. Check the street, city, state and ZIP.");
+  }
+  // Deliberately no check on the artist's Stripe onboarding: an artist may
+  // take subscribers before it finishes, and the ledger holds their share.
+  await setMailingAddress(customer.id, parsed.data.address);
 
   const currency = settings.currency.toLowerCase();
+  const subscriptionId = newSubscriptionId();
 
-  // Every design has to exist, unordered, right now, and every date has to
-  // be one Lob can still act on. A reply line gets its recipient here.
-  await assertOrderable(parsed.data.lines);
-  const { lines, replyToPostcardId } = await resolveReplyLines(parsed.data.lines);
-  assertMailable(lines, settings);
+  try {
+    // One Stripe Customer per person, made on their first subscription and
+    // reused, so their card and their invoices sit in one place.
+    let stripeCustomerId = await getStripeCustomerId(customer.id);
+    if (!stripeCustomerId) {
+      const created = await stripe.customers.create(
+        { email: customer.email, ...(customer.name ? { name: customer.name } : {}), metadata: { yiwap_customer_id: customer.id } },
+        { idempotencyKey: `customer-${customer.id}` },
+      );
+      stripeCustomerId = created.id;
+      await setStripeCustomerId(customer.id, stripeCustomerId);
+    }
 
-  const { domestic, international } = countPostcardsByDestination(lines);
-  const unitPriceCents = settings.postcardPriceCents;
-  const internationalUnitPriceCents = international > 0 ? settings.internationalPostcardPriceCents : null;
-
-  // Two line items when the batch crosses a border, because the two are
-  // priced apart. Both prices come from settings, never from the cart.
-  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
-  if (domestic > 0) {
-    lineItems.push({
-      quantity: domestic,
-      price_data: {
-        currency,
-        unit_amount: unitPriceCents,
-        product_data: {
-          name: domestic === 1 ? "Postcard" : "Postcards",
-          description: `${domestic} custom postcard${domestic === 1 ? "" : "s"}, printed and mailed on the dates you chose.`,
-        },
+    const metadata = { yiwap_subscription_id: subscriptionId, yiwap_artist_id: artist.id, yiwap_customer_id: customer.id };
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: "subscription",
+        customer: stripeCustomerId,
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency,
+              unit_amount: artist.monthlyPriceCents,
+              recurring: { interval: "month" },
+              product_data: {
+                name: `A monthly postcard from ${artist.name}`,
+                description: "One of their postcards, printed and mailed to you every month. Cancel anytime.",
+              },
+            },
+          },
+        ],
+        // No shipping address collection: the address was given above, is
+        // held on the account, and is what every card is mailed to.
+        success_url: `${env.PUBLIC_URL}/subscribe/confirm?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${env.PUBLIC_URL}/a/${artist.slug}`,
+        metadata,
+        subscription_data: { metadata },
       },
+      // Retries of this request reuse the same session rather than making a new one.
+      { idempotencyKey: `subscribe-${subscriptionId}` },
+    );
+
+    if (!session.url) throw httpError(502, "Stripe did not return a checkout URL.");
+
+    await createIncompleteSubscription({
+      id: subscriptionId,
+      customerId: customer.id,
+      artistId: artist.id,
+      checkoutSessionId: session.id,
+      priceCents: artist.monthlyPriceCents,
+      currency: settings.currency,
+      address: parsed.data.address,
     });
+
+    res.json(subscribeResponseSchema.parse({ url: session.url, subscriptionId }));
+  } catch (error) {
+    const classified = classifyStripeError(error);
+    if (classified) throw httpError(classified.status, classified.message);
+    throw error;
   }
-  if (international > 0 && internationalUnitPriceCents !== null) {
-    lineItems.push({
-      quantity: international,
-      price_data: {
-        currency,
-        unit_amount: internationalUnitPriceCents,
-        product_data: {
-          name: international === 1 ? "International postcard" : "International postcards",
-          description: `${international} custom postcard${international === 1 ? "" : "s"} mailed outside the United States, on the dates you chose.`,
-        },
-      },
-    });
-  }
-
-  // Minted up front so it can travel in the session's metadata; the webhook
-  // uses it to find this order without having to reconstruct the cart.
-  const orderId = randomUUID();
-
-  const customer = req.session.customerId ? await findCustomerById(req.session.customerId) : null;
-
-  const session = await stripe.checkout.sessions.create(
-    {
-      mode: "payment",
-      line_items: lineItems,
-      ...(customer ? { customer_email: customer.email } : {}),
-      // Stripe hosts the whole promotion-code flow; codes are created in the
-      // Stripe dashboard and this only records what came off.
-      allow_promotion_codes: true,
-      // No shipping address: the recipients *are* the addresses, and the
-      // buyer's own is not needed for anything.
-      success_url: `${env.PUBLIC_URL}/confirm?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${env.PUBLIC_URL}/cart`,
-      metadata: { postcards_order_id: orderId },
-      payment_intent_data: { metadata: { postcards_order_id: orderId } },
-    },
-    // Retries of this request reuse the same session rather than making a new
-    // one; the order id is unique per attempt.
-    { idempotencyKey: orderId },
-  );
-
-  if (!session.url) throw httpError(502, "Stripe did not return a checkout URL.");
-
-  await createPendingOrder({
-    id: orderId,
-    checkoutSessionId: session.id,
-    email: session.customer_details?.email ?? customer?.email ?? "",
-    currency: settings.currency,
-    unitPriceCents,
-    internationalUnitPriceCents,
-    lines,
-    customerId: customer?.id ?? null,
-    replyToPostcardId,
-  });
-
-  res.json({ url: session.url, orderId });
 });
 
 /**
- * Order lookup for the confirmation page.
+ * Subscription lookup for the confirmation page.
  *
- * Keyed by the Stripe session id from the redirect, which is unguessable, and
- * returns only what a buyer should see. The redirect is *not* treated as proof
- * of payment — the webhook is the authority — so an order still showing
- * "pending" here simply means the webhook has not landed yet.
+ * Keyed by the Stripe session id from the redirect, which is unguessable,
+ * and answered only to the person who started it. The redirect is *not*
+ * treated as proof of payment — the webhook is the authority — so a row still
+ * `incomplete` here simply means the webhook has not landed yet.
  */
-checkoutRouter.get("/checkout/:sessionId", async (req, res) => {
-  const order = await findOrderByCheckoutSession(req.params.sessionId);
-  if (!order) throw httpError(404, "No order found for that checkout.");
+checkoutRouter.get("/checkout/:sessionId", requireCustomer, async (req, res) => {
+  const subscription = await findSubscriptionByCheckoutSession(String(req.params.sessionId));
+  if (!subscription || subscription.customerId !== req.session.customerId) throw httpError(404, "No subscription found for that checkout.");
 
-  res.json(toCustomerOrder(order));
+  const artist = await getArtist(subscription.artistId);
+  res.json(toSubscription(subscription, artist ?? undefined, 0));
+});
+
+/** The address on the account, prefilled into the subscribe form. Signed in only. */
+checkoutRouter.get("/checkout/address/me", requireCustomer, async (req, res) => {
+  res.json({ address: await getMailingAddress(req.session.customerId!) });
 });

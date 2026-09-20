@@ -13,10 +13,7 @@ import styles from "./Postcard.module.css";
  * which is what keeps "24" meaning the same thing on screen and on paper.
  *
  * Narrower than that — a phone — the whole card is transformed down to the
- * width it has, inside a frame that keeps the card's shape in the layout. A
- * transform leaves the wrapping alone, so what fits on the phone's card is
- * exactly what fits on the printed one; the alternative, letting the card
- * keep its 468px, is what made the create page wider than the phone.
+ * width it has, inside a frame that keeps the card's shape in the layout.
  */
 const CARD_WIDTH_PX = 468;
 const CARD_HEIGHT_PX = 4.25 * (CARD_WIDTH_PX / 6.25);
@@ -24,11 +21,13 @@ const PX_PER_INCH = CARD_WIDTH_PX / 6.25;
 
 interface PostcardBackMockProps {
   back: PostcardBack;
+  /** The line printed under the message: the artist's name. */
+  artistName?: string;
   /** Called whenever the message column's content fits or stops fitting. */
   onFit?: (fits: boolean) => void;
 }
 
-export function PostcardBackMock({ back, onFit }: PostcardBackMockProps) {
+export function PostcardBackMock({ back, artistName = "You", onFit }: PostcardBackMockProps) {
   const fontPx = (back.fontSize / 72) * PX_PER_INCH;
   const textRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -51,15 +50,6 @@ export function PostcardBackMock({ back, onFit }: PostcardBackMockProps) {
     return () => observer.disconnect();
   }, []);
 
-  /*
-   * The column's height is fixed (an inch measurement, not content-driven),
-   * so typing more text never changes its own box — ResizeObserver alone
-   * would never fire. It still matters for what *does* change the box: the
-   * phone layout scales the card (brief 14 in docs/NEXT-STEPS.md §6). `back`
-   * as a dependency is what catches a longer note; fonts.ready is what
-   * catches a face that was still loading when this first measured, since a
-   * fallback face wraps differently than the one that landed a moment later.
-   */
   useLayoutEffect(() => {
     const el = textRef.current;
     if (!el || !onFit) return;
@@ -82,16 +72,8 @@ export function PostcardBackMock({ back, onFit }: PostcardBackMockProps) {
   }, [back, onFit]);
 
   return (
-    <div
-      ref={frameRef}
-      className={styles.backFrame}
-      style={{ maxWidth: CARD_WIDTH_PX, aspectRatio: `${CARD_WIDTH_PX} / ${CARD_HEIGHT_PX}` }}
-      aria-hidden
-    >
-      <div
-        className={cx(styles.backCard)}
-        style={{ width: CARD_WIDTH_PX, height: CARD_HEIGHT_PX, transform: `scale(${scale})` }}
-      >
+    <div ref={frameRef} className={styles.backFrame} style={{ maxWidth: CARD_WIDTH_PX, aspectRatio: `${CARD_WIDTH_PX} / ${CARD_HEIGHT_PX}` }} aria-hidden>
+      <div className={cx(styles.backCard)} style={{ width: CARD_WIDTH_PX, height: CARD_HEIGHT_PX, transform: `scale(${scale})` }}>
         <div
           ref={textRef}
           className={cx(styles.backText)}
@@ -108,19 +90,11 @@ export function PostcardBackMock({ back, onFit }: PostcardBackMockProps) {
         >
           <div className={styles.backMessage}>{stripEmoji(back.text)}</div>
           {back.valediction ? <div className={styles.backValediction}>{stripEmoji(back.valediction)}</div> : null}
-          {/* The QR itself is drawn at print time from the card's own code; this is its footprint. */}
-          <div className={styles.backReply} style={{ paddingTop: 0.1 * PX_PER_INCH }}>
-            <div className={styles.backQr} style={{ width: 0.6 * PX_PER_INCH, height: 0.6 * PX_PER_INCH }} />
-            <span className={styles.backReplyCaption}>
-              Scan to send your own postcard
-              <span className={styles.backReplyUrl}>postcardgifts.com</span>
-            </span>
+          <div className={styles.backFooter} style={{ paddingTop: 0.1 * PX_PER_INCH }}>
+            <strong>{stripEmoji(artistName)}</strong> · a monthly postcard via yesiwantapostcard.com
           </div>
         </div>
-        <div
-          className={styles.backAddress}
-          style={{ right: 0.3 * PX_PER_INCH, bottom: 0.4 * PX_PER_INCH, width: 2.6 * PX_PER_INCH }}
-        >
+        <div className={styles.backAddress} style={{ right: 0.3 * PX_PER_INCH, bottom: 0.4 * PX_PER_INCH, width: 2.6 * PX_PER_INCH }}>
           <span />
           <span />
           <span />

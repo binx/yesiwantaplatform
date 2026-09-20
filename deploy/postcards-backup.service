@@ -1,8 +1,0 @@
-[Unit]
-Description=Nightly backup of the Postcard Gifts database
-
-[Service]
-Type=oneshot
-User=postcards
-Group=postcards
-ExecStart=/srv/postcards/backup.sh

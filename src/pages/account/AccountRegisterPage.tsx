@@ -43,14 +43,14 @@ export function AccountRegisterPage() {
 
   if (register.isSuccess) {
     const backTo = destination ?? "/";
-    const backLabel = destination === "/cart" ? "Back to your cart" : destination === "/create" ? "Back to your postcards" : "Continue shopping";
+    const backLabel = destination?.startsWith("/a/") ? "Back to the artist" : destination === "/studio/new" ? "Open your studio" : "Back home";
 
     return (
       <PageWrapper width="prose">
         <Result
           status="success"
           title={<h1>Check your email</h1>}
-          subTitle="We've sent a link to verify your email. You don't have to wait for it — carry on with your order and it will show up in your account once you've clicked the link."
+          subTitle="We've sent a link to verify your email. You don't have to wait for it — you can sign in now, and subscribing works before you have."
           extra={[
             <Link key="continue" to={backTo}>
               <Button type="primary">{backLabel}</Button>

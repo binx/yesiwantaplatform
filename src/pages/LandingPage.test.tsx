@@ -38,6 +38,22 @@ describe("the landing page", () => {
     expect(link).toHaveAttribute("target", "_blank");
   });
 
+  it("carries the site navigation itself, since the banner stays off the front page", () => {
+    renderWithProviders(<LandingPage />, { store: withHero({}) });
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    expect(nav).toContainElement(screen.getByRole("link", { name: "Artists" }));
+    expect(nav).toContainElement(screen.getByRole("link", { name: "Gallery" }));
+    expect(nav).toContainElement(screen.getByRole("link", { name: "For artists" }));
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/account/login");
+  });
+
+  it("switches the document to the night scheme while it is up, and back", () => {
+    const { unmount } = renderWithProviders(<LandingPage />, { store: withHero({}) });
+    expect(document.body.dataset.scheme).toBe("night");
+    unmount();
+    expect(document.body.dataset.scheme).toBeUndefined();
+  });
+
   it("invites the first artist when nobody is live yet", () => {
     renderWithProviders(<LandingPage />, { store: withHero({}) });
     expect(screen.getByText(/No artists have gone live yet/)).toBeInTheDocument();

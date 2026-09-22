@@ -7,6 +7,7 @@
 }
 
 .tile {
+  position: relative;
   display: grid;
   grid-template-rows: auto 1fr;
   text-decoration: none;
@@ -22,6 +23,33 @@
 .tile:focus-visible {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgb(0 0 0 / 10%);
+}
+
+/* Under the pointer the tile is ringed in the platform's chroma: a border
+   drawn as a masked gradient, since a border can't be one. */
+.tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: var(--chroma);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.tile:hover::after,
+.tile:focus-visible::after {
+  opacity: 1;
 }
 
 .tileImage {

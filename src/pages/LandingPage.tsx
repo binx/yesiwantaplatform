@@ -1,9 +1,10 @@
-import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, type CSSProperties, type ReactNode } from "react";
+import { Link, NavLink } from "react-router-dom";
 import { Button, Skeleton } from "antd";
 import { formatMoney } from "@shared/money";
 import { PITCH_LINES } from "@shared/copy";
 import { PageWrapper } from "@/components/layout/PageWrapper";
+import { useSiteLinks } from "@/components/layout/siteLinks";
 import { ArtistTile, GalleryTile } from "@/components/platform/ArtistTile";
 import { useArtists, useGallery } from "@/lib/platform";
 import { useStore } from "@/lib/useStore";
@@ -35,10 +36,87 @@ function HeroButton({ href, children }: { href: string; children: ReactNode }) {
 }
 
 /**
+ * The field of postcards behind the hero, drawn in CSS.
+ *
+ * A tilted plane of cards standing on end at different heights, each one
+ * corrugated and lit with the platform's chroma from a different angle:
+ * a stack of mail on a dark table, seen from above. Each entry is one card;
+ * `col`/`row` place it on the plane, `depth` is how tall it stands, `hue`
+ * turns the sweep so no two neighbours match, and `delay` staggers the
+ * slow shimmer so the field never moves in lockstep. Gaps are deliberate.
+ */
+const FIELD: { col: number; row: number; depth: number; hue: number; delay: number }[] = [
+  { col: 1, row: 1, depth: 3.5, hue: 0, delay: 0 },
+  { col: 2, row: 1, depth: 6, hue: 40, delay: 1.3 },
+  { col: 4, row: 1, depth: 4.5, hue: 200, delay: 2.1 },
+  { col: 5, row: 1, depth: 2.5, hue: 300, delay: 0.7 },
+  { col: 1, row: 2, depth: 7, hue: 120, delay: 3.2 },
+  { col: 3, row: 2, depth: 3, hue: 260, delay: 1.9 },
+  { col: 4, row: 2, depth: 8, hue: 20, delay: 0.4 },
+  { col: 2, row: 3, depth: 5, hue: 180, delay: 2.6 },
+  { col: 3, row: 3, depth: 9, hue: 330, delay: 1.1 },
+  { col: 5, row: 3, depth: 4, hue: 90, delay: 3.7 },
+  { col: 1, row: 4, depth: 2, hue: 220, delay: 0.9 },
+  { col: 2, row: 4, depth: 6.5, hue: 60, delay: 2.9 },
+  { col: 4, row: 4, depth: 3.5, hue: 150, delay: 1.6 },
+  { col: 5, row: 4, depth: 7.5, hue: 280, delay: 3.4 },
+  { col: 3, row: 5, depth: 5.5, hue: 10, delay: 0.2 },
+  { col: 5, row: 5, depth: 3, hue: 240, delay: 2.3 },
+];
+
+function PostcardField() {
+  return (
+    <div className={styles.field} aria-hidden>
+      <div className={styles.stage}>
+        {FIELD.map((card) => (
+          <div
+            key={`${card.col}-${card.row}`}
+            className={styles.block}
+            style={
+              {
+                gridColumn: card.col,
+                gridRow: card.row,
+                "--depth": `${card.depth}rem`,
+                "--hue": `${card.hue}deg`,
+                "--delay": `${card.delay}s`,
+              } as CSSProperties
+            }
+          >
+            <div className={styles.blockTop} />
+            <div className={styles.blockFront} />
+            <div className={styles.blockSide} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Switch the document to the night scheme while the front page is up.
+ *
+ * The operator's theme paints every other page; the front page is the
+ * platform's own and is dark whatever the theme says. `body[data-scheme]`
+ * in index.css carries the palette; setting it on the body rather than
+ * wrapping the page lets the footer follow too.
+ */
+function useNightScheme() {
+  useEffect(() => {
+    document.body.dataset.scheme = "night";
+    return () => {
+      delete document.body.dataset.scheme;
+    };
+  }, []);
+}
+
+/**
  * The front page: yesiwantapostcard.com's pitch, with the artists you can
  * say yes to under it, and what recently went out in the post. The parts the
  * operator can edit are read from settings; the price floor is never typed
  * into prose — it is the same setting the studio enforces.
+ *
+ * There is no site header on this page; the hero draws the navigation
+ * itself, so the first thing on screen is the wordmark and not a menu bar.
  */
 export function LandingPage() {
   const store = useStore();
@@ -46,13 +124,27 @@ export function LandingPage() {
   const artists = useArtists();
   const gallery = useGallery(8);
   const customer = useCustomer();
+  const { links, accountHref, accountLabel } = useSiteLinks();
   const floor = formatMoney(store.pricing.minMonthlyPriceCents, store.currency, store.locale);
   const recent = gallery.data?.pages[0]?.cards ?? [];
   const featured = (artists.data ?? []).slice(0, 6);
 
+  useNightScheme();
+
   return (
     <>
       <section className={cx(styles.hero)}>
+        {hero.image ? null : <PostcardField />}
+        <nav className={styles.heroNav} aria-label="Main">
+          {links.map((link) => (
+            <NavLink key={link.to} to={link.to} className={cx(styles.heroNavLink)}>
+              {link.label}
+            </NavLink>
+          ))}
+          <Link to={accountHref} className={cx(styles.heroNavLink, styles.heroNavAccount)}>
+            {accountLabel}
+          </Link>
+        </nav>
         <div className={styles.heroInner}>
           <div className={styles.heroCopy}>
             <h1 className={styles.wordmark}>
@@ -75,16 +167,7 @@ export function LandingPage() {
           </div>
           {hero.image ? (
             <img className={styles.heroImage} src={assetUrl(hero.image.path)} alt={hero.image.alt} width={hero.image.width} height={hero.image.height} fetchPriority="high" />
-          ) : (
-            <div className={styles.heroCard} aria-hidden>
-              <div className={styles.heroCardFront} />
-              <div className={styles.heroCardBack}>
-                <span className={styles.heroCardLine} />
-                <span className={styles.heroCardLine} />
-                <span className={styles.heroCardStamp} />
-              </div>
-            </div>
-          )}
+          ) : null}
         </div>
       </section>
 

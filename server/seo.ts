@@ -3,6 +3,7 @@ import { findPageBySlug } from "../db/pages-repository.js";
 import { findArtistBySlug } from "../db/artists-repository.js";
 import { languageOf } from "../shared/locale.js";
 import { formatMoney } from "../shared/money.js";
+import { SITE_TITLE } from "../shared/site.js";
 import { env } from "./env.js";
 
 /**
@@ -12,6 +13,9 @@ import { env } from "./env.js";
  * only what is in `index.html` when it arrives. The production HTML handler
  * asks this what the `<head>` should say for the path being requested, and
  * injects it. The React app still boots normally.
+ *
+ * The title is the same on every path (`SITE_TITLE`); what varies per page
+ * is the description, the canonical, the image and the structured data.
  */
 
 export interface PageMeta {
@@ -76,7 +80,7 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
   const locale = settings?.locale ?? "en-US";
 
   const fallback: ResolvedMeta = {
-    title: storeName,
+    title: SITE_TITLE,
     description: truncate(settings?.hero.text ?? DEFAULT_DESCRIPTION),
     canonical: absolute(pathname),
     image: settings?.hero.image ? absolute(`/assets/${settings.hero.image.path}`) : absolute("/favicon.png"),
@@ -92,11 +96,11 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
     if (path === "/") return fallback;
 
     if (path === "/artists") {
-      return { ...fallback, title: `Artists · ${storeName}`, description: truncate("Every artist you can subscribe to, and what a month of their mail costs.") };
+      return { ...fallback, description: truncate("Every artist you can subscribe to, and what a month of their mail costs.") };
     }
 
     if (path === "/gallery") {
-      return { ...fallback, title: `Gallery · ${storeName}`, description: truncate("Postcards recently mailed to subscribers, by the artists who made them.") };
+      return { ...fallback, description: truncate("Postcards recently mailed to subscribers, by the artists who made them.") };
     }
 
     if (path === "/for-artists") {
@@ -113,7 +117,6 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
       const bio = plainText(artist.bio);
       return {
         ...fallback,
-        title: `${artist.name} · ${storeName}`,
         description: truncate(artist.tagline ?? (bio || `A postcard from ${artist.name} every month, for ${price}.`)),
         canonical: absolute(path),
         image: artist.avatar ? absolute(`/assets/${artist.avatar.path}`) : fallback.image,
@@ -137,7 +140,6 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
       const body = plainText(page.body);
       return {
         ...fallback,
-        title: `${page.title} · ${storeName}`,
         description: body ? truncate(body) : `${page.title} — ${storeName}.`,
         canonical: absolute(`/${slug}`),
       };

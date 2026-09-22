@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import { Alert, App, Button, Input, InputNumber, Radio, Upload } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
@@ -223,9 +223,6 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
 export function StudioNewPage() {
   const store = useStore();
   const customer = useCustomer();
-  useEffect(() => {
-    document.title = `Open a studio · ${store.name}`;
-  }, [store.name]);
 
   return (
     <div>
@@ -246,10 +243,6 @@ export function StudioNewPage() {
 /** "Your page": the same form, filled in. */
 export function StudioProfilePage() {
   const view = useOutletContext<StudioView>();
-  const store = useStore();
-  useEffect(() => {
-    document.title = `Your page · Studio · ${store.name}`;
-  }, [store.name]);
   const { artist } = view;
 
   return (

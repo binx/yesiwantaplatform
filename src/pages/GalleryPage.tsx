@@ -3,14 +3,12 @@ import { PageWrapper } from "@/components/layout/PageWrapper";
 import { GalleryTile } from "@/components/platform/ArtistTile";
 import { useGallery } from "@/lib/platform";
 import { useStore } from "@/lib/useStore";
-import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import platform from "@/components/platform/Platform.module.css";
 
 /** What recently went out in the post, newest first, a page at a time. */
 export function GalleryPage() {
   const store = useStore();
   const gallery = useGallery(24);
-  useDocumentTitle("Gallery");
   const cards = gallery.data?.pages.flatMap((page) => page.cards) ?? [];
 
   return (

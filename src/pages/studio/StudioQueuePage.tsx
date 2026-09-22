@@ -27,9 +27,6 @@ export function StudioQueuePage() {
   const queue = useStudioMailings();
   const { message } = App.useApp();
 
-  useEffect(() => {
-    document.title = `Queue · Studio · ${store.name}`;
-  }, [store.name]);
 
   const queuedDesignIds = new Set((queue.data?.mailings ?? []).map((m) => m.design.id));
   const drawer = (designs.data ?? []).filter((design) => !queuedDesignIds.has(design.id));

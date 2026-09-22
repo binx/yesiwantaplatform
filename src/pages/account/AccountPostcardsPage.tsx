@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Alert, Skeleton } from "antd";
 import type { ReceivedPostcard } from "@shared/platform";
@@ -20,9 +19,6 @@ export function AccountPostcardsPage() {
   const store = useStore();
   const postcards = useReceivedPostcards();
 
-  useEffect(() => {
-    document.title = `Your postcards · ${store.name}`;
-  }, [store.name]);
 
   if (postcards.isPending) return <Skeleton active paragraph={{ rows: 6 }} />;
   if (postcards.isError) return <Alert type="error" showIcon title="Your postcards could not be loaded." />;

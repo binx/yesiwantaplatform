@@ -137,9 +137,6 @@ function SetupWizard() {
     saveWizardState({ step, identity, publishableKey, theme });
   }, [step, identity, publishableKey, theme]);
 
-  useEffect(() => {
-    document.title = "Set up your store";
-  }, []);
 
   const submit = useMutation({
     mutationFn: (input: SetupInput) => csrfPost<SessionResponse>("/setup", input),

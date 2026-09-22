@@ -34,9 +34,6 @@ export function SubscribePage() {
   const [errors, setErrors] = useState<RecipientErrors>({});
   const [seeded, setSeeded] = useState(false);
 
-  useEffect(() => {
-    if (page.data) document.title = `Subscribe to ${page.data.artist.name} · ${store.name}`;
-  }, [page.data, store.name]);
 
   // Prefill once from the account's saved address; typing afterwards wins.
   useEffect(() => {

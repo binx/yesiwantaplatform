@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Alert, App, Button, Card, Statistic, Tag } from "antd";
 import { formatMoney } from "@shared/money";
@@ -25,9 +25,6 @@ export function DashboardPage() {
   const payouts = useRunPayouts();
   const locale = useStoreLocale();
 
-  useEffect(() => {
-    document.title = "Overview · Admin";
-  }, []);
 
   const currency = settings.data?.currency ?? "USD";
   const money = (cents: number) => formatMoney(cents, currency, locale);

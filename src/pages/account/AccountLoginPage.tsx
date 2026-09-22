@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Alert, Button, Form, Input } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
@@ -30,9 +29,6 @@ export function AccountLoginPage() {
   const from = (location.state as LocationState | null)?.from;
   const destination = from && from.startsWith("/") ? from : "/account";
 
-  useEffect(() => {
-    document.title = "Sign in · Your account";
-  }, []);
 
   if (customer.data) return <Navigate to={destination} replace />;
 

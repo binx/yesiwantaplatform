@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
 import { Alert, Button, Form, Input, Result } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
@@ -35,9 +34,6 @@ export function AccountRegisterPage() {
   const destination = from && from.startsWith("/") ? from : null;
   const loginState = destination ? { from: destination } : undefined;
 
-  useEffect(() => {
-    document.title = "Create an account · Your account";
-  }, []);
 
   if (customer.data) return <Navigate to="/account" replace />;
 

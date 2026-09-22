@@ -1,10 +1,8 @@
-import { useEffect } from "react";
 import { Link, Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { Button, Result, Skeleton } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useCustomer } from "@/lib/account";
 import { useCheckoutSubscription } from "@/lib/platform";
-import { useStore } from "@/lib/useStore";
 
 /**
  * Where Stripe sends the subscriber back.
@@ -16,14 +14,10 @@ import { useStore } from "@/lib/useStore";
 export function SubscribeConfirmPage() {
   const [params] = useSearchParams();
   const location = useLocation();
-  const store = useStore();
   const customer = useCustomer();
   const sessionId = params.get("session_id");
   const subscription = useCheckoutSubscription(customer.data ? sessionId : null);
 
-  useEffect(() => {
-    document.title = `Thank you · ${store.name}`;
-  }, [store.name]);
 
   if (customer.isPending) {
     return (

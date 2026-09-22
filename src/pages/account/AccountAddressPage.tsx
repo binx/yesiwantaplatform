@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Alert, App, Button } from "antd";
 import type { Recipient } from "@shared/postcards";
 import { formatRecipient } from "@shared/postcards";
@@ -21,9 +21,6 @@ export function AccountAddressPage() {
   const [draft, setDraft] = useState<Recipient>(customer.data?.address ?? { ...BLANK_RECIPIENT, name: customer.data?.name ?? "" });
   const [errors, setErrors] = useState<RecipientErrors>({});
 
-  useEffect(() => {
-    document.title = `Your address · ${store.name}`;
-  }, [store.name]);
 
   const submit = () => {
     const result = validateRecipient(draft);

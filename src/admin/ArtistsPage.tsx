@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Empty, Segmented, Skeleton, Table, Tag } from "antd";
 import type { ArtistStatus } from "@shared/platform";
@@ -19,9 +19,6 @@ export function ArtistsPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const artists = useAdminArtists(filter === "all" ? undefined : filter);
 
-  useEffect(() => {
-    document.title = "Artists · Admin";
-  }, []);
 
   return (
     <>

@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { Alert, Button, Card, Form, Input, Typography } from "antd";
 import { useResetPassword } from "@/lib/session";
@@ -19,9 +18,6 @@ export function ResetPasswordPage() {
   const token = params.get("token") ?? "";
   const reset = useResetPassword();
 
-  useEffect(() => {
-    document.title = "Reset password · Admin";
-  }, []);
 
   if (!token) return <Navigate to="/admin/forgot-password" replace />;
 

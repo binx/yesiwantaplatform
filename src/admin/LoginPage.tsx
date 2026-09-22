@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Form, Input, Typography } from "antd";
 import { ApiError } from "@/lib/api";
@@ -26,9 +25,6 @@ export function LoginPage() {
   const from = (location.state as LocationState | null)?.from;
   const destination = from && from.startsWith("/admin") ? from : "/admin";
 
-  useEffect(() => {
-    document.title = "Sign in · Admin";
-  }, []);
 
   // Already signed in — bounce straight through rather than showing a form
   // that would immediately succeed.

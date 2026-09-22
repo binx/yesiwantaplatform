@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { Skeleton } from "antd";
 import { useQuery } from "@tanstack/react-query";
@@ -29,9 +28,6 @@ export function PagePage() {
     retry: (count, error) => !(error instanceof ApiError && error.status === 404) && count < 2,
   });
 
-  useEffect(() => {
-    if (page.data) document.title = page.data.title;
-  }, [page.data]);
 
   if (page.isPending) {
     return (

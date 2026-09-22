@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { CARD_FONTS_LINK_ID, CARD_FONTS_URL } from "../shared/postcards.js";
+import { SITE_TITLE } from "../shared/site.js";
 import { escapeHtml, injectMeta } from "./html.js";
 
 const SHELL = `<!doctype html>
@@ -82,13 +83,19 @@ describe("index.html", () => {
     expect(source).toContain(CARD_FONTS_LINK_ID);
     expect(source).toContain(CARD_FONTS_URL);
   });
+
+  it("is titled the same as every server-rendered page", () => {
+    const source = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+    expect(source).toContain(`<title>${SITE_TITLE}</title>`);
+  });
 });
 
 describe("metaForPath", () => {
-  it("names the platform at the root, the directory and the gallery, and a live artist's page", async () => {
+  it("titles every path the same and describes a live artist's page", async () => {
     const { metaForPath } = await import("./seo.js");
-    expect((await metaForPath("/")).title).toBe("Yes I Want A Postcard");
-    expect((await metaForPath("/artists")).title).toBe("Artists · Yes I Want A Postcard");
+    expect((await metaForPath("/")).title).toBe(SITE_TITLE);
+    expect((await metaForPath("/artists")).title).toBe(SITE_TITLE);
+    expect((await metaForPath("/artists")).description).toContain("Every artist");
     expect((await metaForPath("/gallery")).status).toBe(200);
     expect((await metaForPath("/for-artists")).title).toBe("For artists · Yes I Want A Postcard");
 
@@ -100,7 +107,7 @@ describe("metaForPath", () => {
     await setArtistStatus(artist.id, "live");
     const page = await metaForPath("/a/seo-rachel");
     expect(page.status).toBe(200);
-    expect(page.title).toBe("Rachel · Yes I Want A Postcard");
+    expect(page.title).toBe(SITE_TITLE);
     expect(page.description).toBe("photos from the road");
     expect(page.jsonLd).toMatchObject({ "@type": "Person", name: "Rachel" });
   });

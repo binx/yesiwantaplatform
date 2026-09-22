@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- A postcard, back side up: stamp top right, address lines bottom left. -->
+  <rect x="2" y="12" width="60" height="40" rx="5" fill="#fffbea" stroke="#18181b" stroke-width="4"/>
+  <rect x="44" y="18" width="10" height="12" fill="#ffff3f" stroke="#18181b" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M10 30h20M10 37h20M10 44h14" stroke="#18181b" stroke-width="4" stroke-linecap="round"/>
+</svg>

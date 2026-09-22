@@ -9,13 +9,13 @@ import { StoreErrorBoundary } from "@/components/layout/StoreErrorBoundary";
 import { useStore } from "@/lib/useStore";
 import { themeCssVars, toAntdTheme } from "@/lib/theme";
 import { FONT_LINK_ID, languageOf } from "@shared/locale";
+import { SITE_TITLE } from "@shared/site";
 
+/** Every route is titled the same; see shared/site.ts. */
 function DocumentTitle() {
-  const store = useStore();
-
   useEffect(() => {
-    document.title = store.name;
-  }, [store.name]);
+    document.title = SITE_TITLE;
+  }, []);
 
   return null;
 }

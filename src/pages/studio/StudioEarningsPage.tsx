@@ -26,9 +26,6 @@ export function StudioEarningsPage() {
   const { message } = App.useApp();
   const { artist } = view;
 
-  useEffect(() => {
-    document.title = `Earnings · Studio · ${store.name}`;
-  }, [store.name]);
 
   // Back from Stripe: ask whether onboarding finished, once, then drop the flag.
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { App, Button, Card, Empty, Segmented, Skeleton, Table, Tag } from "antd";
 import { useAdminMailings, usePostcardErrors, useRetryPostcard, useStoreLocale, type AdminMailing, type AdminPostcard } from "./queries";
@@ -20,9 +20,6 @@ export function MailingsPage() {
   const errors = usePostcardErrors();
   const retry = useRetryPostcard();
 
-  useEffect(() => {
-    document.title = "Mailings · Admin";
-  }, []);
 
   return (
     <>

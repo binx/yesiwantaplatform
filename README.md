@@ -21,7 +21,7 @@ webhooks, email, image storage, dual-dialect database).
 ## How it works
 
 1. **An artist opens a studio** at `/studio/new`: a name, an address under
-   `/a/`, a page in Markdown, a monthly price (no lower than the platform's
+   `/artist/`, a page in Markdown, a monthly price (no lower than the platform's
    floor) and the day of the month their cards go out. The page starts as a
    draft.
 2. **They queue a card.** The studio's designer takes a photo and a note,

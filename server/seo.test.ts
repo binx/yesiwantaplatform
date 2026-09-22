@@ -102,10 +102,10 @@ describe("metaForPath", () => {
     const { createCustomer } = await import("./auth.js");
     const { createArtist, setArtistStatus } = await import("../db/artists-repository.js");
     const owner = await createCustomer("seo-artist@example.com", "a-sufficiently-long-password", "Rachel");
-    const artist = await createArtist(owner, { slug: "seo-rachel", name: "Rachel", tagline: "photos from the road", bio: "", monthlyPriceCents: 500, sendDay: 15, visibility: "public", avatar: null });
-    expect((await metaForPath("/a/seo-rachel")).status).toBe(404);
+    const artist = await createArtist(owner, { slug: "seo-rachel", name: "Rachel", tagline: "photos from the road", bio: "", monthlyPriceCents: 500, sendDay: 15, visibility: "public", avatar: null, termMonths: 6, banner: null, links: [] });
+    expect((await metaForPath("/artist/seo-rachel")).status).toBe(404);
     await setArtistStatus(artist.id, "live");
-    const page = await metaForPath("/a/seo-rachel");
+    const page = await metaForPath("/artist/seo-rachel");
     expect(page.status).toBe(200);
     expect(page.title).toBe(SITE_TITLE);
     expect(page.description).toBe("photos from the road");
@@ -115,7 +115,7 @@ describe("metaForPath", () => {
   it("calls an unknown page a 404 and keeps the client routes at 200", async () => {
     const { metaForPath } = await import("./seo.js");
     expect((await metaForPath("/no-such-page")).status).toBe(404);
-    expect((await metaForPath("/a/no-such-artist")).status).toBe(404);
+    expect((await metaForPath("/artist/no-such-artist")).status).toBe(404);
     for (const path of ["/", "/artists", "/gallery", "/for-artists", "/subscribe/confirm", "/studio", "/account/login"]) {
       expect((await metaForPath(path)).status).toBe(200);
     }

@@ -103,7 +103,7 @@ for (const { name, context } of dialects) {
 
     async function artist(slug = `artist-${randomUUID().slice(0, 8)}`) {
       const owner = await customer("Rachel");
-      return db.artists.createArtist(owner, { slug, name: "Rachel", tagline: "photos from the road", bio: "# Hello", monthlyPriceCents: 500, sendDay: 15, visibility: "public", avatar: null });
+      return db.artists.createArtist(owner, { slug, name: "Rachel", tagline: "photos from the road", bio: "# Hello", monthlyPriceCents: 500, sendDay: 15, visibility: "public", avatar: null, termMonths: 6, banner: null, links: [] });
     }
 
     async function design(artistId: string) {
@@ -121,7 +121,7 @@ for (const { name, context } of dialects) {
     async function activeSubscription(artistId: string, address = ADDRESS) {
       const who = await customer(address.name);
       const id = db.subscriptions.newSubscriptionId();
-      await db.subscriptions.createIncompleteSubscription({ id, customerId: who, artistId, checkoutSessionId: `cs_${id}`, priceCents: 500, currency: "USD", address });
+      await db.subscriptions.createIncompleteSubscription({ id, customerId: who, artistId, checkoutSessionId: `cs_${id}`, priceCents: 500, currency: "USD", termMonths: 6, address });
       await db.subscriptions.activateSubscription(id, { stripeSubscriptionId: `sub_${id}`, currentPeriodEnd: Date.now() + 30 * 86_400_000 });
       return (await db.subscriptions.getSubscription(id))!;
     }
@@ -159,6 +159,29 @@ for (const { name, context } of dialects) {
       expect(await db.artists.slugIsTaken("first-artist")).toBe(true);
       expect(await db.artists.slugIsTaken("first-artist", a.id)).toBe(false);
 
+      // The term, the banner and the links round-trip through both dialects' column types.
+      expect(a).toMatchObject({ termMonths: 6, banner: null, links: [] });
+      const banner = { path: "artists-x/banner.webp", width: 900, height: 300, alt: "", widths: [] };
+      const links = [
+        { label: "", url: "https://www.rachel.example/" },
+        { label: "Instagram", url: "https://instagram.com/rachel" },
+      ];
+      const updated = await db.artists.updateArtistProfile(a.id, {
+        slug: "first-artist",
+        name: "Rachel",
+        tagline: null,
+        bio: "",
+        monthlyPriceCents: 500,
+        termMonths: 12,
+        sendDay: 15,
+        visibility: "public",
+        avatar: null,
+        banner,
+        links,
+      });
+      expect(updated).toMatchObject({ termMonths: 12, banner, links });
+      expect((await db.artists.findArtistBySlug("first-artist"))?.links).toEqual(links);
+
       await expect(artist("first-artist")).rejects.toThrow(/already in use/);
 
       await db.artists.setArtistStripeAccount(a.id, "acct_1", true);
@@ -182,7 +205,7 @@ for (const { name, context } of dialects) {
       const a = await artist();
       const who = await customer("Maya");
       const id = db.subscriptions.newSubscriptionId();
-      await db.subscriptions.createIncompleteSubscription({ id, customerId: who, artistId: a.id, checkoutSessionId: `cs_${id}`, priceCents: 500, currency: "USD", address: ADDRESS });
+      await db.subscriptions.createIncompleteSubscription({ id, customerId: who, artistId: a.id, checkoutSessionId: `cs_${id}`, priceCents: 500, currency: "USD", termMonths: 6, address: ADDRESS });
       expect(await db.subscriptions.findOpenSubscription(who, a.id)).toBeNull();
 
       expect(await db.subscriptions.activateSubscription(id, { stripeSubscriptionId: "sub_a", currentPeriodEnd: 1_800_000_000_000 })).toBe(true);

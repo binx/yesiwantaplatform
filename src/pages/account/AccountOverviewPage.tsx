@@ -67,7 +67,7 @@ export function AccountOverviewPage() {
         ) : null}
         {profile.artistSlug ? (
           <p className={cx(styles.meta, styles.studioLink)}>
-            You have an artist page at <Link to={`/a/${profile.artistSlug}`}>/a/{profile.artistSlug}</Link>. <Link to="/studio">Open your studio</Link>.
+            You have an artist page at <Link to={`/artist/${profile.artistSlug}`}>/artist/{profile.artistSlug}</Link>. <Link to="/studio">Open your studio</Link>.
           </p>
         ) : (
           <p className={cx(styles.meta, styles.studioLink)}>
@@ -108,13 +108,14 @@ function SubscriptionCard({ subscription, locale }: { subscription: Subscription
           {subscription.artist.avatar ? <img className={styles.avatar} src={assetUrl(subscription.artist.avatar.path)} alt="" width={48} height={48} /> : null}
           <div>
             <p>
-              <Link to={`/a/${subscription.artist.slug}`}>
+              <Link to={`/artist/${subscription.artist.slug}`}>
                 <strong>{subscription.artist.name}</strong>
               </Link>{" "}
               <Tag color={color}>{status}</Tag>
             </p>
             <p className={cx(styles.meta)}>
-              {price} a month · {subscription.postcardCount} card{subscription.postcardCount === 1 ? "" : "s"} received · since {formatDay(subscription.createdAt, locale)}
+              {price} a month · month {Math.min(Math.max(subscription.paidMonths, 1), subscription.termMonths)} of {subscription.termMonths} · {subscription.postcardCount} card
+              {subscription.postcardCount === 1 ? "" : "s"} received · since {formatDay(subscription.createdAt, locale)}
             </p>
             {subscription.status === "active" && subscription.currentPeriodEnd ? (
               <p className={cx(styles.meta)}>

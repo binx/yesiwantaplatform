@@ -21,7 +21,7 @@ import { findDesignsByIds } from "../../db/designs-repository.js";
 import { countMailingsByStatus, countPostcardsByMailing, getMailing, listMailings, listMailingsForArtist } from "../../db/mailings-repository.js";
 import { cancelPostcard, countPostcardsByStatus, getPostcard, listPostcardsByStatus, listPostcardsForMailing, requeuePostcard } from "../../db/postcards-repository.js";
 import { countSubscriptionsByStatus, listSubscriptions, listSubscriptionsForArtist } from "../../db/subscriptions-repository.js";
-import { listOrders, sumRevenueCents } from "../../db/orders-repository.js";
+import { countPaidMonthsForSubscriptions, listOrders, sumRevenueCents } from "../../db/orders-repository.js";
 import { listPayouts, requeuePayout, sumPayoutsByStatus } from "../../db/payouts-repository.js";
 import { getDatabase } from "../../db/client.js";
 import { refreshFontOrigins, verifyFontUrl } from "../fonts.js";
@@ -304,7 +304,11 @@ adminRouter.get("/artists/:id", async (req, res) => {
     listSubscriptionsForArtist(artist.id),
   ]);
   const currency = settings?.currency ?? "USD";
-  const [designs, mailingCounts] = await Promise.all([findDesignsByIds(mailings.map((m) => m.designId)), countPostcardsByMailing(mailings.map((m) => m.id))]);
+  const [designs, mailingCounts, paidMonths] = await Promise.all([
+    findDesignsByIds(mailings.map((m) => m.designId)),
+    countPostcardsByMailing(mailings.map((m) => m.id)),
+    countPaidMonthsForSubscriptions(subscriptions.map((s) => s.id)),
+  ]);
   const designById = new Map(designs.map((d) => [d.id, d]));
   res.json({
     artist: { ...toPublicArtist(artist, counts.get(artist.id), currency), bio: artist.bio, payoutsEnabled: artist.payoutsEnabled, stripeAccountId: artist.stripeAccountId, customerId: artist.customerId },
@@ -312,7 +316,7 @@ adminRouter.get("/artists/:id", async (req, res) => {
       const design = designById.get(m.designId);
       return design ? [toMailing(m, design, mailingCounts.get(m.id), artist.name)] : [];
     }),
-    subscriptions: subscriptions.map((s) => toSubscription(s, artist, 0)),
+    subscriptions: subscriptions.map((s) => toSubscription(s, artist, 0, paidMonths.get(s.id) ?? 0)),
   });
 });
 

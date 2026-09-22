@@ -83,7 +83,7 @@ export function CustomersPage() {
                 {
                   title: "Artist page",
                   dataIndex: "artistSlug",
-                  render: (slug: string | null) => (slug ? `/a/${slug}` : "—"),
+                  render: (slug: string | null) => (slug ? `/artist/${slug}` : "—"),
                 },
                 {
                   title: "Active subscriptions",

@@ -86,7 +86,7 @@ export function SubscribePage() {
     <PageWrapper width="wide">
       <h1>Yes, you want a postcard</h1>
       <p>
-        From <Link to={`/a/${artist.slug}`}>{artist.name}</Link>, once a month, for {price}.
+        From <Link to={`/artist/${artist.slug}`}>{artist.name}</Link>, once a month for {artist.termMonths} {artist.termMonths === 1 ? "month" : "months"}, at {price} a month.
       </p>
 
       <div className={cx(styles.subscribeLayout)}>
@@ -128,8 +128,13 @@ export function SubscribePage() {
             <strong>{price} a month</strong>
           </p>
           <p>One postcard from {artist.name}, printed and mailed to you around the {artist.sendDay}th of each month.</p>
+          <p>
+            {artist.termMonths === 1
+              ? "One month, one card, one payment. It ends on its own."
+              : `${artist.termMonths} months, ${artist.termMonths} cards. You're billed each month, and it ends on its own after the last one — nothing to remember to cancel.`}
+          </p>
           <p>Your address is saved to your account and used for every subscription. Change it there any time.</p>
-          <p>Cancel from your account whenever you like. The current month's card still comes.</p>
+          <p>Stop early from your account whenever you like. The current month's card still comes.</p>
         </aside>
       </div>
     </PageWrapper>

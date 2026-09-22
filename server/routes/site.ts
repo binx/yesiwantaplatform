@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { listPageSummaries } from "../../db/pages-repository.js";
 import { listArtists } from "../../db/artists-repository.js";
+import { artistPath } from "../../shared/platform.js";
 import { env } from "../env.js";
 
 /**
@@ -27,7 +28,7 @@ function url(pathname: string): string {
 siteRouter.get("/sitemap.xml", async (_req, res) => {
   const [pages, { artists }] = await Promise.all([listPageSummaries({ liveOnly: true }), listArtists({ status: "live", limit: 500 })]);
 
-  const lines = [url("/"), url("/artists"), url("/gallery"), url("/for-artists"), ...artists.map((artist) => url(`/a/${artist.slug}`)), ...pages.map((page) => url(`/${page.slug}`))];
+  const lines = [url("/"), url("/artists"), url("/gallery"), url("/for-artists"), ...artists.map((artist) => url(artistPath(artist.slug))), ...pages.map((page) => url(`/${page.slug}`))];
 
   res.type("application/xml").send(
     `<?xml version="1.0" encoding="UTF-8"?>

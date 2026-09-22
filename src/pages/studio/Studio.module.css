@@ -241,3 +241,44 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------------------------------------------------------------- profile */
+
+.bannerPreview {
+  display: block;
+  width: 100%;
+  max-width: 30rem;
+  aspect-ratio: 3 / 1;
+  object-fit: cover;
+  border: 1px solid var(--beluga-line);
+  background: var(--beluga-page);
+}
+
+.bannerEmpty {
+  border-style: dashed;
+}
+
+.linkList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.linkRow {
+  display: grid;
+  grid-template-columns: minmax(6rem, 12rem) minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .linkRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .linkLabel {
+    grid-column: 1 / -1;
+  }
+}

@@ -1,6 +1,7 @@
 import { Link, useParams } from "react-router-dom";
 import { Alert, Button, Skeleton } from "antd";
 import { formatMoney } from "@shared/money";
+import { artistLinkLabel } from "@shared/platform";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { GalleryTile } from "@/components/platform/ArtistTile";
 import { ApiError } from "@/lib/api";
@@ -14,10 +15,13 @@ import styles from "@/components/platform/Platform.module.css";
 import pageStyles from "./PagePage.module.css";
 
 /**
- * An artist's page: who they are, what a month costs, what they have sent.
+ * An artist's page: who they are, what a month costs, how long it runs,
+ * where else to find them, what they have sent.
  *
  * The bio arrived as sanitised HTML from the server — the same allow-list a
- * site page gets — so it is rendered the same way a page is.
+ * site page gets — so it is rendered the same way a page is. The links are
+ * the artist's own addresses and open elsewhere; `nofollow` because anyone
+ * with a studio can put anything there.
  */
 export function ArtistPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -49,9 +53,12 @@ export function ArtistPage() {
   const mine = subscriptions.data?.find((s) => s.artist.id === artist.id && s.status !== "cancelled");
   const isOwner = customer.data?.artistSlug === artist.slug;
   const ordinal = (day: number) => `${day}${day % 10 === 1 && day !== 11 ? "st" : day % 10 === 2 && day !== 12 ? "nd" : day % 10 === 3 && day !== 13 ? "rd" : "th"}`;
+  const term = artist.termMonths === 1 ? "one postcard, one month" : `${artist.termMonths} postcards over ${artist.termMonths} months`;
 
   return (
     <PageWrapper width="wide">
+      {artist.banner ? <img className={styles.artistBanner} src={assetUrl(artist.banner.path)} alt={artist.banner.alt} width={artist.banner.width} height={artist.banner.height} /> : null}
+
       <header className={cx(styles.artistHeader)}>
         {artist.avatar ? (
           <img className={styles.artistAvatar} src={assetUrl(artist.avatar.path)} alt="" width={112} height={112} />
@@ -65,9 +72,21 @@ export function ArtistPage() {
             {artist.subscriberCount} {artist.subscriberCount === 1 ? "person gets" : "people get"} their mail · {artist.mailedCount} card
             {artist.mailedCount === 1 ? "" : "s"} sent · goes out around the {ordinal(artist.sendDay)} of the month
           </p>
+          {artist.links.length > 0 ? (
+            <ul className={styles.artistLinks} aria-label={`Where else to find ${artist.name}`}>
+              {artist.links.map((link) => (
+                <li key={link.url}>
+                  <a href={link.url} target="_blank" rel="noopener noreferrer nofollow">
+                    {artistLinkLabel(link)}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
         <div className={styles.subscribeBox}>
           <p className={styles.subscribePrice}>{price} a month</p>
+          <p className={styles.subscribeTerm}>{term}</p>
           {isOwner ? (
             <Link to="/studio">
               <Button size="large">This is your page — open the studio</Button>
@@ -88,7 +107,7 @@ export function ArtistPage() {
                   YES I WANT A POSTCARD
                 </Button>
               </Link>
-              <p className={styles.subscribeNote}>one postcard a month · cancel anytime</p>
+              <p className={styles.subscribeNote}>billed monthly · ends on its own · cancel anytime</p>
             </>
           )}
         </div>

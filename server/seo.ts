@@ -109,7 +109,7 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
 
     if (PLAIN_ROUTES.some((p) => path === p || path.startsWith(`${p}/`))) return fallback;
 
-    const artistMatch = /^\/a\/([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(path);
+    const artistMatch = /^\/artist\/([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(path);
     if (artistMatch) {
       const artist = await findArtistBySlug(artistMatch[1]!);
       if (!artist || artist.status === "draft") return { ...fallback, status: 404 };
@@ -130,7 +130,7 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
       };
     }
 
-    if (path.startsWith("/a/")) return { ...fallback, status: 404 };
+    if (path.startsWith("/artist/")) return { ...fallback, status: 404 };
 
     const slug = decodeURIComponent(path.slice(1));
     if (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {

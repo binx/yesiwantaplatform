@@ -14,11 +14,56 @@ import { mailDateSchema, postcardDesignSchema, postcardSchema, recipientSchema }
 
 /* ---------------------------------------------------------------- artists */
 
-/** An artist's address under `/a/`. Three characters at least, so `/a/me` is not a thing. */
+/** An artist's address under `/artist/`. Three characters at least, so `/artist/me` is not a thing. */
 export const artistSlugSchema = slugSchema.min(3, "Use at least 3 characters.").max(40, "40 characters at most.").superRefine((value, ctx) => {
   const owner = RESERVED_PAGE_SLUGS[value];
   if (owner) ctx.addIssue({ code: "custom", message: `"${value}" is already ${owner}. Choose a different address.` });
 });
+
+/** The site path of an artist's page. The one place the word is spelled out. */
+export function artistPath(slug: string): string {
+  return `/artist/${slug}`;
+}
+
+/**
+ * Somewhere else the artist is: a website, a shop, a social account.
+ *
+ * The address must be a full `https://` (or `http://`) URL, because it ends
+ * up in an `href` on a public page. The label is optional; a blank one is
+ * shown as the site's hostname.
+ */
+export const artistLinkSchema = z.object({
+  label: z.string().trim().max(40, "40 characters at most.").default(""),
+  url: z
+    .string()
+    .trim()
+    .max(500, "500 characters at most.")
+    .url("Use a full address, starting with https://.")
+    .refine((value) => value.startsWith("https://") || value.startsWith("http://"), "Use a full address, starting with https://."),
+});
+
+/** How many links an artist may list. Enough for a website and the usual accounts. */
+export const MAX_ARTIST_LINKS = 8;
+
+export const artistLinksSchema = z.array(artistLinkSchema).max(MAX_ARTIST_LINKS, `${MAX_ARTIST_LINKS} links at most.`).default([]);
+
+/**
+ * How long a subscription runs, in monthly payments. Every subscription has
+ * an end: the subscriber is billed month by month and stops after this many,
+ * rather than being charged until they remember to cancel.
+ */
+export const DEFAULT_TERM_MONTHS = 6;
+export const termMonthsSchema = z.number().int().min(1, "At least one month.").max(24, "Two years at most.");
+
+/** The words for a link with no label: the hostname, without a leading "www.". */
+export function artistLinkLabel(link: { label: string; url: string }): string {
+  if (link.label) return link.label;
+  try {
+    return new URL(link.url).hostname.replace(/^www\./, "");
+  } catch {
+    return link.url;
+  }
+}
 
 /**
  * Where an artist is in the world, as the visitor sees it.
@@ -56,8 +101,14 @@ export const artistPublicSchema = z.object({
   /** Sanitised HTML rendered from the artist's Markdown. */
   bioHtml: z.string().default(""),
   avatar: imageSchema.nullable().default(null),
+  /** A wide picture across the top of the page. */
+  banner: imageSchema.nullable().default(null),
+  /** Where else to find them: a website, a shop, social accounts. */
+  links: artistLinksSchema,
   monthlyPriceCents: centsSchema,
   currency: z.string().length(3),
+  /** How many monthly cards a subscription runs for before it ends on its own. */
+  termMonths: termMonthsSchema,
   status: artistStatusSchema,
   visibility: artistVisibilitySchema,
   sendDay: sendDaySchema,
@@ -90,9 +141,12 @@ export const artistProfileInputSchema = z.object({
   /** Markdown. Rendered and sanitised on the way out, like a page. */
   bio: z.string().max(10_000).default(""),
   monthlyPriceCents: centsSchema.min(50, "Stripe cannot charge less than 50 cents."),
+  termMonths: termMonthsSchema.default(DEFAULT_TERM_MONTHS),
   sendDay: sendDaySchema.default(15),
   visibility: artistVisibilitySchema.default("public"),
   avatar: imageSchema.nullable().default(null),
+  banner: imageSchema.nullable().default(null),
+  links: artistLinksSchema,
 });
 
 /** What the artist's own studio shows them: the public profile, plus their Markdown and payout wiring. */
@@ -106,6 +160,7 @@ export const artistStudioSchema = artistPublicSchema.extend({
   email: z.string(),
 });
 
+export type ArtistLink = z.infer<typeof artistLinkSchema>;
 export type ArtistPublic = z.infer<typeof artistPublicSchema>;
 export type ArtistSummary = z.infer<typeof artistSummarySchema>;
 export type ArtistProfileInput = z.infer<typeof artistProfileInputSchema>;
@@ -136,6 +191,10 @@ export const subscriptionSchema = z.object({
   currentPeriodEnd: z.number().int().nullable(),
   /** Set when the subscriber asked to stop: cards keep coming until the period ends. */
   cancelAtPeriodEnd: z.boolean(),
+  /** How many monthly payments this subscription runs for — a snapshot of the artist's term at the time. */
+  termMonths: termMonthsSchema,
+  /** How many of those have been paid. Reaching `termMonths` is what ends the subscription. */
+  paidMonths: z.number().int().min(0),
   /** Where the cards are mailed. */
   address: recipientSchema,
   /** Cards mailed under this subscription, all time. */

@@ -21,7 +21,7 @@ import {
 } from "../../db/subscriptions-repository.js";
 import { listPostcardsForCustomer } from "../../db/postcards-repository.js";
 import { getMailing, type MailingRecord } from "../../db/mailings-repository.js";
-import { listOrdersForCustomer } from "../../db/orders-repository.js";
+import { countPaidMonthsForSubscriptions, listOrdersForCustomer } from "../../db/orders-repository.js";
 import {
   EmailTakenError,
   TokenNotUsableError,
@@ -232,12 +232,13 @@ meRouter.put("/address", async (req, res) => {
 /** This customer's subscriptions only — never a query parameter, never another id. */
 meRouter.get("/subscriptions", async (req, res) => {
   const subscriptions = await listSubscriptionsForCustomer(req.session.customerId!);
-  const [artists, counts] = await Promise.all([
+  const [artists, counts, paidMonths] = await Promise.all([
     findArtistsByIds(subscriptions.map((s) => s.artistId)),
     countPostcardsForSubscriptions(subscriptions.map((s) => s.id)),
+    countPaidMonthsForSubscriptions(subscriptions.map((s) => s.id)),
   ]);
   const artistById = new Map(artists.map((a) => [a.id, a]));
-  res.json(subscriptions.map((s) => toSubscription(s, artistById.get(s.artistId), counts.get(s.id) ?? 0)));
+  res.json(subscriptions.map((s) => toSubscription(s, artistById.get(s.artistId), counts.get(s.id) ?? 0, paidMonths.get(s.id) ?? 0)));
 });
 
 function stripeHttp(error: unknown): never {
@@ -266,11 +267,15 @@ meRouter.post("/subscriptions/:id/cancel", async (req, res) => {
   res.status(204).end();
 });
 
-/** Changed their mind before the month ran out. */
+/** Changed their mind before the month ran out. A term that has run its course is not resumable: it is over, by design. */
 meRouter.post("/subscriptions/:id/resume", async (req, res) => {
   const subscription = await getSubscriptionForCustomer(req.params.id, req.session.customerId!);
   if (!subscription) throw httpError(404, "No subscription found.");
   if (subscription.status === "cancelled" || !subscription.stripeSubscriptionId) throw httpError(409, "That subscription is over. Subscribe again from the artist's page.");
+  const paidMonths = (await countPaidMonthsForSubscriptions([subscription.id])).get(subscription.id) ?? 0;
+  if (paidMonths >= subscription.termMonths) {
+    throw httpError(409, `All ${subscription.termMonths} months are paid for, so this subscription ends when the last card goes. Subscribe again from the artist's page to keep them coming.`);
+  }
 
   try {
     await requireStripe().subscriptions.update(subscription.stripeSubscriptionId, { cancel_at_period_end: false });

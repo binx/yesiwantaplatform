@@ -39,11 +39,11 @@ export const imageSchema = z.object({
  * A page is served from `/:slug`, registered last so it cannot shadow a static
  * route — but a page at `/artists` would simply never render, with nothing to
  * say why. They are refused when the page is saved instead. The same list
- * guards an artist's own slug, which lives under `/a/` but shares the
+ * guards an artist's own slug, which lives under `/artist/` but shares the
  * vocabulary people reach for.
  */
 export const RESERVED_PAGE_SLUGS: Readonly<Record<string, string>> = {
-  a: "artist pages",
+  artist: "artist pages",
   artists: "the artist directory",
   gallery: "the gallery",
   "for-artists": "the pitch to artists",

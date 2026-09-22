@@ -121,6 +121,39 @@ describe("an artist opens a page", () => {
     artistId = created.body.artist.id;
     expect(created.body.artist.status).toBe("draft");
     expect(created.body.shareCents).toBe(320);
+    // Unsaid, a subscription runs six months; unsaid, there is nowhere else to find them.
+    expect(created.body.artist).toMatchObject({ termMonths: 6, links: [], banner: null });
+
+    // Where else to find them, and a picture across the top. A link without a proper address is refused.
+    const badLink = await agent
+      .put("/api/studio/profile")
+      .set("x-csrf-token", csrf)
+      .send({ slug: "rachel", name: "Rachel", monthlyPriceCents: 500, links: [{ label: "Instagram", url: "instagram.com/rachel" }] });
+    expect(badLink.status).toBe(400);
+    const bannerPng = await sharp({ create: { width: 900, height: 300, channels: 3, background: "#ffcc00" } }).png().toBuffer();
+    const banner = await agent.post("/api/studio/banner").set("x-csrf-token", csrf).attach("file", bannerPng, { filename: "banner.png", contentType: "image/png" }).expect(201);
+    const profile = await agent
+      .put("/api/studio/profile")
+      .set("x-csrf-token", csrf)
+      .send({
+        slug: "rachel",
+        name: "Rachel",
+        tagline: "photos from the road",
+        bio: "**Hi.**",
+        monthlyPriceCents: 500,
+        sendDay: 15,
+        banner: banner.body,
+        links: [
+          { label: "", url: "https://www.rachel.example/" },
+          { label: "Instagram", url: "https://instagram.com/rachel" },
+        ],
+      })
+      .expect(200);
+    expect(profile.body.artist.banner).toMatchObject({ path: banner.body.path, width: 900, height: 300 });
+    expect(profile.body.artist.links).toEqual([
+      { label: "", url: "https://www.rachel.example/" },
+      { label: "Instagram", url: "https://instagram.com/rachel" },
+    ]);
 
     const png = await sharp({ create: { width: 300, height: 200, channels: 3, background: "#00ffff" } }).png().toBuffer();
     const uploaded = await agent
@@ -238,7 +271,8 @@ describe("a fan subscribes", () => {
 
     const subscriptions = await fan.agent.get("/api/account/subscriptions").expect(200);
     expect(subscriptions.body).toHaveLength(1);
-    expect(subscriptions.body[0]).toMatchObject({ status: "active", priceCents: 500, artist: { slug: "rachel" }, postcardCount: 0 });
+    // The artist's term was copied onto the row; one of its months is now paid for.
+    expect(subscriptions.body[0]).toMatchObject({ status: "active", priceCents: 500, artist: { slug: "rachel" }, postcardCount: 0, termMonths: 6, paidMonths: 1, cancelAtPeriodEnd: false });
 
     // The artist sees a name and a town, not a street.
     const artist = await signIn("artist@example.com");
@@ -422,6 +456,63 @@ describe("Lob refuses a card", () => {
     // The ledger already had this card: no second share.
     const { listPayoutsForArtist } = await import("../db/payouts-repository.js");
     expect((await listPayoutsForArtist(artistId)).filter((p) => p.postcardId === postcardId)).toHaveLength(1);
+  });
+});
+
+describe("the term", () => {
+  it("tells Stripe to stop after the last paid month, and will not resume past it", async () => {
+    const { getDatabase } = await import("../db/client.js");
+    const { eq } = await import("drizzle-orm");
+    const { drizzle: db, schema } = await getDatabase();
+    // As if the artist had set two months when this fan subscribed.
+    await db.update(schema.subscriptions).set({ termMonths: 2 }).where(eq(schema.subscriptions.id, subscriptionId));
+
+    const update = vi.spyOn(stripe.subscriptions, "update");
+    update.mockClear();
+
+    // The second month is paid for: that is the last of the two, so Stripe is told to end it there.
+    await webhook({
+      id: `evt_invoice_2_${subscriptionId}`,
+      object: "event",
+      type: "invoice.paid",
+      data: {
+        object: {
+          id: "in_2",
+          object: "invoice",
+          amount_paid: 500,
+          currency: "usd",
+          parent: { subscription_details: { subscription: "sub_1" } },
+          payments: { data: [{ payment: { payment_intent: "pi_2" } }] },
+          lines: { data: [{ period: { start: 1_800_000_000, end: 1_802_600_000 } }] },
+        },
+      },
+    }).expect(200);
+    expect(update.mock.calls).toEqual([["sub_1", { cancel_at_period_end: true }]]);
+
+    const fan = await signIn("fan@example.com");
+    const listed = await fan.agent.get("/api/account/subscriptions").expect(200);
+    expect(listed.body[0]).toMatchObject({ status: "active", termMonths: 2, paidMonths: 2, cancelAtPeriodEnd: true, currentPeriodEnd: 1_802_600_000_000 });
+
+    // Over is over: the fan can subscribe again, not undo the end.
+    const resume = await fan.agent.post(`/api/account/subscriptions/${subscriptionId}/resume`).set("x-csrf-token", fan.csrf);
+    expect(resume.status).toBe(409);
+    expect(resume.body.error).toMatch(/2 months/);
+
+    // A redelivery asks Stripe for the same thing once more and changes nothing else.
+    update.mockClear();
+    await webhook({
+      id: `evt_invoice_2_again_${subscriptionId}`,
+      object: "event",
+      type: "invoice.paid",
+      data: { object: { id: "in_2", object: "invoice", amount_paid: 500, currency: "usd", parent: { subscription_details: { subscription: "sub_1" } }, lines: { data: [] } } },
+    }).expect(200);
+    expect(update.mock.calls).toEqual([]);
+    expect((await fan.agent.get("/api/account/orders").expect(200)).body).toHaveLength(2);
+
+    // Put the term back the way it was so the cancelling story below reads as before.
+    const { setCancelAtPeriodEnd } = await import("../db/subscriptions-repository.js");
+    await db.update(schema.subscriptions).set({ termMonths: 6 }).where(eq(schema.subscriptions.id, subscriptionId));
+    await setCancelAtPeriodEnd(subscriptionId, false);
   });
 });
 

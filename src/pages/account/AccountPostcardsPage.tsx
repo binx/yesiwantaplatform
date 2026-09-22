@@ -49,7 +49,7 @@ function PostcardRow({ card, locale }: { card: ReceivedPostcard; locale: string 
       </div>
       <div className={styles.postcardBody}>
         <p className={styles.postcardTitle}>
-          {card.title ? <strong>{card.title}</strong> : <strong>A postcard</strong>} from <Link to={`/a/${card.artist.slug}`}>{card.artist.name}</Link>
+          {card.title ? <strong>{card.title}</strong> : <strong>A postcard</strong>} from <Link to={`/artist/${card.artist.slug}`}>{card.artist.name}</Link>
         </p>
         <p className={cx(styles.meta)}>
           {formatMailDate(card.mailDate, locale)} · {customerStatusLabel(card.status)}

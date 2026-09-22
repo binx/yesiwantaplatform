@@ -66,7 +66,7 @@ export function StudioOverviewPage() {
         <h2>{artist.status === "live" ? "You're live" : artist.status === "paused" ? "You're paused" : "Ready to go live?"}</h2>
         <p className={styles.note}>
           {artist.status === "live"
-            ? `Anyone can subscribe at /a/${artist.slug} for ${formatMoney(artist.monthlyPriceCents, artist.currency, store.locale)} a month. Each card you send earns you ${view.shareCents === null ? "your share" : money(view.shareCents)} per subscriber.`
+            ? `Anyone can subscribe at /artist/${artist.slug} for ${formatMoney(artist.monthlyPriceCents, artist.currency, store.locale)} a month. Each card you send earns you ${view.shareCents === null ? "your share" : money(view.shareCents)} per subscriber.`
             : artist.status === "paused"
               ? "No new subscribers can join. Existing ones still get every card you queue until they cancel."
               : `Your page goes public and subscribable. Each card you send will earn ${view.shareCents === null ? "your share" : money(view.shareCents)} per subscriber at your current price.`}

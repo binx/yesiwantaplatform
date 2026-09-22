@@ -15,6 +15,13 @@
       "when": 1790108013281,
       "tag": "0001_woozy_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790110230577,
+      "tag": "0002_luxuriant_reptil",
+      "breakpoints": true
     }
   ]
 }

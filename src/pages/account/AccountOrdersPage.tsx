@@ -35,7 +35,7 @@ export function AccountOrdersPage() {
           <tr key={order.id}>
             <td>{order.reference}</td>
             <td>
-              <Link to={`/a/${order.artist.slug}`}>{order.artist.name}</Link>
+              <Link to={`/artist/${order.artist.slug}`}>{order.artist.name}</Link>
             </td>
             <td>{order.periodStart ? new Date(order.periodStart).toLocaleDateString(store.locale, { month: "long", year: "numeric" }) : "—"}</td>
             <td>{formatDay(order.createdAt, store.locale)}</td>

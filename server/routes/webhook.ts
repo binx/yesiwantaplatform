@@ -3,7 +3,7 @@ import type Stripe from "stripe";
 import type { SubscriptionStatus } from "../../shared/platform.js";
 import { getArtist, findArtistByStripeAccount } from "../../db/artists-repository.js";
 import { findCustomerByStripeId } from "../../db/customers-repository.js";
-import { findOrderByPaymentIntent, recordPaidInvoice, recordRefund } from "../../db/orders-repository.js";
+import { countPaidMonthsForSubscriptions, findOrderByPaymentIntent, recordPaidInvoice, recordRefund } from "../../db/orders-repository.js";
 import {
   activateSubscription,
   deleteIncompleteSubscription,
@@ -116,6 +116,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
       priceCents: subscription.priceCents,
       currency: subscription.currency,
       sendDay: artist.sendDay,
+      termMonths: subscription.termMonths,
     });
   }
 
@@ -166,9 +167,22 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
     periodEnd,
   });
 
-  if (subscription.status !== "cancelled") {
-    await syncSubscription(subscription.id, { status: "active", currentPeriodEnd: periodEnd ?? subscription.currentPeriodEnd, cancelAtPeriodEnd: subscription.cancelAtPeriodEnd });
+  if (subscription.status === "cancelled") return;
+
+  // The term: once the last of the agreed months is paid for, Stripe is told
+  // to stop at the end of it. Nothing is cancelled outright — this month's
+  // card was paid for and still goes — and a redelivered event asks Stripe
+  // for the same thing again, which is a no-op there.
+  const paidMonths = (await countPaidMonthsForSubscriptions([subscription.id])).get(subscription.id) ?? 0;
+  const termComplete = paidMonths >= subscription.termMonths;
+  let cancelAtPeriodEnd = subscription.cancelAtPeriodEnd;
+  if (termComplete && !cancelAtPeriodEnd) {
+    const stripe = getStripe();
+    if (stripe) await stripe.subscriptions.update(stripeSubscriptionId, { cancel_at_period_end: true });
+    cancelAtPeriodEnd = true;
   }
+
+  await syncSubscription(subscription.id, { status: "active", currentPeriodEnd: periodEnd ?? subscription.currentPeriodEnd, cancelAtPeriodEnd });
 }
 
 /** A renewal failed. Stripe retries on its own schedule; until it clears, no cards. */

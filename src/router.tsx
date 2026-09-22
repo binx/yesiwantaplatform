@@ -4,6 +4,7 @@ import { LandingPage } from "./pages/LandingPage";
 import { ArtistsPage } from "./pages/ArtistsPage";
 import { ArtistPage } from "./pages/ArtistPage";
 import { GalleryPage } from "./pages/GalleryPage";
+import { ForArtistsPage } from "./pages/ForArtistsPage";
 import { PagePage } from "./pages/PagePage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 
@@ -59,6 +60,7 @@ export const router = createBrowserRouter([
       { path: "artists", element: <ArtistsPage /> },
       { path: "a/:slug", element: <ArtistPage /> },
       { path: "gallery", element: <GalleryPage /> },
+      { path: "for-artists", element: <ForArtistsPage /> },
       {
         // The subscribe flow needs a sign-in; its own chunk.
         path: "subscribe/:slug",

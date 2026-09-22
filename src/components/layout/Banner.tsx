@@ -24,8 +24,8 @@ export function Banner() {
     { to: "/artists", label: "Artists" },
     { to: "/gallery", label: "Gallery" },
     ...store.pages.filter((page) => page.inNav).map((page) => ({ to: `/${page.slug}`, label: page.title })),
-    // The studio is where an artist works; for everyone else it is the door in.
-    { to: customer.data?.artistSlug ? "/studio" : "/studio/new", label: customer.data?.artistSlug ? "Your studio" : "For artists" },
+    // The studio is where an artist works; for everyone else, the pitch.
+    { to: customer.data?.artistSlug ? "/studio" : "/for-artists", label: customer.data?.artistSlug ? "Your studio" : "For artists" },
   ];
 
   return (

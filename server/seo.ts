@@ -99,6 +99,10 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
       return { ...fallback, title: `Gallery · ${storeName}`, description: truncate("Postcards recently mailed to subscribers, by the artists who made them.") };
     }
 
+    if (path === "/for-artists") {
+      return { ...fallback, title: `For artists · ${storeName}`, description: truncate("Mail one postcard a month to the people who want to hear from you. Set your price; we print, post and pay you.") };
+    }
+
     if (PLAIN_ROUTES.some((p) => path === p || path.startsWith(`${p}/`))) return fallback;
 
     const artistMatch = /^\/a\/([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(path);

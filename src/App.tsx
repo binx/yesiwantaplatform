@@ -1,5 +1,5 @@
 import { Suspense, useEffect } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { App as AntApp, ConfigProvider, Skeleton } from "antd";
 import { Banner } from "@/components/layout/Banner";
 import { Footer } from "@/components/layout/Footer";
@@ -75,6 +75,10 @@ function ThemeVars() {
  */
 function ThemedShell() {
   const store = useStore();
+  // The front page is the one route that draws its own navigation, inside
+  // its hero; the site header would sit on top of it as a plain grey stripe.
+  const { pathname } = useLocation();
+  const showBanner = pathname !== "/";
 
   return (
     <ConfigProvider theme={toAntdTheme(store.theme)}>
@@ -85,7 +89,7 @@ function ThemedShell() {
         <a href="#main" className="skip-link">
           Skip to content
         </a>
-        <Banner />
+        {showBanner ? <Banner /> : null}
         <main id="main">
           <Outlet />
         </main>

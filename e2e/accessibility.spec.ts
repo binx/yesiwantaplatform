@@ -56,7 +56,8 @@ test.describe("admin, signed in", () => {
 });
 
 test("the mobile nav drawer has no accessibility violations", async ({ page }) => {
-  await page.goto("/");
+  // Not the front page: its hero carries the navigation and there is no drawer.
+  await page.goto("/artists");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   const menu = page.getByRole("button", { name: "Open menu" });
   test.skip(!(await menu.isVisible()), "the drawer is mobile-only");
@@ -68,7 +69,7 @@ test("the mobile nav drawer has no accessibility violations", async ({ page }) =
 
 test("the site's first tab stop is the skip link", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("banner")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await page.keyboard.press("Tab");
   const skip = page.getByRole("link", { name: "Skip to content" });
   await expect(skip).toBeFocused();

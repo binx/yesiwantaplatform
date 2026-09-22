@@ -21,10 +21,15 @@
   letter-spacing: -0.01em;
 }
 
+/* The "yes" is cut from the platform's chroma, as the front page's is. */
 .wordmarkYes {
   font-weight: 700;
   font-size: 1.5rem;
   margin-right: 0.25rem;
+  background: var(--chroma);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 /* Height-bounded so the banner keeps its shape whatever the shop uploads. */
@@ -55,9 +60,9 @@
 
 .active {
   color: var(--beluga-ink);
-  /* The underline is the selection marker, so it follows the store's colour;
-     the label stays ink so it is readable whatever that colour is. */
-  border-bottom-color: var(--beluga-primary);
+  /* The underline is the selection marker, in the platform's chroma; the
+     label stays ink so it is readable whatever the store's colours are. */
+  border-image: var(--chroma) 1;
 }
 
 .account {

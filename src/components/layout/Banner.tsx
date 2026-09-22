@@ -4,29 +4,19 @@ import { Button, Drawer, Tooltip } from "antd";
 import { MenuOutlined, UserOutlined } from "@ant-design/icons";
 import { useStore } from "@/lib/useStore";
 import { assetUrl } from "@/lib/store-source";
-import { useCustomer } from "@/lib/account";
 import { cx } from "@/lib/cx";
+import { useSiteLinks } from "./siteLinks";
 import styles from "./Banner.module.css";
 
 /**
- * Site header. Both navigations render and CSS decides which shows, so there
- * is no width state and no layout flash.
+ * Site header, on every page but the front one — the landing hero carries
+ * its own navigation (see `LandingPage`). Both navigations render and CSS
+ * decides which shows, so there is no width state and no layout flash.
  */
 export function Banner() {
   const store = useStore();
-  const customer = useCustomer();
+  const { links, accountHref, accountLabel } = useSiteLinks();
   const [open, setOpen] = useState(false);
-
-  const accountHref = customer.data ? "/account" : "/account/login";
-  const accountLabel = customer.data ? "Your account" : "Sign in";
-
-  const links = [
-    { to: "/artists", label: "Artists" },
-    { to: "/gallery", label: "Gallery" },
-    ...store.pages.filter((page) => page.inNav).map((page) => ({ to: `/${page.slug}`, label: page.title })),
-    // The studio is where an artist works; for everyone else, the pitch.
-    { to: customer.data?.artistSlug ? "/studio" : "/for-artists", label: customer.data?.artistSlug ? "Your studio" : "For artists" },
-  ];
 
   return (
     <header className={styles.header}>

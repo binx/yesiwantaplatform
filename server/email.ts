@@ -3,6 +3,7 @@ import path from "node:path";
 import Handlebars from "handlebars";
 import nodemailer, { type Transporter } from "nodemailer";
 import { formatMoney } from "../shared/money.js";
+import { artistPath } from "../shared/platform.js";
 import { getSettings } from "../db/repository.js";
 import { env } from "./env.js";
 
@@ -115,14 +116,16 @@ async function sendTemplate(template: string, to: string, locals: Record<string,
 /** "You're subscribed to Rachel": the first thing a new subscriber hears. */
 export async function sendSubscriptionStartedEmail(
   to: string,
-  locals: { artistName: string; artistSlug: string; priceCents: number; currency: string; sendDay: number },
+  locals: { artistName: string; artistSlug: string; priceCents: number; currency: string; sendDay: number; termMonths: number },
 ): Promise<boolean> {
   const store = await storeLocals();
   return sendTemplate("SubscriptionStarted", to, {
     artistName: locals.artistName,
-    artistUrl: url(`/a/${locals.artistSlug}`),
+    artistUrl: url(artistPath(locals.artistSlug)),
     price: formatMoney(locals.priceCents, locals.currency, store.locale),
     sendDay: locals.sendDay,
+    termMonths: locals.termMonths,
+    oneMonth: locals.termMonths === 1,
     accountUrl: url("/account"),
   });
 }
@@ -135,7 +138,7 @@ export async function sendPostcardSentEmail(
   const store = await storeLocals();
   return sendTemplate("PostcardSent", to, {
     artistName: locals.artistName,
-    artistUrl: url(`/a/${locals.artistSlug}`),
+    artistUrl: url(artistPath(locals.artistSlug)),
     recipientName: locals.recipientName,
     expectedDelivery: locals.expectedDeliveryDate ? formatDay(locals.expectedDeliveryDate, store.locale) : null,
     postcardsUrl: url("/account/postcards"),

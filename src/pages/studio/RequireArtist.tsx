@@ -60,11 +60,11 @@ export function RequireArtist() {
           <p className={styles.subtitle}>
             {artist.name} <Tag color={statusColor}>{artist.status}</Tag>
             {artist.status === "live" ? (
-              <a href={`/a/${artist.slug}`} target="_blank" rel="noreferrer">
-                /a/{artist.slug}
+              <a href={`/artist/${artist.slug}`} target="_blank" rel="noreferrer">
+                /artist/{artist.slug}
               </a>
             ) : (
-              <span>/a/{artist.slug} — not public yet</span>
+              <span>/artist/{artist.slug} — not public yet</span>
             )}
           </p>
         </div>

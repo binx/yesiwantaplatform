@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import { Alert, App, Button, Input, InputNumber, Radio, Upload } from "antd";
-import { UploadOutlined } from "@ant-design/icons";
-import { artistProfileInputSchema, type ArtistProfileInput, type ArtistVisibility } from "@shared/platform";
+import { DeleteOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
+import { artistProfileInputSchema, DEFAULT_TERM_MONTHS, MAX_ARTIST_LINKS, type ArtistLink, type ArtistProfileInput, type ArtistVisibility } from "@shared/platform";
 import { formatMoney, parseCents } from "@shared/money";
 import type { Image } from "@shared/schema";
 import { artistShareCents } from "@shared/schema";
-import { useCreateArtist, useSlugAvailable, useUpdateProfile, useUploadAvatar, type StudioView } from "@/lib/platform";
+import { useCreateArtist, useSlugAvailable, useUpdateProfile, useUploadAvatar, useUploadBanner, type StudioView } from "@/lib/platform";
 import { useStore } from "@/lib/useStore";
 import { useCustomer } from "@/lib/account";
 import { assetUrl } from "@/lib/store-source";
@@ -19,9 +19,12 @@ interface Draft {
   tagline: string;
   bio: string;
   price: string;
+  termMonths: number;
   sendDay: number;
   visibility: ArtistVisibility;
   avatar: Image | null;
+  banner: Image | null;
+  links: ArtistLink[];
 }
 
 function slugify(value: string): string {
@@ -34,7 +37,8 @@ function slugify(value: string): string {
 }
 
 /**
- * The page's own form: address, name, a line, the story, the price, the day.
+ * The page's own form: address, name, a line, the story, the price, the
+ * term, the day, and where else to find them.
  *
  * Shared by "open a studio" (create) and "your page" (edit): the fields are
  * the same, the only difference is which route gets the result. The price
@@ -47,7 +51,8 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
   const { message } = App.useApp();
   const create = useCreateArtist();
   const update = useUpdateProfile();
-  const upload = useUploadAvatar();
+  const uploadAvatar = useUploadAvatar();
+  const uploadBanner = useUploadBanner();
   const [draft, setDraft] = useState<Draft>(initial);
   const [slugTouched, setSlugTouched] = useState(mode === "edit");
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +66,10 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
   const money = (cents: number) => formatMoney(cents, store.currency, store.locale);
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }));
+  const setLink = (index: number, patch: Partial<ArtistLink>) =>
+    setDraft((current) => ({ ...current, links: current.links.map((link, i) => (i === index ? { ...link, ...patch } : link)) }));
+  const removeLink = (index: number) => setDraft((current) => ({ ...current, links: current.links.filter((_, i) => i !== index) }));
+  const addLink = () => setDraft((current) => ({ ...current, links: [...current.links, { label: "", url: "" }] }));
 
   const submit = () => {
     if (priceCents === null) return;
@@ -70,9 +79,13 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
       tagline: draft.tagline.trim() || null,
       bio: draft.bio,
       monthlyPriceCents: priceCents,
+      termMonths: draft.termMonths,
       sendDay: draft.sendDay,
       visibility: draft.visibility,
       avatar: draft.avatar,
+      banner: draft.banner,
+      // A row with nothing typed in it is not a link; one with a label and no address is a mistake the schema names.
+      links: draft.links.filter((link) => link.url.trim() !== "" || link.label.trim() !== ""),
     } satisfies Record<keyof ArtistProfileInput, unknown>);
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Check the form.");
@@ -111,7 +124,7 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
         </label>
         <Input
           id="artist-slug"
-          prefix={<span className={styles.slugPreview}>{`${window.location.host}/a/`}</span>}
+          prefix={<span className={styles.slugPreview}>{`${window.location.host}/artist/`}</span>}
           value={draft.slug}
           maxLength={40}
           onChange={(e) => {
@@ -151,6 +164,15 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
           </span>
         </div>
         <div className={styles.field}>
+          <label className={styles.label} htmlFor="artist-term">
+            Subscription length, in months
+          </label>
+          <InputNumber id="artist-term" min={1} max={24} value={draft.termMonths} onChange={(value) => set("termMonths", value ?? DEFAULT_TERM_MONTHS)} />
+          <span className={styles.help}>
+            Subscribers pay month by month and stop after {draft.termMonths} {draft.termMonths === 1 ? "card" : "cards"}. Nobody is billed forever; they can subscribe again.
+          </span>
+        </div>
+        <div className={styles.field}>
           <label className={styles.label} htmlFor="artist-day">
             Day of the month cards go out
           </label>
@@ -187,11 +209,11 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
             accept="image/*"
             showUploadList={false}
             beforeUpload={(file) => {
-              upload.mutate({ file, alt: draft.name }, { onSuccess: (image) => set("avatar", image), onError: () => void message.error("That image could not be uploaded.") });
+              uploadAvatar.mutate({ file, alt: draft.name }, { onSuccess: (image) => set("avatar", image), onError: () => void message.error("That image could not be uploaded.") });
               return Upload.LIST_IGNORE;
             }}
           >
-            <Button icon={<UploadOutlined />} loading={upload.isPending}>
+            <Button icon={<UploadOutlined />} loading={uploadAvatar.isPending}>
               {draft.avatar ? "Replace" : "Upload"}
             </Button>
           </Upload>
@@ -201,6 +223,52 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
             </Button>
           ) : null}
         </div>
+      </div>
+
+      <div className={styles.field}>
+        <span className={styles.label}>Banner across the top of your page (optional)</span>
+        {draft.banner ? <img className={styles.bannerPreview} src={assetUrl(draft.banner.path)} alt="" /> : <div className={cx(styles.bannerPreview, styles.bannerEmpty)} aria-hidden />}
+        <div className={styles.avatarRow}>
+          <Upload
+            accept="image/*"
+            showUploadList={false}
+            beforeUpload={(file) => {
+              uploadBanner.mutate({ file, alt: "" }, { onSuccess: (image) => set("banner", image), onError: () => void message.error("That image could not be uploaded.") });
+              return Upload.LIST_IGNORE;
+            }}
+          >
+            <Button icon={<UploadOutlined />} loading={uploadBanner.isPending}>
+              {draft.banner ? "Replace" : "Upload"}
+            </Button>
+          </Upload>
+          {draft.banner ? (
+            <Button type="link" size="small" onClick={() => set("banner", null)}>
+              Remove
+            </Button>
+          ) : null}
+          <span className={styles.help}>Wide works best: it is shown about three times as wide as it is tall.</span>
+        </div>
+      </div>
+
+      <div className={styles.field}>
+        <span className={styles.label}>Where else to find you (optional)</span>
+        {draft.links.length > 0 ? (
+          <ul className={styles.linkList}>
+            {draft.links.map((link, index) => (
+              <li key={index} className={styles.linkRow}>
+                <Input aria-label={`Link ${index + 1} label`} placeholder="Instagram, website, shop…" maxLength={40} value={link.label} onChange={(e) => setLink(index, { label: e.target.value })} className={styles.linkLabel} />
+                <Input aria-label={`Link ${index + 1} address`} placeholder="https://" inputMode="url" maxLength={500} value={link.url} onChange={(e) => setLink(index, { url: e.target.value })} />
+                <Button aria-label={`Remove link ${index + 1}`} icon={<DeleteOutlined />} onClick={() => removeLink(index)} />
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <div>
+          <Button icon={<PlusOutlined />} disabled={draft.links.length >= MAX_ARTIST_LINKS} onClick={addLink}>
+            Add a link
+          </Button>
+        </div>
+        <span className={styles.help}>Your website, your shop, your accounts. Full addresses, starting with https://. A blank label shows the site's name.</span>
       </div>
 
       {error ? <Alert type="error" showIcon title={error} /> : null}
@@ -228,13 +296,25 @@ export function StudioNewPage() {
     <div>
       <h1>Open a studio</h1>
       <p style={{ maxWidth: "40rem" }}>
-        You get a page at your own address. People subscribe for a monthly price you set. Once a month you queue a postcard — a photo
+        You get a page at your own address. People subscribe for a monthly price you set, for a fixed number of months. Once a month you queue a postcard — a photo
         you took and a note — and we print it and mail it to every one of them. After printing and a small fee, the rest is yours.
       </p>
       <p style={{ maxWidth: "40rem" }}>Your page starts as a draft. Nobody sees it until you go live.</p>
       <ProfileForm
         mode="create"
-        initial={{ slug: slugify(customer.data?.name ?? ""), name: customer.data?.name ?? "", tagline: "", bio: "", price: (Math.max(store.pricing.minMonthlyPriceCents, 500) / 100).toFixed(2), sendDay: 15, visibility: "public", avatar: null }}
+        initial={{
+          slug: slugify(customer.data?.name ?? ""),
+          name: customer.data?.name ?? "",
+          tagline: "",
+          bio: "",
+          price: (Math.max(store.pricing.minMonthlyPriceCents, 500) / 100).toFixed(2),
+          termMonths: DEFAULT_TERM_MONTHS,
+          sendDay: 15,
+          visibility: "public",
+          avatar: null,
+          banner: null,
+          links: [],
+        }}
       />
     </div>
   );
@@ -250,10 +330,22 @@ export function StudioProfilePage() {
       <h2>Your page</h2>
       <ProfileForm
         mode="edit"
-        initial={{ slug: artist.slug, name: artist.name, tagline: artist.tagline ?? "", bio: artist.bio, price: (artist.monthlyPriceCents / 100).toFixed(2), sendDay: artist.sendDay, visibility: artist.visibility, avatar: artist.avatar }}
+        initial={{
+          slug: artist.slug,
+          name: artist.name,
+          tagline: artist.tagline ?? "",
+          bio: artist.bio,
+          price: (artist.monthlyPriceCents / 100).toFixed(2),
+          termMonths: artist.termMonths,
+          sendDay: artist.sendDay,
+          visibility: artist.visibility,
+          avatar: artist.avatar,
+          banner: artist.banner,
+          links: artist.links,
+        }}
       />
       <p className={cx(styles.note)} style={{ marginTop: "1.5rem" }}>
-        Changing your price affects new subscribers only. Everyone already subscribed keeps paying what they signed up for.
+        Changing your price or subscription length affects new subscribers only. Everyone already subscribed keeps the price and the number of months they signed up for.
       </p>
     </div>
   );

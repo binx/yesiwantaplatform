@@ -176,8 +176,12 @@ artistRouter.put("/profile", async (req, res) => {
   }
 });
 
-/** Stores an avatar and hands the image back; it is persisted with the profile on Save. */
-artistRouter.post("/avatar", uploadRateLimit, (req, res, next) => {
+/**
+ * Stores a profile picture and hands the image back; it is persisted with
+ * the profile on Save. The avatar and the banner are the same upload with
+ * different homes on the page, so they share one handler.
+ */
+function storeProfileImage(req: Request, res: Response, next: NextFunction): void {
   uploadMiddleware(req, res, (uploadError: unknown) => {
     void (async () => {
       try {
@@ -191,7 +195,10 @@ artistRouter.post("/avatar", uploadRateLimit, (req, res, next) => {
       }
     })();
   });
-});
+}
+
+artistRouter.post("/avatar", uploadRateLimit, storeProfileImage);
+artistRouter.post("/banner", uploadRateLimit, storeProfileImage);
 
 /**
  * Go live, or pause. Going live needs a page worth visiting: a name, a

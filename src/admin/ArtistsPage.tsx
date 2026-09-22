@@ -36,7 +36,7 @@ export function ArtistsPage() {
           scroll={{ x: "max-content" }}
           columns={[
             { title: "Name", dataIndex: "name", render: (name: string, artist) => <Link to={`/admin/artists/${artist.id}`}>{name}</Link> },
-            { title: "Address", dataIndex: "slug", render: (slug: string) => `/a/${slug}` },
+            { title: "Address", dataIndex: "slug", render: (slug: string) => `/artist/${slug}` },
             { title: "Status", dataIndex: "status", render: (status: ArtistStatus) => <Tag color={statusColor(status)}>{status}</Tag> },
             { title: "Price", dataIndex: "monthlyPriceCents", align: "right", render: (cents: number, artist) => formatMoney(cents, artist.currency, locale) },
             { title: "Subscribers", dataIndex: "subscriberCount", align: "right" },

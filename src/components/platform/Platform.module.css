@@ -267,3 +267,48 @@
     position: static;
   }
 }
+
+/* ------------------------------------------------- the artist page, more */
+
+/* Three times as wide as tall, whatever was uploaded: the studio says so. */
+.artistBanner {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 1;
+  object-fit: cover;
+  margin-bottom: 2rem;
+  border: 1px solid var(--beluga-line);
+  background: var(--beluga-surface);
+}
+
+.artistLinks {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.artistLinks a {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--beluga-line);
+  border-radius: 999px;
+  background: var(--beluga-surface);
+  font-size: 0.875rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.artistLinks a:hover,
+.artistLinks a:focus-visible {
+  border-color: var(--beluga-ink);
+}
+
+.subscribeTerm {
+  margin: -0.25rem 0 0;
+  font-size: 0.9375rem;
+  color: var(--beluga-muted);
+}

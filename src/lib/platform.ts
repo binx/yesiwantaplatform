@@ -155,6 +155,13 @@ export function useUploadAvatar() {
   });
 }
 
+/** The wide picture across the top of the page. Stored now, saved with the profile. */
+export function useUploadBanner() {
+  return useMutation({
+    mutationFn: ({ file, alt }: { file: File; alt: string }) => csrfUpload<Image>("/studio/banner", file, { alt }),
+  });
+}
+
 export function useSlugAvailable(slug: string, enabled: boolean) {
   return useQuery({
     queryKey: ["studio", "slug", slug],

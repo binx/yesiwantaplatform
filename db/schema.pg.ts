@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -96,7 +97,15 @@ export const artists = pgTable(
     avatarWidth: integer("avatar_width"),
     avatarHeight: integer("avatar_height"),
     avatarAlt: text("avatar_alt"),
+    bannerPath: text("banner_path"),
+    bannerWidth: integer("banner_width"),
+    bannerHeight: integer("banner_height"),
+    bannerAlt: text("banner_alt"),
+    /** ArtistLink[] — a website, a shop, social accounts. */
+    links: jsonb("links").notNull().default(sql`'[]'::jsonb`),
     monthlyPriceCents: integer("monthly_price_cents").notNull(),
+    /** How many monthly payments a subscription runs for before it ends. */
+    termMonths: integer("term_months").notNull().default(6),
     sendDay: integer("send_day").notNull().default(15),
     status: text("status").notNull().default("draft"),
     visibility: text("visibility").notNull().default("public"),
@@ -169,6 +178,8 @@ export const subscriptions = pgTable(
     stripeSubscriptionId: text("stripe_subscription_id"),
     priceCents: integer("price_cents").notNull(),
     currency: text("currency").notNull().default("USD"),
+    /** How many monthly payments it runs for — the artist's term when it was taken out. */
+    termMonths: integer("term_months").notNull().default(6),
     currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
     address: jsonb("address").notNull(),

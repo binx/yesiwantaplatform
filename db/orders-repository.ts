@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import type { OrderStatus } from "../shared/platform.js";
 import { getDatabase } from "./client.js";
 import { affectedRows, epochOrNull, timeFor, toCount, toEpochMs } from "./repository.js";
@@ -124,6 +124,24 @@ export async function recordRefund(orderId: string, amountCents: number, full: b
       ...(full ? { status: "refunded" } : {}),
     })
     .where(eq(schema.orders.id, orderId));
+}
+
+/**
+ * How many months each subscription has paid for: its invoices, refunded or
+ * not. A refund is the platform's decision about money already taken, not
+ * a month the subscriber never had, so it still counts toward the term.
+ */
+export async function countPaidMonthsForSubscriptions(subscriptionIds: string[]): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (subscriptionIds.length === 0) return map;
+  const { drizzle: db, schema } = await getDatabase();
+  const rows = (await db
+    .select({ subscriptionId: schema.orders.subscriptionId, value: count() })
+    .from(schema.orders)
+    .where(inArray(schema.orders.subscriptionId, [...new Set(subscriptionIds)]))
+    .groupBy(schema.orders.subscriptionId)) as unknown as { subscriptionId: string; value: unknown }[];
+  for (const row of rows) map.set(row.subscriptionId, toCount(row.value));
+  return map;
 }
 
 export async function listOrdersForCustomer(customerId: string): Promise<OrderRecord[]> {

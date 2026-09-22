@@ -15,6 +15,13 @@
       "when": 1790108012945,
       "tag": "0001_chunky_senator_kelly",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790110230259,
+      "tag": "0002_harsh_bastion",
+      "breakpoints": true
     }
   ]
 }

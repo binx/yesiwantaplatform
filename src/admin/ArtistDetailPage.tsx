@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { App, Button, Card, Descriptions, Empty, Popconfirm, Skeleton, Table, Tag } from "antd";
-import type { ArtistStatus, Mailing, Subscription } from "@shared/platform";
+import { artistLinkLabel, type ArtistStatus, type Mailing, type Subscription } from "@shared/platform";
 import { formatMoney } from "@shared/money";
 import { formatRecipient } from "@shared/postcards";
 import { useAdminArtist, useSetAdminArtistStatus, useStoreLocale } from "./queries";
@@ -38,8 +38,8 @@ export function ArtistDetailPage() {
         title={artist.name}
         description={
           <>
-            <a href={`/a/${artist.slug}`} target="_blank" rel="noreferrer">
-              /a/{artist.slug}
+            <a href={`/artist/${artist.slug}`} target="_blank" rel="noreferrer">
+              /artist/{artist.slug}
             </a>{" "}
             · <Tag color={statusColor(artist.status)}>{artist.status}</Tag>
           </>
@@ -68,7 +68,20 @@ export function ArtistDetailPage() {
         <Descriptions column={1} size="small" bordered>
           <Descriptions.Item label="Tagline">{artist.tagline ?? "—"}</Descriptions.Item>
           <Descriptions.Item label="Price">{formatMoney(artist.monthlyPriceCents, artist.currency, locale)} a month</Descriptions.Item>
+          <Descriptions.Item label="Term">{artist.termMonths} {artist.termMonths === 1 ? "month" : "months"}</Descriptions.Item>
           <Descriptions.Item label="Send day">{artist.sendDay}th</Descriptions.Item>
+          <Descriptions.Item label="Links">
+            {artist.links.length === 0
+              ? "—"
+              : artist.links.map((link) => (
+                  <div key={link.url}>
+                    <a href={link.url} target="_blank" rel="noopener noreferrer nofollow">
+                      {artistLinkLabel(link)}
+                    </a>{" "}
+                    <span style={{ color: "#71717a" }}>{link.url}</span>
+                  </div>
+                ))}
+          </Descriptions.Item>
           <Descriptions.Item label="Subscribers">{artist.subscriberCount} active</Descriptions.Item>
           <Descriptions.Item label="Cards mailed">{artist.mailedCount}</Descriptions.Item>
           <Descriptions.Item label="Payouts">{artist.payoutsEnabled ? <Tag color="green">ready</Tag> : artist.stripeAccountId ? <Tag color="gold">onboarding {artist.stripeAccountId}</Tag> : <Tag>no Stripe account</Tag>}</Descriptions.Item>

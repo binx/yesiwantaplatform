@@ -39,7 +39,7 @@ export function AccountRegisterPage() {
 
   if (register.isSuccess) {
     const backTo = destination ?? "/";
-    const backLabel = destination?.startsWith("/a/") ? "Back to the artist" : destination === "/studio/new" ? "Open your studio" : "Back home";
+    const backLabel = destination?.startsWith("/artist/") ? "Back to the artist" : destination === "/studio/new" ? "Open your studio" : "Back home";
 
     return (
       <PageWrapper width="prose">

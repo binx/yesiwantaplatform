@@ -65,7 +65,7 @@ test("the studio needs a sign-in, then opens a page that goes live once a card i
   await expect(page.getByRole("button", { name: "Go live" })).toBeDisabled();
 
   // The page is not public yet.
-  await page.goto(`/a/${slug}`);
+  await page.goto(`/artist/${slug}`);
   await expect(page.getByRole("heading", { name: "Not found", level: 1 })).toBeVisible();
 
   // Queue a card: the designer wants a real image, which a Playwright buffer provides.
@@ -83,7 +83,7 @@ test("the studio needs a sign-in, then opens a page that goes live once a card i
   await expect(page.getByRole("heading", { name: "You're live" })).toBeVisible();
 
   // Now public, and in the directory.
-  await page.goto(`/a/${slug}`);
+  await page.goto(`/artist/${slug}`);
   await expect(page.getByRole("heading", { name: `E2E Artist ${run}`, level: 1 })).toBeVisible();
   await expect(page.getByText("Made by a robot.")).toBeVisible();
   await expect(page.getByRole("link", { name: "This is your page — open the studio" })).toBeVisible();
@@ -121,7 +121,7 @@ test("subscribing asks for an address and stops at Stripe when it is not configu
   await register(page, fanEmail, "Grandma");
   await signIn(page, fanEmail);
 
-  await page.goto(`/a/${slug}`);
+  await page.goto(`/artist/${slug}`);
   await page.getByRole("link", { name: "YES I WANT A POSTCARD", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/subscribe/${slug}$`));
   await expect(page.getByRole("heading", { name: "Yes, you want a postcard", level: 1 })).toBeVisible();
@@ -143,6 +143,6 @@ test("subscribing asks for an address and stops at Stripe when it is not configu
 test("the gallery and an unknown artist both render something honest", async ({ page }) => {
   await page.goto("/gallery");
   await expect(page.getByRole("heading", { name: "Gallery", level: 1 })).toBeVisible();
-  await page.goto("/a/nobody-by-this-name");
+  await page.goto("/artist/nobody-by-this-name");
   await expect(page.getByRole("heading", { name: "Not found", level: 1 })).toBeVisible();
 });

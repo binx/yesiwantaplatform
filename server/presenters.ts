@@ -51,8 +51,11 @@ export function toPublicArtist(artist: ArtistRecord, counts: ArtistCounts = NO_C
     tagline: artist.tagline,
     bioHtml: renderMarkdown(artist.bio),
     avatar: artist.avatar,
+    banner: artist.banner,
+    links: artist.links,
     monthlyPriceCents: artist.monthlyPriceCents,
     currency,
+    termMonths: artist.termMonths,
     status: artist.status,
     visibility: artist.visibility,
     sendDay: artist.sendDay,
@@ -106,7 +109,7 @@ function artistLink(artist: ArtistRecord | undefined, id: string): { id: string;
     : { id, slug: "unknown", name: "An artist", avatar: null };
 }
 
-export function toSubscription(subscription: SubscriptionRecord, artist: ArtistRecord | undefined, postcardCount: number): Subscription {
+export function toSubscription(subscription: SubscriptionRecord, artist: ArtistRecord | undefined, postcardCount: number, paidMonths = 0): Subscription {
   return subscriptionSchema.parse({
     id: subscription.id,
     artist: artistLink(artist, subscription.artistId),
@@ -115,6 +118,8 @@ export function toSubscription(subscription: SubscriptionRecord, artist: ArtistR
     currency: subscription.currency,
     currentPeriodEnd: subscription.currentPeriodEnd,
     cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+    termMonths: subscription.termMonths,
+    paidMonths,
     address: subscription.address,
     postcardCount,
     createdAt: subscription.createdAt,

@@ -15,7 +15,7 @@ import styles from "./Platform.module.css";
 export function ArtistTile({ artist, locale }: { artist: ArtistSummary; locale: string }) {
   const price = formatMoney(artist.monthlyPriceCents, artist.currency, locale);
   return (
-    <Link to={`/a/${artist.slug}`} className={cx(styles.tile)}>
+    <Link to={`/artist/${artist.slug}`} className={cx(styles.tile)}>
       <div className={styles.tileImage}>
         <ProductImage image={artist.latest?.thumbnail ?? artist.avatar} {...(artist.latest ? {} : { ratio: 3 / 2 })} sizes="(max-width: 800px) 100vw, 33vw" decorative />
       </div>
@@ -47,7 +47,7 @@ export function GalleryTile({ card, locale, showArtist = true }: { card: Gallery
         <span className={styles.galleryMeta}>
           {showArtist ? (
             <>
-              <Link to={`/a/${card.artist.slug}`}>{card.artist.name}</Link> ·{" "}
+              <Link to={`/artist/${card.artist.slug}`}>{card.artist.name}</Link> ·{" "}
             </>
           ) : null}
           mailed {formatShortDate(card.mailDate, locale)}

@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
-import type { ArtistProfileInput, ArtistStatus, ArtistVisibility } from "../shared/platform.js";
+import { artistLinkSchema, DEFAULT_TERM_MONTHS, type ArtistLink, type ArtistProfileInput, type ArtistStatus, type ArtistVisibility } from "../shared/platform.js";
 import type { Image } from "../shared/schema.js";
 import { SlugTakenError } from "./admin-repository.js";
 import { getDatabase } from "./client.js";
-import { affectedRows, isUniqueViolation, nowFor, toBool, toCount, toEpochMs } from "./repository.js";
+import { affectedRows, isUniqueViolation, jsonFor, nowFor, parseJson, toBool, toCount, toEpochMs } from "./repository.js";
 
 /**
  * Artists — the people with a page, a price and a queue.
@@ -25,7 +25,13 @@ export interface ArtistRow {
   avatarWidth: number | null;
   avatarHeight: number | null;
   avatarAlt: string | null;
+  bannerPath: string | null;
+  bannerWidth: number | null;
+  bannerHeight: number | null;
+  bannerAlt: string | null;
+  links: unknown;
   monthlyPriceCents: number;
+  termMonths: number;
   sendDay: number;
   status: string;
   visibility: string;
@@ -42,7 +48,10 @@ export interface ArtistRecord {
   tagline: string | null;
   bio: string;
   avatar: Image | null;
+  banner: Image | null;
+  links: ArtistLink[];
   monthlyPriceCents: number;
+  termMonths: number;
   sendDay: number;
   status: ArtistStatus;
   visibility: ArtistVisibility;
@@ -60,6 +69,21 @@ function toVisibility(value: string): ArtistVisibility {
   return value === "private" ? "private" : "public";
 }
 
+/** A stored image, or null when any part of it is missing. */
+function toImage(path: string | null, width: number | null, height: number | null, alt: string | null, fallbackAlt: string): Image | null {
+  return path && width && height ? { path, width, height, alt: alt ?? fallbackAlt, widths: [] } : null;
+}
+
+/** A link that no longer parses is dropped on its own, not with the list: a page must never fail to render over one bad href. */
+function toLinks(value: unknown): ArtistLink[] {
+  const raw = parseJson<unknown>(value, []);
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry) => {
+    const parsed = artistLinkSchema.safeParse(entry);
+    return parsed.success ? [parsed.data] : [];
+  });
+}
+
 export function buildArtist(row: ArtistRow): ArtistRecord {
   return {
     id: row.id,
@@ -68,11 +92,12 @@ export function buildArtist(row: ArtistRow): ArtistRecord {
     name: row.name,
     tagline: row.tagline,
     bio: row.bio,
-    avatar:
-      row.avatarPath && row.avatarWidth && row.avatarHeight
-        ? { path: row.avatarPath, width: row.avatarWidth, height: row.avatarHeight, alt: row.avatarAlt ?? row.name, widths: [] }
-        : null,
+    avatar: toImage(row.avatarPath, row.avatarWidth, row.avatarHeight, row.avatarAlt, row.name),
+    banner: toImage(row.bannerPath, row.bannerWidth, row.bannerHeight, row.bannerAlt, ""),
+    links: toLinks(row.links),
     monthlyPriceCents: row.monthlyPriceCents,
+    // Clamped like the send day: a hand-edited 0 is still a subscription with an end.
+    termMonths: Math.min(24, Math.max(1, row.termMonths || DEFAULT_TERM_MONTHS)),
     // Clamped on the way out too: a hand-edited 31 would never fire in February.
     sendDay: Math.min(28, Math.max(1, row.sendDay)),
     status: toStatus(row.status),
@@ -92,23 +117,42 @@ function avatarColumns(avatar: Image | null) {
   };
 }
 
+function bannerColumns(banner: Image | null) {
+  return {
+    bannerPath: banner?.path ?? null,
+    bannerWidth: banner?.width ?? null,
+    bannerHeight: banner?.height ?? null,
+    bannerAlt: banner?.alt ?? null,
+  };
+}
+
+/** Everything the profile form may set, as columns. Create and update write the same set. */
+function profileColumns(dialect: string, input: ArtistProfileInput) {
+  return {
+    slug: input.slug,
+    name: input.name,
+    tagline: input.tagline,
+    bio: input.bio,
+    ...avatarColumns(input.avatar),
+    ...bannerColumns(input.banner),
+    links: jsonFor(dialect, input.links) as never,
+    monthlyPriceCents: input.monthlyPriceCents,
+    termMonths: input.termMonths,
+    sendDay: input.sendDay,
+    visibility: input.visibility,
+  };
+}
+
 /** Make an artist page for a customer. One per customer; a second attempt is refused by the index. */
 export async function createArtist(customerId: string, input: ArtistProfileInput): Promise<ArtistRecord> {
-  const { drizzle: db, schema } = await getDatabase();
+  const { drizzle: db, schema, dialect } = await getDatabase();
   const id = randomUUID();
 
   try {
     await db.insert(schema.artists).values({
       id,
       customerId,
-      slug: input.slug,
-      name: input.name,
-      tagline: input.tagline,
-      bio: input.bio,
-      ...avatarColumns(input.avatar),
-      monthlyPriceCents: input.monthlyPriceCents,
-      sendDay: input.sendDay,
-      visibility: input.visibility,
+      ...profileColumns(dialect, input),
       status: "draft",
     });
   } catch (error) {
@@ -128,14 +172,7 @@ export async function updateArtistProfile(id: string, input: ArtistProfileInput)
     await db
       .update(schema.artists)
       .set({
-        slug: input.slug,
-        name: input.name,
-        tagline: input.tagline,
-        bio: input.bio,
-        ...avatarColumns(input.avatar),
-        monthlyPriceCents: input.monthlyPriceCents,
-        sendDay: input.sendDay,
-        visibility: input.visibility,
+        ...profileColumns(dialect, input),
         updatedAt: nowFor(dialect),
       })
       .where(eq(schema.artists.id, id));

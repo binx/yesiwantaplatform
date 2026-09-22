@@ -58,7 +58,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <LandingPage /> },
       { path: "artists", element: <ArtistsPage /> },
-      { path: "a/:slug", element: <ArtistPage /> },
+      { path: "artist/:slug", element: <ArtistPage /> },
       { path: "gallery", element: <GalleryPage /> },
       { path: "for-artists", element: <ForArtistsPage /> },
       {

@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { subscribeInputSchema, subscribeResponseSchema } from "../../shared/platform.js";
+import { artistPath, subscribeInputSchema, subscribeResponseSchema } from "../../shared/platform.js";
 import { getSettings } from "../../db/repository.js";
 import { getArtist } from "../../db/artists-repository.js";
 import { getMailingAddress, getStripeCustomerId, setMailingAddress, setStripeCustomerId } from "../../db/customers-repository.js";
+import { countPaidMonthsForSubscriptions } from "../../db/orders-repository.js";
 import {
   createIncompleteSubscription,
   findOpenSubscription,
@@ -91,7 +92,7 @@ checkoutRouter.post("/checkout/subscribe", writeRateLimit, verifyCsrf, requireCu
               recurring: { interval: "month" },
               product_data: {
                 name: `A monthly postcard from ${artist.name}`,
-                description: "One of their postcards, printed and mailed to you every month. Cancel anytime.",
+                description: `${artist.termMonths} of their postcards, one printed and mailed to you each month for ${artist.termMonths} months. Billed monthly; it ends on its own, or sooner if you cancel.`,
               },
             },
           },
@@ -99,7 +100,7 @@ checkoutRouter.post("/checkout/subscribe", writeRateLimit, verifyCsrf, requireCu
         // No shipping address collection: the address was given above, is
         // held on the account, and is what every card is mailed to.
         success_url: `${env.PUBLIC_URL}/subscribe/confirm?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${env.PUBLIC_URL}/a/${artist.slug}`,
+        cancel_url: `${env.PUBLIC_URL}${artistPath(artist.slug)}`,
         metadata,
         subscription_data: { metadata },
       },
@@ -116,6 +117,7 @@ checkoutRouter.post("/checkout/subscribe", writeRateLimit, verifyCsrf, requireCu
       checkoutSessionId: session.id,
       priceCents: artist.monthlyPriceCents,
       currency: settings.currency,
+      termMonths: artist.termMonths,
       address: parsed.data.address,
     });
 
@@ -139,8 +141,8 @@ checkoutRouter.get("/checkout/:sessionId", requireCustomer, async (req, res) => 
   const subscription = await findSubscriptionByCheckoutSession(String(req.params.sessionId));
   if (!subscription || subscription.customerId !== req.session.customerId) throw httpError(404, "No subscription found for that checkout.");
 
-  const artist = await getArtist(subscription.artistId);
-  res.json(toSubscription(subscription, artist ?? undefined, 0));
+  const [artist, paidMonths] = await Promise.all([getArtist(subscription.artistId), countPaidMonthsForSubscriptions([subscription.id])]);
+  res.json(toSubscription(subscription, artist ?? undefined, 0, paidMonths.get(subscription.id) ?? 0));
 });
 
 /** The address on the account, prefilled into the subscribe form. Signed in only. */

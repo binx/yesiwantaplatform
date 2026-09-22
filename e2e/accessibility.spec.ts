@@ -11,7 +11,7 @@ const routes: [name: string, path: string][] = [
   ["landing", "/"],
   ["artists", "/artists"],
   ["gallery", "/gallery"],
-  ["unknown artist", "/a/nobody-by-this-name"],
+  ["unknown artist", "/artist/nobody-by-this-name"],
   ["404", "/no-such-page-here"],
   ["customer sign-in", "/account/login"],
   ["customer registration", "/account/register"],

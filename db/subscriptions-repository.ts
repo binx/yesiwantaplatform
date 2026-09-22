@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
-import type { SubscriptionStatus } from "../shared/platform.js";
+import { DEFAULT_TERM_MONTHS, type SubscriptionStatus } from "../shared/platform.js";
 import { recipientSchema, type Recipient } from "../shared/postcards.js";
 import { getDatabase } from "./client.js";
 import { affectedRows, epochOrNull, jsonFor, nowFor, parseJson, timeFor, toBool, toCount, toEpochMs } from "./repository.js";
@@ -23,6 +23,7 @@ export interface SubscriptionRow {
   stripeSubscriptionId: string | null;
   priceCents: number;
   currency: string;
+  termMonths: number;
   currentPeriodEnd: unknown;
   cancelAtPeriodEnd: unknown;
   address: unknown;
@@ -39,6 +40,8 @@ export interface SubscriptionRecord {
   stripeSubscriptionId: string | null;
   priceCents: number;
   currency: string;
+  /** How many monthly payments it runs for: the artist's term when it was taken out. */
+  termMonths: number;
   currentPeriodEnd: number | null;
   cancelAtPeriodEnd: boolean;
   address: Recipient;
@@ -60,6 +63,7 @@ export function buildSubscription(row: SubscriptionRow): SubscriptionRecord {
     stripeSubscriptionId: row.stripeSubscriptionId,
     priceCents: row.priceCents,
     currency: row.currency,
+    termMonths: Math.max(1, row.termMonths || DEFAULT_TERM_MONTHS),
     currentPeriodEnd: epochOrNull(row.currentPeriodEnd),
     cancelAtPeriodEnd: toBool(row.cancelAtPeriodEnd),
     address: recipientSchema.parse(parseJson(row.address, {})),
@@ -76,6 +80,8 @@ export interface CreateSubscriptionInput {
   checkoutSessionId: string;
   priceCents: number;
   currency: string;
+  /** The artist's term right now. Theirs may change later; this one does not. */
+  termMonths: number;
   address: Recipient;
 }
 
@@ -91,6 +97,7 @@ export async function createIncompleteSubscription(input: CreateSubscriptionInpu
     stripeCheckoutSessionId: input.checkoutSessionId,
     priceCents: input.priceCents,
     currency: input.currency,
+    termMonths: input.termMonths,
     address: jsonFor(dialect, input.address) as never,
   });
 

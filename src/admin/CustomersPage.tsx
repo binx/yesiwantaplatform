@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Card, Empty, Skeleton, Table, Tag } from "antd";
 
@@ -44,9 +44,6 @@ export function CustomersPage() {
   const subscriptions = useAdminSubscriptions();
   const orders = useAdminOrders();
 
-  useEffect(() => {
-    document.title = "People · Admin";
-  }, []);
 
   return (
     <>

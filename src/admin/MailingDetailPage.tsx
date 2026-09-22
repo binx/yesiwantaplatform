@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { App, Button, Card, Descriptions, Empty, Popconfirm, Skeleton, Table, Tag } from "antd";
 import { formatRecipient } from "@shared/postcards";
@@ -21,9 +20,6 @@ export function MailingDetailPage() {
   const retry = useRetryPostcard();
   const cancel = useCancelPostcard();
 
-  useEffect(() => {
-    document.title = "Mailing · Admin";
-  }, []);
 
   if (detail.isPending) return <Skeleton active paragraph={{ rows: 10 }} />;
   if (detail.isError || !detail.data) {

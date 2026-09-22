@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { App, Button, Card, Descriptions, Empty, Popconfirm, Skeleton, Table, Tag } from "antd";
 import type { ArtistStatus, Mailing, Subscription } from "@shared/platform";
@@ -18,9 +17,6 @@ export function ArtistDetailPage() {
   const detail = useAdminArtist(id);
   const setStatus = useSetAdminArtistStatus();
 
-  useEffect(() => {
-    document.title = detail.data ? `${detail.data.artist.name} · Admin` : "Artist · Admin";
-  }, [detail.data]);
 
   if (detail.isPending) return <Skeleton active paragraph={{ rows: 10 }} />;
   if (detail.isError || !detail.data) {

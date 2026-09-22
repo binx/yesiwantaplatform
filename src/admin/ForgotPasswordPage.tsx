@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button, Card, Form, Input, Typography } from "antd";
 import { useForgotPassword } from "@/lib/session";
@@ -16,9 +15,6 @@ import styles from "./LoginPage.module.css";
 export function ForgotPasswordPage() {
   const forgot = useForgotPassword();
 
-  useEffect(() => {
-    document.title = "Forgot password · Admin";
-  }, []);
 
   return (
     <main className={cx(styles.page)}>

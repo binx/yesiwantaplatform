@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button, Empty } from "antd";
 import { PageHeader } from "./RequireAdmin";
@@ -14,9 +13,6 @@ import { PageHeader } from "./RequireAdmin";
 export function AdminNotFoundPage() {
   const location = useLocation();
 
-  useEffect(() => {
-    document.title = "Not found · Admin";
-  }, []);
 
   return (
     <>

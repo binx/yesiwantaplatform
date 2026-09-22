@@ -54,9 +54,6 @@ export function PagesPage() {
   const remove = useDeletePage();
   const reorder = useReorderPages();
 
-  useEffect(() => {
-    document.title = "Pages · Admin";
-  }, []);
 
   const all = pages.data ?? [];
 
@@ -237,9 +234,6 @@ export function PageEditorPage() {
     });
   }, [isNew, loaded]);
 
-  useEffect(() => {
-    document.title = `${draft.title || "New page"} · Beluga`;
-  }, [draft.title]);
 
   /* --- autosave ---------------------------------------------------------- */
 

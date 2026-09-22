@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Alert, Skeleton, Tag } from "antd";
 import { useSubscribers } from "@/lib/platform";
 import { useStore } from "@/lib/useStore";
@@ -16,9 +15,6 @@ export function StudioSubscribersPage() {
   const store = useStore();
   const subscribers = useSubscribers();
 
-  useEffect(() => {
-    document.title = `Subscribers · Studio · ${store.name}`;
-  }, [store.name]);
 
   if (subscribers.isPending) return <Skeleton active paragraph={{ rows: 6 }} />;
   if (subscribers.isError) return <Alert type="error" showIcon title="Your subscribers could not be loaded." />;

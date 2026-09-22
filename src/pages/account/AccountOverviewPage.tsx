@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Alert, App, Button, Form, Input, Popconfirm, Skeleton, Tag } from "antd";
 import { formatMoney } from "@shared/money";
@@ -26,9 +26,6 @@ export function AccountOverviewPage() {
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
 
-  useEffect(() => {
-    document.title = `Your subscriptions · ${store.name}`;
-  }, [store.name]);
 
   if (!customer.data) return null;
   const profile = customer.data;

@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Alert, Button, Skeleton } from "antd";
 import { formatMoney } from "@shared/money";
@@ -27,9 +26,6 @@ export function ArtistPage() {
   const customer = useCustomer();
   const subscriptions = useSubscriptions(Boolean(customer.data));
 
-  useEffect(() => {
-    if (page.data) document.title = `${page.data.artist.name} · ${store.name}`;
-  }, [page.data, store.name]);
 
   if (page.isPending) {
     return (

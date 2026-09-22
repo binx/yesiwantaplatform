@@ -25,9 +25,6 @@ export function VerifyEmailPage() {
   const nextParam = params.get("next");
   const next = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/account";
 
-  useEffect(() => {
-    document.title = "Verify your email · Your account";
-  }, []);
 
   useEffect(() => {
     if (!token || attempted.current) return;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { App, Button, Card, Empty, Segmented, Skeleton, Statistic, Table, Tag } from "antd";
 import type { PayoutStatus } from "@shared/platform";
@@ -22,9 +22,6 @@ export function PayoutsPage() {
   const currency = settings.data?.currency ?? "USD";
   const money = (cents: number, c = currency) => formatMoney(cents, c, locale);
 
-  useEffect(() => {
-    document.title = "Payouts · Admin";
-  }, []);
 
   const totals = payouts.data?.totals ?? {};
 

@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Alert, Button, Form, Input, Result } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
@@ -18,9 +17,6 @@ export function ResetPasswordPage() {
   const token = params.get("token") ?? "";
   const reset = useResetPassword();
 
-  useEffect(() => {
-    document.title = "Reset password · Your account";
-  }, []);
 
   if (!token) {
     return (

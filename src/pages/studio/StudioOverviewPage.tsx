@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import { Alert, App, Button, Popconfirm } from "antd";
 import { formatMoney } from "@shared/money";
@@ -23,9 +22,6 @@ export function StudioOverviewPage() {
   const { artist, earnings } = view;
   const money = (cents: number) => formatMoney(cents, earnings.currency, store.locale);
 
-  useEffect(() => {
-    document.title = `Studio · ${store.name}`;
-  }, [store.name]);
 
   const fail = (error: unknown) => void message.error(error instanceof Error ? error.message : "Could not change that.");
 

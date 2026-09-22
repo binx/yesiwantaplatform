@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Alert, App, Button, Card, Input, Select, Skeleton, Space, Tag, Upload } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import type { SettingsInput } from "@shared/api";
@@ -30,9 +30,6 @@ const LOCALES = [
 export function SettingsPage() {
   const settings = useSettings();
 
-  useEffect(() => {
-    document.title = "Settings · Admin";
-  }, []);
 
   if (settings.isPending) return <Skeleton active paragraph={{ rows: 10 }} />;
   if (settings.isError || !settings.data) return <Alert type="error" showIcon title="Could not load your settings." />;

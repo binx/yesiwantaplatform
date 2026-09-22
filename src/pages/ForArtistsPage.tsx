@@ -6,7 +6,6 @@ import { DELIVERY_ESTIMATE } from "@shared/copy";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useStore } from "@/lib/useStore";
 import { useCustomer } from "@/lib/account";
-import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { cx } from "@/lib/cx";
 import styles from "./ForArtistsPage.module.css";
 
@@ -26,7 +25,6 @@ import styles from "./ForArtistsPage.module.css";
 export function ForArtistsPage() {
   const store = useStore();
   const customer = useCustomer();
-  useDocumentTitle("For artists");
 
   const { pricing, currency, locale } = store;
   const money = (cents: number) => formatMoney(cents, currency, locale);

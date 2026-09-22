@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button, Form, Input, Result } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
@@ -15,9 +14,6 @@ import styles from "./Account.module.css";
 export function ForgotPasswordPage() {
   const forgot = useForgotPassword();
 
-  useEffect(() => {
-    document.title = "Forgot password · Your account";
-  }, []);
 
   if (forgot.isSuccess) {
     return (

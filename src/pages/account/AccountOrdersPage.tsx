@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Alert, Skeleton } from "antd";
 import { formatMoney } from "@shared/money";
@@ -13,9 +12,6 @@ export function AccountOrdersPage() {
   const store = useStore();
   const orders = useCustomerOrders();
 
-  useEffect(() => {
-    document.title = `Receipts · ${store.name}`;
-  }, [store.name]);
 
   if (orders.isPending) return <Skeleton active paragraph={{ rows: 4 }} />;
   if (orders.isError) return <Alert type="error" showIcon title="Your receipts could not be loaded." />;

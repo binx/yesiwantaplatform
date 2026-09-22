@@ -69,7 +69,9 @@ publicRouter.get("/artists/:slug", async (req, res) => {
     countForArtists([artist.id]),
     listGalleryMailings({ artistId: artist.id, limit: 12 }),
   ]);
-  const cards = await presentGallery(recent.mailings);
+  // Their own page shows their own cards whatever their visibility: private
+  // keeps them out of the shared feed, not off the page a visitor came for.
+  const cards = await presentGallery(recent.mailings, { feed: false });
 
   res.json({
     artist: toPublicArtist(artist, counts.get(artist.id), settings?.currency ?? "USD"),
@@ -79,7 +81,11 @@ publicRouter.get("/artists/:slug", async (req, res) => {
 
 /* ---------------------------------------------------------------- gallery */
 
-async function presentGallery(mailings: MailingRecord[]): Promise<GalleryCard[]> {
+/**
+ * `feed` is the shared gallery: a private artist's cards are left out of
+ * it. Their own page passes false and shows them.
+ */
+async function presentGallery(mailings: MailingRecord[], { feed }: { feed: boolean }): Promise<GalleryCard[]> {
   const [designs, artists] = await Promise.all([
     findDesignsByIds(mailings.map((m) => m.designId)),
     findArtistsByIds(mailings.map((m) => m.artistId)),
@@ -92,6 +98,7 @@ async function presentGallery(mailings: MailingRecord[]): Promise<GalleryCard[]>
     const artist = artistById.get(mailing.artistId);
     // A draft artist's old cards are not shown either: the page they link to would 404.
     if (!design || !artist || artist.status === "draft") return [];
+    if (feed && artist.visibility === "private") return [];
     return [toGalleryCard(mailing, design, artist)];
   });
 }
@@ -101,5 +108,5 @@ publicRouter.get("/gallery", async (req, res) => {
   const cursor = typeof req.query.cursor === "string" && req.query.cursor !== "" ? req.query.cursor : undefined;
   const limit = Number(req.query.limit);
   const page = await listGalleryMailings({ ...(cursor ? { cursor } : {}), ...(Number.isFinite(limit) ? { limit } : {}) });
-  res.json(galleryPageSchema.parse({ cards: await presentGallery(page.mailings), nextCursor: page.nextCursor }));
+  res.json(galleryPageSchema.parse({ cards: await presentGallery(page.mailings, { feed: true }), nextCursor: page.nextCursor }));
 });

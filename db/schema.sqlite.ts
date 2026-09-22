@@ -145,6 +145,8 @@ export const artists = sqliteTable(
     sendDay: integer("send_day").notNull().default(15),
     /** draft | live | paused */
     status: text("status").notNull().default("draft"),
+    /** public | private. Private keeps the artist's cards out of the shared gallery. */
+    visibility: text("visibility").notNull().default("public"),
     stripeAccountId: text("stripe_account_id"),
     payoutsEnabled: integer("payouts_enabled", { mode: "boolean" }).notNull().default(false),
     ...timestamps,

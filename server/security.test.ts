@@ -30,7 +30,7 @@ beforeAll(async () => {
   await createAdmin("admin@example.com", PASSWORD);
   await createCustomer("customer@example.com", PASSWORD, null);
   const artistCustomer = await createCustomer("artist@example.com", PASSWORD, "Rachel");
-  await createArtist(artistCustomer, { slug: "rachel", name: "Rachel", tagline: null, bio: "", monthlyPriceCents: 500, sendDay: 15, avatar: null });
+  await createArtist(artistCustomer, { slug: "rachel", name: "Rachel", tagline: null, bio: "", monthlyPriceCents: 500, sendDay: 15, visibility: "public", avatar: null });
 
   app = createApp();
 });

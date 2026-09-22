@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useOutletContext } from "react-router-dom";
-import { Alert, App, Button, Input, InputNumber, Upload } from "antd";
+import { Alert, App, Button, Input, InputNumber, Radio, Upload } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
-import { artistProfileInputSchema, type ArtistProfileInput } from "@shared/platform";
+import { artistProfileInputSchema, type ArtistProfileInput, type ArtistVisibility } from "@shared/platform";
 import { formatMoney, parseCents } from "@shared/money";
 import type { Image } from "@shared/schema";
 import { artistShareCents } from "@shared/schema";
@@ -20,6 +20,7 @@ interface Draft {
   bio: string;
   price: string;
   sendDay: number;
+  visibility: ArtistVisibility;
   avatar: Image | null;
 }
 
@@ -70,6 +71,7 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
       bio: draft.bio,
       monthlyPriceCents: priceCents,
       sendDay: draft.sendDay,
+      visibility: draft.visibility,
       avatar: draft.avatar,
     } satisfies Record<keyof ArtistProfileInput, unknown>);
     if (!parsed.success) {
@@ -158,6 +160,26 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
       </div>
 
       <div className={styles.field}>
+        <span className={styles.label} id="artist-visibility-label">
+          Gallery
+        </span>
+        <Radio.Group
+          aria-labelledby="artist-visibility-label"
+          value={draft.visibility}
+          onChange={(e) => set("visibility", e.target.value as ArtistVisibility)}
+          options={[
+            { value: "public", label: "Public" },
+            { value: "private", label: "Private" },
+          ]}
+        />
+        <span className={styles.help}>
+          {draft.visibility === "public"
+            ? "Cards you mail can appear in the site's gallery of recent postcards, with your name on them."
+            : "Your cards stay between you and your subscribers: they show on your own page, but never in the site's gallery."}
+        </span>
+      </div>
+
+      <div className={styles.field}>
         <span className={styles.label}>Photo of you (optional)</span>
         <div className={styles.avatarRow}>
           {draft.avatar ? <img className={styles.avatarPreview} src={assetUrl(draft.avatar.path)} alt="" /> : <div className={styles.avatarPreview} aria-hidden />}
@@ -215,7 +237,7 @@ export function StudioNewPage() {
       <p style={{ maxWidth: "40rem" }}>Your page starts as a draft. Nobody sees it until you go live.</p>
       <ProfileForm
         mode="create"
-        initial={{ slug: slugify(customer.data?.name ?? ""), name: customer.data?.name ?? "", tagline: "", bio: "", price: (Math.max(store.pricing.minMonthlyPriceCents, 500) / 100).toFixed(2), sendDay: 15, avatar: null }}
+        initial={{ slug: slugify(customer.data?.name ?? ""), name: customer.data?.name ?? "", tagline: "", bio: "", price: (Math.max(store.pricing.minMonthlyPriceCents, 500) / 100).toFixed(2), sendDay: 15, visibility: "public", avatar: null }}
       />
     </div>
   );
@@ -235,7 +257,7 @@ export function StudioProfilePage() {
       <h2>Your page</h2>
       <ProfileForm
         mode="edit"
-        initial={{ slug: artist.slug, name: artist.name, tagline: artist.tagline ?? "", bio: artist.bio, price: (artist.monthlyPriceCents / 100).toFixed(2), sendDay: artist.sendDay, avatar: artist.avatar }}
+        initial={{ slug: artist.slug, name: artist.name, tagline: artist.tagline ?? "", bio: artist.bio, price: (artist.monthlyPriceCents / 100).toFixed(2), sendDay: artist.sendDay, visibility: artist.visibility, avatar: artist.avatar }}
       />
       <p className={cx(styles.note)} style={{ marginTop: "1.5rem" }}>
         Changing your price affects new subscribers only. Everyone already subscribed keeps paying what they signed up for.

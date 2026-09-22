@@ -1,4 +1,4 @@
-import { useEffect, type CSSProperties, type ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { Button, Skeleton } from "antd";
 import { formatMoney } from "@shared/money";
@@ -93,23 +93,6 @@ function PostcardField() {
 }
 
 /**
- * Switch the document to the night scheme while the front page is up.
- *
- * The operator's theme paints every other page; the front page is the
- * platform's own and is dark whatever the theme says. `body[data-scheme]`
- * in index.css carries the palette; setting it on the body rather than
- * wrapping the page lets the footer follow too.
- */
-function useNightScheme() {
-  useEffect(() => {
-    document.body.dataset.scheme = "night";
-    return () => {
-      delete document.body.dataset.scheme;
-    };
-  }, []);
-}
-
-/**
  * The front page: yesiwantapostcard.com's pitch, with the artists you can
  * say yes to under it, and what recently went out in the post. The parts the
  * operator can edit are read from settings; the price floor is never typed
@@ -128,8 +111,6 @@ export function LandingPage() {
   const floor = formatMoney(store.pricing.minMonthlyPriceCents, store.currency, store.locale);
   const recent = gallery.data?.pages[0]?.cards ?? [];
   const featured = (artists.data ?? []).slice(0, 6);
-
-  useNightScheme();
 
   return (
     <>

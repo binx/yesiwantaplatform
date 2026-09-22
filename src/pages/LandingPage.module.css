@@ -2,8 +2,8 @@
  * The front page. Dark table, iridescent mail: the hero is a field of
  * corrugated postcards standing on end, lit with the platform's chroma
  * (--chroma and --ridges in index.css), and the wordmark is cut from the
- * same material. Everything below the fold stays on the night palette that
- * `LandingPage` switches the body into.
+ * same material. The palette is the site's own — night by default, see
+ * src/lib/theme.ts — so this page is the shiniest, not a different colour.
  */
 
 .hero {

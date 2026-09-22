@@ -27,12 +27,14 @@ const schemePalette: Record<ColorScheme, Palette> = {
     surface: "#ffffff",
     page: "#fafaf9",
   },
+  // Night: the platform's own scheme, and its default. Blue-black rather
+  // than warm grey, so the chroma (index.css) reads as light on metal.
   dark: {
-    ink: "#fafaf9",
-    muted: "#a1a1aa",
-    line: "#3f3f46",
-    surface: "#1c1917",
-    page: "#0c0a09",
+    ink: "#f4f2ff",
+    muted: "#a7a3c4",
+    line: "#27263d",
+    surface: "#12111f",
+    page: "#07070f",
   },
 };
 

@@ -5,6 +5,10 @@
   justify-content: center;
   padding: 3rem 1rem 4rem;
   background: #fafaf9;
+  /* Literal palette, ink included: the body's colour is the store's, which
+     is near-white under the night default and would land on this pale page. */
+  color: #18181b;
+  color-scheme: light;
 }
 
 .card {

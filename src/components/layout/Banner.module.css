@@ -3,8 +3,11 @@
   align-items: center;
   gap: 1.5rem;
   padding: 1.25rem var(--beluga-gutter);
-  border-bottom: 1px solid var(--beluga-line);
-  background: var(--beluga-surface);
+  /* A hairline of the platform's chroma under the header: the one bit of
+     shine every page gets, at the width of a line. */
+  background:
+    var(--chroma) bottom / 100% 1px no-repeat,
+    var(--beluga-surface);
 }
 
 .brand {

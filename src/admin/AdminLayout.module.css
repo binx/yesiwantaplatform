@@ -3,6 +3,10 @@
   display: grid;
   grid-template-columns: 232px 1fr;
   background: #fafaf9;
+  /* Literal palette, ink included: the body's colour is the store's, which
+     is near-white under the night default and would land on this pale page. */
+  color: #18181b;
+  color-scheme: light;
 }
 
 .sidebar {

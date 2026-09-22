@@ -193,13 +193,18 @@ export const storeSchema = z.object({
  * The default look: warm paper, near-black ink, and Quicksand — the face
  * yesiwantapostcard.com set its whole page in.
  */
+/*
+ * Night by default: the dark palette in src/lib/theme.ts, with links and
+ * focus rings in the cyan end of the platform's chroma and the accent in
+ * its magenta. The page colour follows the scheme rather than being pinned.
+ */
 export const defaultTheme: Theme = {
-  colorPrimary: "#1c1917",
-  colorAccent: "#f5c542",
+  colorPrimary: "#12e2ff",
+  colorAccent: "#ff2d8a",
   fontFamily: 'Quicksand, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   borderRadius: 4,
-  colorScheme: "light",
-  colorPage: "#efece6",
+  colorScheme: "dark",
+  colorPage: null,
   logo: null,
   fontUrl:
     "https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&family=Sacramento&family=Patrick+Hand&display=swap",

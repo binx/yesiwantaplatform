@@ -47,13 +47,6 @@ describe("the landing page", () => {
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/account/login");
   });
 
-  it("switches the document to the night scheme while it is up, and back", () => {
-    const { unmount } = renderWithProviders(<LandingPage />, { store: withHero({}) });
-    expect(document.body.dataset.scheme).toBe("night");
-    unmount();
-    expect(document.body.dataset.scheme).toBeUndefined();
-  });
-
   it("invites the first artist when nobody is live yet", () => {
     renderWithProviders(<LandingPage />, { store: withHero({}) });
     expect(screen.getByText(/No artists have gone live yet/)).toBeInTheDocument();

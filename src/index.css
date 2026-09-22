@@ -11,23 +11,25 @@
  *
  * The real values are injected onto :root by ThemeVars from the store's saved
  * theme — see `schemePalette` and `themeCssVars` in src/lib/theme.ts, which are
- * the source of truth for both schemes. Duplicating the dark palette here would
- * only give it somewhere to drift, so it lives in one place.
+ * the source of truth for both schemes. The fallback is the night palette,
+ * the platform's default, so the first frame is not a flash of white before
+ * the theme lands. Duplicating the light palette here would only give it
+ * somewhere to drift, so it lives in one place.
  */
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
-  --beluga-ink: #18181b;
-  --beluga-muted: #71717a;
-  --beluga-line: #e4e4e7;
-  --beluga-surface: #ffffff;
-  --beluga-page: #fafaf9;
+  --beluga-ink: #f4f2ff;
+  --beluga-muted: #a7a3c4;
+  --beluga-line: #27263d;
+  --beluga-surface: #12111f;
+  --beluga-page: #07070f;
 
-  --beluga-primary: #18181b;
-  --beluga-on-primary: #ffffff;
-  --beluga-accent: #e07a5f;
+  --beluga-primary: #12e2ff;
+  --beluga-on-primary: #07070f;
+  --beluga-accent: #ff2d8a;
   --beluga-on-accent: #18181b;
-  --beluga-radius: 2px;
+  --beluga-radius: 4px;
 
   --beluga-gutter: clamp(1rem, 4vw, 2.5rem);
   --beluga-measure: 68ch;
@@ -62,36 +64,8 @@
 }
 
 /* Native form controls and scrollbars follow the shop's choice. */
-:root[data-color-scheme="dark"] {
-  color-scheme: dark;
-}
-
-/*
- * Night: the front page's scheme, whatever the operator's theme says.
- *
- * Set on <body> rather than :root because ThemeVars writes the theme's
- * values as inline styles on :root, which nothing in a stylesheet outranks;
- * one level down, a declared value wins over an inherited one, and every
- * CSS Module on the page — the artist tiles, the footer — follows without
- * knowing. `LandingPage` sets and clears the attribute.
- */
-body[data-scheme="night"] {
-  color-scheme: dark;
-
-  --beluga-ink: #f4f2ff;
-  --beluga-muted: #a7a3c4;
-  --beluga-line: #27263d;
-  --beluga-surface: #12111f;
-  --beluga-page: #07070f;
-  --beluga-primary: #f4f2ff;
-  --beluga-on-primary: #07070f;
-}
-
-/* antd's App wrapper writes the theme's ink as an inline-strength colour on
-   its own div, and every heading and tile name on the page inherits it;
-   under night that ink is near-black on near-black. */
-body[data-scheme="night"] .ant-app {
-  color: var(--beluga-ink);
+:root[data-color-scheme="light"] {
+  color-scheme: light;
 }
 
 *,

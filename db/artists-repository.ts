@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
-import type { ArtistProfileInput, ArtistStatus } from "../shared/platform.js";
+import type { ArtistProfileInput, ArtistStatus, ArtistVisibility } from "../shared/platform.js";
 import type { Image } from "../shared/schema.js";
 import { SlugTakenError } from "./admin-repository.js";
 import { getDatabase } from "./client.js";
@@ -28,6 +28,7 @@ export interface ArtistRow {
   monthlyPriceCents: number;
   sendDay: number;
   status: string;
+  visibility: string;
   stripeAccountId: string | null;
   payoutsEnabled: unknown;
   createdAt: unknown;
@@ -44,6 +45,7 @@ export interface ArtistRecord {
   monthlyPriceCents: number;
   sendDay: number;
   status: ArtistStatus;
+  visibility: ArtistVisibility;
   stripeAccountId: string | null;
   payoutsEnabled: boolean;
   createdAt: number;
@@ -51,6 +53,11 @@ export interface ArtistRecord {
 
 function toStatus(value: string): ArtistStatus {
   return value === "live" || value === "paused" ? value : "draft";
+}
+
+/** Anything but an explicit "private" shows: an unknown value must not hide cards by accident. */
+function toVisibility(value: string): ArtistVisibility {
+  return value === "private" ? "private" : "public";
 }
 
 export function buildArtist(row: ArtistRow): ArtistRecord {
@@ -69,6 +76,7 @@ export function buildArtist(row: ArtistRow): ArtistRecord {
     // Clamped on the way out too: a hand-edited 31 would never fire in February.
     sendDay: Math.min(28, Math.max(1, row.sendDay)),
     status: toStatus(row.status),
+    visibility: toVisibility(row.visibility),
     stripeAccountId: row.stripeAccountId,
     payoutsEnabled: toBool(row.payoutsEnabled),
     createdAt: toEpochMs(row.createdAt),
@@ -100,6 +108,7 @@ export async function createArtist(customerId: string, input: ArtistProfileInput
       ...avatarColumns(input.avatar),
       monthlyPriceCents: input.monthlyPriceCents,
       sendDay: input.sendDay,
+      visibility: input.visibility,
       status: "draft",
     });
   } catch (error) {
@@ -126,6 +135,7 @@ export async function updateArtistProfile(id: string, input: ArtistProfileInput)
         ...avatarColumns(input.avatar),
         monthlyPriceCents: input.monthlyPriceCents,
         sendDay: input.sendDay,
+        visibility: input.visibility,
         updatedAt: nowFor(dialect),
       })
       .where(eq(schema.artists.id, id));

@@ -94,7 +94,7 @@ describe("metaForPath", () => {
     const { createCustomer } = await import("./auth.js");
     const { createArtist, setArtistStatus } = await import("../db/artists-repository.js");
     const owner = await createCustomer("seo-artist@example.com", "a-sufficiently-long-password", "Rachel");
-    const artist = await createArtist(owner, { slug: "seo-rachel", name: "Rachel", tagline: "photos from the road", bio: "", monthlyPriceCents: 500, sendDay: 15, avatar: null });
+    const artist = await createArtist(owner, { slug: "seo-rachel", name: "Rachel", tagline: "photos from the road", bio: "", monthlyPriceCents: 500, sendDay: 15, visibility: "public", avatar: null });
     expect((await metaForPath("/a/seo-rachel")).status).toBe(404);
     await setArtistStatus(artist.id, "live");
     const page = await metaForPath("/a/seo-rachel");

@@ -1,0 +1,1 @@
+ALTER TABLE `artists` ADD `visibility` text DEFAULT 'public' NOT NULL;

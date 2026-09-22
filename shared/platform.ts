@@ -31,6 +31,18 @@ export const artistSlugSchema = slugSchema.min(3, "Use at least 3 characters.").
 export const artistStatusSchema = z.enum(["draft", "live", "paused"]);
 export type ArtistStatus = z.infer<typeof artistStatusSchema>;
 
+/**
+ * Whether the artist's mailed cards join the shared gallery.
+ *
+ *   public   each card they mail can appear in "recently in the post"
+ *   private  their cards are only ever on their own page and in their
+ *            subscribers' letterboxes
+ *
+ * Independent of `status`: a private artist is still listed and subscribable.
+ */
+export const artistVisibilitySchema = z.enum(["public", "private"]);
+export type ArtistVisibility = z.infer<typeof artistVisibilitySchema>;
+
 /** The day of the month an artist's queue advances. 28 at most: every month has one. */
 export const sendDaySchema = z.number().int().min(1).max(28);
 
@@ -47,6 +59,7 @@ export const artistPublicSchema = z.object({
   monthlyPriceCents: centsSchema,
   currency: z.string().length(3),
   status: artistStatusSchema,
+  visibility: artistVisibilitySchema,
   sendDay: sendDaySchema,
   subscriberCount: z.number().int().min(0),
   /** How many cards this artist has mailed to subscribers, all time. */
@@ -78,6 +91,7 @@ export const artistProfileInputSchema = z.object({
   bio: z.string().max(10_000).default(""),
   monthlyPriceCents: centsSchema.min(50, "Stripe cannot charge less than 50 cents."),
   sendDay: sendDaySchema.default(15),
+  visibility: artistVisibilitySchema.default("public"),
   avatar: imageSchema.nullable().default(null),
 });
 

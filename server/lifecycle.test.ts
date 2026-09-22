@@ -297,6 +297,26 @@ describe("the mailing day", () => {
     expect((await request(app).get("/api/artists").expect(200)).body[0].latest.id).toBe(designId);
   });
 
+  it("keeps a private artist's cards out of the gallery, but not off their own page", async () => {
+    const { agent, csrf } = await signIn("artist@example.com");
+    const profile = { slug: "rachel", name: "Rachel", tagline: "photos from the road", bio: "**Hi.**", monthlyPriceCents: 500, sendDay: 15 };
+
+    const hidden = await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ ...profile, visibility: "private" }).expect(200);
+    expect(hidden.body.artist.visibility).toBe("private");
+
+    // The shared feed is empty; the artist is still listed, still subscribable, and their page still shows the card.
+    expect((await request(app).get("/api/gallery").expect(200)).body.cards).toEqual([]);
+    const listed = (await request(app).get("/api/artists").expect(200)).body as { slug: string }[];
+    expect(listed.map((a) => a.slug)).toEqual(["rachel"]);
+    const page = await request(app).get("/api/artists/rachel").expect(200);
+    expect(page.body.artist.status).toBe("live");
+    expect(page.body.recent).toEqual([expect.objectContaining({ mailingId })]);
+
+    // Back to public: the card is in the feed again. Nothing about the mailing itself changed.
+    await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ ...profile, visibility: "public" }).expect(200);
+    expect((await request(app).get("/api/gallery").expect(200)).body.cards).toEqual([expect.objectContaining({ mailingId })]);
+  });
+
   it("records the artist's share in the ledger the moment Lob accepts the card", async () => {
     const artist = await signIn("artist@example.com");
     const earnings = await artist.agent.get("/api/studio/earnings").expect(200);

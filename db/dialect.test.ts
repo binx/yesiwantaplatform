@@ -103,7 +103,7 @@ for (const { name, context } of dialects) {
 
     async function artist(slug = `artist-${randomUUID().slice(0, 8)}`) {
       const owner = await customer("Rachel");
-      return db.artists.createArtist(owner, { slug, name: "Rachel", tagline: "photos from the road", bio: "# Hello", monthlyPriceCents: 500, sendDay: 15, avatar: null });
+      return db.artists.createArtist(owner, { slug, name: "Rachel", tagline: "photos from the road", bio: "# Hello", monthlyPriceCents: 500, sendDay: 15, visibility: "public", avatar: null });
     }
 
     async function design(artistId: string) {

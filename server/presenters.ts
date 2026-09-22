@@ -54,6 +54,7 @@ export function toPublicArtist(artist: ArtistRecord, counts: ArtistCounts = NO_C
     monthlyPriceCents: artist.monthlyPriceCents,
     currency,
     status: artist.status,
+    visibility: artist.visibility,
     sendDay: artist.sendDay,
     subscriberCount: counts.subscribers,
     mailedCount: counts.mailed,

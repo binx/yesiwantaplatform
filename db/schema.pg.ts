@@ -99,6 +99,7 @@ export const artists = pgTable(
     monthlyPriceCents: integer("monthly_price_cents").notNull(),
     sendDay: integer("send_day").notNull().default(15),
     status: text("status").notNull().default("draft"),
+    visibility: text("visibility").notNull().default("public"),
     stripeAccountId: text("stripe_account_id"),
     payoutsEnabled: boolean("payouts_enabled").notNull().default(false),
     ...timestamps,

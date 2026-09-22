@@ -20,7 +20,7 @@ import styles from "./LandingPage.module.css";
  */
 function HeroButton({ href, children }: { href: string; children: ReactNode }) {
   const button = (
-    <Button type="primary" size="large">
+    <Button size="large" className={cx(styles.heroButton)}>
       {children}
     </Button>
   );
@@ -68,8 +68,8 @@ export function LandingPage() {
             </ul>
             <div className={styles.heroActions}>
               <HeroButton href={hero.buttonHref ?? "/artists"}>{hero.buttonLabel ?? "YES I WANT A POSTCARD"}</HeroButton>
-              <Link to="#wtf" className={styles.wtf}>
-                WTF?
+              <Link to="#how" className={styles.heroAside}>
+                How it works
               </Link>
             </div>
           </div>
@@ -105,21 +105,15 @@ export function LandingPage() {
           </div>
         )}
 
-        <section id="wtf" className={styles.wtf}>
-          <div className={styles.columns}>
-            <div className={styles.column}>
-              <h2>WTF?</h2>
+        <section id="how" className={styles.how}>
+          <div className={styles.paths}>
+            <div className={styles.path}>
+              <p className={styles.pathKicker}>For subscribers</p>
+              <h2 className={styles.pathHeading}>Add a little mail magic to your life</h2>
               <p>
-                An artist you like takes photos, makes pictures, goes places. Instead of posting them, once a month they mail one to
-                everyone who said yes: a real postcard, with a photo they took on the front and a short note on the back.
+                An artist you like takes photos, makes pictures, goes places. Instead of posting them, once a month they mail one
+                to everyone who said yes: a real postcard, with a photo they took on the front and a short note on the back.
               </p>
-              <p>
-                The postcards you receive are the only documentation of it. Nothing goes online. What will it feel like? Will you and
-                the artist deepen your connection? Say yes and find out.
-              </p>
-            </div>
-            <div className={styles.column}>
-              <h2>How it works</h2>
               <ol className={styles.steps}>
                 <li>
                   <strong>Pick an artist.</strong> Each sets their own monthly price.
@@ -128,15 +122,36 @@ export function LandingPage() {
                   <strong>Give us your address.</strong> Once. Change it anytime.
                 </li>
                 <li>
-                  <strong>Check your letterbox.</strong> Around the same day each month, a card arrives. Cancel whenever; you won't hurt
-                  anyone's feelings.
+                  <strong>Check your letterbox.</strong> Around the same day each month, a card arrives. Cancel whenever; you won't
+                  hurt anyone's feelings.
                 </li>
               </ol>
-              <h3>Are you an artist?</h3>
+              <Link to="/artists" className={styles.pathAction}>
+                Find an artist
+              </Link>
+            </div>
+            <div className={styles.path}>
+              <p className={styles.pathKicker}>For artists</p>
+              <h2 className={styles.pathHeading}>Share your art, build an audience</h2>
               <p>
-                Make a page, set a price, queue a card a month. We print it, mail it, and send you the difference after printing and
-                a small fee. <Link to="/studio/new">Open a studio</Link>.
+                Your best work deserves better than a feed. Once a month, put one picture and a few words in the hands of the people
+                who want to hear from you — no algorithm, nothing online, just a card that arrives.
               </p>
+              <ol className={styles.steps}>
+                <li>
+                  <strong>Open a studio.</strong> Make your page and set your own monthly price.
+                </li>
+                <li>
+                  <strong>Queue a card a month.</strong> A photo on the front, your note on the back.
+                </li>
+                <li>
+                  <strong>We do the rest.</strong> We print it, mail it to every subscriber, and pay you the difference after
+                  printing and a small fee.
+                </li>
+              </ol>
+              <Link to="/studio/new" className={styles.pathAction}>
+                Open a studio
+              </Link>
             </div>
           </div>
         </section>

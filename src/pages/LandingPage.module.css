@@ -65,11 +65,26 @@
   flex-wrap: wrap;
 }
 
-.heroActions :global(.ant-btn) {
+/*
+ * The hero's button is the theme's ink, not the site-wide yellow: the
+ * wordmark above it is already the loudest thing on the page, and the
+ * yellow on a cream page read as a sticker.
+ */
+.heroActions :global(.ant-btn.ant-btn).heroButton {
   letter-spacing: 0.06em;
+  color: var(--beluga-on-primary);
+  background: var(--beluga-primary);
+  border-color: var(--beluga-primary);
 }
 
-a.wtf {
+.heroActions :global(.ant-btn.ant-btn).heroButton:hover,
+.heroActions :global(.ant-btn.ant-btn).heroButton:focus-visible {
+  color: var(--beluga-on-primary);
+  background: color-mix(in srgb, var(--beluga-primary) 82%, var(--beluga-surface));
+  border-color: color-mix(in srgb, var(--beluga-primary) 82%, var(--beluga-surface));
+}
+
+.heroAside {
   font-size: 0.875rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -132,30 +147,76 @@ a.wtf {
   border: 1px dashed var(--beluga-muted);
 }
 
-.wtf {
+/* ------------------------------------------------- the two ways in */
+
+.how {
   scroll-margin-top: 2rem;
   margin: 3rem 0 2rem;
-  padding: 2.5rem 0 1rem;
-  border-top: 3px dotted var(--beluga-ink);
 }
 
-.columns {
+/* One panel for each audience, side by side until the page is narrow. */
+.paths {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
-  gap: 2.5rem;
+  gap: 1.5rem;
 }
 
-.column p {
-  margin: 0 0 0.75rem;
+.path {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+  padding: 2rem;
+  background: var(--beluga-surface);
+  border: 1px solid var(--beluga-line);
+  border-radius: var(--beluga-radius);
+}
+
+.path p {
+  margin: 0;
   max-width: 40rem;
+  line-height: 1.55;
+}
+
+.pathKicker {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--beluga-muted);
+}
+
+.pathHeading {
+  margin: 0;
+  font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
 }
 
 .steps {
-  margin: 0 0 1.5rem;
+  margin: 0.25rem 0 0.5rem;
   padding-left: 1.25rem;
   display: grid;
   gap: 0.5rem;
   line-height: 1.5;
+}
+
+.pathAction {
+  justify-self: start;
+  margin-top: auto;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--beluga-ink);
+  border-bottom: 2px solid var(--beluga-ink);
+  padding-bottom: 0.1rem;
+}
+
+.pathAction:hover,
+.pathAction:focus-visible {
+  color: var(--beluga-muted);
+  border-color: var(--beluga-muted);
 }
 
 @media (max-width: 800px) {

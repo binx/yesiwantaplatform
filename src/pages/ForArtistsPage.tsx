@@ -45,7 +45,7 @@ export function ForArtistsPage() {
   const steps = [
     {
       title: "Set up your studio",
-      text: `Tell us about yourself, then set up your art editions: ${EDITION_SIZES.join(" or ")} postcards each, at one price for the set.`,
+      text: `Tell us about yourself, then set up your art editions: ${EDITION_SIZES.join(" or ")} postcards each.`,
     },
     {
       title: "Collectors purchase your art",

@@ -119,8 +119,8 @@ export const artistSummarySchema = artistPublicSchema.pick({
   collectorCount: true,
   mailedCount: true,
 }).extend({
-  /** The most recently mailed card, for the tile's picture. */
-  latest: postcardDesignSchema.nullable().default(null),
+  /** The newest on-sale edition's banner, for the tile's picture. Never a card: those are the surprise. */
+  banner: imageSchema.nullable().default(null),
   /** The cheapest edition on sale, for "from $30". Null when nothing is. */
   fromPriceCents: centsSchema.nullable().default(null),
   /** How many editions are on sale. */
@@ -220,12 +220,14 @@ export const editionSchema = z.object({
   createdAt: z.number().int(),
 });
 
-/** One edition in a list. */
+/** One edition in a list: enough for a tile, or a feature on its artist's page. */
 export const editionSummarySchema = editionSchema.pick({
   id: true,
   slug: true,
   title: true,
+  descriptionHtml: true,
   banner: true,
+
   cardCount: true,
   cadence: true,
   priceCents: true,

@@ -29,8 +29,8 @@ import { findDesignsByIds, toPublicDesign, type Design } from "../db/designs-rep
 import {
   findEditionCardsByIds,
   findEditionsByIds,
-  latestMailedDesignIds,
   listCardsForEditions,
+
   listOnSaleEditionsForArtists,
   type EditionCardRecord,
   type EditionRecord,
@@ -70,13 +70,9 @@ export function toPublicArtist(artist: ArtistRecord, counts: ArtistCounts = NO_C
   });
 }
 
-export function toArtistSummary(
-  artist: ArtistRecord,
-  counts: ArtistCounts = NO_COUNTS,
-  latest: Design | null = null,
-  currency = "USD",
-  onSale: EditionRecord[] = [],
-): ArtistSummary {
+/** The tile's picture is the newest on-sale edition that has a banner; a card is never shown before it is mailed. */
+export function toArtistSummary(artist: ArtistRecord, counts: ArtistCounts = NO_COUNTS, currency = "USD", onSale: EditionRecord[] = []): ArtistSummary {
+  const newest = [...onSale].sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id)).find((edition) => edition.banner);
   return artistSummarySchema.parse({
     id: artist.id,
     slug: artist.slug,
@@ -86,23 +82,24 @@ export function toArtistSummary(
     currency,
     collectorCount: counts.collectors,
     mailedCount: counts.mailed,
-    latest: latest ? toPublicDesign(latest, `A postcard by ${artist.name}`) : null,
+    banner: newest?.banner ?? null,
     fromPriceCents: onSale.length > 0 ? Math.min(...onSale.map((edition) => edition.priceCents)) : null,
     editionCount: onSale.length,
   });
 }
 
-/** Summaries for many artists: their counts, latest card and editions on sale in a few grouped queries. */
+/** Summaries for many artists: their counts and editions on sale in two grouped queries. */
 export async function summariseArtists(artists: ArtistRecord[], currency: string): Promise<ArtistSummary[]> {
   const ids = artists.map((artist) => artist.id);
-  const [counts, latestIds, onSale] = await Promise.all([countForArtists(ids), latestMailedDesignIds(ids), listOnSaleEditionsForArtists(ids)]);
-  const designs = await findDesignsByIds([...latestIds.values()]);
-  const designById = new Map(designs.map((design) => [design.id, design]));
-  return artists.map((artist) => {
-    const latestId = latestIds.get(artist.id);
-    const theirs = onSale.filter((edition) => edition.artistId === artist.id);
-    return toArtistSummary(artist, counts.get(artist.id), latestId ? (designById.get(latestId) ?? null) : null, currency, theirs);
-  });
+  const [counts, onSale] = await Promise.all([countForArtists(ids), listOnSaleEditionsForArtists(ids)]);
+  return artists.map((artist) =>
+    toArtistSummary(
+      artist,
+      counts.get(artist.id),
+      currency,
+      onSale.filter((edition) => edition.artistId === artist.id),
+    ),
+  );
 }
 
 export function toArtistStudio(artist: ArtistRecord, email: string, counts: ArtistCounts, currency: string): ArtistStudio {

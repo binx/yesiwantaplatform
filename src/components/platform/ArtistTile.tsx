@@ -9,8 +9,9 @@ import { cx } from "@/lib/cx";
 import styles from "./Platform.module.css";
 
 /**
- * One artist in a grid: their latest card, their face, what their editions
- * start at.
+ * One artist in a grid: their newest edition's banner (or their face, when
+ * none has one), their name, what their editions start at. Never a card:
+ * the cards are the surprise.
  *
  * The whole tile is one link, so a screen reader hears the name once; the
  * picture is decorative because the name beside it is the name.
@@ -20,7 +21,8 @@ export function ArtistTile({ artist, locale }: { artist: ArtistSummary; locale: 
   return (
     <Link to={artistPath(artist.slug)} className={cx(styles.tile)}>
       <div className={styles.tileImage}>
-        <ProductImage image={artist.latest?.thumbnail ?? artist.avatar} {...(artist.latest ? {} : { ratio: 3 / 2 })} sizes="(max-width: 800px) 100vw, 33vw" decorative />
+        <ProductImage image={artist.banner ?? artist.avatar} ratio={artist.banner ? 3 : 3 / 2} sizes="(max-width: 800px) 100vw, 33vw" decorative />
+
       </div>
       <div className={styles.tileBody}>
         <div className={styles.tileHead}>

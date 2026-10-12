@@ -336,7 +336,7 @@ for (const { name, context } of dialects) {
       expect(sent.sentAt).toBeTypeOf("number");
 
       expect((await db.artists.countForArtists([a.id])).get(a.id)).toEqual({ collectors: 2, mailed: 1 });
-      expect((await db.editions.latestMailedDesignIds([a.id])).get(a.id)).toBe(set.cards[0]!.designId);
+
 
 
       // The collector sees the card that went, and only that one.

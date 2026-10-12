@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
+
 import type { Cadence, EditionInput, EditionSize, EditionStatus } from "../shared/platform.js";
 import type { Image } from "../shared/schema.js";
 import { getDatabase } from "./client.js";
@@ -408,17 +409,3 @@ export async function listGalleryEditions(options: { limit?: number; cursor?: st
 }
 
 
-/** The most recently mailed shown design of each artist, for a directory tile. */
-export async function latestMailedDesignIds(artistIds: string[]): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
-  if (artistIds.length === 0) return map;
-  const { drizzle: db, schema } = await getDatabase();
-  const rows = (await db
-    .select({ artistId: schema.editions.artistId, designId: schema.editionCards.designId })
-    .from(schema.editionCards)
-    .innerJoin(schema.editions, eq(schema.editions.id, schema.editionCards.editionId))
-    .where(and(inArray(schema.editions.artistId, [...new Set(artistIds)]), isNotNull(schema.editionCards.firstMailedAt), eq(schema.editions.inGallery, true)))
-    .orderBy(desc(schema.editionCards.firstMailedAt), desc(schema.editionCards.id))) as unknown as { artistId: string; designId: string }[];
-  for (const row of rows) if (!map.has(row.artistId)) map.set(row.artistId, row.designId);
-  return map;
-}

@@ -37,7 +37,7 @@ async function signIn(page: Page, email: string) {
 test("the front page makes the pitch and points at the artists", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("yes");
-  await expect(page.getByText("let's move beyond social media")).toBeVisible();
+  await expect(page.getByText("Pay once, then let the mail surprise you.")).toBeVisible();
   await page.getByRole("link", { name: "YES I WANT A POSTCARD", exact: true }).click();
   await expect(page).toHaveURL(/\/artists$/);
   await expect(page.getByRole("heading", { name: "Artists", level: 1 })).toBeVisible();

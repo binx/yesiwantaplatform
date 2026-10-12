@@ -203,9 +203,6 @@
 .points li:nth-child(4) {
   --i: 3;
 }
-.points li:nth-child(5) {
-  --i: 4;
-}
 
 .heroActions {
   display: flex;
@@ -507,7 +504,7 @@
 
 .pathAction:hover,
 .pathAction:focus-visible {
-  background-size: 100% 0.35rem;
+  background-size: 100% 3px;
 }
 
 @media (max-width: 800px) {

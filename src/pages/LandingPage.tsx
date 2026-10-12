@@ -1,7 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { Button, Skeleton } from "antd";
-import { formatMoney } from "@shared/money";
 import { PITCH_LINES } from "@shared/copy";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useSiteLinks } from "@/components/layout/siteLinks";
@@ -108,7 +107,6 @@ export function LandingPage() {
   const gallery = useGallery(8);
   const customer = useCustomer();
   const { links, accountHref, accountLabel } = useSiteLinks();
-  const floor = formatMoney(store.pricing.minCardPriceCents, store.currency, store.locale);
   const onSale = gallery.data?.pages[0]?.editions ?? [];
   const featured = (artists.data ?? []).slice(0, 6);
 
@@ -137,7 +135,6 @@ export function LandingPage() {
               {PITCH_LINES.map((line) => (
                 <li key={line}>{line}</li>
               ))}
-              <li>from {floor} a card, in sets of 6 or 12, straight to your mailbox</li>
             </ul>
             <div className={styles.heroActions}>
               <HeroButton href={hero.buttonHref ?? "/artists"}>{hero.buttonLabel ?? "YES I WANT A POSTCARD"}</HeroButton>
@@ -180,18 +177,15 @@ export function LandingPage() {
             <div className={styles.path}>
               <p className={styles.pathKicker}>For collectors</p>
               <h2 className={styles.pathHeading}>Add a little mail magic to your life</h2>
-              <p>
-                An artist you like makes an edition: a set of real postcards, mailed to you one at a time.
-              </p>
               <ol className={styles.steps}>
                 <li>
-                  <strong>Pick an edition.</strong> 6 or 12 cards, paid once.
+                  <strong>Pick an edition.</strong> Find an artist whose work you want in your mailbox.
                 </li>
                 <li>
                   <strong>Say where and how often.</strong> Your address, once or twice a month, and if you like, the first card's day.
                 </li>
                 <li>
-                  <strong>Check your mailbox.</strong> A card arrives until the set is done. Nothing renews, nothing to cancel.
+                  <strong>Check your mailbox.</strong> A card arrives until the set is done. Say yes to a few artists at once and they all take turns in your mailbox.
                 </li>
               </ol>
               <Link to="/artists" className={styles.pathAction}>

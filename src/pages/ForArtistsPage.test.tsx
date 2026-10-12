@@ -43,6 +43,7 @@ describe("the open-a-studio page", () => {
     customer.data = null;
     renderWithProviders(<ForArtistsPage />, { store: withPricing(120, 30, 300) });
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getByRole("heading", { level: 3, name: "Set up your studio" })).toBeInTheDocument();
     expect(screen.queryByText(/on the back/)).not.toBeInTheDocument();
     expect(screen.queryByText(/draft/)).not.toBeInTheDocument();
     expect(screen.queryByText("For artists")).not.toBeInTheDocument();
@@ -56,12 +57,13 @@ describe("the open-a-studio page", () => {
     expect(screen.queryByText(/sign in or create an account/)).not.toBeInTheDocument();
   });
 
-  it("sends an artist to their studio instead, both times", () => {
+  it("sends an artist to their studio instead, both times, without remarking that they have one", () => {
     customer.data = { artistSlug: "rachel" };
     renderWithProviders(<ForArtistsPage />, { store: withPricing(120, 30, 300) });
     const links = screen.getAllByRole("link", { name: /Go to your studio/ });
     expect(links).toHaveLength(2);
     for (const link of links) expect(link).toHaveAttribute("href", "/studio");
     expect(screen.queryByRole("link", { name: /Open your studio/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/already have one/)).not.toBeInTheDocument();
   });
 });

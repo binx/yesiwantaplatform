@@ -45,6 +45,6 @@ describe("the landing page", () => {
   it("invites the first artist when nobody is live yet", () => {
     renderWithProviders(<LandingPage />, { store: withHero({}) });
     expect(screen.getByText(/No artists have gone live yet/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Yours could be first/ })).toHaveAttribute("href", "/studio/new");
+    expect(screen.getByRole("link", { name: /Yours could be first/ })).toHaveAttribute("href", "/open-a-studio");
   });
 });

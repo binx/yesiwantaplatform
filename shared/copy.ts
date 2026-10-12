@@ -31,7 +31,7 @@ export const ARTIST_PITCH = {
 
 /** How it works for an artist, in three steps. Shown once, at /open-a-studio. */
 export const ARTIST_STEPS = [
-  { title: "Open your studio", text: "Tell us about yourself, then make your editions: 6 or 12 postcards each." },
-  { title: "Collectors say yes", text: "They pay once and choose how often the cards come." },
-  { title: "We print and mail", text: "Every card goes out on its day, from our printer to their door." },
+  { title: "Set up your studio", text: "Tell us about yourself, then set up your art editions: 6 or 12 postcards each." },
+  { title: "Collectors purchase your art", text: "Customers choose how often they want the cards mailed to them." },
+  { title: "We print and post", text: "Every card goes out on its day, from our printer to their mailbox." },
 ] as const;

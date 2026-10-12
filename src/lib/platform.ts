@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import type {
   ArtistProfileInput,
+  ArtistProfileUpdate,
   ArtistPublic,
   ArtistStudio,
   ArtistSummary,
@@ -151,7 +152,7 @@ export function useCreateArtist() {
 export function useUpdateProfile() {
   const invalidate = useInvalidateStudio();
   return useMutation({
-    mutationFn: (input: ArtistProfileInput) => csrfPut<StudioView>("/studio/profile", input),
+    mutationFn: (input: ArtistProfileUpdate) => csrfPut<StudioView>("/studio/profile", input),
     onSuccess: invalidate,
   });
 }

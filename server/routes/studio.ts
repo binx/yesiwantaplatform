@@ -4,6 +4,7 @@ import { z } from "zod";
 import { designInputSchema, imageInputSchema } from "../../shared/api.js";
 import {
   artistProfileInputSchema,
+  artistProfileUpdateSchema,
   artistStatusSchema,
   editionCardsInputSchema,
   editionInputSchema,
@@ -165,8 +166,9 @@ artistRouter.get("/", async (req, res) => {
 
 /* ---------------------------------------------------------------- profile */
 
+/** Everything but the slug: a URL is chosen once, when the studio opens. One sent here is ignored. */
 artistRouter.put("/profile", async (req, res) => {
-  const parsed = artistProfileInputSchema.safeParse(req.body);
+  const parsed = artistProfileUpdateSchema.safeParse(req.body);
   if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "That profile could not be used.");
 
   try {

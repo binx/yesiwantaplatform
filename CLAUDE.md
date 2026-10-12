@@ -73,6 +73,15 @@ npm run test:e2e        # needs data/e2e.sqlite migrated + seeded once
 `server/lifecycle.test.ts` is the whole story end to end against a fake Lob
 and a stubbed Stripe; read it before changing the sweeps or the webhook.
 
+## UI copy
+
+No explanation lines after controls. A label names the field and nothing
+follows the input, button or radio group: no help text, no sentence about
+what the setting means, no example, no "optional". Section headings stand
+alone, with no intro paragraph under them. The one thing that may appear
+under a control is an error, in one sentence, only while the input is
+invalid. If a control needs a sentence to be understood, rename the control.
+
 ## Branching
 
 Base branch is `main`. Branch for every task; leave the checkout on `main`

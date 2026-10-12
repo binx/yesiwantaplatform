@@ -14,11 +14,11 @@ import styles from "./Account.module.css";
  * The rest of the account, on one page: who you are, where your cards go,
  * and the way out.
  *
- * The address is one per account. Checkout starts from it and saves what
- * was typed back to it, and changing it here is copied onto every
- * collection with cards still to come, so moving house is one form. A set
- * sent as a gift has its own address on its purchase, shown on the
- * collection's page.
+ * The address is one per account. Checkout starts from it and, when the set
+ * is the collector's own, saves what was typed back to it. Changing it here
+ * moves every collection that was going there, so moving house is one form.
+ * A set sent to someone else has its own address on its purchase, shown and
+ * changed on the collection's page.
  */
 export function AccountSettingsPage() {
   const customer = useCustomer();
@@ -137,7 +137,7 @@ function AddressSection({ address, fallbackName }: { address: Recipient | null; 
           </Button>
         </p>
         <p className={cx(styles.meta)}>
-          Collecting an edition starts from this address. A set can go somewhere else, and where each one is mailed is on its page under <Link to="/account">Collections</Link>.
+          Collecting an edition starts from this address. A set sent to someone else keeps its own; where each one goes is on its page under <Link to="/account">Collections</Link>.
         </p>
       </>
     );
@@ -168,7 +168,10 @@ function AddressSection({ address, fallbackName }: { address: Recipient | null; 
           Cancel
         </Button>
       </p>
-      <p className={cx(styles.meta)}>Every card still to come, from every edition you collect, goes to the new address. A card already at the printer goes to the old one.</p>
+      <p className={cx(styles.meta)}>
+        Every collection going to this address moves with it, cards still to come included. A set sent to someone else stays where it is, and a card already at the printer goes
+        to the old address.
+      </p>
     </>
   );
 }

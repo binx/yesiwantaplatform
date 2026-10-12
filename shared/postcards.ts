@@ -182,6 +182,25 @@ export const recipientSchema = recipientFieldsSchema.superRefine(refineRecipient
 export type Recipient = z.infer<typeof recipientSchema>;
 
 /**
+ * The same place, as two parsed recipients: every printed line equal, case
+ * aside. Decides which collections follow an account's address when it
+ * changes — the ones going there — and which stay, because they were sent
+ * somewhere else.
+ */
+export function sameRecipient(a: Recipient, b: Recipient): boolean {
+  const fold = (value: string | null) => (value ?? "").trim().toLowerCase();
+  return (
+    fold(a.name) === fold(b.name) &&
+    fold(a.line1) === fold(b.line1) &&
+    fold(a.line2) === fold(b.line2) &&
+    fold(a.city) === fold(b.city) &&
+    fold(a.state) === fold(b.state) &&
+    fold(a.postalCode) === fold(b.postalCode) &&
+    fold(a.country) === fold(b.country)
+  );
+}
+
+/**
  * What Lob's address verification said about a recipient.
  *
  * Lob's own sub-codes (`undeliverable_no_match` and friends) collapse to

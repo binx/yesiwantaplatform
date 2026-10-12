@@ -22,7 +22,7 @@ export function ArtistsPage() {
         <p className={platform.empty}>The artists could not be loaded. Try again in a moment.</p>
       ) : artists.data.length === 0 ? (
         <p className={platform.empty}>
-          Nobody has gone live yet. <Link to="/for-artists">Are you an artist?</Link>
+          Nobody has gone live yet. <Link to="/open-a-studio">Are you an artist?</Link>
         </p>
       ) : (
         <div className={platform.grid}>

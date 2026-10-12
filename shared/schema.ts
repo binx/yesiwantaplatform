@@ -46,7 +46,7 @@ export const RESERVED_PAGE_SLUGS: Readonly<Record<string, string>> = {
   artist: "artist pages",
   artists: "the artist directory",
   gallery: "the gallery",
-  "for-artists": "the pitch to artists",
+  "open-a-studio": "the pitch to artists",
   collect: "collecting an edition",
   studio: "the artist studio",
   admin: "the admin",

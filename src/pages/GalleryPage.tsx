@@ -26,7 +26,7 @@ export function GalleryPage() {
         <p className={platform.empty}>The gallery could not be loaded. Try again in a moment.</p>
       ) : editions.length === 0 ? (
         <p className={platform.empty}>
-          Nothing is on sale yet. <Link to="/for-artists">Are you an artist?</Link>
+          Nothing is on sale yet. <Link to="/open-a-studio">Are you an artist?</Link>
         </p>
       ) : (
         <>

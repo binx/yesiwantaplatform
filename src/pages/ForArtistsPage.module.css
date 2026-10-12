@@ -1,15 +1,3 @@
-.kicker {
-  margin: 0 0 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  background: var(--chroma);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
 .heading {
   margin: 0 0 1rem;
   font-size: clamp(2rem, 1.5rem + 2vw, 3rem);
@@ -40,7 +28,7 @@
 }
 
 /*
- * The process as a line: four stops on a rail of the platform's chroma,
+ * The process as a line: three stops on a rail of the platform's chroma,
  * side by side until the page is narrow, then top to bottom with the rail
  * down the left. Each stop is a numbered ring sitting on the rail, a title
  * and one line.
@@ -51,7 +39,7 @@
   padding: 0;
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 1.5rem;
 }
 

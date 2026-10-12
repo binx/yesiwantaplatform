@@ -13,17 +13,19 @@ import styles from "./ForArtistsPage.module.css";
 const EXAMPLE_SIZE = EDITION_SIZES[0];
 
 /**
- * The pitch to an artist, readable by anyone.
+ * The pitch to an artist, readable by anyone, at /open-a-studio.
  *
  * `/studio/new` sits behind the studio gate, so a signed-out visitor who
  * clicked through used to land on a sign-in form with nothing about artists
  * on it. This page is what the link promises, kept short: the process as a
- * four-step line, the money as a receipt, and the one button that needs a
+ * three-step line, the money as a receipt, and the one button that needs a
  * sign-in at the end.
  *
- * Every number is read from settings — the same `pricing` the studio's price
- * field enforces and the payout ledger applies — so this page cannot drift
- * out of agreement with what an artist is actually paid.
+ * The receipt is computed from settings — the same `pricing` the studio's
+ * price field enforces and the payout ledger applies — so this page cannot
+ * drift out of agreement with what an artist is actually paid. It shows the
+ * set's price, what comes out of it, and what is left; the split between
+ * printing and our fee stays our business.
  */
 export function ForArtistsPage() {
   const store = useStore();
@@ -31,24 +33,20 @@ export function ForArtistsPage() {
 
   const { pricing, currency, locale } = store;
   const money = (cents: number) => formatMoney(cents, currency, locale);
-  const costCents = pricing.printCostCents + pricing.platformFeeCents;
   /* A worked example: a six-card edition at a round price per card above the
    * floor, so the arithmetic is easy to follow and the share is never a zero.
-   * Each card's part comes from `cardGrossCents`, as the ledger's does. */
+   * Each card's share comes from `cardGrossCents`, as the ledger's does. */
   const examplePriceCents = Math.max(pricing.minCardPriceCents, 500) * EXAMPLE_SIZE;
   const exampleShareCents = Array.from({ length: EXAMPLE_SIZE }, (_, i) =>
     artistShareCents(cardGrossCents(examplePriceCents, EXAMPLE_SIZE, i + 1), pricing),
   ).reduce((sum, cents) => sum + cents, 0);
+  const exampleCostCents = examplePriceCents - exampleShareCents;
   const isArtist = Boolean(customer.data?.artistSlug);
 
   const steps = [
     {
-      title: "Open a studio",
-      text: "Your own page, at your own address. It stays a draft until you go live.",
-    },
-    {
-      title: "Make an edition",
-      text: `${EDITION_SIZES.join(" or ")} postcards: your picture on the front, your note on the back. One price for the set.`,
+      title: "Open a studio, make an edition",
+      text: `Your own page, at your own address, with ${EDITION_SIZES.join(" or ")} postcards on it at one price for the set.`,
     },
     {
       title: "Collectors buy it",
@@ -56,13 +54,12 @@ export function ForArtistsPage() {
     },
     {
       title: "We print and post",
-      text: "Every card on its day, from our printer, and you are paid for each one. You see a name and a town, never an address.",
+      text: "Every card goes out on its day, from our printer to their letterbox.",
     },
   ];
 
   return (
     <PageWrapper>
-      <p className={styles.kicker}>For artists</p>
       <h1 className={styles.heading}>Put your pictures in the post</h1>
       <p className={styles.lede}>
         Turn a set of your pictures into postcards. We print and mail them to the people who want them, one card at a time, and
@@ -88,9 +85,8 @@ export function ForArtistsPage() {
         <div>
           <h2>What it pays</h2>
           <p>
-            You set the price of the set, from {money(pricing.minCardPriceCents)} a card. For every card we send, printing and
-            postage take {money(pricing.printCostCents)} and our fee takes {money(pricing.platformFeeCents)}. The rest goes to your
-            bank through Stripe as that card goes out.
+            You set the price of the set. Printing, postage and our fee come out of it; the rest is yours, paid through Stripe as
+            each card goes out.
           </p>
         </div>
         <dl className={styles.example} aria-label={`What a ${money(examplePriceCents)} edition of ${EXAMPLE_SIZE} pays`}>
@@ -99,19 +95,11 @@ export function ForArtistsPage() {
             <dd>{money(examplePriceCents)}</dd>
           </div>
           <div>
-            <dt>Each card's part</dt>
-            <dd>{money(cardGrossCents(examplePriceCents, EXAMPLE_SIZE, 2))}</dd>
-          </div>
-          <div>
             <dt>Printing, postage and our fee</dt>
-            <dd>&minus;{money(costCents)}</dd>
-          </div>
-          <div>
-            <dt>You keep, per card</dt>
-            <dd>{money(artistShareCents(cardGrossCents(examplePriceCents, EXAMPLE_SIZE, 2), pricing))}</dd>
+            <dd>&minus;{money(exampleCostCents)}</dd>
           </div>
           <div className={styles.exampleTotal}>
-            <dt>You keep, for the set</dt>
+            <dt>You keep</dt>
             <dd>{money(exampleShareCents)}</dd>
           </div>
         </dl>

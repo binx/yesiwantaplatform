@@ -62,7 +62,7 @@ export const router = createBrowserRouter([
       { path: "artist/:slug", element: <ArtistPage /> },
       { path: "artist/:slug/:edition", element: <EditionPage /> },
       { path: "gallery", element: <GalleryPage /> },
-      { path: "for-artists", element: <ForArtistsPage /> },
+      { path: "open-a-studio", element: <ForArtistsPage /> },
       {
         // The collect flow needs a sign-in; its own chunk.
         path: "collect/:slug/:edition",

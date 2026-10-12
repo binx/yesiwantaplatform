@@ -175,8 +175,7 @@ export function LandingPage() {
               <p className={styles.pathKicker}>For collectors</p>
               <h2 className={styles.pathHeading}>Add a little mail magic to your life</h2>
               <p>
-                An artist you like makes an edition: a set of real postcards, their picture on the front and a note on the back,
-                mailed to you one at a time.
+                An artist you like makes an edition: a set of real postcards, mailed to you one at a time.
               </p>
               <ol className={styles.steps}>
                 <li>
@@ -202,19 +201,16 @@ export function LandingPage() {
               </p>
               <ol className={styles.steps}>
                 <li>
-                  <strong>Open a studio.</strong> Your own page, at your own address.
-                </li>
-                <li>
-                  <strong>Make an edition.</strong> 6 or 12 postcards, one price for the set.
+                  <strong>Open a studio, make an edition.</strong> Your own page, with 6 or 12 postcards on it at one price.
                 </li>
                 <li>
                   <strong>Collectors buy it.</strong> Paid once, up front. They pick how often the cards come.
                 </li>
                 <li>
-                  <strong>We print and post.</strong> Every card on its day, and you are paid for each one.
+                  <strong>We print and post.</strong> Every card on its day, from our printer to their letterbox.
                 </li>
               </ol>
-              <Link to="/for-artists" className={styles.pathAction}>
+              <Link to="/open-a-studio" className={styles.pathAction}>
                 Open a studio
               </Link>
             </div>

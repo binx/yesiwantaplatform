@@ -155,6 +155,29 @@
   background: var(--ridges), var(--chroma);
 }
 
+/* The size, as the receipt's header: the number large, the word small. */
+.exampleTitle {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--beluga-line);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--beluga-muted);
+}
+
+.exampleCount {
+  font-size: 2.25rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--beluga-ink);
+  font-variant-numeric: tabular-nums;
+}
+
 .receipt {
   margin: 0;
   display: grid;

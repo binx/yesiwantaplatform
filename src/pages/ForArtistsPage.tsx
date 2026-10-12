@@ -72,7 +72,7 @@ export function ForArtistsPage() {
         Share your art with the world and put a little delight in someone's letterbox. Your pictures become real postcards, mailed
         one at a time to the people who want them.
       </p>
-      <div className={styles.lead}>{studioButton("Start your studio")}</div>
+      <div className={styles.lead}>{studioButton("Get started")}</div>
 
       <section className={styles.section}>
         <h2>How it works</h2>
@@ -94,9 +94,12 @@ export function ForArtistsPage() {
         <div className={styles.examples}>
           {examples.map((example) => (
             <div key={example.size} className={styles.example} role="group" aria-label={`What a ${money(example.priceCents)} edition of ${example.size} pays`}>
+              <h3 className={styles.exampleTitle}>
+                <span className={styles.exampleCount}>{example.size}</span> cards
+              </h3>
               <dl className={styles.receipt}>
                 <div>
-                  <dt>A collector pays, for {example.size} cards</dt>
+                  <dt>A collector pays</dt>
                   <dd>{money(example.priceCents)}</dd>
                 </div>
                 <div>
@@ -122,7 +125,7 @@ export function ForArtistsPage() {
       </section>
 
       <section className={cx(styles.section, styles.action)}>
-        {studioButton("Open a studio")}
+        {studioButton("Open your studio")}
         {isArtist ? <p className={styles.note}>You already have one.</p> : null}
       </section>
     </PageWrapper>

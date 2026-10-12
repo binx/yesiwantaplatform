@@ -48,11 +48,11 @@ describe("the open-a-studio page", () => {
     expect(screen.queryByText("For artists")).not.toBeInTheDocument();
   });
 
-  it("offers a visitor the studio twice, above the steps and at the end, with no warning about the sign-in to come", () => {
+  it("offers a visitor the studio twice, Get started above the steps and Open your studio at the end, with no warning about the sign-in to come", () => {
     customer.data = null;
     renderWithProviders(<ForArtistsPage />, { store: withPricing(120, 30, 300) });
-    expect(screen.getByRole("link", { name: /Start your studio/ })).toHaveAttribute("href", "/studio/new");
-    expect(screen.getByRole("link", { name: /^Open a studio$/ })).toHaveAttribute("href", "/studio/new");
+    expect(screen.getByRole("link", { name: /Get started/ })).toHaveAttribute("href", "/studio/new");
+    expect(screen.getByRole("link", { name: /^Open your studio$/ })).toHaveAttribute("href", "/studio/new");
     expect(screen.queryByText(/sign in or create an account/)).not.toBeInTheDocument();
   });
 
@@ -62,6 +62,6 @@ describe("the open-a-studio page", () => {
     const links = screen.getAllByRole("link", { name: /Go to your studio/ });
     expect(links).toHaveLength(2);
     for (const link of links) expect(link).toHaveAttribute("href", "/studio");
-    expect(screen.queryByRole("link", { name: /Open a studio/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Open your studio/ })).not.toBeInTheDocument();
   });
 });

@@ -153,7 +153,7 @@ export function LandingPage() {
       </section>
 
       <PageWrapper width="wide">
-        <div className={platform.sectionHeading}>
+        <div className={cx(platform.sectionHeading, styles.sectionLead)}>
           <h2>Artists you can say yes to</h2>
         </div>
         {artists.isPending ? (
@@ -225,8 +225,8 @@ export function LandingPage() {
 
         {onSale.length > 0 ? (
           <>
-            <div className={platform.sectionHeading}>
-              <h2>Postcard art editions</h2>
+            <div className={cx(platform.sectionHeading, styles.sectionLead)}>
+              <h2>Postcard editions</h2>
             </div>
             <div className={platform.grid}>
               {onSale.map((edition) => (

@@ -413,7 +413,7 @@
 
 .how {
   scroll-margin-top: 2rem;
-  margin: 3rem 0 2rem;
+  margin: 5rem 0 4rem;
 }
 
 /* One panel for each audience, side by side until the page is narrow. */
@@ -544,5 +544,11 @@
 
 /* The way to the rest of a grid: one of the panels' links, set under the tiles. */
 .more {
-  margin: 1.25rem 0 0;
+  margin: 1.5rem 0 0;
+}
+
+/* The front page's grid headings: more air than an inner page's, since each one follows a full-height hero or a pair of panels. */
+.sectionLead {
+  margin-top: 3.5rem;
+  margin-bottom: 1.5rem;
 }

@@ -18,7 +18,6 @@ export function GalleryPage() {
   return (
     <PageWrapper width="wide">
       <h1>Gallery</h1>
-      <p>Editions of postcards you can collect right now. You choose the artist; what lands in the letterbox is up to them.</p>
 
       {gallery.isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />

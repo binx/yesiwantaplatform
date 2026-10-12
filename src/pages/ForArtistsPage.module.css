@@ -118,55 +118,98 @@
   }
 }
 
-/* The money: one paragraph beside the receipt, stacked when narrow. */
-.pay {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 1.5rem 3rem;
-  align-items: start;
-}
-
-.pay > div {
-  max-width: var(--beluga-measure);
-}
-
-@media (max-width: 800px) {
-  .pay {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* The worked example: a small receipt. */
+/*
+ * The worked example: a receipt with the landing page's corrugated chroma
+ * edge, the price drawn as a bar with the artist's part of it lit, and
+ * what they keep set large in the chroma itself.
+ */
 .example {
-  margin: 0;
-  width: min(100%, 24rem);
+  position: relative;
+  overflow: hidden;
+  margin: 1.25rem 0 0;
+  width: min(100%, 30rem);
   display: grid;
-  gap: 0.5rem;
-  padding: 1.25rem 1.5rem;
+  gap: 1rem;
+  padding: 2rem 1.75rem 1.75rem;
   background: var(--beluga-surface);
   border: 1px solid var(--beluga-line);
   border-radius: var(--beluga-radius);
 }
 
-.example > div {
+.example::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 0.5rem;
+  background: var(--ridges), var(--chroma);
+}
+
+.receipt {
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.receipt > div {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
 }
 
-.example dt {
+.receipt dt {
   margin: 0;
+  color: var(--beluga-muted);
 }
 
-.example dd {
+.receipt dd {
   margin: 0;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
-.exampleTotal {
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--beluga-line);
+/* The whole price as a track, with what the artist keeps lit in the chroma. */
+.split {
+  height: 0.75rem;
+  border-radius: 999px;
+  background: var(--beluga-line);
+  overflow: hidden;
+}
+
+.splitKept {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ridges), var(--chroma);
+}
+
+.keep {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  column-gap: 1rem;
+}
+
+.keepLabel {
   font-weight: 700;
+}
+
+.keepAmount {
+  grid-row: span 2;
+  font-size: clamp(2rem, 1.5rem + 2vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  background: var(--chroma);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.keepNote {
+  font-size: 0.875rem;
+  color: var(--beluga-muted);
 }
 
 .note {

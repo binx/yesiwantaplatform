@@ -18,10 +18,10 @@ const EXAMPLE_SIZE = EDITION_SIZES[0];
  * `/studio/new` sits behind the studio gate, so a signed-out visitor who
  * clicked through used to land on a sign-in form with nothing about artists
  * on it. This page is what the link promises, kept short: the process as a
- * three-step line, the money as a receipt, and the one button that needs a
- * sign-in at the end.
+ * three-step line, the money as one worked example, and the one button that
+ * needs a sign-in at the end.
  *
- * The receipt is computed from settings — the same `pricing` the studio's
+ * The example is computed from settings — the same `pricing` the studio's
  * price field enforces and the payout ledger applies — so this page cannot
  * drift out of agreement with what an artist is actually paid. It shows the
  * set's price, what comes out of it, and what is left; the split between
@@ -41,6 +41,7 @@ export function ForArtistsPage() {
     artistShareCents(cardGrossCents(examplePriceCents, EXAMPLE_SIZE, i + 1), pricing),
   ).reduce((sum, cents) => sum + cents, 0);
   const exampleCostCents = examplePriceCents - exampleShareCents;
+  const keptPercent = Math.round((exampleShareCents / examplePriceCents) * 100);
   const isArtist = Boolean(customer.data?.artistSlug);
 
   const steps = [
@@ -62,8 +63,8 @@ export function ForArtistsPage() {
     <PageWrapper>
       <h1 className={styles.heading}>Put your pictures in the post</h1>
       <p className={styles.lede}>
-        Turn a set of your pictures into postcards. We print and mail them to the people who want them, one card at a time, and
-        pay you for each one.
+        Share your art with the world and put a little delight in someone's letterbox. Your pictures become real postcards, mailed
+        one at a time to the people who want them.
       </p>
 
       <section className={styles.section}>
@@ -81,28 +82,29 @@ export function ForArtistsPage() {
         </ol>
       </section>
 
-      <section className={cx(styles.section, styles.pay)}>
-        <div>
-          <h2>What it pays</h2>
-          <p>
-            You set the price of the set. Printing, postage and our fee come out of it; the rest is yours, paid through Stripe as
-            each card goes out.
+      <section className={styles.section}>
+        <h2>Example pricing</h2>
+        <div className={styles.example} role="group" aria-label={`What a ${money(examplePriceCents)} edition of ${EXAMPLE_SIZE} pays`}>
+          <dl className={styles.receipt}>
+            <div>
+              <dt>A collector pays, for {EXAMPLE_SIZE} cards</dt>
+              <dd>{money(examplePriceCents)}</dd>
+            </div>
+            <div>
+              <dt>Printing, postage and our fee</dt>
+              <dd>&minus;{money(exampleCostCents)}</dd>
+            </div>
+          </dl>
+          {/* The price as a bar, with the artist's part of it lit. */}
+          <div className={styles.split} aria-hidden>
+            <span className={styles.splitKept} style={{ width: `${keptPercent}%` }} />
+          </div>
+          <p className={styles.keep}>
+            <span className={styles.keepLabel}>You keep</span>
+            <span className={styles.keepAmount}>{money(exampleShareCents)}</span>
+            <span className={styles.keepNote}>{keptPercent}% of the price</span>
           </p>
         </div>
-        <dl className={styles.example} aria-label={`What a ${money(examplePriceCents)} edition of ${EXAMPLE_SIZE} pays`}>
-          <div>
-            <dt>A collector pays, for {EXAMPLE_SIZE} cards</dt>
-            <dd>{money(examplePriceCents)}</dd>
-          </div>
-          <div>
-            <dt>Printing, postage and our fee</dt>
-            <dd>&minus;{money(exampleCostCents)}</dd>
-          </div>
-          <div className={styles.exampleTotal}>
-            <dt>You keep</dt>
-            <dd>{money(exampleShareCents)}</dd>
-          </div>
-        </dl>
       </section>
 
       <section className={cx(styles.section, styles.action)}>
@@ -116,14 +118,11 @@ export function ForArtistsPage() {
             <p className={styles.note}>You already have one.</p>
           </>
         ) : (
-          <>
-            <Link to="/studio/new">
-              <Button type="primary" size="large" className={cx(styles.actionButton)}>
-                Open a studio
-              </Button>
-            </Link>
-            {customer.data ? null : <p className={styles.note}>You'll sign in or create an account first. It takes a minute.</p>}
-          </>
+          <Link to="/studio/new">
+            <Button type="primary" size="large" className={cx(styles.actionButton)}>
+              Open a studio
+            </Button>
+          </Link>
         )}
       </section>
     </PageWrapper>

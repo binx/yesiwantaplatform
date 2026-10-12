@@ -196,8 +196,8 @@ export function LandingPage() {
               <p className={styles.pathKicker}>For artists</p>
               <h2 className={styles.pathHeading}>Put your pictures in the post</h2>
               <p>
-                Turn a set of your pictures into postcards. We print and mail them to the people who want them, one card at a time,
-                and pay you for each one.
+                Share your art with the world and put a little delight in someone's letterbox. Your pictures become real postcards,
+                mailed one at a time to the people who want them.
               </p>
               <ol className={styles.steps}>
                 <li>

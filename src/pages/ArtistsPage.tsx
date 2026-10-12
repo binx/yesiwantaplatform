@@ -14,7 +14,6 @@ export function ArtistsPage() {
   return (
     <PageWrapper width="wide">
       <h1>Artists</h1>
-      <p>Each one makes editions of postcards, mailed to you one by one. Pick one, or a few.</p>
 
       {artists.isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />

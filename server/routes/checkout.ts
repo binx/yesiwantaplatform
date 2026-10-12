@@ -67,7 +67,7 @@ checkoutRouter.post("/checkout/collect", writeRateLimit, verifyCsrf, requireCust
   // next purchase starts from it. A refusal is a 400 the form can act on.
   const verification = await verifyRecipient(parsed.data.address);
   if (verification.deliverability === "undeliverable") {
-    throw httpError(400, "USPS does not recognise that address. Check the street, city, state and ZIP.");
+    throw httpError(400, "USPS does not recognize that address. Check the street, city, state and ZIP.");
   }
   // Deliberately no check on the artist's Stripe onboarding: an artist may
   // sell before it finishes, and the ledger holds their share.

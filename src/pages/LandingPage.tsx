@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { Button, Skeleton } from "antd";
-import { PITCH_LINES } from "@shared/copy";
+import { ARTIST_PITCH, PITCH_LINES } from "@shared/copy";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useSiteLinks } from "@/components/layout/siteLinks";
 import { ArtistTile, EditionTile } from "@/components/platform/ArtistTile";
@@ -176,16 +176,16 @@ export function LandingPage() {
           <div className={styles.paths}>
             <div className={styles.path}>
               <p className={styles.pathKicker}>For collectors</p>
-              <h2 className={styles.pathHeading}>Add a little mail magic to your life</h2>
+              <h2 className={styles.pathHeading}>Real mail from real artists</h2>
               <ol className={styles.steps}>
                 <li>
-                  <strong>Pick an edition.</strong> Find an artist whose work you want in your mailbox.
+                  <strong>Pick an edition.</strong> Find an artist whose work you'd like in the mail.
                 </li>
                 <li>
-                  <strong>Say where and how often.</strong> Your address, once or twice a month, and if you like, the first card's day.
+                  <strong>Say where and how often.</strong> Your address, your pace, and if you like, the first card's day.
                 </li>
                 <li>
-                  <strong>Check your mailbox.</strong> A card arrives until the set is done. Say yes to a few artists at once and they all take turns in your mailbox.
+                  <strong>Check your mailbox.</strong> A card arrives until the edition is done. Say yes to a few artists at once and they take turns.
                 </li>
               </ol>
               <Link to="/artists" className={styles.pathAction}>
@@ -194,22 +194,8 @@ export function LandingPage() {
             </div>
             <div className={styles.path}>
               <p className={styles.pathKicker}>For artists</p>
-              <h2 className={styles.pathHeading}>Put your pictures in the post</h2>
-              <p>
-                Share your art with the world and put a little delight in someone's mailbox. Your pictures become real postcards,
-                mailed one at a time to the people who want them.
-              </p>
-              <ol className={styles.steps}>
-                <li>
-                  <strong>Set up your studio.</strong> Tell us about yourself, then set up your art editions: 6 or 12 postcards each.
-                </li>
-                <li>
-                  <strong>Collectors purchase your art.</strong> Customers choose how often they want the cards mailed to them.
-                </li>
-                <li>
-                  <strong>We print and post.</strong> Every card on its day, from our printer to their mailbox.
-                </li>
-              </ol>
+              <h2 className={styles.pathHeading}>{ARTIST_PITCH.heading}</h2>
+              <p>{ARTIST_PITCH.lede}</p>
               <Link to="/open-a-studio" className={styles.pathAction}>
                 Open a studio
               </Link>

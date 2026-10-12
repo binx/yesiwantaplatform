@@ -1,10 +1,12 @@
 import { Link, useParams } from "react-router-dom";
 import { Alert, Button, Skeleton } from "antd";
 import { formatMoney } from "@shared/money";
+import { KEEPS_EVERY_CARD } from "@shared/copy";
 import { artistPath, type Collection } from "@shared/platform";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { ApiError } from "@/lib/api";
 import { useEdition } from "@/lib/platform";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { useCollections, useCustomer } from "@/lib/account";
 import { editionShape } from "@/lib/postcards";
 import { useStore } from "@/lib/useStore";
@@ -36,6 +38,7 @@ export function EditionPage() {
   const page = useEdition(slug, editionSlug);
   const customer = useCustomer();
   const collections = useCollections(Boolean(customer.data));
+  usePageTitle(page.data ? `${page.data.edition.title} by ${page.data.artist.name}` : null);
 
   if (page.isPending) {
     return (
@@ -90,7 +93,7 @@ export function EditionPage() {
               </Link>
             </>
           ) : edition.status === "closed" ? (
-            <p className={styles.collectNote}>Closed to new collectors. Everyone who has it still gets every card.</p>
+            <p className={styles.collectNote}>Closed to new collectors. {KEEPS_EVERY_CARD}</p>
           ) : !collectable ? (
             <p className={styles.collectNote}>{artist.name} isn't taking new collectors right now.</p>
           ) : (

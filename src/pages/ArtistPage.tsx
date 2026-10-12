@@ -1,11 +1,13 @@
 import { Link, useParams } from "react-router-dom";
 import { Alert, Button, Skeleton, Tag } from "antd";
 import { formatMoney } from "@shared/money";
+import { KEEPS_EVERY_CARD } from "@shared/copy";
 import { artistLinkLabel, editionPath, type ArtistPublic, type EditionSummary } from "@shared/platform";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { ProductImage } from "@/components/ui/ProductImage";
 import { ApiError } from "@/lib/api";
 import { useArtist } from "@/lib/platform";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { useCustomer } from "@/lib/account";
 import { editionShape } from "@/lib/postcards";
 import { useStore } from "@/lib/useStore";
@@ -38,6 +40,7 @@ export function ArtistPage() {
   const store = useStore();
   const page = useArtist(slug);
   const customer = useCustomer();
+  usePageTitle(page.data?.artist.name);
 
   if (page.isPending) {
     return (
@@ -96,7 +99,7 @@ export function ArtistPage() {
 
         <div className={styles.artistEditions}>
           {artist.status === "paused" ? (
-            <p className={styles.artistPaused}>{artist.name} isn't taking new collectors right now. Everyone who already has, still gets every card.</p>
+            <p className={styles.artistPaused}>{artist.name} isn't taking new collectors right now. {KEEPS_EVERY_CARD}</p>
           ) : null}
           {editions.length === 0 ? (
             <div className={styles.featureEmpty}>
@@ -139,9 +142,6 @@ function EditionFeature({ artist, edition, locale }: { artist: ArtistPublic; edi
             {editionShape(edition.cardCount)}
           </p>
           {edition.descriptionHtml ? <div className={cx(pageStyles.body, styles.featureDescription)} dangerouslySetInnerHTML={{ __html: edition.descriptionHtml }} /> : null}
-          <p className={styles.featureMore}>
-            <Link to={to}>About this edition</Link>
-          </p>
         </div>
         <div className={styles.collectBox}>
           <p className={styles.collectPrice}>{formatMoney(edition.priceCents, edition.currency, locale)}</p>

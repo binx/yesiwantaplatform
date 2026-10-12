@@ -2,6 +2,7 @@ import { Link, Navigate, useLocation } from "react-router-dom";
 import { Alert, Button, Form, Input, Result } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useCustomer, useRegister } from "@/lib/account";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { cx } from "@/lib/cx";
 import styles from "./Account.module.css";
 
@@ -26,6 +27,7 @@ export function AccountRegisterPage() {
   const location = useLocation();
   const customer = useCustomer();
   const register = useRegister();
+  usePageTitle("Create an account");
 
   // Same source and guard as AccountLoginPage's `from` — where the visitor
   // was headed (an edition they were collecting, the studio) before "Create an account" took
@@ -52,7 +54,7 @@ export function AccountRegisterPage() {
         <Result
           status="success"
           title={<h1>Check your email</h1>}
-          subTitle="We've sent a link to verify your email. You don't have to wait for it — you can sign in now, and collecting works before you have."
+          subTitle="We've sent a link to verify your email. You don't have to wait for it: you can sign in now and collect before you've verified it."
           extra={[
             <Link key="continue" to={backTo}>
               <Button type="primary">{backLabel}</Button>
@@ -75,7 +77,7 @@ export function AccountRegisterPage() {
           className={cx(styles.alert)}
           type="error"
           showIcon
-          title={register.error instanceof Error ? register.error.message : "Could not register."}
+          title={register.error instanceof Error ? register.error.message : "Could not create the account."}
         />
       ) : null}
 

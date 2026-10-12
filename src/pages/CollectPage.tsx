@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import { Alert, Button, Input, Radio, Skeleton } from "antd";
 import { formatMoney } from "@shared/money";
+import { DELIVERY_ESTIMATE } from "@shared/copy";
 import { START_DATE_MAX_DAYS, artistPath, defaultStartDate, editionPath, editionSchedule, startDateProblem, startDateRange, type Cadence } from "@shared/platform";
 import { todayIso, type Recipient } from "@shared/postcards";
 import { PageWrapper } from "@/components/layout/PageWrapper";
@@ -9,6 +10,7 @@ import { Field, RecipientFields } from "@/components/postcard/RecipientFields";
 import { ApiError } from "@/lib/api";
 import { useCustomer } from "@/lib/account";
 import { useCollect, useEdition } from "@/lib/platform";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { editionShape, formatMailDate, formatShortDate } from "@/lib/postcards";
 import { BLANK_RECIPIENT, validateRecipient, type RecipientErrors } from "@/lib/recipient-form";
 import { useStore } from "@/lib/useStore";
@@ -39,6 +41,7 @@ export function CollectPage() {
   const customer = useCustomer();
   const page = useEdition(slug, editionSlug);
   const collect = useCollect();
+  usePageTitle(page.data ? `Collect ${page.data.edition.title}` : null);
 
   const [draft, setDraft] = useState<Recipient>(BLANK_RECIPIENT);
   const [errors, setErrors] = useState<RecipientErrors>({});
@@ -123,7 +126,7 @@ export function CollectPage() {
     <PageWrapper width="wide">
       <h1>Collect {edition.title}</h1>
       <p>
-        From <Link to={artistPath(artist.slug)}>{artist.name}</Link>: {editionShape(edition.cardCount)}, for {price} paid once.
+        From <Link to={artistPath(artist.slug)}>{artist.name}</Link>: {editionShape(edition.cardCount)}, for {price}, paid once.
       </p>
 
       <div className={cx(styles.collectLayout)}>
@@ -154,7 +157,7 @@ export function CollectPage() {
               ]}
             />
             <p className={styles.collectNote}>
-              {cadence === "twice_monthly" ? "Two cards a month, fourteen days apart" : "One card a month"}: the set of {edition.cardCount} takes {months}{" "}
+              {cadence === "twice_monthly" ? "Two cards a month, about two weeks apart" : "One card a month"}: {edition.cardCount} cards take {months}{" "}
               months.
             </p>
           </div>
@@ -226,13 +229,14 @@ export function CollectPage() {
 
         <aside className={styles.collectSummary} aria-label="What you're getting">
           <p>
-            <strong>{price}</strong>, once
+            <strong>{price}</strong>
           </p>
           <p>
             {edition.cardCount} postcards from {artist.name}, printed and mailed to you {cadence === "twice_monthly" ? "twice a month" : "once a month"}. Each one is a
             surprise until it arrives.
           </p>
-          <p>You pay for the whole edition now. Nothing renews, so there's nothing to cancel; it ends on its own with the last card.</p>
+          <p>Nothing renews, so there's nothing to cancel; it ends on its own with the last card.</p>
+          <p>{DELIVERY_ESTIMATE}</p>
           <p>Your address is saved to your account. If you move, change it there, and the cards still to come follow you.</p>
         </aside>
       </div>

@@ -14,7 +14,7 @@ describe("the open-a-studio page", () => {
   it("works an example for each edition size from settings: the price, printing, the fee and the remainder", () => {
     customer.data = null;
     renderWithProviders(<ForArtistsPage />, { store: withPricing(130, 30, 350) });
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Put your pictures in the post");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Put your pictures in the mail");
     expect(screen.getByRole("heading", { level: 2, name: "Example pricing" })).toBeInTheDocument();
     // Six cards at $5.00: $7.80 of printing, 30% of each $5.00 is $1.50 so $9.00 of fee, $13.20 kept — by the shared formulas, not by hand.
     const six = screen.getByLabelText(/What a \$30\.00 edition of 6 pays/);

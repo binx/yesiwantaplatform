@@ -12,7 +12,7 @@ import styles from "./Studio.module.css";
 
 /** "on sale", in a tag the colour of the state. */
 export function EditionStatusTag({ status }: { status: EditionStatus }) {
-  const [color, label] = status === "on_sale" ? ["green", "on sale"] : status === "closed" ? ["gold", "closed"] : ["default", "draft"];
+  const [color, label] = status === "on_sale" ? ["green", "On sale"] : status === "closed" ? ["gold", "Closed"] : ["default", "Draft"];
   return <Tag color={color}>{label}</Tag>;
 }
 
@@ -43,7 +43,7 @@ export function StudioEditionsPage() {
         ) : editions.isError ? (
           <Alert type="error" showIcon title="Your editions could not be loaded." />
         ) : editions.data.length === 0 ? (
-          <p className={styles.empty}>No editions yet. An edition is a set of 6 or 12 postcards, mailed one by one, for one price. Start one, then fill its cards.</p>
+          <p className={styles.empty}>No editions yet. Start one, then fill its cards.</p>
         ) : (
           <ul className={styles.editionList}>
             {editions.data.map((edition) => (

@@ -3,11 +3,13 @@ import { Skeleton } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { ArtistTile } from "@/components/platform/ArtistTile";
 import { useArtists } from "@/lib/platform";
+import { usePageTitle } from "@/lib/usePageTitle";
 import platform from "@/components/platform/Platform.module.css";
 
 /** The directory: every live artist, and how many editions each has on sale. */
 export function ArtistsPage() {
   const artists = useArtists();
+  usePageTitle("Artists");
 
   return (
     <PageWrapper width="wide">

@@ -211,7 +211,7 @@ meRouter.put("/address", async (req, res) => {
 
   const verification = await verifyRecipient(parsed.data);
   if (verification.deliverability === "undeliverable") {
-    throw httpError(400, "USPS does not recognise that address. Check the street, city, state and ZIP.");
+    throw httpError(400, "USPS does not recognize that address. Check the street, city, state and ZIP.");
   }
 
   await setMailingAddress(req.session.customerId!, parsed.data);

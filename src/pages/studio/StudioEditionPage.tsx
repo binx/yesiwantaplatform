@@ -5,6 +5,7 @@ import { ArrowDownOutlined, ArrowUpOutlined, UploadOutlined } from "@ant-design/
 import { EDITION_SIZES, editionInputSchema, editionPath, type ArtistStudio, type EditionInput, type EditionSize, type EditionStudio } from "@shared/platform";
 import type { PostcardDesign } from "@shared/postcards";
 import { formatMoney, parseCents } from "@shared/money";
+import { KEEPS_EVERY_CARD } from "@shared/copy";
 import { artistShareCents, cardGrossCents, type Image } from "@shared/schema";
 import { ApiError } from "@/lib/api";
 import { ProductImage } from "@/components/ui/ProductImage";
@@ -123,7 +124,7 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
 
       <div className={styles.field}>
         <label className={styles.label} htmlFor="edition-slug">
-          Its address
+          Edition URL
         </label>
         <Input
           id="edition-slug"
@@ -155,7 +156,7 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
           onChange={(e) => set("description", e.target.value)}
         />
         <span className={styles.help}>
-          Collectors don't see the cards before they arrive, so this is how they decide: tell them what's coming. Markdown: **bold**, _italics_, links.
+          This is how collectors decide: tell them what's coming. Markdown: **bold**, _italics_, links.
         </span>
       </div>
 
@@ -181,7 +182,7 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
             </Button>
           ) : null}
         </div>
-        <span className={styles.help}>Across the top of the edition's page, in place of the cards. Wide works best, about three times as wide as it is tall. Needed to put it on sale.</span>
+        <span className={styles.help}>Across the top of the edition's page. Wide works best, about three times as wide as it is tall. Needed to put it on sale.</span>
       </div>
 
       <div className={styles.inline}>
@@ -201,13 +202,13 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
       <span className={styles.help}>
         {fixed
           ? "Size and price are fixed while it's on sale: collectors paid for exactly this."
-          : `Each collector gets ${draft.cardCount} postcards, once or twice a month as they prefer, starting on a day they pick.`}
+          : `Each collector gets ${draft.cardCount} postcards, at the pace they choose, starting on a day they pick.`}
       </span>
-      {dropped > 0 ? <Alert type="warning" showIcon title={`Saving drops the last ${dropped} ${dropped === 1 ? "card" : "cards"} you chose: a set of ${draft.cardCount} holds ${draft.cardCount}.`} /> : null}
+      {dropped > 0 ? <Alert type="warning" showIcon title={`Saving drops the last ${dropped} ${dropped === 1 ? "card" : "cards"} you chose: an edition of ${draft.cardCount} holds ${draft.cardCount}.`} /> : null}
 
       <div className={styles.field}>
         <label className={styles.label} htmlFor="edition-price">
-          Price for the whole set
+          Price for the whole edition
         </label>
         <Input
           id="edition-price"
@@ -222,9 +223,9 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
         />
         <span className={!fixed && priceWrong ? styles.error : styles.help} id="edition-price-help">
           {!fixed && priceWrong
-            ? `At least ${money(floor)} for a set of ${draft.cardCount}: below that a card costs more to send than it brings in.`
+            ? `At least ${money(floor)} for an edition of ${draft.cardCount}: below that a card costs more to send than it brings in.`
             : share !== null
-              ? `Each card earns you ${money(share)} as it's mailed, after ${money(pricing.printCostCents)} printing and a ${pricing.platformFeePercent}% fee. At least ${money(floor)} for a set of ${draft.cardCount}.`
+              ? `Each card earns you ${money(share)} as it's mailed, after ${money(pricing.printCostCents)} for printing and postage and a ${pricing.platformFeePercent}% fee. At least ${money(floor)} for an edition of ${draft.cardCount}.`
               : ""}
         </span>
       </div>
@@ -404,7 +405,7 @@ function StatusPanel({ edition, artist, cardsDirty }: { edition: EditionStudio; 
           <p className={styles.note}>
             {edition.status === "on_sale" ? "On sale" : "Closed to new collectors"}: {edition.collectorCount} {edition.collectorCount === 1 ? "collector" : "collectors"},{" "}
             {edition.sentCount} {edition.sentCount === 1 ? "card" : "cards"} sent, {edition.scheduledCount} to come.
-            {edition.status === "closed" ? " Everyone who bought it still gets every card." : ""}
+            {edition.status === "closed" ? ` ${KEEPS_EVERY_CARD}` : ""}
           </p>
           <p className={styles.note}>
             {artist.status === "live" ? (
@@ -419,7 +420,7 @@ function StatusPanel({ edition, artist, cardsDirty }: { edition: EditionStudio; 
             {edition.status === "on_sale" ? (
               <Popconfirm
                 title="Close to new collectors?"
-                description="Nobody new can buy it. Everyone who has keeps receiving their cards."
+                description={`Nobody new can collect it. ${KEEPS_EVERY_CARD}`}
                 okText="Close"
                 onConfirm={() => move("closed", "Closed to new collectors.")}
               >
@@ -511,8 +512,8 @@ function EditionCards({ edition, artistName, onDirtyChange }: { edition: Edition
   return (
     <div>
       <p className={styles.note} style={{ marginBottom: "1rem" }}>
-        In the order they're mailed. Collectors won't see them before they arrive: your page shows the banner and what you wrote instead.
-        {editable ? "" : " Fixed while it's on sale: collectors paid for exactly these cards, in this order."}
+        In the order they're mailed. Collectors won't see them before they arrive.
+        {editable ? "" : " Fixed while it's on sale."}
       </p>
       <ol className={styles.slotList}>
         {cards.map((card, index) => {

@@ -11,7 +11,7 @@ import { themeCssVars, toAntdTheme } from "@/lib/theme";
 import { FONT_LINK_ID, languageOf } from "@shared/locale";
 import { SITE_TITLE } from "@shared/site";
 
-/** Every route is titled the same; see shared/site.ts. */
+/** The bare site name until a page sets its own subject; see `usePageTitle`. */
 function DocumentTitle() {
   useEffect(() => {
     document.title = SITE_TITLE;

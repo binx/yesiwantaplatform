@@ -3,6 +3,7 @@ import { Alert, Button, Form, Input } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { ApiError } from "@/lib/api";
 import { useCustomer, useCustomerLogin } from "@/lib/account";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { cx } from "@/lib/cx";
 import styles from "./Account.module.css";
 
@@ -22,6 +23,7 @@ export function AccountLoginPage() {
   const navigate = useNavigate();
   const customer = useCustomer();
   const login = useCustomerLogin();
+  usePageTitle("Sign in");
 
   // Accepts any same-site path the caller offers — e.g. the cart page's
   // "sign in for faster checkout" link — and falls back to the account

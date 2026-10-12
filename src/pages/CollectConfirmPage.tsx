@@ -3,6 +3,7 @@ import { Button, Result, Skeleton } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useCustomer } from "@/lib/account";
 import { useCheckoutCollection } from "@/lib/platform";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { formatMailDate, formatShortDate } from "@/lib/postcards";
 import { useStore } from "@/lib/useStore";
 import styles from "@/components/platform/Platform.module.css";
@@ -22,6 +23,7 @@ export function CollectConfirmPage() {
   const customer = useCustomer();
   const sessionId = params.get("session_id");
   const collection = useCheckoutCollection(customer.data ? sessionId : null);
+  usePageTitle("Your collection");
 
   if (customer.isPending) {
     return (

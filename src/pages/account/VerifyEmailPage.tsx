@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Result, Skeleton } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useVerifyEmail } from "@/lib/account";
+import { usePageTitle } from "@/lib/usePageTitle";
 
 /**
  * Redeem an email-verification link.
@@ -17,6 +18,7 @@ export function VerifyEmailPage() {
   const token = params.get("token") ?? "";
   const verify = useVerifyEmail();
   const attempted = useRef(false);
+  usePageTitle("Verify your email");
 
   // Where the register route sent the verification link's `next` — a link
   // is copyable and forwardable, so this gets the same guard the server

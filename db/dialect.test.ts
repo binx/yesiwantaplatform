@@ -193,8 +193,8 @@ for (const { name, context } of dialects) {
       expect(a).toMatchObject({ banner: { path: "artists-x/first.webp", width: 1200, height: 400, alt: "", widths: [] }, links: [] });
       const banner = { path: "artists-x/banner.webp", width: 900, height: 300, alt: "", widths: [] };
       const links = [
-        { label: "", url: "https://www.rachel.example/" },
-        { label: "Instagram", url: "https://instagram.com/rachel" },
+        { kind: "website" as const, label: "", url: "https://www.rachel.example/" },
+        { kind: "instagram" as const, label: "", url: "https://instagram.com/rachel" },
       ];
       const updated = await db.artists.updateArtistProfile(a.id, {
         name: "Rachel",

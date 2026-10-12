@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import { App, ShellFallback } from "./App";
 import { LandingPage } from "./pages/LandingPage";
 import { ArtistsPage } from "./pages/ArtistsPage";
@@ -84,10 +84,13 @@ export const router = createBrowserRouter([
           {
             lazy: async () => ({ Component: (await import("./pages/account/RequireCustomer")).RequireCustomer }),
             children: [
-              { index: true, lazy: async () => ({ Component: (await import("./pages/account/AccountOverviewPage")).AccountOverviewPage }) },
+              { index: true, lazy: async () => ({ Component: (await import("./pages/account/AccountCollectionsPage")).AccountCollectionsPage }) },
+              { path: "collections/:id", lazy: async () => ({ Component: (await import("./pages/account/AccountCollectionPage")).AccountCollectionPage }) },
               { path: "postcards", lazy: async () => ({ Component: (await import("./pages/account/AccountPostcardsPage")).AccountPostcardsPage }) },
-              { path: "address", lazy: async () => ({ Component: (await import("./pages/account/AccountAddressPage")).AccountAddressPage }) },
-              { path: "collections", lazy: async () => ({ Component: (await import("./pages/account/AccountCollectionsPage")).AccountCollectionsPage }) },
+              { path: "settings", lazy: async () => ({ Component: (await import("./pages/account/AccountSettingsPage")).AccountSettingsPage }) },
+              // Where these used to be, for old links and bookmarks.
+              { path: "collections", element: <Navigate to="/account" replace /> },
+              { path: "address", element: <Navigate to="/account/settings" replace /> },
             ],
           },
         ],

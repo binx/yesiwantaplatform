@@ -1,23 +1,28 @@
-import { NavLink } from "react-router-dom";
-import { useCustomer } from "@/lib/account";
+import { NavLink, useLocation } from "react-router-dom";
 import { cx } from "@/lib/cx";
 import styles from "./Account.module.css";
 
 const LINKS = [
-  { to: "/account", label: "Overview", end: true },
-  { to: "/account/collections", label: "Collections", end: false },
-  { to: "/account/postcards", label: "Postcards", end: false },
-  { to: "/account/address", label: "Address", end: false },
+  { to: "/account", label: "Collections" },
+  { to: "/account/postcards", label: "Mailed" },
+  { to: "/account/settings", label: "Settings" },
 ] as const;
 
-/** The account's tabs — and, for an artist, the way into their studio, which is the tab they came for. */
+/**
+ * The account's tabs: what you collect, what has been mailed, and the
+ * rest. An artist's studio is its own section, reached from the site's
+ * header, so it is not a tab here.
+ *
+ * Collections is the index, and a collection's own page belongs to it;
+ * every other path under /account is some other tab's.
+ */
 export function AccountNav() {
-  const customer = useCustomer();
-  const links = customer.data?.artistSlug ? [...LINKS, { to: "/studio", label: "Your studio", end: false }] : LINKS;
+  const { pathname } = useLocation();
+  const active = (to: string) => (to === "/account" ? pathname === "/account" || pathname.startsWith("/account/collections") : pathname.startsWith(to));
   return (
     <nav className={cx(styles.nav)} aria-label="Account">
-      {links.map((link) => (
-        <NavLink key={link.to} to={link.to} end={link.end} className={({ isActive }) => cx(styles.navLink, isActive && styles.navLinkActive)}>
+      {LINKS.map((link) => (
+        <NavLink key={link.to} to={link.to} className={cx(styles.navLink, active(link.to) && styles.navLinkActive)} aria-current={active(link.to) ? "page" : undefined}>
           {link.label}
         </NavLink>
       ))}

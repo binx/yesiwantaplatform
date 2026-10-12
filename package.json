@@ -21,7 +21,8 @@
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate --config=drizzle.sqlite.config.ts && drizzle-kit generate --config=drizzle.pg.config.ts",
     "db:migrate": "tsx db/migrate.ts",
-    "db:seed": "tsx db/seed.ts"
+    "db:seed": "tsx db/seed.ts",
+    "db:seed:demo": "tsx db/seed-demo.ts"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.4",

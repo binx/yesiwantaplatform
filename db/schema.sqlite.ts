@@ -234,6 +234,10 @@ export const postcardDesigns = sqliteTable(
  * An edition: a set of 6 or 12 cards, sent monthly or twice a month, at one
  * price for the whole set.
  *
+ * The cards are a surprise: visitors see the banner and the description —
+ * the artist's writeup of what will arrive — and each card only once it is
+ * in their letterbox.
+ *
  * Built as a `draft`; once `on_sale` its cards, size, cadence and price are
  * fixed — a collector paid for exactly these — and only its words can
  * change. `closed` stops new collectors; everyone who already paid still
@@ -252,8 +256,13 @@ export const editions = sqliteTable(
       .references(() => artists.id, { onDelete: "cascade" }),
     slug: text("slug").notNull(),
     title: text("title").notNull(),
-    /** Markdown. Rendered to HTML at read time, never stored as HTML. */
+    /** Markdown: what collectors will get. Rendered to HTML at read time, never stored as HTML. */
     description: text("description").notNull().default(""),
+    /** A wide picture across the top of the edition's page, standing in for the cards. */
+    bannerPath: text("banner_path"),
+    bannerWidth: integer("banner_width"),
+    bannerHeight: integer("banner_height"),
+    bannerAlt: text("banner_alt"),
     /** 6 or 12. */
     cardCount: integer("card_count").notNull(),
     /** monthly | twice_monthly */

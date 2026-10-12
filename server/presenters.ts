@@ -148,46 +148,44 @@ function presentCards(edition: EditionRecord, context: EditionContext, artistNam
   });
 }
 
-function editionFields(edition: EditionRecord, context: EditionContext, currency: string, artistName: string) {
+function editionFields(edition: EditionRecord, collectors: Map<string, number>, currency: string) {
   return {
     id: edition.id,
     artistId: edition.artistId,
     slug: edition.slug,
     title: edition.title,
     descriptionHtml: renderMarkdown(edition.description),
+    banner: edition.banner,
     cardCount: edition.cardCount,
     cadence: edition.cadence,
     priceCents: edition.priceCents,
     currency,
     status: edition.status,
     inGallery: edition.inGallery,
-    cards: presentCards(edition, context, artistName),
-    collectorCount: context.collectors.get(edition.id) ?? 0,
+    collectorCount: collectors.get(edition.id) ?? 0,
     createdAt: edition.createdAt,
   };
 }
 
-/** Editions as a visitor sees them, every card included. */
-export async function presentEditions(editions: EditionRecord[], currency: string, artistName: string): Promise<Edition[]> {
-  const context = await loadEditionContext(editions);
-  return editions.map((edition) => editionSchema.parse(editionFields(edition, context, currency, artistName)));
+/** Editions as a visitor sees them: the banner and the writeup, never the cards. Nothing about them is even loaded. */
+export async function presentEditions(editions: EditionRecord[], currency: string): Promise<Edition[]> {
+  const collectors = await countCollectorsForEditions(editions.map((edition) => edition.id));
+  return editions.map((edition) => editionSchema.parse(editionFields(edition, collectors, currency)));
 }
 
-/** Editions as a list: each with its cover only. */
-export async function summariseEditions(editions: EditionRecord[], currency: string, artistName: string): Promise<EditionSummary[]> {
-  const context = await loadEditionContext(editions);
-  return editions.map((edition) => {
-    const fields = editionFields(edition, context, currency, artistName);
-    return editionSummarySchema.parse({ ...fields, cover: fields.cards[0]?.design ?? null });
-  });
+/** Editions as a list. */
+export async function summariseEditions(editions: EditionRecord[], currency: string): Promise<EditionSummary[]> {
+  const collectors = await countCollectorsForEditions(editions.map((edition) => edition.id));
+  return editions.map((edition) => editionSummarySchema.parse(editionFields(edition, collectors, currency)));
 }
 
-/** Editions as their artist sees them: the Markdown, and how the cards are moving. */
+/** Editions as their artist sees them: every card, the Markdown, and how the cards are moving. */
 export async function presentStudioEditions(editions: EditionRecord[], currency: string, artistName: string): Promise<EditionStudio[]> {
   const [context, postcards] = await Promise.all([loadEditionContext(editions), countPostcardsByEdition(editions.map((edition) => edition.id))]);
   return editions.map((edition) =>
     editionStudioSchema.parse({
-      ...editionFields(edition, context, currency, artistName),
+      ...editionFields(edition, context.collectors, currency),
+      cards: presentCards(edition, context, artistName),
       description: edition.description,
       sentCount: postcards.get(edition.id)?.sent ?? 0,
       scheduledCount: postcards.get(edition.id)?.scheduled ?? 0,
@@ -207,7 +205,7 @@ function progress(schedule: ScheduleEntry[]): { sentCount: number; nextMailDate:
 }
 
 /**
- * Purchases as their collectors see them: the edition and its cover, the
+ * Purchases as their collectors see them: the edition and its banner, the
  * schedule, and how far along it is. Everything resolved in a handful of
  * grouped queries.
  */
@@ -219,17 +217,15 @@ export async function presentCollections(purchases: PurchaseRecord[]): Promise<C
   ]);
   const artistById = new Map(artists.map((artist) => [artist.id, artist]));
   const editionById = new Map(editions.map((edition) => [edition.id, edition]));
-  const context = await loadEditionContext(editions);
 
   return purchases.map((purchase) => {
     const artist = artistById.get(purchase.artistId);
     const edition = editionById.get(purchase.editionId);
-    const cover = edition ? (presentCards(edition, context, artist?.name ?? "an artist")[0]?.design ?? null) : null;
     const schedule = schedules.get(purchase.id) ?? [];
     return collectionSchema.parse({
       id: purchase.id,
       artist: artistLink(artist, purchase.artistId),
-      edition: { id: purchase.editionId, slug: edition?.slug ?? "unknown", title: edition?.title ?? "An edition", cover },
+      edition: { id: purchase.editionId, slug: edition?.slug ?? "unknown", title: edition?.title ?? "An edition", banner: edition?.banner ?? null },
       status: purchase.status,
       priceCents: purchase.priceCents,
       refundedCents: purchase.refundedCents,

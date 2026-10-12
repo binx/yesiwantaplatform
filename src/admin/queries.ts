@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { EnvironmentStatus, PageInput, EmailTestResult, LobTestResult, SettingsInput, PasswordChangeInput } from "@shared/api";
 import type { Image, PageDraft } from "@shared/schema";
-import type { ArtistPublic, ArtistStatus, Mailing, Order, Payout, PayoutStatus, Subscription } from "@shared/platform";
+import type { ArtistPublic, ArtistStatus, Collection, EditionStudio, Payout, PayoutStatus } from "@shared/platform";
 import type { Postcard, PostcardBack } from "@shared/postcards";
 import { apiGet, csrfDelete, csrfPost, csrfPut, csrfUpload } from "@/lib/api";
 
@@ -19,13 +19,12 @@ export const adminKeys = {
   overview: ["admin", "overview"] as const,
   artists: ["admin", "artists"] as const,
   artist: (id: string) => ["admin", "artist", id] as const,
-  mailings: ["admin", "mailings"] as const,
-  mailing: (id: string) => ["admin", "mailing", id] as const,
+  editions: ["admin", "editions"] as const,
+  edition: (id: string) => ["admin", "edition", id] as const,
   errors: ["admin", "postcard-errors"] as const,
   payouts: ["admin", "payouts"] as const,
   customers: ["admin", "customers"] as const,
-  subscriptions: ["admin", "subscriptions"] as const,
-  orders: ["admin", "orders"] as const,
+  purchases: ["admin", "purchases"] as const,
 };
 
 /** Anything the site renders is derived from these. */
@@ -149,8 +148,10 @@ export interface PayoutSweepResult {
 
 export interface Overview {
   artists: Record<string, number>;
-  subscriptions: Record<string, number>;
-  mailings: Record<string, number>;
+  /** Purchases by status: incomplete, paid, refunded. */
+  purchases: Record<string, number>;
+  /** Editions by status: draft, on_sale, closed. */
+  editions: Record<string, number>;
   postcards: Record<string, number>;
   /** Cents, by payout status. */
   payouts: Record<string, number>;
@@ -180,7 +181,7 @@ function useInvalidateOperations() {
 export function useRunFulfilment() {
   const invalidate = useInvalidateOperations();
   return useMutation({
-    mutationFn: () => csrfPost<SweepResult & { mailings: { mailed: number; postcards: number } }>("/admin/fulfilment/run", {}),
+    mutationFn: () => csrfPost<SweepResult>("/admin/fulfilment/run", {}),
     onSuccess: invalidate,
   });
 }
@@ -208,10 +209,16 @@ export function useAdminArtists(status?: ArtistStatus) {
   });
 }
 
+/** A collection as the admin sees it: the collector's own view, plus whose it is and the Stripe id to look up. */
+export interface AdminPurchase extends Collection {
+  customerId: string;
+  stripePaymentIntentId: string | null;
+}
+
 export interface AdminArtistDetail {
   artist: AdminArtist & { bio: string; stripeAccountId: string | null };
-  mailings: Mailing[];
-  subscriptions: (Subscription & { customerId?: string })[];
+  editions: EditionStudio[];
+  purchases: AdminPurchase[];
 }
 
 export function useAdminArtist(id: string | undefined) {
@@ -234,29 +241,37 @@ export function useSetAdminArtistStatus() {
   });
 }
 
-/* ---------------------------------------------------------------- mailings */
+/* ---------------------------------------------------------------- editions */
 
-export interface AdminMailing extends Mailing {
+export interface AdminEdition extends EditionStudio {
   artist: { id: string; slug: string; name: string } | null;
 }
 
-export function useAdminMailings(status?: string) {
+export function useAdminEditions(status?: string) {
   return useQuery({
-    queryKey: [...adminKeys.mailings, status ?? "all"],
-    queryFn: ({ signal }) => apiGet<{ mailings: AdminMailing[]; total: number }>(`/admin/mailings?limit=100${status ? `&status=${status}` : ""}`, signal),
+    queryKey: [...adminKeys.editions, status ?? "all"],
+    queryFn: ({ signal }) => apiGet<{ editions: AdminEdition[]; total: number }>(`/admin/editions?limit=100${status ? `&status=${status}` : ""}`, signal),
   });
 }
 
 export interface AdminPostcard extends Postcard {
-  mailingId: string;
+  editionId: string;
+  editionCardId: string;
   artistId: string;
   createdAt: number;
 }
 
-export function useAdminMailing(id: string | undefined) {
+export interface AdminEditionDetail {
+  edition: EditionStudio;
+  artist: { id: string; slug: string; name: string } | null;
+  purchases: AdminPurchase[];
+  postcards: AdminPostcard[];
+}
+
+export function useAdminEdition(id: string | undefined) {
   return useQuery({
-    queryKey: adminKeys.mailing(id ?? ""),
-    queryFn: ({ signal }) => apiGet<{ mailing: Mailing; artist: { id: string; slug: string; name: string } | null; postcards: AdminPostcard[] }>(`/admin/mailings/${id ?? ""}`, signal),
+    queryKey: adminKeys.edition(id ?? ""),
+    queryFn: ({ signal }) => apiGet<AdminEditionDetail>(`/admin/editions/${id ?? ""}`, signal),
     enabled: Boolean(id),
   });
 }
@@ -314,7 +329,8 @@ export interface AdminCustomer {
   emailVerified: boolean;
   createdAt: number;
   artistSlug: string | null;
-  activeSubscriptions: number;
+  /** Paid purchases. */
+  purchases: number;
 }
 
 export function useAdminCustomers() {
@@ -324,17 +340,10 @@ export function useAdminCustomers() {
   });
 }
 
-export function useAdminSubscriptions() {
+export function useAdminPurchases() {
   return useQuery({
-    queryKey: adminKeys.subscriptions,
-    queryFn: ({ signal }) => apiGet<{ subscriptions: (Subscription & { customerId: string })[]; total: number }>("/admin/subscriptions?limit=100", signal),
-  });
-}
-
-export function useAdminOrders() {
-  return useQuery({
-    queryKey: adminKeys.orders,
-    queryFn: ({ signal }) => apiGet<{ orders: (Order & { customerId: string })[]; total: number }>("/admin/orders?limit=100", signal),
+    queryKey: adminKeys.purchases,
+    queryFn: ({ signal }) => apiGet<{ purchases: AdminPurchase[]; total: number }>("/admin/purchases?limit=100", signal),
   });
 }
 

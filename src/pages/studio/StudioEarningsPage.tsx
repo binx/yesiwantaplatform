@@ -114,7 +114,7 @@ export function StudioEarningsPage() {
                   <th scope="col">Card</th>
                   <th scope="col">Earned</th>
                   <th scope="col" className={styles.amount}>
-                    Subscriber paid
+                    Collector paid
                   </th>
                   <th scope="col" className={styles.amount}>
                     Printing

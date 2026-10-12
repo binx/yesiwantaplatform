@@ -3,10 +3,10 @@ import { cx } from "@/lib/cx";
 import styles from "./Account.module.css";
 
 const LINKS = [
-  { to: "/account", label: "Subscriptions", end: true },
+  { to: "/account", label: "Overview", end: true },
+  { to: "/account/collections", label: "Collections", end: false },
   { to: "/account/postcards", label: "Postcards", end: false },
   { to: "/account/address", label: "Address", end: false },
-  { to: "/account/receipts", label: "Receipts", end: false },
 ] as const;
 
 export function AccountNav() {

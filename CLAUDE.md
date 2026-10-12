@@ -2,21 +2,23 @@
 
 ## What this is
 
-Yes I Want A Postcard: a postcard subscription platform for artists. An artist
-queues one postcard a month; subscribers pay a monthly price; on the mailing
-day every active subscriber is printed and mailed a card by Lob; the platform
-keeps a print cost and a fee per sent card and transfers the rest to the
-artist through Stripe Connect.
+Yes I Want A Postcard: artists sell editions of postcards. An edition is a
+set of 6 or 12 cards, sent monthly or twice a month, at one price. A
+collector pays for the whole set once, picks the day their run starts
+(default: the next 1st or 15th), and Lob prints and mails each card on its
+day. Each sent card earns the artist its share of the price, less a print
+cost and a platform fee, transferred through Stripe Connect.
 
 Forked from postcards-v2 (`git remote postcards`), itself a fork of Beluga v2
 (`git remote beluga`). Their invariants still hold, plus this platform's own:
 
 1. **Money is integer cents, everywhere.** See `shared/money.ts`.
-2. **Money never comes from the request.** The artist's price is read from
-   their row at checkout; the platform's cut from `store_settings` by the
-   ledger. `artistShareCents` in `shared/schema.ts` is the one formula.
-3. **The Stripe webhook is the only thing that activates a subscription,
-   records a paid month, or flips an artist to payable** (besides the
+2. **Money never comes from the request.** An edition's price is read from
+   its row at checkout and snapshotted on the purchase; the platform's cut
+   from `store_settings` by the ledger. `cardGrossCents` and
+   `artistShareCents` in `shared/schema.ts` are the one formula.
+3. **The Stripe webhook is the only thing that marks a purchase paid, writes
+   its cards, records a refund, or flips an artist to payable** (besides the
    studio's own refresh, which asks Stripe).
 4. **Webhook handling is idempotent.** Events are deduplicated by id in
    `webhook_events`; Lob's are prefixed `lob:`.
@@ -29,25 +31,25 @@ Forked from postcards-v2 (`git remote postcards`), itself a fork of Beluga v2
    and `db/schema.pg.ts` together, then `npm run db:generate`, commit both
    migration folders. `db/dialect.test.ts` runs against both engines.
 7. **Only `server/fulfilment.ts` talks to Lob and creates transfers**, and
-   only its conditional claims (`claimPostcard`, `claimPayout`,
-   `markMailingMailed`) decide who does what. Our ids are the idempotency
-   keys. Never send or transfer from a request handler.
-8. **One mailing per artist per calendar month.** The unique index on
-   `mailings (artist_id, period)` is the rule; `PeriodTakenError` is how the
-   studio says it. A subscriber pays once a month, so a second card would be
-   paid for by nobody.
+   only its conditional claims (`claimPostcard`, `claimPayout`) decide who
+   does what. Our ids are the idempotency keys. Never send or transfer from
+   a request handler.
+8. **An edition on sale is fixed.** Its cards, size, cadence, price and slug
+   change only as a `draft` (the repository's conditional updates hold it,
+   not just the route), and it goes back to draft only if nobody ever
+   bought it. One card per purchase per position: the unique index on
+   `postcards (purchase_id, position)` makes writing a run idempotent.
 9. **Refusals are stored in the other party's words.** Lob's on the postcard
    row, Stripe's on the payout row. Shown in full to the admin only;
-   subscribers and artists get "we're looking into it".
-10. **Artists never see a street address.** `toSubscriber` and the studio's
-    postcards route strip it. The platform mails; the artist gets a name and
-    a town.
+   collectors and artists get "we're looking into it".
+10. **Artists never see a street address.** `presentCollectors` gives them a
+    name and a town. The platform mails.
 
 ## Layout
 
 ```
 src/            React 19 site (Vite). pages/, pages/account/, pages/studio/, admin/.
-server/         Express 5 API. fulfilment.ts: the three sweeps. connect.ts: Stripe Connect.
+server/         Express 5 API. fulfilment.ts: the print and payout sweeps. connect.ts: Stripe Connect.
 server/routes/  public, account, studio, checkout, webhook, admin, lob-webhook, site.
 server/presenters.ts  rows → what each audience may see, parsed with the shared schemas.
 db/             Drizzle schema (both dialects), migrations, one repository per table.

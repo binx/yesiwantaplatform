@@ -125,7 +125,7 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
         <Field label="Platform name" help="Shown in the banner, the page title, on the back of every card and in every email.">
           {(control) => <Input {...control} value={name} onChange={(event) => setName(event.target.value)} />}
         </Field>
-        <Field label="Currency" help="What subscribers are charged in and what artists are paid in. Every artist's price is in this currency.">
+        <Field label="Currency" help="What collectors are charged in and what artists are paid in. Every edition's price is in this currency.">
           {(control) => <Select {...control} className={cx(styles.currency)} value={currency} onChange={setCurrency} showSearch options={CURRENCIES.map((code) => ({ label: code, value: code }))} />}
         </Field>
         <Field label="Language" help={localeWrong ? "Use a language tag like en-US, de-DE or fr-CA." : "How the site writes numbers and dates."}>
@@ -135,18 +135,18 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
 
       <Card title="Pricing" className={cx(styles.card)}>
         <p className={cx(styles.wiring)}>
-          Every card a subscriber is sent earns its artist the subscriber's monthly price less these two amounts. Changing them affects cards sent from now on; the ledger keeps what each past card was computed with.
+          Every card a collector is sent earns its artist that card's share of the edition's price — the price divided by the number of cards — less these two amounts. Changing them affects cards sent from now on; the ledger keeps what each past card was computed with.
         </p>
         {cents(printCost, setPrintCost, "What one printed and mailed card costs you", "Lob's per-card price for a 4×6 first-class postcard, plus whatever you want to allow for the odd reprint.")}
         {cents(fee, setFee, "What the platform keeps per card", "Your margin on each sent card.")}
-        {cents(minPrice, setMinPrice, "The least an artist may charge a month", "Stripe cannot charge less than 0.50. Below your costs, a card would lose money.")}
+        {cents(minPrice, setMinPrice, "Minimum price per card", `An edition must cost at least this many times its number of cards: at ${pricingWrong ? "this price" : money(minPriceCents)}, an edition of 6 costs at least ${pricingWrong ? "6×" : money(minPriceCents * 6)} and an edition of 12 at least ${pricingWrong ? "12×" : money(minPriceCents * 12)}. Stripe cannot charge less than 0.50. Below your costs, a card would lose money.`)}
         {pricingWrong ? (
-          <Alert className={cx(styles.notice)} type="error" showIcon title="Enter amounts like 1.20, and a minimum price of at least 0.50." />
+          <Alert className={cx(styles.notice)} type="error" showIcon title="Enter amounts like 1.20, and a minimum price per card of at least 0.50." />
         ) : shareWrong ? (
-          <Alert className={cx(styles.notice)} type="error" showIcon title="At the minimum price an artist would earn nothing" description="Raise the minimum, or lower the print cost or fee." />
+          <Alert className={cx(styles.notice)} type="error" showIcon title="At the minimum price per card an artist would earn nothing" description="Raise the minimum, or lower the print cost or fee." />
         ) : (
           <p className={cx(styles.help)}>
-            At the minimum price an artist earns {money(share ?? 0)} per card sent. At {money(500)} they would earn {money(artistShareCents(500, pricing!))}.
+            At the minimum price per card an artist earns {money(share ?? 0)} per card sent. A card of an edition of 6 at {money(3000)} is {money(500)}, and earns them {money(artistShareCents(500, pricing!))}.
           </p>
         )}
       </Card>
@@ -160,7 +160,7 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
                 {environment.data.hasWebhookSecret ? <Tag color="green">webhooks on</Tag> : <Tag color="orange">no webhook secret</Tag>}
               </>
             ) : (
-              <>No secret key on the server, so nobody can subscribe and nobody can be paid.</>
+              <>No secret key on the server, so nobody can collect an edition and nobody can be paid.</>
             )}
           </p>
         ) : null}
@@ -261,7 +261,7 @@ function HeroEditor({ value, onChange, hrefWrong }: { value: Hero; onChange: (he
   );
 }
 
-/** Prove the SMTP transport works, before a subscriber does it for you. */
+/** Prove the SMTP transport works, before a collector does it for you. */
 export function EmailCheck({ hasEmail }: { hasEmail: boolean }) {
   const send = useSendTestEmail();
 
@@ -293,10 +293,10 @@ export function PrintingCheck({ hasLob, lobMode }: { hasLob: boolean; lobMode: "
         {hasLob ? (
           <>
             Postcards are printed and mailed by Lob <Tag color={lobMode === "live" ? "red" : "blue"}>{lobMode} key</Tag>
-            The sweep runs every fifteen minutes: due mailings become cards, and due cards go to Lob.
+            The sweep runs every fifteen minutes and sends every card whose day has come to Lob.
           </>
         ) : (
-          "No LOB_API_KEY on the server, so mailings write cards that wait at Scheduled and nothing is printed. Set it, then restart the API."
+          "No LOB_API_KEY on the server, so purchases write cards that wait at Scheduled and nothing is printed. Set it, then restart the API."
         )}
       </p>
       <Button

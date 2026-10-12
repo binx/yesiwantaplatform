@@ -1,14 +1,14 @@
 # ✉️ Yes I Want A Postcard
 
-A postcard subscription platform for artists.
+Editions of postcards, by artists, in the mail.
 
-An artist opens a studio, sets a monthly price, and queues one postcard a
-month — a photo they took on the front, a short note on the back. People
-subscribe from the artist's page and give an address. On the mailing day,
-every active subscriber is printed and mailed a card by [Lob](https://lob.com).
-Billing is Stripe subscriptions; the platform keeps a print cost and a small
-fee from each sent card and transfers the rest to the artist through Stripe
-Connect.
+An artist makes an edition: a set of 6 or 12 postcards — photos or drawings
+on the front, a short note on the back — sent monthly or twice a month, at one
+price. They can have several: flowers, birds, a road trip. Someone collects an
+edition from the artist's page, pays once, and picks the day it starts. Each
+card is printed and mailed by [Lob](https://lob.com) on its day. The platform
+keeps a print cost and a small fee from each sent card and transfers the rest
+to the artist through Stripe Connect.
 
 Built from three earlier projects: the pitch and the look of
 [yesiwantapostcard.com](https://yesiwantapostcard.com) (one artist, one
@@ -21,35 +21,43 @@ webhooks, email, image storage, dual-dialect database).
 ## How it works
 
 1. **An artist opens a studio** at `/studio/new`: a name, an address under
-   `/artist/`, a page in Markdown, a monthly price (no lower than the platform's
-   floor) and the day of the month their cards go out. The page starts as a
-   draft.
-2. **They queue a card.** The studio's designer takes a photo and a note,
-   makes the print-ready front at Lob's size and density on upload, and puts
-   the design on a month. One card per calendar month per artist — the
-   database enforces it, because each subscriber pays once a month.
-3. **They go live.** The page becomes public and listed under `/artists`.
-   Going live needs a card in the queue, so a new subscriber's first month is
-   never empty.
-4. **Someone says yes.** From the artist's page, a signed-in visitor gives an
-   address (checked against USPS, saved to their account) and is sent to
-   Stripe Checkout in subscription mode with the artist's price as an inline
-   monthly `price_data`. The subscription row is written `incomplete`.
-5. **The webhook activates it.** `checkout.session.completed` is the only thing
-   that makes a subscription active; `invoice.paid` records each month as an
-   order; `customer.subscription.*` mirrors Stripe's status; a cancellation
-   winds down at the period end.
-6. **The mailing day.** A sweep in the API process runs every fifteen minutes.
-   A due mailing is turned into one `postcards` row per active subscriber
-   (idempotently — a unique index on mailing × subscription), then each card
-   is sent to Lob with the card's own id as the idempotency key. Lob's refusal
-   is stored verbatim on the card and shown to the admin next to a Retry
-   button; the subscriber sees "we're looking into it".
-7. **The ledger.** The moment Lob accepts a card, a `payouts` row records the
-   subscriber's price, the print cost, the platform fee and the artist's share,
-   with the numbers as they were that moment. An hourly sweep transfers each
-   pending share to the artist's Stripe Connect account, keyed on the row id.
-   Artists still onboarding accrue and are paid the day they finish.
+   `/artist/`, a page in Markdown. The page starts as a draft.
+2. **They make an edition.** A title, a description, a size (6 or 12 cards),
+   a cadence (monthly or twice a month) and a price for the whole set, no
+   lower than the platform's floor per card times the size. The studio's
+   designer takes each image and note, makes the print-ready front at Lob's
+   size and density on upload, and puts the designs in the edition's slots,
+   in order.
+3. **They put it on sale and go live.** An edition goes on sale only with
+   every card in place, and from then on its cards, size, cadence and price
+   are fixed — collectors paid for exactly those. Going live needs an
+   edition on sale. An edition can be closed to new collectors at any time;
+   everyone who paid still gets every card.
+4. **Someone says yes.** From the edition's page, a signed-in visitor gives
+   an address (checked against USPS, saved to their account) and, if they
+   like, the day the first card should go — otherwise the next 1st or 15th.
+   They are sent to Stripe Checkout in payment mode with the edition's price
+   as an inline one-time `price_data`. The purchase row is written
+   `incomplete`.
+5. **The webhook marks it paid and writes the run.**
+   `checkout.session.completed` is the only thing that marks a purchase paid,
+   and the moment it does every card of the run is written as a `postcards`
+   row with its own mail date (idempotently — a unique index on purchase ×
+   position). Monthly runs land on the start day each month; twice-a-month
+   runs on that day and the one fourteen days from it. `charge.refunded`
+   records refunds; a full refund withdraws every card not yet sent.
+6. **Each card's day.** A sweep in the API process runs every fifteen
+   minutes and sends every card whose day has come to Lob, with the card's
+   own id as the idempotency key. Lob's refusal is stored verbatim on the
+   card and shown to the admin next to a Retry button; the collector sees
+   "we're looking into it". A collector who moves updates every card still
+   to come.
+7. **The ledger.** The moment Lob accepts a card, a `payouts` row records
+   that card's part of the price, the print cost, the platform fee and the
+   artist's share, with the numbers as they were that moment. An hourly
+   sweep transfers each pending share to the artist's Stripe Connect
+   account, keyed on the row id. Artists still onboarding accrue and are
+   paid the day they finish.
 
 Everyone signs in the same way. An artist is a customer with an artist row;
 the studio is a third authorization surface on top of the customer's, and the
@@ -71,8 +79,8 @@ npm run dev:all     # site on :5173, API on :4000
 
 Or skip `setup`, run `dev:all`, and open <http://localhost:5173/setup>.
 
-Neither needs Stripe or Lob to browse, open a studio and queue cards. To take
-a subscription:
+Neither needs Stripe or Lob to browse, open a studio and make an edition. To
+sell one:
 
 ```bash
 stripe listen --forward-to localhost:4000/api/webhooks/stripe
@@ -103,11 +111,11 @@ and press **Send a test postcard** under Admin → Settings → Printing.
 
 ```
 src/              React 19 site (Vite).
-src/pages/        Landing, artists, an artist's page, the gallery, subscribe.
-src/pages/account The subscriber: subscriptions, postcards, address, receipts.
-src/pages/studio  The artist: overview, queue (designer), subscribers, earnings, page.
+src/pages/        Landing, artists, an artist's page, an edition, the gallery, collect.
+src/pages/account The collector: collections (and receipts), postcards, address.
+src/pages/studio  The artist: overview, editions (and the designer), collectors, earnings, page.
 src/admin/        The operator. Loaded on demand.
-server/           Express 5 API. fulfilment.ts is the three sweeps; connect.ts is Stripe Connect.
+server/           Express 5 API. fulfilment.ts is the print and payout sweeps; connect.ts is Stripe Connect.
 server/routes/    public, account, studio, checkout, webhook, admin, lob-webhook.
 db/               Drizzle schema (SQLite and Postgres), migrations, repositories.
 shared/           zod contracts imported by both sides. platform.ts is the domain.
@@ -125,28 +133,31 @@ database needs a home.
 ### The money
 
 Three numbers in Admin → Settings → Pricing: what one printed and mailed card
-costs the platform, what the platform keeps per card, and the least an artist
-may charge a month. Every ledger row is computed from the subscriber's price
-snapshot on their subscription and the two costs as they stood when Lob
-accepted the card; changing the settings later changes nothing already
-recorded. `artistShareCents` in `shared/schema.ts` is the whole formula, and
-the studio shows an artist what a card will earn before they set a price.
+costs the platform, what the platform keeps per card, and the least an
+edition may charge per card. Every ledger row is computed from the price
+snapshot on the purchase — split evenly across the set, the odd cents on
+card 1 — and the two costs as they stood when Lob accepted the card;
+changing the settings later changes nothing already recorded.
+`cardGrossCents` and `artistShareCents` in `shared/schema.ts` are the whole
+formula, and the studio shows an artist what a card will earn before they set
+a price.
 
-Subscriptions are charged on the platform's own Stripe account and shares are
-sent on as separate transfers, rather than as destination charges with an
-application fee: Stripe only offers a percentage fee on subscriptions, and
-this platform's fee is a fixed amount per card. A transfer that Stripe
+Purchases are charged on the platform's own Stripe account and shares are
+sent on as separate transfers, one per card as it is mailed, rather than as a
+destination charge at checkout: the artist earns a card's share when the card
+exists, so a refund before then costs them nothing, and the platform's fee is
+a fixed amount per card. A transfer that Stripe
 refuses for lack of settled balance is retried at the next hour; one it
 refuses for good is parked for the admin with Stripe's reason.
 
 ### Invariants
 
 1. **Money is integer cents, everywhere.** See `shared/money.ts`.
-2. **Money never comes from the request.** The artist's price is read from
-   their row at checkout; the platform's cut from settings by the ledger.
-3. **The Stripe webhook is the only thing that activates a subscription,
-   records a paid month, or marks an artist payable** (the studio's refresh
-   button asks Stripe directly, which is the same authority).
+2. **Money never comes from the request.** An edition's price is read from
+   its row at checkout; the platform's cut from settings by the ledger.
+3. **The Stripe webhook is the only thing that marks a purchase paid, writes
+   its cards, records a refund, or marks an artist payable** (the studio's
+   refresh button asks Stripe directly, which is the same authority).
 4. **Webhook handling is idempotent.** Events are deduplicated by id.
 5. **Every admin route is behind `requireAdmin` + `verifyCsrf`; every studio
    route behind `requireCustomer` + the caller's own artist row.** New routes
@@ -154,7 +165,8 @@ refuses for good is parked for the admin with Stripe's reason.
 6. **Every schema change lands in both dialects.**
 7. **Only the sweeps talk to Lob and make transfers**, and only their
    conditional claims decide who sends what. Our ids are the idempotency keys.
-8. **Lob's refusal and Stripe's refusal are stored in their own words.**
+8. **An edition on sale is fixed**: its cards, size, cadence and price.
+9. **Lob's refusal and Stripe's refusal are stored in their own words.**
 
 ## Deploying
 

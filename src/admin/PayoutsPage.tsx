@@ -64,7 +64,8 @@ export function PayoutsPage() {
           columns={[
             { title: "Earned", dataIndex: "createdAt", render: (value: number) => formatDay(value, locale) },
             { title: "Artist", dataIndex: "artist", render: (artist: AdminPayout["artist"]) => (artist ? <Link to={`/admin/artists/${artist.id}`}>{artist.name}</Link> : "—") },
-            { title: "Card", dataIndex: "postcardId", render: (id: string, payout) => <Link to={`/admin/mailings/${payout.mailingId}`}>{id.slice(0, 8)}</Link> },
+            { title: "Card", dataIndex: "postcardId", render: (id: string) => id.slice(0, 8) },
+            { title: "Purchase", dataIndex: "purchaseId", render: (id: string) => id.slice(0, 8) },
             { title: "Gross", dataIndex: "grossCents", align: "right", render: (cents: number, p) => money(cents, p.currency) },
             { title: "Print", dataIndex: "printCostCents", align: "right", render: (cents: number, p) => money(cents, p.currency) },
             { title: "Fee", dataIndex: "platformFeeCents", align: "right", render: (cents: number, p) => money(cents, p.currency) },

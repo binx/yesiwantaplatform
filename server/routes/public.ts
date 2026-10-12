@@ -78,7 +78,7 @@ publicRouter.get("/artists/:slug", async (req, res) => {
 
   res.json({
     artist: toPublicArtist(artist, counts.get(artist.id), currency),
-    editions: await summariseEditions(editions, currency, artist.name),
+    editions: await summariseEditions(editions, currency),
     recent: cards,
   });
 });
@@ -95,7 +95,7 @@ publicRouter.get("/artists/:slug/editions/:edition", async (req, res) => {
 
   const [settings, counts] = await Promise.all([getSettings(), countForArtists([artist.id])]);
   const currency = settings?.currency ?? "USD";
-  const [presented] = await presentEditions([edition], currency, artist.name);
+  const [presented] = await presentEditions([edition], currency);
   res.json({ artist: toPublicArtist(artist, counts.get(artist.id), currency), edition: presented });
 });
 

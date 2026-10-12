@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Empty, Segmented, Skeleton, Table, Tag } from "antd";
 import type { ArtistStatus } from "@shared/platform";
-import { formatMoney } from "@shared/money";
 import { useAdminArtists, useStoreLocale, type AdminArtist } from "./queries";
 import { PageHeader } from "./RequireAdmin";
 import { formatDay } from "@/lib/postcards";
@@ -22,7 +21,7 @@ export function ArtistsPage() {
 
   return (
     <>
-      <PageHeader title="Artists" description="Everyone with a page. Pause an artist to stop new subscriptions; their existing subscribers still get queued cards." />
+      <PageHeader title="Artists" description="Everyone with a page. Pause an artist to stop new collectors on every edition; everyone who already paid still gets every card." />
       <Segmented<Filter> value={filter} onChange={setFilter} options={[{ label: "All", value: "all" }, { label: "Live", value: "live" }, { label: "Paused", value: "paused" }, { label: "Draft", value: "draft" }]} style={{ marginBottom: "1rem" }} />
       {artists.isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />
@@ -38,8 +37,7 @@ export function ArtistsPage() {
             { title: "Name", dataIndex: "name", render: (name: string, artist) => <Link to={`/admin/artists/${artist.id}`}>{name}</Link> },
             { title: "Address", dataIndex: "slug", render: (slug: string) => `/artist/${slug}` },
             { title: "Status", dataIndex: "status", render: (status: ArtistStatus) => <Tag color={statusColor(status)}>{status}</Tag> },
-            { title: "Price", dataIndex: "monthlyPriceCents", align: "right", render: (cents: number, artist) => formatMoney(cents, artist.currency, locale) },
-            { title: "Subscribers", dataIndex: "subscriberCount", align: "right" },
+            { title: "Collectors", dataIndex: "collectorCount", align: "right" },
             { title: "Mailed", dataIndex: "mailedCount", align: "right" },
             { title: "Payouts", dataIndex: "payoutsEnabled", render: (enabled: boolean, artist) => (enabled ? <Tag color="green">ready</Tag> : artist.hasStripeAccount ? <Tag color="gold">onboarding</Tag> : <Tag>not set up</Tag>) },
             { title: "Since", dataIndex: "createdAt", render: (value: number) => formatDay(value, locale) },

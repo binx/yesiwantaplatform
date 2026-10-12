@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "93be0716-bec0-48a3-aed9-cdbc41fced8b",
+  "id": "9eeb0dc1-afe2-4a1f-8dff-f0c52e2b907e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "admin_users": {
@@ -554,6 +554,34 @@
           "notNull": true,
           "autoincrement": false,
           "default": "''"
+        },
+        "banner_path": {
+          "name": "banner_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "banner_width": {
+          "name": "banner_width",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "banner_height": {
+          "name": "banner_height",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "banner_alt": {
+          "name": "banner_alt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "card_count": {
           "name": "card_count",

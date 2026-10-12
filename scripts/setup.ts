@@ -469,7 +469,7 @@ async function main(): Promise<void> {
     console.log(dim("  Each sent card costs the platform its print price and keeps its fee; the rest is the artist's."));
     const printCostCents = await askCents("What one printed and mailed card costs you", defaultPricing.printCostCents);
     const platformFeeCents = await askCents("What the platform keeps per card", defaultPricing.platformFeeCents);
-    const minCardPriceCents = Math.max(50, await askCents("The least an artist may charge a month", defaultPricing.minCardPriceCents));
+    const minCardPriceCents = Math.max(50, await askCents("The least an edition may charge per card", defaultPricing.minCardPriceCents));
 
     await updateSettings({
       name,

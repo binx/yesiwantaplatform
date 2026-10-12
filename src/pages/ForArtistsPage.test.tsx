@@ -11,23 +11,25 @@ const withPricing = (printCostCents: number, platformFeeCents: number, minCardPr
   storeSchema.parse({ ...demoStore, pricing: { printCostCents, platformFeeCents, minCardPriceCents } });
 
 describe("the for-artists page", () => {
-  it("prints the floor, the costs and the worked example from settings, never from prose", () => {
+  it("prints the per-card floor, the costs and the worked edition from settings, never from prose", () => {
     customer.data = null;
     renderWithProviders(<ForArtistsPage />, { store: withPricing(130, 45, 350) });
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Share your art, build an audience");
-    expect(screen.getByText(/from \$3\.50 a month/)).toBeInTheDocument();
+    expect(screen.getByText(/from \$3\.50 a card/)).toBeInTheDocument();
     expect(screen.getByText(/take \$1\.30 and our fee takes \$0\.45/)).toBeInTheDocument();
-    // $5.00 − $1.75 = $3.25, by artistShareCents, not by hand.
-    const example = screen.getByLabelText(/What a \$5\.00 subscription pays/);
+    // Six cards at $5.00: $5.00 − $1.75 = $3.25 a card, $19.50 a set, by cardGrossCents and artistShareCents, not by hand.
+    const example = screen.getByLabelText(/What a \$30\.00 edition of 6 pays/);
+    expect(example).toHaveTextContent("$30.00");
     expect(example).toHaveTextContent("$5.00");
     expect(example).toHaveTextContent("$1.75");
     expect(example).toHaveTextContent("$3.25");
+    expect(example).toHaveTextContent("$19.50");
   });
 
-  it("uses the floor as the example when it is above five dollars", () => {
+  it("uses the floor as the example's per-card price when it is above five dollars", () => {
     customer.data = null;
     renderWithProviders(<ForArtistsPage />, { store: withPricing(120, 60, 800) });
-    expect(screen.getByLabelText(/What a \$8\.00 subscription pays/)).toHaveTextContent("$6.20");
+    expect(screen.getByLabelText(/What a \$48\.00 edition of 6 pays/)).toHaveTextContent("$6.20");
   });
 
   it("sends a visitor to open a studio, and warns that a sign-in comes first", () => {

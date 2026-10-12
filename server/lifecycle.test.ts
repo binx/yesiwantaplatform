@@ -122,7 +122,15 @@ function chosenStartDate(): string {
   }
 }
 
-const EDITION = { slug: "birds", title: "Birds of Marfa", description: "Six *birds*.", cardCount: 6, cadence: "monthly", priceCents: 3000 };
+const EDITION: { slug: string; title: string; description: string; cardCount: number; cadence: string; priceCents: number; banner: { path: string; alt: string } | null } = {
+  slug: "birds",
+  title: "Birds of Marfa",
+  description: "Six *birds*.",
+  cardCount: 6,
+  cadence: "monthly",
+  priceCents: 3000,
+  banner: null,
+};
 
 describe("an artist makes an edition", () => {
   it("creates the page, builds a set of six, puts it on sale and goes live", async () => {
@@ -175,7 +183,15 @@ describe("an artist makes an edition", () => {
       .set("x-csrf-token", csrf)
       .send({ cards: designIds.map((designId, i) => ({ designId, title: i === 0 ? "The road" : null })) })
       .expect(200);
-    expect(full.body.cards.map((c: { position: number }) => c.position)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect((full.body.cards as { position: number }[]).map((c) => c.position)).toEqual([1, 2, 3, 4, 5, 6]);
+
+    // The cards are a surprise: the banner is what visitors see instead, so it is needed first.
+    const bare = await agent.post(`/api/studio/editions/${editionId}/status`).set("x-csrf-token", csrf).send({ status: "on_sale" });
+    expect(bare.status).toBe(409);
+    expect(bare.body.error).toMatch(/banner/);
+    const editionBanner = await agent.post("/api/studio/editions/banner").set("x-csrf-token", csrf).field("alt", "Birds on a wire").attach("file", bannerPng, { filename: "birds.png", contentType: "image/png" }).expect(201);
+    EDITION.banner = editionBanner.body as typeof EDITION.banner;
+    await agent.put(`/api/studio/editions/${editionId}`).set("x-csrf-token", csrf).send(EDITION).expect(200);
 
     const onSale = await agent.post(`/api/studio/editions/${editionId}/status`).set("x-csrf-token", csrf).send({ status: "on_sale" }).expect(200);
     expect(onSale.body.status).toBe("on_sale");
@@ -185,6 +201,9 @@ describe("an artist makes an edition", () => {
     expect(reprice.status).toBe(409);
     const retitled = await agent.put(`/api/studio/editions/${editionId}`).set("x-csrf-token", csrf).send({ ...EDITION, title: "Birds" }).expect(200);
     expect(retitled.body.title).toBe("Birds");
+    // The banner can change, but an edition on sale can't be left without one.
+    expect(retitled.body.banner).toMatchObject({ alt: "Birds on a wire" });
+    expect((await agent.put(`/api/studio/editions/${editionId}`).set("x-csrf-token", csrf).send({ ...EDITION, banner: null })).status).toBe(409);
     await agent.put(`/api/studio/editions/${editionId}`).set("x-csrf-token", csrf).send(EDITION).expect(200);
     expect((await agent.put(`/api/studio/designs/${designIds[0]}`).set("x-csrf-token", csrf).send({ text: "changed" })).status).toBe(409);
     expect((await agent.delete(`/api/studio/designs/${designIds[0]}`).set("x-csrf-token", csrf)).status).toBe(409);
@@ -196,10 +215,14 @@ describe("an artist makes an edition", () => {
     const page = await request(app).get("/api/artists/rachel").expect(200);
     expect(page.body.artist.bioHtml).toContain("<strong>Hi.</strong>");
     expect(page.body.artist.collectorCount).toBe(0);
-    expect(page.body.editions).toEqual([expect.objectContaining({ slug: "birds", title: "Birds of Marfa", priceCents: 3000, cover: expect.objectContaining({ id: designIds[0] }) })]);
+    expect(page.body.editions).toEqual([expect.objectContaining({ slug: "birds", title: "Birds of Marfa", priceCents: 3000, banner: expect.objectContaining({ alt: "Birds on a wire" }) })]);
     const shown = await request(app).get("/api/artists/rachel/editions/birds").expect(200);
     expect(shown.body.edition.descriptionHtml).toContain("<em>birds</em>");
-    expect(shown.body.edition.cards).toHaveLength(6);
+    expect(shown.body.edition.banner).toMatchObject({ alt: "Birds on a wire" });
+    // A surprise: no card, and no design, reaches a visitor before it is mailed.
+    expect(shown.body.edition.cards).toBeUndefined();
+    expect(JSON.stringify(shown.body)).not.toContain(designIds[1]!);
+    expect(JSON.stringify(page.body)).not.toContain(designIds[1]!);
     await request(app).get("/api/artists/rachel/editions/nope").expect(404);
     const listed = (await request(app).get("/api/artists").expect(200)).body as { slug: string; fromPriceCents: number; editionCount: number }[];
     expect(listed).toEqual([expect.objectContaining({ slug: "rachel", fromPriceCents: 3000, editionCount: 1 })]);
@@ -291,7 +314,7 @@ describe("a fan collects the edition", () => {
       artist: { slug: "rachel" },
       edition: { slug: "birds", title: "Birds of Marfa" },
     });
-    expect(collections.body[0].schedule.map((c: { mailDate: string }) => c.mailDate)).toEqual(schedule);
+    expect((collections.body[0].schedule as { mailDate: string }[]).map((c) => c.mailDate)).toEqual(schedule);
 
     // One run of an edition at a time.
     const again = await fan.agent.post("/api/checkout/collect").set("x-csrf-token", fan.csrf).send({ editionId, address: ADDRESS });
@@ -489,7 +512,7 @@ describe("the collector moves, then asks for their money back", () => {
     await webhook({ id: "evt_refund_full", object: "event", type: "charge.refunded", data: { object: { ...charge, amount_refunded: 3000 } } }).expect(200);
     collections = await fan.agent.get("/api/account/collections").expect(200);
     expect(collections.body[0]).toMatchObject({ status: "refunded", refundedCents: 3000, sentCount: 1, nextMailDate: null });
-    expect(collections.body[0].schedule.map((c: { status: string }) => c.status)).toEqual(["sent", "cancelled", "cancelled", "cancelled", "cancelled", "cancelled"]);
+    expect((collections.body[0].schedule as { status: string }[]).map((c) => c.status)).toEqual(["sent", "cancelled", "cancelled", "cancelled", "cancelled", "cancelled"]);
 
     // Nothing more goes, and nothing more is earned.
     const { sendDuePostcards } = await import("./fulfilment.js");

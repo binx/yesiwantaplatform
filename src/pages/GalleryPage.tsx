@@ -5,7 +5,7 @@ import { useGallery } from "@/lib/platform";
 import { useStore } from "@/lib/useStore";
 import platform from "@/components/platform/Platform.module.css";
 
-/** What recently went out in the post, newest first, a page at a time. */
+/** What recently went out in the post, newest first, a page at a time. Each card appears once, from the day it first went. */
 export function GalleryPage() {
   const store = useStore();
   const gallery = useGallery(24);
@@ -14,7 +14,7 @@ export function GalleryPage() {
   return (
     <PageWrapper width="wide">
       <h1>Gallery</h1>
-      <p>Postcards recently mailed to subscribers. The card in the letterbox is the real thing; this is the echo.</p>
+      <p>Postcards recently mailed to collectors. The card in the letterbox is the real thing; this is the echo.</p>
 
       {gallery.isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />
@@ -24,7 +24,7 @@ export function GalleryPage() {
         <>
           <div className={platform.galleryGrid}>
             {cards.map((card) => (
-              <GalleryTile key={card.mailingId} card={card} locale={store.locale} />
+              <GalleryTile key={card.editionCardId} card={card} locale={store.locale} />
             ))}
           </div>
           {gallery.hasNextPage ? (

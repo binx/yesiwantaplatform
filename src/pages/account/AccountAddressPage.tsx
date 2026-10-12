@@ -10,8 +10,9 @@ import { cx } from "@/lib/cx";
 import styles from "./Account.module.css";
 
 /**
- * Where the cards go. One address per account, copied onto every open
- * subscription when it changes, so moving house is one form.
+ * Where the cards go. One address per account, copied onto every
+ * collection with cards still to come when it changes, so moving house is
+ * one form.
  */
 export function AccountAddressPage() {
   const store = useStore();
@@ -43,7 +44,7 @@ export function AccountAddressPage() {
           Currently: <strong>{customer.data.address.name}</strong>, {formatRecipient(customer.data.address, store.locale)}
         </p>
       ) : (
-        <p className={cx(styles.meta)}>No address yet. Subscribing asks for one; you can set it here first.</p>
+        <p className={cx(styles.meta)}>No address yet. Collecting an edition asks for one; you can set it here first.</p>
       )}
 
       <div className={styles.addressForm}>
@@ -66,7 +67,7 @@ export function AccountAddressPage() {
           Save address
         </Button>
       </p>
-      <p className={cx(styles.meta)}>Every subscription you hold is updated at once. A card already at the printer goes to the old address.</p>
+      <p className={cx(styles.meta)}>Every card still to come, from every edition you collect, goes to the new address. A card already at the printer goes to the old one.</p>
     </div>
   );
 }

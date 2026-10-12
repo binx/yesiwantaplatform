@@ -378,7 +378,8 @@ artistRouter.put("/editions/:id", async (req, res) => {
         parsed.data.cardCount !== edition.cardCount ||
         parsed.data.cadence !== edition.cadence ||
         parsed.data.priceCents !== edition.priceCents;
-      if (fixed) throw httpError(409, "This edition is on sale, so its address, size, cadence and price are fixed. Only its title and description can change.");
+      if (fixed) throw httpError(409, "This edition is on sale, so its address, size, cadence and price are fixed. Its title, description and banner can still change.");
+      if (!parsed.data.banner) throw httpError(409, "An edition on sale needs a banner: it's what visitors see in place of the cards. Choose a new one instead.");
       await updateEditionWords(edition.id, artist.id, parsed.data);
     }
   } catch (error) {
@@ -387,6 +388,9 @@ artistRouter.put("/editions/:id", async (req, res) => {
 
   res.json(await presentOne(artist, (await getEditionForArtist(edition.id, artist.id)) ?? edition));
 });
+
+/** Stores an edition's banner and hands the image back; it is saved with the edition. */
+artistRouter.post("/editions/banner", uploadRateLimit, storeProfileImage);
 
 /** Set a draft's cards, in order. Every design must be the artist's own. */
 artistRouter.put("/editions/:id/cards", async (req, res) => {
@@ -409,7 +413,7 @@ artistRouter.put("/editions/:id/cards", async (req, res) => {
 /**
  * Move an edition along.
  *
- *   on_sale  needs every card in place and a price the platform can print at
+ *   on_sale  needs every card in place, a banner, and a price the platform can print at
  *   draft    only while nobody has bought it, even an abandoned checkout
  *   closed   from on sale; collectors who paid still get every card
  */
@@ -419,22 +423,26 @@ artistRouter.post("/editions/:id/status", async (req, res) => {
   const parsed = z.object({ status: editionStatusSchema }).safeParse(req.body);
   if (!parsed.success) throw httpError(400, "Choose draft, on sale or closed.");
   const to = parsed.data.status;
+  let moved: boolean;
 
   if (to === "on_sale") {
     const cards = await listCardsForEdition(edition.id);
     if (cards.length !== edition.cardCount) {
       throw httpError(409, `Add all ${edition.cardCount} cards before putting this edition on sale. It has ${cards.length}.`);
     }
+    // The cards are a surprise, so the banner is what a visitor sees instead.
+    if (!edition.banner) throw httpError(409, "Add a banner before putting this edition on sale: it's what visitors see in place of the cards.");
     await assertPriceAllowed(edition);
-    await setEditionStatus(edition.id, ["draft", "closed"], "on_sale");
+    moved = await setEditionStatus(edition.id, ["draft", "closed"], "on_sale");
   } else if (to === "draft") {
     if (edition.status !== "draft" && (await editionHasPurchases(edition.id))) {
-      throw httpError(409, "Someone has bought this edition, so it can't go back to being a draft. Close it instead, and start a new one.");
+      throw httpError(409, "Someone has bought this edition, or is checking out with it now, so it can't go back to being a draft. Close it instead, and start a new one.");
     }
-    await setEditionStatus(edition.id, ["on_sale", "closed"], "draft");
+    moved = await setEditionStatus(edition.id, ["on_sale", "closed"], "draft");
   } else {
-    await setEditionStatus(edition.id, ["on_sale"], "closed");
+    moved = await setEditionStatus(edition.id, ["on_sale"], "closed");
   }
+  if (!moved) throw httpError(409, "That edition can't move there from where it is now. Reload and try again.");
 
   res.json(await presentOne(artist, (await getEditionForArtist(edition.id, artist.id)) ?? edition));
 });

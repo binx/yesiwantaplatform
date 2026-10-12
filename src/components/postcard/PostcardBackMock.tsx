@@ -91,7 +91,7 @@ export function PostcardBackMock({ back, artistName = "You", onFit }: PostcardBa
           <div className={styles.backMessage}>{stripEmoji(back.text)}</div>
           {back.valediction ? <div className={styles.backValediction}>{stripEmoji(back.valediction)}</div> : null}
           <div className={styles.backFooter} style={{ paddingTop: 0.1 * PX_PER_INCH }}>
-            <strong>{stripEmoji(artistName)}</strong> · a monthly postcard via yesiwantapostcard.com
+            <strong>{stripEmoji(artistName)}</strong> · a postcard edition via yesiwantapostcard.com
           </div>
         </div>
         <div className={styles.backAddress} style={{ right: 0.3 * PX_PER_INCH, bottom: 0.4 * PX_PER_INCH, width: 2.6 * PX_PER_INCH }}>

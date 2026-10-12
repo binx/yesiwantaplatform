@@ -123,6 +123,7 @@ for (const { name, context } of dialects) {
         slug: overrides.slug ?? `set-${randomUUID().slice(0, 8)}`,
         title: "Birds",
         description: "",
+        banner: null,
         cardCount: 6,
         cadence: overrides.cadence ?? "monthly",
         priceCents: 3000,
@@ -234,7 +235,7 @@ for (const { name, context } of dialects) {
       expect(set.edition).toMatchObject({ status: "draft", cardCount: 6, cadence: "monthly", inGallery: true });
       expect(set.cards.map((c) => c.position)).toEqual([1, 2, 3, 4, 5, 6]);
       expect(set.cards.map((c) => c.designId)).toEqual(set.designs.map((d) => d.id));
-      await expect(db.editions.createEdition(a.id, { slug: "birds", title: "Again", description: "", cardCount: 6, cadence: "monthly", priceCents: 3000, inGallery: true })).rejects.toThrow(/already have an edition/);
+      await expect(db.editions.createEdition(a.id, { slug: "birds", title: "Again", description: "", banner: null, cardCount: 6, cadence: "monthly", priceCents: 3000, inGallery: true })).rejects.toThrow(/already have an edition/);
       expect(await db.designs.designIsUsed(set.designs[0]!.id)).toBe(true);
       expect(await db.designs.designIsLocked(set.designs[0]!.id)).toBe(false);
 
@@ -248,16 +249,17 @@ for (const { name, context } of dialects) {
       expect(await db.designs.designIsLocked(set.designs[0]!.id)).toBe(true);
       // On sale: the cards and the numbers hold; the words still change.
       expect(await db.editions.replaceEditionCards(set.edition.id, [])).toBe(false);
-      expect(await db.editions.updateDraftEdition(set.edition.id, a.id, { slug: "birds", title: "Birds", description: "", cardCount: 12, cadence: "monthly", priceCents: 1, inGallery: true })).toBe(false);
-      expect(await db.editions.updateEditionWords(set.edition.id, a.id, { title: "Birds of Marfa", description: "*Hi*", inGallery: false })).toBe(true);
-      expect(await db.editions.getEdition(set.edition.id)).toMatchObject({ title: "Birds of Marfa", priceCents: 3000, inGallery: false });
+      expect(await db.editions.updateDraftEdition(set.edition.id, a.id, { slug: "birds", title: "Birds", description: "", banner: null, cardCount: 12, cadence: "monthly", priceCents: 1, inGallery: true })).toBe(false);
+      const banner = { path: "artists-x/birds.webp", width: 900, height: 300, alt: "Birds on a wire", widths: [] };
+      expect(await db.editions.updateEditionWords(set.edition.id, a.id, { title: "Birds of Marfa", description: "*Hi*", banner, inGallery: false })).toBe(true);
+      expect(await db.editions.getEdition(set.edition.id)).toMatchObject({ title: "Birds of Marfa", priceCents: 3000, inGallery: false, banner });
       expect(await db.editions.deleteDraftEdition(set.edition.id, a.id)).toBe(false);
       expect((await db.editions.listEditionsForArtist(a.id, ["on_sale"])).map((e) => e.id)).toEqual([set.edition.id]);
       expect(await db.editions.findEditionBySlug(a.id, "birds")).toMatchObject({ id: set.edition.id });
 
       // A draft shrunk to fewer cards drops the extra ones.
       const other = await edition(a.id);
-      await db.editions.updateDraftEdition(other.edition.id, a.id, { slug: other.edition.slug, title: "Fewer", description: "", cardCount: 6, cadence: "twice_monthly", priceCents: 2400, inGallery: true });
+      await db.editions.updateDraftEdition(other.edition.id, a.id, { slug: other.edition.slug, title: "Fewer", description: "", banner: null, cardCount: 6, cadence: "twice_monthly", priceCents: 2400, inGallery: true });
       expect(await db.editions.getEdition(other.edition.id)).toMatchObject({ cadence: "twice_monthly", priceCents: 2400 });
       expect(await db.editions.deleteDraftEdition(other.edition.id, randomUUID())).toBe(false);
       expect(await db.editions.deleteDraftEdition(other.edition.id, a.id)).toBe(true);

@@ -185,7 +185,7 @@ export function toAntdTheme(theme: Theme): ThemeConfig {
       /*
        * antd fades secondary text out of `colorTextBase` by alpha. From this
        * palette's near-black ink that landed on #949495, which is 2.9:1 on the
-       * page — every `Result` subtitle on /confirm and /unsubscribe failed.
+       * page — every `Result` subtitle on the confirmation pages failed.
        * `muted` is the storefront's own answer to the same question and clears
        * 4.5:1 against both page and surface in both schemes, so use it rather
        * than let antd derive a second, dimmer grey alongside it.

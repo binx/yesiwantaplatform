@@ -27,7 +27,7 @@ describe("the landing page", () => {
 
   it("prints the price floor from settings, never from prose", () => {
     renderWithProviders(<LandingPage />, { store: withHero({}, 475) });
-    expect(screen.getAllByText(/\$4\.75/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/from \$4\.75 a card/)).toBeInTheDocument();
   });
 
   it("renders every field the operator has set", () => {

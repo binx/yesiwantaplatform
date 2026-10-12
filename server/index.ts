@@ -33,7 +33,7 @@ async function main(): Promise<void> {
         ? `Printing: Lob, ${lobMode} key${env.LOB_BACK_TEMPLATE_ID ? ` with back template ${env.LOB_BACK_TEMPLATE_ID}` : ", back rendered from print/back.hbs"}`
         : "Printing: LOB_API_KEY is not set, so mailed postcards will wait at Scheduled.",
     );
-    console.log(hasStripe ? "Billing: Stripe, subscriptions and Connect payouts." : "Billing: STRIPE_SECRET_KEY is not set, so nobody can subscribe and nothing is paid out.");
+    console.log(hasStripe ? "Billing: Stripe Checkout and Connect payouts." : "Billing: STRIPE_SECRET_KEY is not set, so nobody can collect an edition and nothing is paid out.");
     // Where uploads go, in the deploy log, next to where the API is: the two
     // things an operator checks first when a deploy looks wrong.
     console.log(imageStore.describe());

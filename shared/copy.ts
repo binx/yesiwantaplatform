@@ -13,5 +13,5 @@ export const PITCH_LINES = [
   "let's move beyond social media",
   "let's have a physical connection",
   "each postcard is a photo an artist took and a short writeup",
-  "cancel anytime, you won't hurt anyone's feelings",
+  "pay once, and let the mail surprise you",
 ] as const;

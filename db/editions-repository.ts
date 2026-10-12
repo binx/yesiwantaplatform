@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
 import type { Cadence, EditionInput, EditionSize, EditionStatus } from "../shared/platform.js";
+import type { Image } from "../shared/schema.js";
 import { getDatabase } from "./client.js";
 import { affectedRows, epochOrNull, isUniqueViolation, nowFor, timeFor, toBool, toCount, toEpochMs } from "./repository.js";
 
@@ -18,6 +19,10 @@ export interface EditionRow {
   slug: string;
   title: string;
   description: string;
+  bannerPath: string | null;
+  bannerWidth: number | null;
+  bannerHeight: number | null;
+  bannerAlt: string | null;
   cardCount: number;
   cadence: string;
   priceCents: number;
@@ -32,6 +37,7 @@ export interface EditionRecord {
   slug: string;
   title: string;
   description: string;
+  banner: Image | null;
   cardCount: EditionSize;
   cadence: Cadence;
   priceCents: number;
@@ -76,6 +82,10 @@ export function buildEdition(row: EditionRow): EditionRecord {
     slug: row.slug,
     title: row.title,
     description: row.description,
+    banner:
+      row.bannerPath && row.bannerWidth && row.bannerHeight
+        ? { path: row.bannerPath, width: row.bannerWidth, height: row.bannerHeight, alt: row.bannerAlt ?? "", widths: [] }
+        : null,
     cardCount: row.cardCount === 12 ? 12 : 6,
     cadence: row.cadence === "twice_monthly" ? "twice_monthly" : "monthly",
     priceCents: row.priceCents,
@@ -98,6 +108,15 @@ export function buildEditionCard(row: EditionCardRow): EditionCardRecord {
 
 /* ----------------------------------------------------------------- writes */
 
+function bannerColumns(banner: Image | null) {
+  return {
+    bannerPath: banner?.path ?? null,
+    bannerWidth: banner?.width ?? null,
+    bannerHeight: banner?.height ?? null,
+    bannerAlt: banner?.alt ?? null,
+  };
+}
+
 export async function createEdition(artistId: string, input: EditionInput, id = randomUUID()): Promise<EditionRecord> {
   const { drizzle: db, schema } = await getDatabase();
   try {
@@ -107,6 +126,7 @@ export async function createEdition(artistId: string, input: EditionInput, id = 
       slug: input.slug,
       title: input.title,
       description: input.description,
+      ...bannerColumns(input.banner),
       cardCount: input.cardCount,
       cadence: input.cadence,
       priceCents: input.priceCents,
@@ -137,6 +157,7 @@ export async function updateDraftEdition(id: string, artistId: string, input: Ed
         slug: input.slug,
         title: input.title,
         description: input.description,
+        ...bannerColumns(input.banner),
         cardCount: input.cardCount,
         cadence: input.cadence,
         priceCents: input.priceCents,
@@ -157,12 +178,12 @@ export async function updateDraftEdition(id: string, artistId: string, input: Ed
   return changed;
 }
 
-/** The words of an edition past draft: its title, description and gallery flag. Nothing a collector paid for. */
-export async function updateEditionWords(id: string, artistId: string, input: Pick<EditionInput, "title" | "description" | "inGallery">): Promise<boolean> {
+/** The words and banner of an edition past draft, and its gallery flag. Nothing a collector paid for. */
+export async function updateEditionWords(id: string, artistId: string, input: Pick<EditionInput, "title" | "description" | "banner" | "inGallery">): Promise<boolean> {
   const { drizzle: db, schema, dialect } = await getDatabase();
   const result = await db
     .update(schema.editions)
-    .set({ title: input.title, description: input.description, inGallery: input.inGallery, updatedAt: nowFor(dialect) })
+    .set({ title: input.title, description: input.description, ...bannerColumns(input.banner), inGallery: input.inGallery, updatedAt: nowFor(dialect) })
     .where(and(eq(schema.editions.id, id), eq(schema.editions.artistId, artistId)));
   return affectedRows(result) === 1;
 }

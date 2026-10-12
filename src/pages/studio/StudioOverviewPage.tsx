@@ -1,27 +1,28 @@
 import { Link, useOutletContext } from "react-router-dom";
 import { Alert, App, Button, Popconfirm } from "antd";
+import { artistPath } from "@shared/platform";
 import { formatMoney } from "@shared/money";
 import { useSetArtistStatus, type StudioView } from "@/lib/platform";
 import { useStore } from "@/lib/useStore";
-import { formatMailDate } from "@/lib/postcards";
 import { cx } from "@/lib/cx";
 import styles from "./Studio.module.css";
 
 /**
  * The studio's front page: the numbers, and the one switch that matters.
  *
- * Going live is what makes the page public and subscribable; it is refused
- * until there is a card in the queue, because a subscriber's first month
- * should have something in it.
+ * Going live is what makes the page public and its editions collectable;
+ * it is refused until an edition is on sale, because a visitor's first
+ * look should have something in it to collect.
  */
 export function StudioOverviewPage() {
   const view = useOutletContext<StudioView>();
   const store = useStore();
   const setStatus = useSetArtistStatus();
   const { message } = App.useApp();
-  const { artist, earnings } = view;
+  const { artist, earnings, editionCounts } = view;
   const money = (cents: number) => formatMoney(cents, earnings.currency, store.locale);
-
+  const onSale = editionCounts.onSale;
+  const pricing = view.pricing ?? store.pricing;
 
   const fail = (error: unknown) => void message.error(error instanceof Error ? error.message : "Could not change that.");
 
@@ -34,9 +35,9 @@ export function StudioOverviewPage() {
           style={{ marginBottom: "1.5rem" }}
           title="Your page is a draft"
           description={
-            view.queuedCount === 0
-              ? "Queue at least one postcard, then go live. Until then nobody can find or subscribe to you."
-              : "You have a card queued. Go live whenever you're ready — your page becomes public and people can subscribe."
+            onSale === 0
+              ? "Put an edition on sale, then go live. Until then nobody can find you or collect your cards."
+              : "You have an edition on sale. Go live whenever you're ready — your page becomes public and people can collect."
           }
         />
       ) : null}
@@ -55,8 +56,8 @@ export function StudioOverviewPage() {
       ) : null}
 
       <div className={styles.stats}>
-        <Stat value={String(artist.subscriberCount)} label={artist.subscriberCount === 1 ? "subscriber" : "subscribers"} />
-        <Stat value={String(view.queuedCount)} label={view.nextQueued ? `queued · next ${formatMailDate(view.nextQueued, store.locale)}` : "queued"} />
+        <Stat value={String(artist.collectorCount)} label={artist.collectorCount === 1 ? "collector" : "collectors"} />
+        <Stat value={String(onSale)} label={`on sale${editionCounts.draft > 0 ? ` · ${editionCounts.draft} in draft` : ""}${editionCounts.closed > 0 ? ` · ${editionCounts.closed} closed` : ""}`} />
         <Stat value={String(artist.mailedCount)} label="cards mailed" />
         <Stat value={money(earnings.pendingCents)} label="earned, not yet paid out" />
         <Stat value={money(earnings.paidCents)} label="paid out" />
@@ -66,42 +67,41 @@ export function StudioOverviewPage() {
         <h2>{artist.status === "live" ? "You're live" : artist.status === "paused" ? "You're paused" : "Ready to go live?"}</h2>
         <p className={styles.note}>
           {artist.status === "live"
-            ? `Anyone can subscribe at /artist/${artist.slug} for ${formatMoney(artist.monthlyPriceCents, artist.currency, store.locale)} a month. Each card you send earns you ${view.shareCents === null ? "your share" : money(view.shareCents)} per subscriber.`
+            ? `Anyone can collect your editions on sale at ${artistPath(artist.slug)}.`
             : artist.status === "paused"
-              ? "No new subscribers can join. Existing ones still get every card you queue until they cancel."
-              : `Your page goes public and subscribable. Each card you send will earn ${view.shareCents === null ? "your share" : money(view.shareCents)} per subscriber at your current price.`}
+              ? "Nobody new can collect. Everyone who already has keeps receiving every card."
+              : onSale === 0
+                ? "Going live needs an edition on sale, so your first visitor has something to collect."
+                : "Your page goes public and your editions on sale can be collected."}
         </p>
         <div className={styles.actions}>
           {artist.status === "live" ? (
-            <Popconfirm title="Pause new subscriptions?" description="Existing subscribers keep receiving your queued cards." onConfirm={() => setStatus.mutate("paused", { onError: fail })}>
+            <Popconfirm title="Pause new collectors?" description="Everyone who has already collected keeps receiving their cards." onConfirm={() => setStatus.mutate("paused", { onError: fail })}>
               <Button loading={setStatus.isPending}>Pause</Button>
             </Popconfirm>
           ) : (
-            <Button type="primary" loading={setStatus.isPending} disabled={view.queuedCount === 0} onClick={() => setStatus.mutate("live", { onError: fail })}>
+            <Button type="primary" loading={setStatus.isPending} disabled={onSale === 0} onClick={() => setStatus.mutate("live", { onError: fail })}>
               {artist.status === "paused" ? "Go live again" : "Go live"}
             </Button>
           )}
-          <Link to="/studio/queue">
-            <Button>{view.queuedCount === 0 ? "Queue a postcard" : "Your queue"}</Button>
+          <Link to={editionCounts.draft + onSale + editionCounts.closed === 0 ? "/studio/editions/new" : "/studio/editions"}>
+            <Button>{editionCounts.draft + onSale + editionCounts.closed === 0 ? "Start an edition" : "Your editions"}</Button>
           </Link>
           <Link to="/studio/profile">
-            <Button>Edit your page</Button>
+            <Button>Edit your profile</Button>
           </Link>
         </div>
       </div>
 
       <div className={styles.panel}>
-        <h2>How a month goes</h2>
+        <h2>How an edition goes</h2>
         <ol style={{ margin: 0, paddingLeft: "1.25rem", lineHeight: 1.6 }}>
-          <li>You queue a card: a photo on the front, a note on the back, one per calendar month.</li>
+          <li>You make an edition: 6 or 12 postcards, once or twice a month, for one price. Put it on sale when every card is in place.</li>
+          <li>A collector pays once and picks the day their first card goes. From then on we print and mail their cards one by one, on schedule.</li>
           <li>
-            On its date — around the {artist.sendDay}th, unless you pick another day — one is printed and mailed to every active subscriber. We
-            email you how many.
-          </li>
-          <li>
-            As the printer accepts each card, its share is added to your earnings
-            {view.pricing ? ` (your price, less ${money(view.pricing.printCostCents)} to print and mail it and a ${money(view.pricing.platformFeeCents)} fee)` : ""}. Payouts go to
-            your Stripe account within the hour.
+            As the printer accepts each card, its part of the price is added to your earnings
+            {` (less ${money(pricing.printCostCents)} to print and mail it and a ${money(pricing.platformFeeCents)} fee)`}. Payouts go to your Stripe account
+            within the hour.
           </li>
         </ol>
       </div>

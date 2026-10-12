@@ -18,7 +18,7 @@ import styles from "./AdminLayout.module.css";
 const NAV = [
   { key: "", icon: <AppstoreOutlined />, label: "Overview" },
   { key: "artists", icon: <TeamOutlined />, label: "Artists" },
-  { key: "mailings", icon: <MailOutlined />, label: "Mailings" },
+  { key: "editions", icon: <MailOutlined />, label: "Editions" },
   { key: "payouts", icon: <DollarOutlined />, label: "Payouts" },
   { key: "customers", icon: <UserOutlined />, label: "People" },
   { key: "pages", icon: <FileTextOutlined />, label: "Pages" },

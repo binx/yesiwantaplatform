@@ -140,7 +140,7 @@ export const defaultPostcardBack: PostcardBack = {
  * The limits are Lob's: 40 characters for a name and 64 for an address line
  * is what fits on the card, and a longer value is refused by their API after
  * the money has been taken — so it is refused here first, while the
- * subscriber is still looking at the field.
+ * collector is still looking at the field.
  *
  * A US address needs a two-letter state and a five-digit ZIP. Anywhere else
  * the state and postal code are whatever the country uses, and either may be
@@ -172,7 +172,7 @@ export function refineRecipient(recipient: RecipientFields, ctx: z.RefinementCtx
   }
 }
 
-/** A US state is stored in capitals, as it prints; elsewhere the subscriber's own spelling stands. */
+/** A US state is stored in capitals, as it prints; elsewhere the collector's own spelling stands. */
 export function normaliseRecipient<T extends RecipientFields>(recipient: T): T {
   return recipient.country === "US" ? { ...recipient, state: recipient.state.toUpperCase() } : recipient;
 }
@@ -186,7 +186,7 @@ export type Recipient = z.infer<typeof recipientSchema>;
  *
  * Lob's own sub-codes (`undeliverable_no_match` and friends) collapse to
  * `undeliverable`; `unknown` means Lob could not be asked — no key, an
- * outage — and the subscriber proceeds as if nothing had been checked.
+ * outage — and the collector proceeds as if nothing had been checked.
  */
 export const deliverabilitySchema = z.enum([
   "deliverable",

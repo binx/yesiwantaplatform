@@ -1,5 +1,5 @@
 {
-  "id": "9f230e42-0498-4754-94f8-4d2d116d48fe",
+  "id": "c49d351d-f382-44c1-982f-338f790aff3b",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -564,6 +564,30 @@
           "primaryKey": false,
           "notNull": true,
           "default": "''"
+        },
+        "banner_path": {
+          "name": "banner_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "banner_width": {
+          "name": "banner_width",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "banner_height": {
+          "name": "banner_height",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "banner_alt": {
+          "name": "banner_alt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "card_count": {
           "name": "card_count",

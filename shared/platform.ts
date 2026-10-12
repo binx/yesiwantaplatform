@@ -179,13 +179,14 @@ export type Cadence = z.infer<typeof cadenceSchema>;
  *   draft    being made; only its artist sees it, and everything can change
  *   on_sale  listed and collectable. Its cards, size, cadence and price are
  *            fixed — collectors paid for exactly these — and only its words
- *            can change. Back to draft only while nobody has bought it
+ *            and banner can change. Back to draft only while nobody has
+ *            bought it
  *   closed   no new collectors; everyone who paid still gets every card
  */
 export const editionStatusSchema = z.enum(["draft", "on_sale", "closed"]);
 export type EditionStatus = z.infer<typeof editionStatusSchema>;
 
-/** One card of an edition, in its place. Position 1 is the cover. */
+/** One card of an edition, in its place. Position 1 goes first. */
 export const editionCardSchema = z.object({
   id: z.string(),
   position: z.number().int().min(1),
@@ -193,14 +194,20 @@ export const editionCardSchema = z.object({
   design: postcardDesignSchema,
 });
 
-/** An edition as any visitor may see it. */
+/**
+ * An edition as any visitor may see it. The cards are not here: they are a
+ * surprise, and a visitor sees the banner and the artist's writeup of what
+ * will arrive. A collector sees each card once it has been mailed to them.
+ */
 export const editionSchema = z.object({
   id: z.string(),
   artistId: z.string(),
   slug: slugSchema,
   title: z.string().min(1),
-  /** Sanitised HTML rendered from the artist's Markdown. */
+  /** Sanitised HTML rendered from the artist's Markdown: what collectors will get. */
   descriptionHtml: z.string().default(""),
+  /** A wide picture across the top of the edition's page, standing in for the cards. */
+  banner: imageSchema.nullable().default(null),
   cardCount: editionSizeSchema,
   cadence: cadenceSchema,
   /** For the whole set. */
@@ -208,19 +215,28 @@ export const editionSchema = z.object({
   currency: z.string().length(3),
   status: editionStatusSchema,
   inGallery: z.boolean(),
-  cards: z.array(editionCardSchema),
   /** Paid purchases, all time. */
   collectorCount: z.number().int().min(0),
   createdAt: z.number().int(),
 });
 
-/** One edition in a list: its cover, not every card. */
-export const editionSummarySchema = editionSchema
-  .pick({ id: true, slug: true, title: true, cardCount: true, cadence: true, priceCents: true, currency: true, status: true, collectorCount: true })
-  .extend({ cover: postcardDesignSchema.nullable() });
+/** One edition in a list. */
+export const editionSummarySchema = editionSchema.pick({
+  id: true,
+  slug: true,
+  title: true,
+  banner: true,
+  cardCount: true,
+  cadence: true,
+  priceCents: true,
+  currency: true,
+  status: true,
+  collectorCount: true,
+});
 
-/** What the artist's studio shows: the public edition, plus its Markdown and how its cards are moving. */
+/** What the artist's studio shows: the public edition, plus its cards, its Markdown and how its cards are moving. */
 export const editionStudioSchema = editionSchema.extend({
+  cards: z.array(editionCardSchema),
   description: z.string(),
   /** Cards accepted by Lob across every collector. */
   sentCount: z.number().int().min(0),
@@ -231,8 +247,9 @@ export const editionStudioSchema = editionSchema.extend({
 export const editionInputSchema = z.object({
   slug: slugSchema.max(60, "60 characters at most."),
   title: z.string().trim().min(1, "A title is required.").max(80, "80 characters at most."),
-  /** Markdown. Rendered and sanitised on the way out. */
+  /** Markdown: what collectors will get. Rendered and sanitised on the way out. */
   description: z.string().max(10_000).default(""),
+  banner: imageSchema.nullable().default(null),
   cardCount: editionSizeSchema,
   cadence: cadenceSchema,
   priceCents: centsSchema.min(50, "Stripe cannot charge less than 50 cents."),
@@ -338,7 +355,7 @@ export const scheduledCardSchema = z.object({
 export const collectionSchema = z.object({
   id: z.string(),
   artist: artistSummarySchema.pick({ id: true, slug: true, name: true, avatar: true }),
-  edition: z.object({ id: z.string(), slug: z.string(), title: z.string(), cover: postcardDesignSchema.nullable() }),
+  edition: z.object({ id: z.string(), slug: z.string(), title: z.string(), banner: imageSchema.nullable() }),
   status: purchaseStatusSchema,
   /** What they paid for the whole set — a snapshot of the edition's price. */
   priceCents: centsSchema,
@@ -371,7 +388,7 @@ export const collectResponseSchema = z.object({
   purchaseId: z.string(),
 });
 
-/** What the artist is told about a collector: a first name and a town, not an address. */
+/** What the artist is told about a collector: the name on their cards and a town, not an address. */
 export const collectorSchema = z.object({
   id: z.string(),
   name: z.string(),

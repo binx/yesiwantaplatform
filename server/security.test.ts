@@ -118,6 +118,7 @@ const STUDIO_MUTATIONS = [
   { method: "put", path: "/api/studio/designs/some-design" },
   { method: "delete", path: "/api/studio/designs/some-design" },
   { method: "post", path: "/api/studio/editions" },
+  { method: "post", path: "/api/studio/editions/banner" },
   { method: "put", path: "/api/studio/editions/some-edition" },
   { method: "delete", path: "/api/studio/editions/some-edition" },
   { method: "put", path: "/api/studio/editions/some-edition/cards" },

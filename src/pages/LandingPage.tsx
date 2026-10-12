@@ -156,7 +156,7 @@ export function LandingPage() {
         {artists.isPending ? (
           <Skeleton active paragraph={{ rows: 4 }} />
         ) : featured.length === 0 ? (
-          <p className={platform.empty}>No artists have gone live yet. {customer.data?.artistSlug ? <Link to="/studio">Yours could be first.</Link> : <Link to="/studio/new">Yours could be first.</Link>}</p>
+          <p className={platform.empty}>No artists have gone live yet. {customer.data?.artistSlug ? <Link to="/studio">Yours could be first.</Link> : <Link to="/open-a-studio">Yours could be first.</Link>}</p>
         ) : (
           <>
             <div className={cx(platform.grid, platform.gridWide)}>

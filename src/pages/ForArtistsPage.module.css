@@ -241,11 +241,6 @@
   color: transparent;
 }
 
-.note {
-  font-size: 0.875rem;
-  color: var(--beluga-muted);
-}
-
 .action {
   display: grid;
   gap: 0.75rem;

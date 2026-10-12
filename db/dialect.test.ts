@@ -197,7 +197,6 @@ for (const { name, context } of dialects) {
         { label: "Instagram", url: "https://instagram.com/rachel" },
       ];
       const updated = await db.artists.updateArtistProfile(a.id, {
-        slug: "first-artist",
         name: "Rachel",
         bio: "",
         visibility: "public",

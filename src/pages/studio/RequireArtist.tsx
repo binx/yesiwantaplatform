@@ -18,8 +18,9 @@ const LINKS = [
  * `/api/studio/*` route re-checks the session and the artist row itself.
  *
  * Three states: signed out (to the login, with this page as the way back);
- * signed in with no artist page yet (only `/studio/new` renders, everything
- * else redirects there); an artist (the nav and the page).
+ * signed in with no artist page yet (only `/studio/new`, the setup, renders;
+ * everything else goes to the pitch, since nobody is an artist by default);
+ * an artist (the nav and the page).
  */
 export function RequireArtist() {
   const location = useLocation();
@@ -39,7 +40,7 @@ export function RequireArtist() {
   if (!customer.data) return <Navigate to="/account/login" replace state={{ from: location.pathname }} />;
 
   if (!studio.data) {
-    if (!creating) return <Navigate to="/studio/new" replace />;
+    if (!creating) return <Navigate to="/open-a-studio" replace />;
     return (
       <PageWrapper>
         <Outlet />

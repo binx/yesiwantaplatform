@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, countDistinct, eq, inArray } from "drizzle-orm";
-import { artistLinkSchema, type ArtistLink, type ArtistProfileInput, type ArtistStatus, type ArtistVisibility } from "../shared/platform.js";
+import { artistLinkSchema, type ArtistLink, type ArtistProfileInput, type ArtistProfileUpdate, type ArtistStatus, type ArtistVisibility } from "../shared/platform.js";
 import type { Image } from "../shared/schema.js";
 import { SlugTakenError } from "./admin-repository.js";
 import { getDatabase } from "./client.js";
@@ -112,10 +112,9 @@ function bannerColumns(banner: Image | null) {
   };
 }
 
-/** Everything the profile form may set, as columns. Create and update write the same set. */
-function profileColumns(dialect: string, input: ArtistProfileInput) {
+/** Everything the profile form may set, as columns. Create writes these and the slug; update writes only these. */
+function profileColumns(dialect: string, input: ArtistProfileUpdate) {
   return {
-    slug: input.slug,
     name: input.name,
     bio: input.bio,
     ...avatarColumns(input.avatar),
@@ -134,6 +133,7 @@ export async function createArtist(customerId: string, input: ArtistProfileInput
     await db.insert(schema.artists).values({
       id,
       customerId,
+      slug: input.slug,
       ...profileColumns(dialect, input),
       status: "draft",
     });
@@ -147,21 +147,17 @@ export async function createArtist(customerId: string, input: ArtistProfileInput
   return created;
 }
 
-export async function updateArtistProfile(id: string, input: ArtistProfileInput): Promise<ArtistRecord> {
+/** Change everything but the slug: that was chosen when the studio opened and stays. */
+export async function updateArtistProfile(id: string, input: ArtistProfileUpdate): Promise<ArtistRecord> {
   const { drizzle: db, schema, dialect } = await getDatabase();
 
-  try {
-    await db
-      .update(schema.artists)
-      .set({
-        ...profileColumns(dialect, input),
-        updatedAt: nowFor(dialect),
-      })
-      .where(eq(schema.artists.id, id));
-  } catch (error) {
-    if (isUniqueViolation(error)) throw new SlugTakenError(input.slug);
-    throw error;
-  }
+  await db
+    .update(schema.artists)
+    .set({
+      ...profileColumns(dialect, input),
+      updatedAt: nowFor(dialect),
+    })
+    .where(eq(schema.artists.id, id));
 
   const updated = await getArtist(id);
   if (!updated) throw new Error("The artist was not written.");

@@ -101,7 +101,7 @@ export const router = createBrowserRouter([
         lazy: async () => ({ Component: (await import("./pages/studio/RequireArtist")).RequireArtist }),
         children: [
           { index: true, lazy: async () => ({ Component: (await import("./pages/studio/StudioOverviewPage")).StudioOverviewPage }) },
-          { path: "new", lazy: async () => ({ Component: (await import("./pages/studio/StudioProfilePage")).StudioNewPage }) },
+          { path: "new", lazy: async () => ({ Component: (await import("./pages/studio/StudioSetupPage")).StudioSetupPage }) },
           { path: "profile", lazy: async () => ({ Component: (await import("./pages/studio/StudioProfilePage")).StudioProfilePage }) },
           { path: "editions", lazy: async () => ({ Component: (await import("./pages/studio/StudioEditionsPage")).StudioEditionsPage }) },
           { path: "editions/new", lazy: async () => ({ Component: (await import("./pages/studio/StudioEditionPage")).StudioNewEditionPage }) },

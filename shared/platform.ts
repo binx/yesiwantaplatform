@@ -135,6 +135,9 @@ export const artistProfileInputSchema = z.object({
   links: artistLinksSchema,
 });
 
+/** What an artist may change later. The URL is chosen once, when the studio opens: links people have shared keep working. */
+export const artistProfileUpdateSchema = artistProfileInputSchema.omit({ slug: true });
+
 /** What the artist's own studio shows them: the public profile, plus their Markdown and payout wiring. */
 export const artistStudioSchema = artistPublicSchema.extend({
   bio: z.string(),
@@ -150,6 +153,7 @@ export type ArtistLink = z.infer<typeof artistLinkSchema>;
 export type ArtistPublic = z.infer<typeof artistPublicSchema>;
 export type ArtistSummary = z.infer<typeof artistSummarySchema>;
 export type ArtistProfileInput = z.infer<typeof artistProfileInputSchema>;
+export type ArtistProfileUpdate = z.infer<typeof artistProfileUpdateSchema>;
 export type ArtistStudio = z.infer<typeof artistStudioSchema>;
 
 /* --------------------------------------------------------------- editions */

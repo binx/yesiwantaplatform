@@ -483,11 +483,22 @@ describe("input validation", () => {
     expect(response.body.error).toBeTruthy();
   });
 
-  it("refuses a reserved artist slug", async () => {
-    const { agent, csrf } = await signInCustomer("artist@example.com");
-    const response = await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ slug: "admin", name: "Rachel" });
+  it("refuses a reserved artist slug when a studio opens", async () => {
+    const { agent, csrf } = await signInCustomer();
+    const response = await agent.post("/api/studio").set("x-csrf-token", csrf).send({ slug: "admin", name: "Rachel" });
     expect(response.status).toBe(400);
     expect(response.body.error).toMatch(/already/);
+  });
+
+  it("keeps an artist's slug whatever the profile update says", async () => {
+    const { agent, csrf } = await signInCustomer("artist@example.com");
+    const before = await agent.get("/api/studio").expect(200);
+    const response = await agent
+      .put("/api/studio/profile")
+      .set("x-csrf-token", csrf)
+      .send({ slug: "somebody-else", name: "Rachel", banner: before.body.artist.banner, links: [] })
+      .expect(200);
+    expect(response.body.artist.slug).toBe("rachel");
   });
 });
 

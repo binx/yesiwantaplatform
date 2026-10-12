@@ -78,15 +78,19 @@ test("the studio needs a sign-in, then opens a page that goes live once an editi
 
   await page.goto("/studio/new");
   await expect(page.getByRole("heading", { name: "Open a studio", level: 1 })).toBeVisible();
+  // Step one: the name is already on the account; the URL is chosen here, once.
   const slug = `e2e-artist-${run}`;
   await page.getByLabel("Your studio URL").fill(slug);
+  await page.getByRole("button", { name: "Continue" }).click();
+  // Step two: the page. It always has a banner: without one the setup won't go on.
   await page.getByLabel("About you").fill("Made by a **robot**.");
-  // A page always has a banner: without one the form won't open the studio.
-  await expect(page.getByRole("button", { name: "Open your studio" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Upload a banner" }).click();
   await (await chooser).setFiles({ name: "banner.png", mimeType: "image/png", buffer: png });
   await expect(page.getByRole("button", { name: "Replace banner" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  // Step three: links and the gallery, both optional, then the button that makes the studio.
   await page.getByRole("button", { name: "Open your studio" }).click();
 
   await expect(page).toHaveURL(/\/studio\/?$/);

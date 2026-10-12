@@ -111,7 +111,6 @@ export function ForArtistsPage() {
 
       <section className={cx(styles.section, styles.action)}>
         {studioButton("Open your studio")}
-        {isArtist ? <p className={styles.note}>You already have one.</p> : null}
       </section>
     </PageWrapper>
   );

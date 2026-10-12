@@ -588,3 +588,42 @@
     grid-column: 1 / -1;
   }
 }
+
+/* ------------------------------------------------------------------ setup */
+
+/* Opening a studio: the steps across the top, one panel at a time, the
+   buttons at the foot. The page step borrows the profile's hero. */
+.setup {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 52rem;
+}
+
+.setup h1 {
+  margin: 0;
+}
+
+.setupSteps {
+  max-width: 40rem;
+}
+
+.setupPanel {
+  display: grid;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  border: 1px solid var(--beluga-line);
+  background: var(--beluga-surface);
+}
+
+.setupFields {
+  display: grid;
+  gap: 1.25rem;
+  padding: 1.5rem;
+}
+
+.setupButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}

@@ -63,15 +63,16 @@ checkoutRouter.post("/checkout/collect", writeRateLimit, verifyCsrf, requireCust
   const problem = startDateProblem(startDate, today);
   if (problem) throw httpError(400, problem);
 
-  // The address is checked against USPS and saved on the account, so the
-  // next purchase starts from it. A refusal is a 400 the form can act on.
+  // The address is checked against USPS and, when it is the collector's
+  // own, saved on the account so the next purchase starts from it. A gift's
+  // address is the purchase's alone. A refusal is a 400 the form can act on.
   const verification = await verifyRecipient(parsed.data.address);
   if (verification.deliverability === "undeliverable") {
     throw httpError(400, "USPS does not recognize that address. Check the street, city, state and ZIP.");
   }
   // Deliberately no check on the artist's Stripe onboarding: an artist may
   // sell before it finishes, and the ledger holds their share.
-  await setMailingAddress(customer.id, parsed.data.address);
+  if (!parsed.data.forSomeoneElse) await setMailingAddress(customer.id, parsed.data.address);
 
   const currency = settings.currency.toLowerCase();
   const purchaseId = newPurchaseId();

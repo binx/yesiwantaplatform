@@ -96,6 +96,7 @@ const READS = [
 const CUSTOMER_MUTATIONS = [
   { method: "put", path: "/api/account" },
   { method: "put", path: "/api/account/address" },
+  { method: "put", path: "/api/account/collections/some-purchase/address" },
   { method: "post", path: "/api/checkout/collect" },
   { method: "post", path: "/api/studio" },
   // Profile pictures are uploaded before the studio exists, so a customer may send them.

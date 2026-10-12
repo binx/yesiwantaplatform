@@ -287,13 +287,22 @@ for (const { name, context } of dialects) {
       expect((await db.purchases.countCollectorsForEditions([set.edition.id])).get(set.edition.id)).toBe(1);
 
       const moved = { ...ADDRESS, line1: "9 New Road" };
-      const ids = await db.purchases.updatePurchaseAddresses(who, moved);
+      // Only the purchases going to the old address move; with no old address, none do.
+      expect(await db.purchases.updatePurchaseAddresses(who, null, moved)).toEqual([]);
+      expect(await db.purchases.updatePurchaseAddresses(who, { ...ADDRESS, line1: "elsewhere" }, moved)).toEqual([]);
+      const ids = await db.purchases.updatePurchaseAddresses(who, ADDRESS, moved);
       expect(ids).toEqual([id]);
       await db.postcards.markPostcardSent(run[0]!.id, { id: "psc_first", url: null, expectedDeliveryDate: null });
       expect(await db.postcards.updateUnsentPostcardAddresses(ids, moved)).toBe(5);
       const after = await db.postcards.listPostcardsForPurchase(id);
       expect(after[0]!.recipient.line1).toBe("1 Test Street");
       expect(after[1]!.recipient.line1).toBe("9 New Road");
+
+      // One set sent somewhere else: the collector's own paid purchase only.
+      const gift = { ...ADDRESS, name: "Aunt May", line1: "5 Gift Lane" };
+      expect(await db.purchases.updatePurchaseAddress(id, "someone-else", gift)).toBe(false);
+      expect(await db.purchases.updatePurchaseAddress(id, who, gift)).toBe(true);
+      expect((await db.purchases.getPurchase(id))!.address).toMatchObject({ name: "Aunt May", line1: "5 Gift Lane" });
 
       const schedule = (await db.postcards.listSchedules([id])).get(id)!;
       expect(schedule[0]).toEqual({ position: 1, mailDate: "2026-11-05", status: "sent" });

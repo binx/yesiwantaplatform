@@ -222,7 +222,9 @@ export function toAntdTheme(theme: Theme): ThemeConfig {
     components: {
       Button: {
         // Uppercase, letterspaced labels read as retail rather than dashboard.
-        fontWeight: 500,
+        // Semibold, because the ink label sits on a fully saturated magenta
+        // (ACTION_BUTTON) and at 500 it had too little stroke to hold its own.
+        fontWeight: 600,
         primaryShadow: "none",
         defaultShadow: "none",
         // Primary buttons are the chroma magenta, not the theme's primary — see ACTION_BUTTON.

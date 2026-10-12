@@ -6,7 +6,7 @@
   gap: 1.5rem;
 }
 
-/* The directory and the gallery: three across on a laptop rather than four, so a short list still fills the page. */
+/* The directory, the gallery and the front page: three across on a laptop rather than four, so a short list still fills the page. */
 .gridWide {
   grid-template-columns: repeat(auto-fill, minmax(min(22rem, 100%), 1fr));
   gap: 2rem;

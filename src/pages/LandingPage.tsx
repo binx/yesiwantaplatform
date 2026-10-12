@@ -162,7 +162,7 @@ export function LandingPage() {
           <p className={platform.empty}>No artists have gone live yet. {customer.data?.artistSlug ? <Link to="/studio">Yours could be first.</Link> : <Link to="/studio/new">Yours could be first.</Link>}</p>
         ) : (
           <>
-            <div className={platform.grid}>
+            <div className={cx(platform.grid, platform.gridWide)}>
               {featured.map((artist) => (
                 <ArtistTile key={artist.id} artist={artist} />
               ))}
@@ -228,7 +228,7 @@ export function LandingPage() {
             <div className={cx(platform.sectionHeading, styles.sectionLead)}>
               <h2>Postcard editions</h2>
             </div>
-            <div className={platform.grid}>
+            <div className={cx(platform.grid, platform.gridWide)}>
               {onSale.map((edition) => (
                 <EditionTile key={edition.id} edition={edition} artist={edition.artist} locale={store.locale} />
               ))}

@@ -9,8 +9,8 @@ import { cx } from "@/lib/cx";
 import styles from "./Platform.module.css";
 
 /**
- * One artist in a grid: their newest edition's banner (or their face, when
- * none has one), their name, how many editions they have on sale. Never a
+ * One artist in a grid: their banner (or their face, when they have
+ * none), their name, how many editions they have on sale. Never a
  * card: the cards are the surprise.
  *
  * The whole tile is one link, so a screen reader hears the name once; the

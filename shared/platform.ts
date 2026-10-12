@@ -115,9 +115,8 @@ export const artistSummarySchema = artistPublicSchema.pick({
   currency: true,
   collectorCount: true,
   mailedCount: true,
+  banner: true,
 }).extend({
-  /** The newest on-sale edition's banner, for the tile's picture. Never a card: those are the surprise. */
-  banner: imageSchema.nullable().default(null),
   /** The cheapest edition on sale, for "from $30". Null when nothing is. */
   fromPriceCents: centsSchema.nullable().default(null),
   /** How many editions are on sale. */

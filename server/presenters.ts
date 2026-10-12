@@ -67,9 +67,8 @@ export function toPublicArtist(artist: ArtistRecord, counts: ArtistCounts = NO_C
   });
 }
 
-/** The tile's picture is the newest on-sale edition that has a banner; a card is never shown before it is mailed. */
+/** The tile's picture is the artist's own banner; a card is never shown before it is mailed. */
 export function toArtistSummary(artist: ArtistRecord, counts: ArtistCounts = NO_COUNTS, currency = "USD", onSale: EditionRecord[] = []): ArtistSummary {
-  const newest = [...onSale].sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id)).find((edition) => edition.banner);
   return artistSummarySchema.parse({
     id: artist.id,
     slug: artist.slug,
@@ -78,7 +77,7 @@ export function toArtistSummary(artist: ArtistRecord, counts: ArtistCounts = NO_
     currency,
     collectorCount: counts.collectors,
     mailedCount: counts.mailed,
-    banner: newest?.banner ?? null,
+    banner: artist.banner,
     fromPriceCents: onSale.length > 0 ? Math.min(...onSale.map((edition) => edition.priceCents)) : null,
     editionCount: onSale.length,
   });

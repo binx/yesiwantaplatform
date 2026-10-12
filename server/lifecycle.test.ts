@@ -236,7 +236,7 @@ describe("an artist makes an edition", () => {
     expect(page.body.recent).toBeUndefined();
     await request(app).get("/api/artists/rachel/editions/nope").expect(404);
     const listed = (await request(app).get("/api/artists").expect(200)).body as { slug: string; fromPriceCents: number; editionCount: number }[];
-    expect(listed).toEqual([expect.objectContaining({ slug: "rachel", fromPriceCents: 3000, editionCount: 1 })]);
+    expect(listed).toEqual([expect.objectContaining({ slug: "rachel", fromPriceCents: 3000, editionCount: 1, banner: expect.objectContaining({ path: artistBanner.path }) })]);
   });
 });
 

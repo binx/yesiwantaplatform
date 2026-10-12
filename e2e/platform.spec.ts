@@ -63,7 +63,7 @@ async function fillAndSell(page: Page, editionId: string, edition: Record<string
   expect((await page.request.put(`/api/studio/editions/${editionId}/cards`, { headers, data: { cards } })).ok()).toBeTruthy();
   const banner = await page.request.post("/api/studio/editions/banner", { headers, multipart: { file: { name: "banner.png", mimeType: "image/png", buffer: png }, alt: "A row of birds" } });
   expect(banner.ok()).toBeTruthy();
-  expect((await page.request.put(`/api/studio/editions/${editionId}`, { headers, data: { ...edition, banner: await banner.json() } })).ok()).toBeTruthy();
+  expect((await page.request.put(`/api/studio/editions/${editionId}`, { headers, data: { ...edition, banner: (await banner.json()) as unknown } })).ok()).toBeTruthy();
   expect((await page.request.post(`/api/studio/editions/${editionId}/status`, { headers, data: { status: "on_sale" } })).ok()).toBeTruthy();
   return cards;
 }

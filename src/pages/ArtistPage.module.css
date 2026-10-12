@@ -1,0 +1,542 @@
+/*
+ * An artist's page, shaped like a profile: the cover across the top, the
+ * face set into its bottom edge, the name and the numbers beside it, then
+ * the editions as a feed. Dressed in the platform's own material — the
+ * chroma sweep and its corrugation (index.css) — the way the front page is,
+ * but at the width of a ring and an edge rather than a whole field of it.
+ */
+
+/* ---------------------------------------------------------------- the cover */
+
+.profile {
+  position: relative;
+  display: grid;
+  gap: 1.5rem;
+}
+
+/* A wash of the chroma's colours behind the cover, as the front page has
+   behind its hero, so the top of the page glows a little. */
+.profile::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -3rem -2rem auto;
+  height: 28rem;
+  pointer-events: none;
+  background:
+    radial-gradient(36rem 18rem at 80% 20%, rgb(46 107 255 / 16%), transparent 70%),
+    radial-gradient(30rem 16rem at 20% 10%, rgb(255 45 138 / 12%), transparent 70%),
+    radial-gradient(24rem 12rem at 55% 60%, rgb(162 75 255 / 10%), transparent 70%);
+  -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent);
+  mask-image: linear-gradient(180deg, #000 55%, transparent);
+}
+
+/* Three times as wide as tall, whatever was uploaded: the studio says so.
+   Ringed in the sweep at a hairline, and lifted off the page. */
+.cover {
+  position: relative;
+  aspect-ratio: 3 / 1;
+  border-radius: calc(var(--beluga-radius) + 4px);
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--beluga-surface), var(--beluga-surface)) padding-box,
+    var(--chroma) border-box;
+  box-shadow:
+    0 1.5rem 3rem rgb(0 0 0 / 35%),
+    0 0 4rem rgb(162 75 255 / 12%);
+  overflow: hidden;
+}
+
+.cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+/* Darkens the foot of the cover, so the face and the name sit on something quiet. */
+.cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, transparent 55%, rgb(7 7 15 / 35%));
+  pointer-events: none;
+}
+
+/* No cover yet: a field of the material instead, seen in low light, with a
+   gloss across one corner. */
+.coverEmpty {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(160deg, rgb(255 255 255 / 18%) 0%, transparent 35%, rgb(7 7 15 / 55%) 100%),
+    var(--ridges),
+    var(--chroma);
+  opacity: 0.55;
+}
+
+/* ------------------------------------------------------------ the identity */
+
+/* The face, the words and the links in a row, the face pulled up into the
+   cover's bottom edge. */
+.identity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, auto);
+  gap: 0.75rem 1.75rem;
+  align-items: end;
+  padding-inline: 1.75rem;
+}
+
+/* A ring of the sweep with a gap of page between it and the picture — the
+   way a profile picture is ringed when there is something new to see. */
+.avatar {
+  position: relative;
+  width: 9.5rem;
+  height: 9.5rem;
+  margin-top: -4.75rem;
+  padding: 4px;
+  border: 3px solid transparent;
+  border-radius: 50%;
+  background:
+    linear-gradient(var(--beluga-page), var(--beluga-page)) padding-box,
+    var(--chroma) border-box;
+  box-shadow: 0 1rem 2rem rgb(0 0 0 / 40%);
+}
+
+.avatar img,
+.avatarEmpty {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--beluga-surface);
+}
+
+/* No picture: the first letter of the name, set large. */
+.avatarEmpty {
+  display: grid;
+  place-items: center;
+  font-size: 3.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--beluga-muted);
+}
+
+.who {
+  display: grid;
+  gap: 0.35rem;
+  padding-bottom: 0.25rem;
+  min-width: 0;
+}
+
+/* The label over the name, cut from the sweep, as the front page's panels have. */
+.kicker {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: var(--chroma);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.name {
+  margin: 0;
+  text-wrap: pretty;
+  font-size: clamp(2rem, 1.4rem + 2.4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+/* The numbers, as a profile has them: a count, then what it counts. */
+.stats {
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  font-size: 0.9375rem;
+  color: var(--beluga-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.stats li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
+  white-space: nowrap;
+}
+
+.stats li + li::before {
+  content: "·";
+  margin-right: 0.4em;
+  color: var(--beluga-muted);
+  opacity: 0.6;
+  font-weight: 700;
+}
+
+.stats strong {
+  font-weight: 700;
+  color: var(--beluga-ink);
+}
+
+/* Where else to find them, and — for the owner — the way to the studio. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 26rem;
+  padding-bottom: 0.5rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.45rem 0.9rem;
+  border: 1.5px solid var(--beluga-line);
+  border-radius: 999px;
+  background: var(--beluga-surface);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  color: var(--beluga-ink);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.chip span {
+  font-size: 0.75em;
+  color: var(--beluga-muted);
+  transition: transform 0.15s ease;
+}
+
+/* Under the pointer the chip is ringed in the sweep, like a tile. */
+.chip:hover,
+.chip:focus-visible {
+  color: var(--beluga-ink);
+  border-color: transparent;
+  background:
+    linear-gradient(var(--beluga-surface), var(--beluga-surface)) padding-box,
+    var(--chroma) border-box;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 25%);
+}
+
+.chip:hover span,
+.chip:focus-visible span {
+  transform: translate(1px, -1px);
+  color: var(--beluga-ink);
+}
+
+/* The owner's way in: a ring of the sweep from the start, and filled with it under the pointer. */
+.ownerLink {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--beluga-page), var(--beluga-page)) padding-box,
+    var(--chroma) border-box;
+}
+
+.ownerLink:hover,
+.ownerLink:focus-visible {
+  color: #07070f;
+  background: var(--ridges), var(--chroma);
+}
+
+/* ------------------------------------------------------------------ the bio */
+
+/* The first paragraph is the lede, set larger; the rest reads at the measure. */
+.bio {
+  max-width: var(--beluga-measure);
+  padding-inline: 1.75rem;
+  line-height: 1.7;
+  color: var(--beluga-ink);
+}
+
+.bio > p:first-child {
+  font-size: 1.25rem;
+  line-height: 1.5;
+  letter-spacing: -0.005em;
+  text-wrap: pretty;
+}
+
+.bio p {
+  margin: 0 0 1em;
+}
+
+.bio > :last-child {
+  margin-bottom: 0;
+}
+
+/* ------------------------------------------------------------- the editions */
+
+.editions {
+  margin-top: 3.5rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+/* A label and a hairline of the sweep running out from it. */
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.sectionHead h2 {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: var(--chroma);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.sectionHead::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--chroma-3), var(--chroma-5) 40%, transparent);
+  opacity: 0.6;
+}
+
+.sectionCount {
+  font-size: 0.8125rem;
+  color: var(--beluga-muted);
+  white-space: nowrap;
+}
+
+.paused {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--beluga-line);
+  border-left: 0.35rem solid transparent;
+  border-image: var(--chroma) 1;
+  border-image-width: 0 0 0 0.35rem;
+  background: var(--beluga-surface);
+  color: var(--beluga-ink);
+}
+
+/* One beside another where there is room; a single edition takes the row. */
+.feed {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(24rem, 100%), 1fr));
+  gap: 1.5rem;
+}
+
+/* Each edition is a card with a corrugated top edge, as the front page's
+   panels have, each one catching the light at a different point. */
+.feature {
+  --i: 0;
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: var(--beluga-surface);
+  border: 1px solid var(--beluga-line);
+  border-radius: var(--beluga-radius);
+  overflow: hidden;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.feature::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0 0 auto;
+  height: 0.5rem;
+  background: var(--ridges), var(--chroma);
+  background-size:
+    auto,
+    400% 100%;
+  background-position:
+    0 0,
+    calc(var(--i) * 33%) 0;
+}
+
+.feature:nth-child(2) {
+  --i: 1;
+}
+.feature:nth-child(3) {
+  --i: 2;
+}
+.feature:nth-child(4) {
+  --i: 3;
+}
+
+.feature:has(.featureBanner:hover),
+.feature:has(.featureTitle a:hover) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 30%);
+}
+
+.featureBanner {
+  display: block;
+  background: var(--beluga-page);
+  overflow: hidden;
+}
+
+.featureBanner img,
+.featureBanner [role="img"],
+.featureBanner div {
+  width: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.featureBanner:hover img {
+  transform: scale(1.03);
+}
+
+.featureBody {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 0.5rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.featureTitle {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.featureTitle a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.featureTitle a:hover,
+.featureTitle a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.featureShape {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--beluga-muted);
+}
+
+/* The writeup, cut at a few lines: the whole of it is on the edition's page. */
+.featureDescription {
+  margin-top: 0.25rem;
+  line-height: 1.6;
+  color: var(--beluga-muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+
+/* The price and the way in, on a line of their own under a hairline. */
+.featureFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  margin-top: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--beluga-line);
+}
+
+.price {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.priceAmount {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.priceNote {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--beluga-muted);
+}
+
+.collectNote {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--beluga-muted);
+}
+
+.featureEmpty {
+  padding: 3.5rem 1.5rem;
+  border: 1px dashed var(--beluga-line);
+  border-radius: var(--beluga-radius);
+  text-align: center;
+  color: var(--beluga-muted);
+  font-style: italic;
+}
+
+.featureEmpty p {
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------- narrow */
+
+@media (max-width: 800px) {
+  .profile::before {
+    inset: -2rem -1rem auto;
+    height: 20rem;
+  }
+
+  .identity {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    padding-inline: 0.5rem;
+    align-items: start;
+  }
+
+  .avatar {
+    width: 6.5rem;
+    height: 6.5rem;
+    margin-top: -3.25rem;
+  }
+
+  .avatarEmpty {
+    font-size: 2.5rem;
+  }
+
+  .actions {
+    justify-content: flex-start;
+    padding-bottom: 0;
+  }
+
+  .bio {
+    padding-inline: 0.5rem;
+  }
+
+  .editions {
+    margin-top: 2.5rem;
+  }
+}

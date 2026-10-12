@@ -130,19 +130,6 @@
   min-width: 0;
 }
 
-/* The label over the name, cut from the sweep, as the front page's panels have. */
-.kicker {
-  margin: 0;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  background: var(--chroma);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
 .name {
   margin: 0;
   text-wrap: pretty;
@@ -254,19 +241,13 @@
 
 /* ------------------------------------------------------------------ the bio */
 
-/* The first paragraph is the lede, set larger; the rest reads at the measure. */
+/* One block of text at the measure. */
 .bio {
   max-width: var(--beluga-measure);
   padding-inline: 1.75rem;
+  font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--beluga-ink);
-}
-
-.bio > p:first-child {
-  font-size: 1.25rem;
-  line-height: 1.5;
-  letter-spacing: -0.005em;
-  text-wrap: pretty;
 }
 
 .bio p {

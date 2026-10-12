@@ -33,7 +33,7 @@ export async function updateSettings(input: SettingsInput): Promise<void> {
     locale: input.locale,
     stripePublishableKey: input.stripePublishableKey,
     printCostCents: input.pricing.printCostCents,
-    platformFeeCents: input.pricing.platformFeeCents,
+    platformFeePercent: input.pricing.platformFeePercent,
     minCardPriceCents: input.pricing.minCardPriceCents,
     returnAddress: input.returnAddress ? jsonFor(dialect, input.returnAddress) : null,
     themeColorPrimary: input.theme.colorPrimary,

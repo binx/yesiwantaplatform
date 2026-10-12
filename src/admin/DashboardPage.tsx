@@ -119,7 +119,7 @@ export function DashboardPage() {
         {settings.data ? (
           <p style={{ margin: 0 }}>
             Every sent card earns its artist that card's share of the edition's price, less <strong>{money(settings.data.pricing.printCostCents)}</strong> to print and mail and a{" "}
-            <strong>{money(settings.data.pricing.platformFeeCents)}</strong> platform fee. An edition may cost no less than{" "}
+            <strong>{settings.data.pricing.platformFeePercent}%</strong> platform fee on what is left. An edition may cost no less than{" "}
             <strong>{money(settings.data.pricing.minCardPriceCents)}</strong> a card: {money(settings.data.pricing.minCardPriceCents * 6)} for six, {money(settings.data.pricing.minCardPriceCents * 12)} for twelve.
           </p>
         ) : null}

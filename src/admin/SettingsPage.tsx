@@ -47,7 +47,7 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
   const [locale, setLocale] = useState(initial.locale);
   const [publishableKey, setPublishableKey] = useState(initial.stripePublishableKey ?? "");
   const [printCost, setPrintCost] = useState((initial.pricing.printCostCents / 100).toFixed(2));
-  const [fee, setFee] = useState((initial.pricing.platformFeeCents / 100).toFixed(2));
+  const [fee, setFee] = useState(String(initial.pricing.platformFeePercent));
   const [minPrice, setMinPrice] = useState((initial.pricing.minCardPriceCents / 100).toFixed(2));
   const [returnAddress, setReturnAddress] = useState<Recipient>(initial.returnAddress ?? BLANK_RECIPIENT);
   const [returnAddressErrors, setReturnAddressErrors] = useState<RecipientErrors>({});
@@ -56,10 +56,10 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
 
   const saved = useRef(initial);
   const printCostCents = parseCents(printCost);
-  const feeCents = parseCents(fee);
+  const feePercent = /^\d{1,3}$/.test(fee.trim()) && Number(fee) <= 100 ? Number(fee) : null;
   const minPriceCents = parseCents(minPrice);
-  const pricingWrong = printCostCents === null || feeCents === null || minPriceCents === null || minPriceCents < 50;
-  const share = pricingWrong ? null : artistShareCents(minPriceCents, { printCostCents, platformFeeCents: feeCents });
+  const pricingWrong = printCostCents === null || feePercent === null || minPriceCents === null || minPriceCents < 50;
+  const share = pricingWrong ? null : artistShareCents(minPriceCents, { printCostCents, platformFeePercent: feePercent });
   const shareWrong = share !== null && share <= 0;
   const money = (cents: number) => formatMoney(cents, currency, locale);
 
@@ -68,7 +68,7 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
   const returnAddressWrong = returnAddressResult !== null && !returnAddressResult.ok;
   const returnAddressValue = returnAddressResult?.ok ? returnAddressResult.value : null;
 
-  const pricing = pricingWrong ? null : { printCostCents, platformFeeCents: feeCents, minCardPriceCents: minPriceCents };
+  const pricing = pricingWrong ? null : { printCostCents, platformFeePercent: feePercent, minCardPriceCents: minPriceCents };
   const dirty =
     name !== saved.current.name ||
     currency !== saved.current.currency ||
@@ -135,13 +135,15 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
 
       <Card title="Pricing" className={cx(styles.card)}>
         <p className={cx(styles.wiring)}>
-          Every card a collector is sent earns its artist that card's share of the edition's price — the price divided by the number of cards — less these two amounts. Changing them affects cards sent from now on; the ledger keeps what each past card was computed with.
+          Every card a collector is sent earns its artist that card's share of the edition's price — the price divided by the number of cards — less the print cost and the platform's percentage of what is left. Changing them affects cards sent from now on; the ledger keeps what each past card was computed with.
         </p>
         {cents(printCost, setPrintCost, "What one printed and mailed card costs you", "Lob's per-card price for a 4×6 first-class postcard, plus whatever you want to allow for the odd reprint.")}
-        {cents(fee, setFee, "What the platform keeps per card", "Your margin on each sent card.")}
+        <Field label="What the platform keeps" help="A percentage of each sent card's share of the price. Your margin.">
+          {(control) => <Input {...control} className={cx(styles.currency)} value={fee} suffix="%" inputMode="numeric" onChange={(event) => setFee(event.target.value)} />}
+        </Field>
         {cents(minPrice, setMinPrice, "Minimum price per card", `An edition must cost at least this many times its number of cards: at ${pricingWrong ? "this price" : money(minPriceCents)}, an edition of 6 costs at least ${pricingWrong ? "6×" : money(minPriceCents * 6)} and an edition of 12 at least ${pricingWrong ? "12×" : money(minPriceCents * 12)}. Stripe cannot charge less than 0.50. Below your costs, a card would lose money.`)}
         {pricingWrong ? (
-          <Alert className={cx(styles.notice)} type="error" showIcon title="Enter amounts like 1.20, and a minimum price per card of at least 0.50." />
+          <Alert className={cx(styles.notice)} type="error" showIcon title="Enter amounts like 1.20, a fee from 0 to 100 percent, and a minimum price per card of at least 0.50." />
         ) : shareWrong ? (
           <Alert className={cx(styles.notice)} type="error" showIcon title="At the minimum price per card an artist would earn nothing" description="Raise the minimum, or lower the print cost or fee." />
         ) : (

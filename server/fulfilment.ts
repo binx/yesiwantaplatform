@@ -4,7 +4,7 @@ import { imageStore } from "./image-store.js";
 import { LobError, LobNotConfiguredError, sendPostcard } from "./lob.js";
 import { sendPostcardSentEmail } from "./email.js";
 import { isInternational, todayIso } from "../shared/postcards.js";
-import { artistShareCents, cardGrossCents } from "../shared/schema.js";
+import { artistShareCents, cardGrossCents, platformFeeCentsFor } from "../shared/schema.js";
 import { getSettings } from "../db/repository.js";
 import { findArtistsByIds, getArtist } from "../db/artists-repository.js";
 import { findDesignsByIds } from "../db/designs-repository.js";
@@ -45,7 +45,7 @@ import { getStripe } from "./stripe.js";
  * Both are `setInterval`s in the API process. What makes two instances
  * safe is not the timer but the conditional update each sweep claims with:
  * only one of two racing claims on the same row can win, so a duplicate tick
- * costs a wasted query, never two postcards in one letterbox or two
+ * costs a wasted query, never two postcards in one mailbox or two
  * transfers for one card. Lob's idempotency key (our postcard id) and
  * Stripe's (our payout id) are the second belt on the same trousers.
  *
@@ -229,7 +229,7 @@ export async function sendDuePostcards(today = todayIso(), options: SweepOptions
           purchaseId: purchase.id,
           grossCents: gross,
           printCostCents: settings.pricing.printCostCents,
-          platformFeeCents: settings.pricing.platformFeeCents,
+          platformFeeCents: platformFeeCentsFor(gross, settings.pricing),
           amountCents: artistShareCents(gross, settings.pricing),
           currency: purchase.currency,
         });

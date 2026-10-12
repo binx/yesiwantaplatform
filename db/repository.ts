@@ -103,7 +103,7 @@ interface SettingsRow {
   locale: string;
   stripePublishableKey: string | null;
   printCostCents: number;
-  platformFeeCents: number;
+  platformFeePercent: number;
   minCardPriceCents: number;
   returnAddress: unknown;
   themeColorPrimary: string;
@@ -155,7 +155,7 @@ export async function getSettings(): Promise<Settings | null> {
     stripePublishableKey: row.stripePublishableKey,
     pricing: {
       printCostCents: row.printCostCents,
-      platformFeeCents: row.platformFeeCents,
+      platformFeePercent: row.platformFeePercent,
       minCardPriceCents: row.minCardPriceCents,
     },
     // Parsed with a fallback: a hand-edited row that no longer passes reads

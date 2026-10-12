@@ -97,7 +97,7 @@ describe("metaForPath", () => {
     expect((await metaForPath("/artists")).title).toBe(SITE_TITLE);
     expect((await metaForPath("/artists")).description).toContain("Every artist");
     expect((await metaForPath("/gallery")).status).toBe(200);
-    expect((await metaForPath("/for-artists")).title).toBe("For artists · Yes I Want A Postcard");
+    expect((await metaForPath("/open-a-studio")).title).toBe("Open a studio · Yes I Want A Postcard");
 
     const { createCustomer } = await import("./auth.js");
     const { createArtist, setArtistStatus } = await import("../db/artists-repository.js");
@@ -116,7 +116,7 @@ describe("metaForPath", () => {
     const { metaForPath } = await import("./seo.js");
     expect((await metaForPath("/no-such-page")).status).toBe(404);
     expect((await metaForPath("/artist/no-such-artist")).status).toBe(404);
-    for (const path of ["/", "/artists", "/gallery", "/for-artists", "/collect/confirm", "/studio", "/account/login"]) {
+    for (const path of ["/", "/artists", "/gallery", "/open-a-studio", "/collect/confirm", "/studio", "/account/login"]) {
       expect((await metaForPath(path)).status).toBe(200);
     }
   });

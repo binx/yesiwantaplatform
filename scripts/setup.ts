@@ -466,9 +466,15 @@ async function main(): Promise<void> {
       }
     };
 
-    console.log(dim("  Each sent card costs the platform its print price and keeps its fee; the rest is the artist's."));
+    console.log(dim("  Each sent card costs the platform its print price, and the platform keeps a percentage of the rest; what is left is the artist's."));
     const printCostCents = await askCents("What one printed and mailed card costs you", defaultPricing.printCostCents);
-    const platformFeeCents = await askCents("What the platform keeps per card", defaultPricing.platformFeeCents);
+    const platformFeePercent = await (async (): Promise<number> => {
+      for (;;) {
+        const answer = Number(await ask("What the platform keeps of each card's share, in percent", String(defaultPricing.platformFeePercent)));
+        if (Number.isInteger(answer) && answer >= 0 && answer <= 100) return answer;
+        console.log(red("  Enter a whole number from 0 to 100."));
+      }
+    })();
     const minCardPriceCents = Math.max(50, await askCents("The least an edition may charge per card", defaultPricing.minCardPriceCents));
 
     await updateSettings({
@@ -476,7 +482,7 @@ async function main(): Promise<void> {
       currency,
       locale: "en-US",
       stripePublishableKey: publishableKey?.startsWith("pk_") ? publishableKey : null,
-      pricing: { printCostCents, platformFeeCents, minCardPriceCents },
+      pricing: { printCostCents, platformFeePercent, minCardPriceCents },
       returnAddress: null,
       hero: defaultHero,
       theme: defaultTheme,

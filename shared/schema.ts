@@ -46,7 +46,7 @@ export const RESERVED_PAGE_SLUGS: Readonly<Record<string, string>> = {
   artist: "artist pages",
   artists: "the artist directory",
   gallery: "the gallery",
-  "for-artists": "the pitch to artists",
+  "open-a-studio": "the pitch to artists",
   collect: "collecting an edition",
   studio: "the artist studio",
   admin: "the admin",
@@ -164,15 +164,16 @@ export const defaultHero: z.infer<typeof heroSchema> = {
 /**
  * The money rules, as every visitor may know them.
  *
- * `printCostCents` and `platformFeeCents` are what come off each card's share
- * of an edition's price before the rest is sent to the artist — read by the
- * payout ledger the moment a card is accepted by the printer, never
- * recomputed later. `minCardPriceCents` is the floor per card an edition may
+ * `printCostCents` comes off each card's share of an edition's price, and
+ * `platformFeePercent` of that share is the platform's; the rest is sent to
+ * the artist. Both are read by the payout ledger the moment a card is
+ * accepted by the printer, never recomputed later. `minCardPriceCents` is the floor per card an edition may
  * charge: below it a card would cost the platform money to send.
  */
 export const pricingSchema = z.object({
   printCostCents: centsSchema,
-  platformFeeCents: centsSchema,
+  /** A whole percentage of each card's share, 0 to 100. */
+  platformFeePercent: z.number().int().min(0).max(100),
   minCardPriceCents: centsSchema,
 });
 
@@ -213,7 +214,7 @@ export const defaultTheme: Theme = {
 /** What a fresh platform charges and keeps, in cents. Settings is where they change. */
 export const defaultPricing: Pricing = {
   printCostCents: 120,
-  platformFeeCents: 60,
+  platformFeePercent: 30,
   minCardPriceCents: 300,
 };
 
@@ -239,12 +240,17 @@ export function cardGrossCents(priceCents: number, cardCount: number, position: 
   return position === 1 ? each + (priceCents - each * cardCount) : each;
 }
 
+/** The platform's fee on one card: its percentage of the card's share, rounded down in the artist's favour. */
+export function platformFeeCentsFor(cardGrossCents: number, pricing: Pick<Pricing, "platformFeePercent">): number {
+  return Math.floor((cardGrossCents * pricing.platformFeePercent) / 100);
+}
+
 /**
  * What one sent postcard earns its artist: its part of the price less the
  * print cost and the platform's fee, and never below zero. Pure, so the
  * ledger, the studio's earnings page and the admin's settings preview all do
  * the same arithmetic.
  */
-export function artistShareCents(cardGrossCents: number, pricing: Pick<Pricing, "printCostCents" | "platformFeeCents">): number {
-  return Math.max(0, cardGrossCents - pricing.printCostCents - pricing.platformFeeCents);
+export function artistShareCents(cardGrossCents: number, pricing: Pick<Pricing, "printCostCents" | "platformFeePercent">): number {
+  return Math.max(0, cardGrossCents - pricing.printCostCents - platformFeeCentsFor(cardGrossCents, pricing));
 }

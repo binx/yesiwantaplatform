@@ -18,7 +18,6 @@ export function GalleryPage() {
   return (
     <PageWrapper width="wide">
       <h1>Gallery</h1>
-      <p>Editions of postcards you can collect right now. You choose the artist; what lands in the letterbox is up to them.</p>
 
       {gallery.isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />
@@ -26,11 +25,11 @@ export function GalleryPage() {
         <p className={platform.empty}>The gallery could not be loaded. Try again in a moment.</p>
       ) : editions.length === 0 ? (
         <p className={platform.empty}>
-          Nothing is on sale yet. <Link to="/for-artists">Are you an artist?</Link>
+          Nothing is on sale yet. <Link to="/open-a-studio">Are you an artist?</Link>
         </p>
       ) : (
         <>
-          <div className={platform.grid}>
+          <div className={`${platform.grid} ${platform.gridWide}`}>
             {editions.map((edition) => (
               <EditionTile key={edition.id} edition={edition} artist={edition.artist} locale={store.locale} />
             ))}

@@ -22,7 +22,7 @@ export function useSiteLinks(): { links: SiteLink[]; accountHref: string; accoun
     { to: "/gallery", label: "Gallery" },
     ...store.pages.filter((page) => page.inNav).map((page) => ({ to: `/${page.slug}`, label: page.title })),
     // The studio is where an artist works; for everyone else, the pitch.
-    { to: customer.data?.artistSlug ? "/studio" : "/for-artists", label: customer.data?.artistSlug ? "Your studio" : "Open a studio" },
+    { to: customer.data?.artistSlug ? "/studio" : "/open-a-studio", label: customer.data?.artistSlug ? "Your studio" : "Open a studio" },
   ];
 
   return {

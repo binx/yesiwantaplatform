@@ -158,7 +158,7 @@ for (const { name, context } of dialects) {
 
     it("returns a schema-valid snapshot with the pricing", async () => {
       const store = await db.getStoreSnapshot();
-      expect(store?.pricing).toEqual({ printCostCents: 120, platformFeeCents: 60, minCardPriceCents: 300 });
+      expect(store?.pricing).toEqual({ printCostCents: 120, platformFeePercent: 30, minCardPriceCents: 300 });
       expect(store?.pages).toEqual([]);
     });
 
@@ -167,12 +167,12 @@ for (const { name, context } of dialects) {
       const returnAddress = { name: "Yes I Want A Postcard", line1: "185 Berry St", line2: null, city: "San Francisco", state: "CA", postalCode: "94107", country: "US" };
       await db.admin.updateSettings({
         ...settings,
-        pricing: { printCostCents: 150, platformFeeCents: 75, minCardPriceCents: 400 },
+        pricing: { printCostCents: 150, platformFeePercent: 25, minCardPriceCents: 400 },
         returnAddress,
         hero: { heading: "Hello", text: null, buttonLabel: null, buttonHref: "/artists", image: null },
       });
       const updated = (await db.getSettings())!;
-      expect(updated.pricing).toEqual({ printCostCents: 150, platformFeeCents: 75, minCardPriceCents: 400 });
+      expect(updated.pricing).toEqual({ printCostCents: 150, platformFeePercent: 25, minCardPriceCents: 400 });
       expect(updated.returnAddress).toEqual(returnAddress);
       expect(updated.hero.heading).toBe("Hello");
       expect(updated.hero.buttonHref).toBe("/artists");

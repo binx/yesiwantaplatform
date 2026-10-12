@@ -105,8 +105,8 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
 
     }
 
-    if (path === "/for-artists") {
-      return { ...fallback, title: `For artists · ${storeName}`, description: truncate("Make an edition of 6 or 12 postcards and sell it to the people who want to hear from you. Set your price; we print, post and pay you.") };
+    if (path === "/open-a-studio") {
+      return { ...fallback, title: `Open a studio · ${storeName}`, description: truncate("Make an edition of 6 or 12 postcards and sell it to the people who want to hear from you. Set your price; we print, post and pay you.") };
     }
 
     if (PLAIN_ROUTES.some((p) => path === p || path.startsWith(`${p}/`))) return fallback;

@@ -31,7 +31,7 @@ export const storeSettings = pgTable("store_settings", {
   locale: text("locale").notNull().default("en-US"),
   stripePublishableKey: text("stripe_publishable_key"),
   printCostCents: integer("print_cost_cents").notNull().default(120),
-  platformFeeCents: integer("platform_fee_cents").notNull().default(60),
+  platformFeePercent: integer("platform_fee_percent").notNull().default(30),
   minCardPriceCents: integer("min_card_price_cents").notNull().default(300),
   returnAddress: jsonb("return_address"),
   themeColorPrimary: text("theme_color_primary").notNull().default("#1c1917"),

@@ -192,7 +192,7 @@ const SETTINGS = {
   name: "Renamed",
   currency: "USD",
   stripePublishableKey: null,
-  pricing: { printCostCents: 120, platformFeeCents: 60, minCardPriceCents: 300 },
+  pricing: { printCostCents: 120, platformFeePercent: 30, minCardPriceCents: 300 },
   theme: { colorPrimary: "#18181b", colorAccent: "#e07a5f", fontFamily: "system-ui", borderRadius: 2 },
 };
 

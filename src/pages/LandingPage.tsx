@@ -137,7 +137,7 @@ export function LandingPage() {
               {PITCH_LINES.map((line) => (
                 <li key={line}>{line}</li>
               ))}
-              <li>from {floor} a card, in sets of 6 or 12, straight to your letterbox</li>
+              <li>from {floor} a card, in sets of 6 or 12, straight to your mailbox</li>
             </ul>
             <div className={styles.heroActions}>
               <HeroButton href={hero.buttonHref ?? "/artists"}>{hero.buttonLabel ?? "YES I WANT A POSTCARD"}</HeroButton>
@@ -153,20 +153,26 @@ export function LandingPage() {
       </section>
 
       <PageWrapper width="wide">
-        <div className={platform.sectionHeading}>
+        <div className={cx(platform.sectionHeading, styles.sectionLead)}>
           <h2>Artists you can say yes to</h2>
-          <Link to="/artists">All artists</Link>
         </div>
         {artists.isPending ? (
           <Skeleton active paragraph={{ rows: 4 }} />
         ) : featured.length === 0 ? (
           <p className={platform.empty}>No artists have gone live yet. {customer.data?.artistSlug ? <Link to="/studio">Yours could be first.</Link> : <Link to="/studio/new">Yours could be first.</Link>}</p>
         ) : (
-          <div className={platform.grid}>
-            {featured.map((artist) => (
-              <ArtistTile key={artist.id} artist={artist} locale={store.locale} />
-            ))}
-          </div>
+          <>
+            <div className={cx(platform.grid, platform.gridWide)}>
+              {featured.map((artist) => (
+                <ArtistTile key={artist.id} artist={artist} />
+              ))}
+            </div>
+            <p className={styles.more}>
+              <Link to="/artists" className={styles.pathAction}>
+                All artists
+              </Link>
+            </p>
+          </>
         )}
 
         <section id="how" className={styles.how}>
@@ -175,8 +181,7 @@ export function LandingPage() {
               <p className={styles.pathKicker}>For collectors</p>
               <h2 className={styles.pathHeading}>Add a little mail magic to your life</h2>
               <p>
-                An artist you like makes an edition: a set of real postcards, their picture on the front and a note on the back,
-                mailed to you one at a time.
+                An artist you like makes an edition: a set of real postcards, mailed to you one at a time.
               </p>
               <ol className={styles.steps}>
                 <li>
@@ -186,35 +191,32 @@ export function LandingPage() {
                   <strong>Say where and how often.</strong> Your address, once or twice a month, and if you like, the first card's day.
                 </li>
                 <li>
-                  <strong>Check your letterbox.</strong> A card arrives until the set is done. Nothing renews, nothing to cancel.
+                  <strong>Check your mailbox.</strong> A card arrives until the set is done. Nothing renews, nothing to cancel.
                 </li>
               </ol>
               <Link to="/artists" className={styles.pathAction}>
-                Find an artist
+                Browse artists
               </Link>
             </div>
             <div className={styles.path}>
               <p className={styles.pathKicker}>For artists</p>
               <h2 className={styles.pathHeading}>Put your pictures in the post</h2>
               <p>
-                Turn a set of your pictures into postcards. We print and mail them to the people who want them, one card at a time,
-                and pay you for each one.
+                Share your art with the world and put a little delight in someone's mailbox. Your pictures become real postcards,
+                mailed one at a time to the people who want them.
               </p>
               <ol className={styles.steps}>
                 <li>
-                  <strong>Open a studio.</strong> Your own page, at your own address.
+                  <strong>Set up your studio.</strong> Tell us about yourself, then set up your art editions: 6 or 12 postcards each.
                 </li>
                 <li>
-                  <strong>Make an edition.</strong> 6 or 12 postcards, one price for the set.
+                  <strong>Collectors purchase your art.</strong> Customers choose how often they want the cards mailed to them.
                 </li>
                 <li>
-                  <strong>Collectors buy it.</strong> Paid once, up front. They pick how often the cards come.
-                </li>
-                <li>
-                  <strong>We print and post.</strong> Every card on its day, and you are paid for each one.
+                  <strong>We print and post.</strong> Every card on its day, from our printer to their mailbox.
                 </li>
               </ol>
-              <Link to="/for-artists" className={styles.pathAction}>
+              <Link to="/open-a-studio" className={styles.pathAction}>
                 Open a studio
               </Link>
             </div>
@@ -223,15 +225,19 @@ export function LandingPage() {
 
         {onSale.length > 0 ? (
           <>
-            <div className={platform.sectionHeading}>
-              <h2>On sale now</h2>
-              <Link to="/gallery">The gallery</Link>
+            <div className={cx(platform.sectionHeading, styles.sectionLead)}>
+              <h2>Postcard editions</h2>
             </div>
-            <div className={platform.grid}>
+            <div className={cx(platform.grid, platform.gridWide)}>
               {onSale.map((edition) => (
                 <EditionTile key={edition.id} edition={edition} artist={edition.artist} locale={store.locale} />
               ))}
             </div>
+            <p className={styles.more}>
+              <Link to="/gallery" className={styles.pathAction}>
+                All editions
+              </Link>
+            </p>
           </>
         ) : null}
 

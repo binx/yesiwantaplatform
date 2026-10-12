@@ -22,7 +22,7 @@ export function Footer() {
         <nav className={styles.links} aria-label="Footer">
           <Link to="/artists">Artists</Link>
           <Link to="/gallery">Gallery</Link>
-          <Link to={customer.data?.artistSlug ? "/studio" : "/for-artists"}>Open a studio</Link>
+          <Link to={customer.data?.artistSlug ? "/studio" : "/open-a-studio"}>Open a studio</Link>
           <Link to={accountHref}>Your account</Link>
           {store.pages.map((page) => (
             <Link key={page.id} to={`/${page.slug}`}>

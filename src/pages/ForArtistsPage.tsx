@@ -48,12 +48,12 @@ export function ForArtistsPage() {
       text: `Tell us about yourself, then set up your art editions: ${EDITION_SIZES.join(" or ")} postcards each, at one price for the set.`,
     },
     {
-      title: "Collectors buy it",
-      text: "Paid once, up front. They pick how often the cards come and where they go.",
+      title: "Collectors purchase your art",
+      text: "Customers choose how often they want the cards mailed to them.",
     },
     {
       title: "We print and post",
-      text: "Every card goes out on its day, from our printer to their letterbox.",
+      text: "Every card goes out on its day, from our printer to their mailbox.",
     },
   ];
 
@@ -69,7 +69,7 @@ export function ForArtistsPage() {
     <PageWrapper>
       <h1 className={styles.heading}>Put your pictures in the post</h1>
       <p className={styles.lede}>
-        Share your art with the world and put a little delight in someone's letterbox. Your pictures become real postcards, mailed
+        Share your art with the world and put a little delight in someone's mailbox. Your pictures become real postcards, mailed
         one at a time to the people who want them.
       </p>
       <div className={styles.lead}>{studioButton("Get started")}</div>

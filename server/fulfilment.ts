@@ -45,7 +45,7 @@ import { getStripe } from "./stripe.js";
  * Both are `setInterval`s in the API process. What makes two instances
  * safe is not the timer but the conditional update each sweep claims with:
  * only one of two racing claims on the same row can win, so a duplicate tick
- * costs a wasted query, never two postcards in one letterbox or two
+ * costs a wasted query, never two postcards in one mailbox or two
  * transfers for one card. Lob's idempotency key (our postcard id) and
  * Stripe's (our payout id) are the second belt on the same trousers.
  *

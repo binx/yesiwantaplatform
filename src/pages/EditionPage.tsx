@@ -23,7 +23,7 @@ function isRunning(collection: Collection): boolean {
  * One edition: what it is, what it costs, and the way to collect it.
  *
  * The cards themselves are never shown here — they are a surprise, seen
- * first in the letterbox. The banner and the artist's writeup say what is
+ * first in the mailbox. The banner and the artist's writeup say what is
  * coming instead. The writeup arrived as sanitised HTML, like the artist's
  * bio, and is rendered the same way. A closed edition still renders — its collectors
  * still come looking — but says it is closed instead of offering itself.

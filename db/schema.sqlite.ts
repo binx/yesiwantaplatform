@@ -236,7 +236,7 @@ export const postcardDesigns = sqliteTable(
  *
  * The cards are a surprise: visitors see the banner and the description —
  * the artist's writeup of what will arrive — and each card only once it is
- * in their letterbox.
+ * in their mailbox.
  *
  * Built as a `draft`; once `on_sale` its cards, size and price are
  * fixed — a collector paid for exactly these — and only its words can

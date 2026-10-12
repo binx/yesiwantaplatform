@@ -137,7 +137,7 @@ export function LandingPage() {
               {PITCH_LINES.map((line) => (
                 <li key={line}>{line}</li>
               ))}
-              <li>from {floor} a card, in sets of 6 or 12, straight to your letterbox</li>
+              <li>from {floor} a card, in sets of 6 or 12, straight to your mailbox</li>
             </ul>
             <div className={styles.heroActions}>
               <HeroButton href={hero.buttonHref ?? "/artists"}>{hero.buttonLabel ?? "YES I WANT A POSTCARD"}</HeroButton>
@@ -191,7 +191,7 @@ export function LandingPage() {
                   <strong>Say where and how often.</strong> Your address, once or twice a month, and if you like, the first card's day.
                 </li>
                 <li>
-                  <strong>Check your letterbox.</strong> A card arrives until the set is done. Nothing renews, nothing to cancel.
+                  <strong>Check your mailbox.</strong> A card arrives until the set is done. Nothing renews, nothing to cancel.
                 </li>
               </ol>
               <Link to="/artists" className={styles.pathAction}>
@@ -202,7 +202,7 @@ export function LandingPage() {
               <p className={styles.pathKicker}>For artists</p>
               <h2 className={styles.pathHeading}>Put your pictures in the post</h2>
               <p>
-                Share your art with the world and put a little delight in someone's letterbox. Your pictures become real postcards,
+                Share your art with the world and put a little delight in someone's mailbox. Your pictures become real postcards,
                 mailed one at a time to the people who want them.
               </p>
               <ol className={styles.steps}>
@@ -210,10 +210,10 @@ export function LandingPage() {
                   <strong>Set up your studio.</strong> Tell us about yourself, then set up your art editions: 6 or 12 postcards each, at one price.
                 </li>
                 <li>
-                  <strong>Collectors buy it.</strong> Paid once, up front. They pick how often the cards come.
+                  <strong>Collectors purchase your art.</strong> Customers choose how often they want the cards mailed to them.
                 </li>
                 <li>
-                  <strong>We print and post.</strong> Every card on its day, from our printer to their letterbox.
+                  <strong>We print and post.</strong> Every card on its day, from our printer to their mailbox.
                 </li>
               </ol>
               <Link to="/open-a-studio" className={styles.pathAction}>

@@ -91,7 +91,7 @@ export function BioField({ value, onChange }: { value: string; onChange: (value:
       <label className="sr-only" htmlFor="artist-bio">
         About you
       </label>
-      <Input.TextArea id="artist-bio" value={value} autoSize={{ minRows: 6 }} maxLength={10_000} placeholder="Who you are, what you make, why postcards." onChange={(e) => onChange(e.target.value)} />
+      <Input.TextArea id="artist-bio" value={value} autoSize={{ minRows: 6 }} maxLength={10_000} placeholder="Who you are and what you make." onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }

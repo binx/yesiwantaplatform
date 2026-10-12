@@ -91,7 +91,7 @@ test("the studio needs a sign-in, then opens a page that goes live once an editi
   await expect(page.getByRole("button", { name: "Replace banner" })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
   // Step three: links and the gallery, both optional, then the button that makes the studio.
-  await page.getByRole("button", { name: "Open your studio" }).click();
+  await page.getByRole("button", { name: "View your studio" }).click();
 
   await expect(page).toHaveURL(/\/studio\/?$/);
   await expect(page.getByText("Your page is a draft")).toBeVisible();

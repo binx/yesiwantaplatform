@@ -604,7 +604,57 @@
 }
 
 .setupSteps {
-  max-width: 40rem;
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setupStep {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9375rem;
+  color: var(--beluga-muted);
+}
+
+.setupStepCurrent {
+  color: var(--beluga-ink);
+  font-weight: 600;
+}
+
+.setupStepDone {
+  color: var(--beluga-ink);
+}
+
+/* The pitch page's numbered circle, smaller: a chroma ring, filled once the step is done. */
+.setupStepNumber {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--beluga-line);
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--beluga-muted);
+}
+
+.setupStepCurrent .setupStepNumber {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--beluga-page), var(--beluga-page)) padding-box,
+    var(--chroma) border-box;
+  color: var(--beluga-ink);
+}
+
+.setupStepDone .setupStepNumber {
+  border-color: transparent;
+  background: var(--chroma);
+  color: var(--beluga-on-accent);
 }
 
 .setupPanel {

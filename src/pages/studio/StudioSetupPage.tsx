@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Alert, App, Button, Input, Steps } from "antd";
+import { Alert, App, Button, Input } from "antd";
 import { artistProfileInputSchema, type ArtistProfileInput } from "@shared/platform";
 import { useCreateArtist, useSlugAvailable } from "@/lib/platform";
 import { useCustomer } from "@/lib/account";
@@ -9,7 +9,7 @@ import { slugify, typedLinks, type ProfileDraft } from "./profileDraft";
 import { BioField, LinksFields, ProfileHero, VisibilityField } from "./profileFields";
 import styles from "./Studio.module.css";
 
-const STEPS = [{ title: "Name and URL" }, { title: "Your page" }, { title: "Open" }];
+const STEPS = ["Name and URL", "Your page", "Open"];
 
 /**
  * Opening a studio, in three steps at /studio/new: the name and the URL,
@@ -73,7 +73,17 @@ export function StudioSetupPage() {
   return (
     <div className={styles.setup}>
       <h1>Open a studio</h1>
-      <Steps current={step} items={STEPS} className={cx(styles.setupSteps)} />
+      {/* The steps in the pitch page's own style, not antd's: the current one ringed in the chroma, the done ones filled with it. */}
+      <ol className={cx(styles.setupSteps)} aria-label="Steps">
+        {STEPS.map((title, index) => (
+          <li key={title} className={cx(styles.setupStep, index < step && styles.setupStepDone, index === step && styles.setupStepCurrent)} aria-current={index === step ? "step" : undefined}>
+            <span className={styles.setupStepNumber} aria-hidden>
+              {index < step ? "✓" : index + 1}
+            </span>
+            {title}
+          </li>
+        ))}
+      </ol>
 
       {step === 0 ? (
         <div className={styles.setupPanel}>
@@ -148,7 +158,7 @@ export function StudioSetupPage() {
           </Button>
         ) : (
           <Button type="primary" size="large" loading={create.isPending} onClick={open}>
-            Open your studio
+            View your studio
           </Button>
         )}
       </div>

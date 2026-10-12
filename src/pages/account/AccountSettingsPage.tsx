@@ -41,7 +41,7 @@ export function AccountSettingsPage() {
               <Link to={`/artist/${profile.artistSlug}`}>/artist/{profile.artistSlug}</Link>.
             </span>
             <Link to="/studio">
-              <Button type="primary">Open your studio</Button>
+              <Button type="primary">View your studio</Button>
             </Link>
           </p>
         </section>

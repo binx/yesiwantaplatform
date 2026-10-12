@@ -1,4 +1,4 @@
-import { theme as antdTheme, type ThemeConfig } from "antd";
+import { theme as antdTheme, type MappingAlgorithm, type ThemeConfig } from "antd";
 import type { ColorScheme, Theme } from "@shared/schema";
 
 /** Re-exported so client code has one import for theme concerns. */
@@ -154,13 +154,30 @@ export const ACTION_BUTTON = {
   label: "#18181b",
 } as const;
 
+/**
+ * A link is the primary the operator chose, in both schemes.
+ *
+ * antd does not use `colorLink` as given: it generates a palette from it and
+ * takes the seventh step for links and the fifth for hover. In the dark
+ * scheme that turns the default cyan into #12c3dc at rest and a drab #13717e
+ * on hover — darker on hover, on a dark page. `colorLink` is a seed token, so
+ * naming it in `token` cannot override the derivation; this runs after the
+ * scheme's algorithm and puts the seed back. Hover is the thicker underline
+ * `index.css` already draws, not a second colour.
+ */
+const linksAreThePrimary: MappingAlgorithm = (seed, map) => {
+  const base = map ?? antdTheme.defaultAlgorithm(seed);
+  const link = seed.colorLink ?? seed.colorPrimary;
+  return { ...base, colorLink: link, colorLinkHover: link, colorLinkActive: link };
+};
+
 /** Map a store's theme onto antd's design tokens. */
 export function toAntdTheme(theme: Theme): ThemeConfig {
   const palette = schemePalette[theme.colorScheme];
   const isDark = theme.colorScheme === "dark";
 
   return {
-    algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+    algorithm: [isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm, linksAreThePrimary],
     token: {
       colorPrimary: theme.colorPrimary,
       colorInfo: theme.colorPrimary,

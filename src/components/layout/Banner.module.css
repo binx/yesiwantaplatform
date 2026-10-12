@@ -16,6 +16,13 @@
   color: var(--beluga-ink);
 }
 
+/* antd's App paints every `a:hover` in the link colour, and that selector
+   outranks `.brand` alone. The wordmark is not a link that changes colour. */
+.brand:hover,
+.brand:active {
+  color: var(--beluga-ink);
+}
+
 /* The wordmark: a heavy "yes" and the rest in the theme face, as the original site set it. */
 .wordmark {
   font-weight: 600;

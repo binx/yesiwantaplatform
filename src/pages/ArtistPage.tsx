@@ -27,7 +27,8 @@ import styles from "./ArtistPage.module.css";
  * face set into its bottom edge, the name and the numbers beside it, the
  * bio under, and the editions as the feed. The numbers are the ones the
  * server already gives any visitor — how many collect, how many cards have
- * gone out — and never who.
+ * gone out — and never who. A paused artist is told about where the
+ * editions are, not in a label by the name.
  *
  * The bio arrived as sanitised HTML from the server — the same allow-list a
  * site page gets — so it is rendered the same way a page is. The links are
@@ -64,7 +65,6 @@ export function ArtistPage() {
   const { artist, editions } = page.data;
   const isOwner = customer.data?.artistSlug === artist.slug;
   const onSale = editions.filter((edition) => edition.status === "on_sale").length;
-  const since = new Date(artist.createdAt).toLocaleDateString(store.locale, { month: "long", year: "numeric" });
 
   return (
     <PageWrapper>
@@ -89,7 +89,6 @@ export function ArtistPage() {
           </div>
 
           <div className={styles.who}>
-            <p className={styles.kicker}>{artist.status === "paused" ? "Artist · paused" : "Artist"}</p>
             <h1 className={styles.name}>{artist.name}</h1>
             <ul className={styles.stats} aria-label={`About ${artist.name}`}>
               <li>
@@ -115,7 +114,6 @@ export function ArtistPage() {
                   <strong>{artist.mailedCount.toLocaleString(store.locale)}</strong> {artist.mailedCount === 1 ? "card" : "cards"} mailed
                 </li>
               ) : null}
-              <li>Here since {since}</li>
             </ul>
           </div>
 

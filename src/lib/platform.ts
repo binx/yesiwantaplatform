@@ -7,7 +7,6 @@ import type {
   CollectInput,
   CollectResponse,
   Collection,
-  Collector,
   Edition,
   EditionCardsInput,
   EditionInput,
@@ -275,15 +274,6 @@ export function useDeleteEdition() {
   return useMutation({
     mutationFn: (id: string) => csrfDelete<void>(`/studio/editions/${id}`),
     onSuccess: invalidate,
-  });
-}
-
-/* ------------------------------------------------------------- collectors */
-
-export function useCollectors(): UseQueryResult<Collector[]> {
-  return useQuery({
-    queryKey: ["studio", "collectors"],
-    queryFn: ({ signal }) => apiGet<Collector[]>("/studio/collectors", signal),
   });
 }
 

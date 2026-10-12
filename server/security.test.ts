@@ -133,7 +133,6 @@ const STUDIO_READS = [
   "/api/studio/designs",
   "/api/studio/editions",
   "/api/studio/editions/some-edition",
-  "/api/studio/collectors",
 ] as const;
 
 const ADMIN_PASSWORD_RESET_ROUTES = ["/api/session/forgot-password", "/api/session/reset-password"] as const;

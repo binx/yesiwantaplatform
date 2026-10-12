@@ -388,22 +388,10 @@ export const collectResponseSchema = z.object({
   purchaseId: z.string(),
 });
 
-/** What the artist is told about a purchase of theirs: which edition, how far along. Never who, never where. */
-export const collectorSchema = z.object({
-  id: z.string(),
-  edition: z.object({ id: z.string(), title: z.string() }),
-  status: purchaseStatusSchema,
-  cardCount: editionSizeSchema,
-  sentCount: z.number().int().min(0),
-  nextMailDate: mailDateSchema.nullable(),
-  since: z.number().int(),
-});
-
 export type ScheduledCard = z.infer<typeof scheduledCardSchema>;
 export type Collection = z.infer<typeof collectionSchema>;
 export type CollectInput = z.infer<typeof collectInputSchema>;
 export type CollectResponse = z.infer<typeof collectResponseSchema>;
-export type Collector = z.infer<typeof collectorSchema>;
 
 /* ---------------------------------------------------------------- gallery */
 

@@ -143,7 +143,7 @@ export const heroHrefSchema = z
 export const heroSchema = z.object({
   /** Null renders the built-in "yes, i want a postcard". */
   heading: z.string().max(120).nullable().default(null),
-  /** Null renders the built-in line about moving beyond social media. */
+  /** Null renders the built-in "an artist would like to send you a postcard." */
   text: z.string().max(500).nullable().default(null),
   /** Null renders "Find an artist". */
   buttonLabel: z.string().max(60).nullable().default(null),

@@ -335,12 +335,12 @@ describe("a fan collects the edition", () => {
     expect(again.status).toBe(409);
     expect(again.body.error).toMatch(/already collecting/);
 
-    // The artist sees that someone collects, and how far along: never who, never where.
+    // The artist learns only that the count went up: there is no list of who collects.
     const artist = await signIn("artist@example.com");
-    const collectors = await artist.agent.get("/api/studio/collectors").expect(200);
-    expect(collectors.body).toEqual([expect.objectContaining({ status: "paid", sentCount: 0, cardCount: 6, nextMailDate: schedule[0] })]);
-    for (const field of ["name", "city", "country", "address"]) expect(collectors.body[0]).not.toHaveProperty(field);
-    for (const secret of ["Grandma", "Test Street"]) expect(JSON.stringify(collectors.body)).not.toContain(secret);
+    expect((await artist.agent.get("/api/studio/collectors")).status).toBe(404);
+    const studio = await artist.agent.get("/api/studio").expect(200);
+    expect(studio.body.artist.collectorCount).toBe(1);
+    for (const secret of ["Grandma", "Test Street", "79843"]) expect(JSON.stringify(studio.body)).not.toContain(secret);
     expect((await request(app).get("/api/artists/rachel").expect(200)).body.artist.collectorCount).toBe(1);
 
     // Bought once: the edition can no longer go back to being a draft.

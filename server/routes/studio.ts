@@ -47,14 +47,14 @@ import {
   updateEditionWords,
   type EditionRecord,
 } from "../../db/editions-repository.js";
-import { editionHasPurchases, listPurchasesForArtist } from "../../db/purchases-repository.js";
+import { editionHasPurchases } from "../../db/purchases-repository.js";
 import { sumEarningsForArtist } from "../../db/payouts-repository.js";
 import { findCustomerById } from "../auth.js";
 import { createOnboardingLink, ensureConnectAccount, refreshConnectStatus } from "../connect.js";
 import { httpError, requireCustomer, uploadRateLimit, verifyCsrf, writeRateLimit } from "../middleware.js";
 import { classifyStripeError, StripeNotConfiguredError } from "../stripe.js";
 import { deleteDesignFile, mapUploadError, storeImage, storePostcardDesign, uploadMiddleware } from "../uploads.js";
-import { presentCollectors, presentStudioEditions, toArtistStudio } from "../presenters.js";
+import { presentStudioEditions, toArtistStudio } from "../presenters.js";
 
 /**
  * The studio: everything an artist does with their own page.
@@ -457,13 +457,6 @@ artistRouter.delete("/editions/:id", async (req, res) => {
   }
   if (!(await deleteDraftEdition(edition.id, artist.id))) throw httpError(409, "That edition has just gone on sale.");
   res.status(204).end();
-});
-
-/* ------------------------------------------------------------- collectors */
-
-/** Each purchase of theirs: which edition, how far along. Who bought it and where it goes are the platform's business, not the artist's. */
-artistRouter.get("/collectors", async (_req, res) => {
-  res.json(await presentCollectors(await listPurchasesForArtist(artistOf(res).id)));
 });
 
 /* ---------------------------------------------------------------- payouts */

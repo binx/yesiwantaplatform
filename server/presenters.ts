@@ -3,7 +3,6 @@ import {
   artistStudioSchema,
   artistSummarySchema,
   collectionSchema,
-  collectorSchema,
   editionSchema,
   editionStudioSchema,
   editionSummarySchema,
@@ -14,7 +13,6 @@ import {
   type ArtistStudio,
   type ArtistSummary,
   type Collection,
-  type Collector,
   type Edition,
   type EditionStudio,
   type EditionSummary,
@@ -233,25 +231,6 @@ export async function presentCollections(purchases: PurchaseRecord[]): Promise<C
       paidAt: purchase.paidAt,
     });
   });
-}
-
-/** What the artist is told about each purchase: which edition, and how far along its run is. Never a name, never an address. */
-export async function presentCollectors(purchases: PurchaseRecord[]): Promise<Collector[]> {
-  const [editions, schedules] = await Promise.all([
-    findEditionsByIds(purchases.map((purchase) => purchase.editionId)),
-    listSchedules(purchases.map((purchase) => purchase.id)),
-  ]);
-  const editionById = new Map(editions.map((edition) => [edition.id, edition]));
-  return purchases.map((purchase) =>
-    collectorSchema.parse({
-      id: purchase.id,
-      edition: { id: purchase.editionId, title: editionById.get(purchase.editionId)?.title ?? "An edition" },
-      status: purchase.status,
-      cardCount: purchase.cardCount,
-      ...progress(schedules.get(purchase.id) ?? []),
-      since: purchase.paidAt ?? purchase.createdAt,
-    }),
-  );
 }
 
 /* ---------------------------------------------------------------- gallery */

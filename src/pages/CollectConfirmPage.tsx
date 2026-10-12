@@ -42,7 +42,7 @@ export function CollectConfirmPage() {
           title={<h1>We couldn't find that checkout</h1>}
           subTitle="If you just paid, what you collected is in your account."
           extra={
-            <Link to="/account">
+            <Link to="/account/collections">
               <Button type="primary">Your collections</Button>
             </Link>
           }
@@ -72,7 +72,7 @@ export function CollectConfirmPage() {
             : `${edition.title} by ${artist.name}, mailed to ${address.name}.`
         }
         extra={[
-          <Link key="account" to="/account">
+          <Link key="account" to="/account/collections">
             <Button type="primary">Your collections</Button>
           </Link>,
           <Link key="artists" to="/artists">

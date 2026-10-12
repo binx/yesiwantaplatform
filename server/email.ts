@@ -130,7 +130,7 @@ export async function sendCollectionStartedEmail(
     price: formatMoney(locals.priceCents, locals.currency, store.locale),
     firstDay: first ? formatDay(first, store.locale) : "",
     lastDay: last ? formatDay(last, store.locale) : "",
-    accountUrl: url("/account"),
+    accountUrl: url("/account/collections"),
   });
 }
 

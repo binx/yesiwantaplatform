@@ -3,6 +3,7 @@ import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import { Alert, App, Button, Popconfirm, Tag } from "antd";
 import { artistPath } from "@shared/platform";
 import { formatMoney } from "@shared/money";
+import { KEEPS_EVERY_CARD } from "@shared/copy";
 import { useRefreshPayoutStatus, useSetArtistStatus, useStartOnboarding, type StudioView } from "@/lib/platform";
 import { useStore } from "@/lib/useStore";
 import { cx } from "@/lib/cx";
@@ -90,14 +91,14 @@ export function StudioOverviewPage() {
           {artist.status === "live"
             ? `Anyone can collect your editions on sale at ${artistPath(artist.slug)}.`
             : artist.status === "paused"
-              ? "Nobody new can collect. Everyone who already has keeps receiving every card."
+              ? `Nobody new can collect. ${KEEPS_EVERY_CARD}`
               : onSale === 0
                 ? "Going live needs an edition on sale, so your first visitor has something to collect."
                 : "Your page goes public and your editions on sale can be collected."}
         </p>
         <div className={styles.actions}>
           {artist.status === "live" ? (
-            <Popconfirm title="Pause new collectors?" description="Everyone who has already collected keeps receiving their cards." onConfirm={() => setStatus.mutate("paused", { onError: fail })}>
+            <Popconfirm title="Pause new collectors?" description={KEEPS_EVERY_CARD} onConfirm={() => setStatus.mutate("paused", { onError: fail })}>
               <Button loading={setStatus.isPending}>Pause</Button>
             </Popconfirm>
           ) : (
@@ -118,7 +119,7 @@ export function StudioOverviewPage() {
         <h2>Payouts</h2>
         {artist.payoutsEnabled ? (
           <p className={styles.note}>
-            Stripe is set up. Each card's share is transferred to your account within an hour of the printer accepting it. <Tag color="green">ready</Tag>
+            Stripe is set up. Each card's share is transferred to your account as it is mailed. <Tag color="green">Ready</Tag>
           </p>
         ) : artist.hasStripeAccount ? (
           <p className={styles.note}>You started setting up Stripe but it isn't finished. Your earnings wait here until it is.</p>
@@ -157,9 +158,8 @@ export function StudioOverviewPage() {
           <li>You make an edition: 6 or 12 postcards, for one price. Put it on sale when every card is in place.</li>
           <li>A collector pays once, picks whether their cards come once or twice a month, and the day the first one goes. From then on we print and mail their cards one by one, on schedule.</li>
           <li>
-            As the printer accepts each card, its part of the price is added to your earnings
-            {` (less ${money(pricing.printCostCents)} to print and mail it and a ${pricing.platformFeePercent}% fee)`}. Payouts go to your Stripe account
-            within the hour.
+            As each card is mailed, its part of the price is added to your earnings
+            {` (less ${money(pricing.printCostCents)} to print and mail it and a ${pricing.platformFeePercent}% fee)`}. Payouts go to your Stripe account.
           </li>
         </ol>
       </div>

@@ -3,6 +3,7 @@ import { Skeleton, Tag } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useCustomer } from "@/lib/account";
 import { useStudio } from "@/lib/platform";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { cx } from "@/lib/cx";
 import styles from "./Studio.module.css";
 
@@ -25,6 +26,7 @@ export function RequireArtist() {
   const customer = useCustomer();
   const studio = useStudio(Boolean(customer.data));
   const creating = location.pathname === "/studio/new";
+  usePageTitle(creating ? "Open a studio" : "Studio");
 
   if (customer.isPending || (customer.data && studio.isPending)) {
     return (
@@ -56,7 +58,7 @@ export function RequireArtist() {
         <div>
           <h1 className={styles.title}>Studio</h1>
           <p className={styles.subtitle}>
-            {artist.name} <Tag color={statusColor}>{artist.status}</Tag>
+            {artist.name} <Tag color={statusColor}>{artist.status === "live" ? "Live" : artist.status === "paused" ? "Paused" : "Draft"}</Tag>
             {artist.status === "live" ? (
               <a href={`/artist/${artist.slug}`} target="_blank" rel="noreferrer">
                 /artist/{artist.slug}

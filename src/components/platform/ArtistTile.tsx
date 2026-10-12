@@ -17,7 +17,7 @@ import styles from "./Platform.module.css";
  * picture is decorative because the name beside it is the name.
  */
 export function ArtistTile({ artist }: { artist: ArtistSummary }) {
-  const available = artist.editionCount === 0 ? null : `${artist.editionCount} ${artist.editionCount === 1 ? "edition" : "editions"} available`;
+  const available = artist.editionCount === 0 ? null : `${artist.editionCount} ${artist.editionCount === 1 ? "edition" : "editions"} on sale`;
   return (
     <Link to={artistPath(artist.slug)} className={cx(styles.tile)}>
       <div className={styles.tileImage}>

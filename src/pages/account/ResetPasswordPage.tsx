@@ -2,6 +2,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Alert, Button, Form, Input, Result } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useResetPassword } from "@/lib/account";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { cx } from "@/lib/cx";
 import styles from "./Account.module.css";
 
@@ -16,6 +17,7 @@ export function ResetPasswordPage() {
   const [params] = useSearchParams();
   const token = params.get("token") ?? "";
   const reset = useResetPassword();
+  usePageTitle("Choose a new password");
 
 
   if (!token) {

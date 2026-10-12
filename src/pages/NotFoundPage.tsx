@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
 import { Button } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
+import { usePageTitle } from "@/lib/usePageTitle";
 import styles from "./NotFoundPage.module.css";
 
 export function NotFoundPage() {
+  usePageTitle("Not found");
   return (
     <PageWrapper>
       <div className={styles.page}>

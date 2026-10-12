@@ -84,17 +84,17 @@ describe("index.html", () => {
     expect(source).toContain(CARD_FONTS_URL);
   });
 
-  it("is titled the same as every server-rendered page", () => {
+  it("is titled with the bare site name, as the front page is", () => {
     const source = readFileSync(new URL("../index.html", import.meta.url), "utf8");
     expect(source).toContain(`<title>${SITE_TITLE}</title>`);
   });
 });
 
 describe("metaForPath", () => {
-  it("titles every path the same and describes a live artist's page", async () => {
+  it("titles each path with its subject and describes a live artist's page", async () => {
     const { metaForPath } = await import("./seo.js");
     expect((await metaForPath("/")).title).toBe(SITE_TITLE);
-    expect((await metaForPath("/artists")).title).toBe(SITE_TITLE);
+    expect((await metaForPath("/artists")).title).toBe("Artists · Yes I Want A Postcard");
     expect((await metaForPath("/artists")).description).toContain("Every artist");
     expect((await metaForPath("/gallery")).status).toBe(200);
     expect((await metaForPath("/open-a-studio")).title).toBe("Open a studio · Yes I Want A Postcard");
@@ -107,7 +107,7 @@ describe("metaForPath", () => {
     await setArtistStatus(artist.id, "live");
     const page = await metaForPath("/artist/seo-rachel");
     expect(page.status).toBe(200);
-    expect(page.title).toBe(SITE_TITLE);
+    expect(page.title).toBe("Rachel · Yes I Want A Postcard");
     expect(page.description).toBe("Editions of postcards by Rachel, mailed to you one by one.");
     expect(page.jsonLd).toMatchObject({ "@type": "Person", name: "Rachel" });
   });

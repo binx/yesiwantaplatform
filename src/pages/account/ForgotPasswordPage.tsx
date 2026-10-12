@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Button, Form, Input, Result } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useForgotPassword } from "@/lib/account";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { cx } from "@/lib/cx";
 import styles from "./Account.module.css";
 
@@ -13,6 +14,7 @@ import styles from "./Account.module.css";
  */
 export function ForgotPasswordPage() {
   const forgot = useForgotPassword();
+  usePageTitle("Forgot your password?");
 
 
   if (forgot.isSuccess) {

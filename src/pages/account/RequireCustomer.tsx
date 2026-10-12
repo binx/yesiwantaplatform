@@ -2,6 +2,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { Skeleton } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useCustomer } from "@/lib/account";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { AccountNav } from "./AccountNav";
 
 /**
@@ -14,6 +15,7 @@ import { AccountNav } from "./AccountNav";
 export function RequireCustomer() {
   const location = useLocation();
   const customer = useCustomer();
+  usePageTitle("Your account");
 
   if (customer.isPending) {
     return (

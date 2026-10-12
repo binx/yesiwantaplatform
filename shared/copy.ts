@@ -12,6 +12,26 @@ export const DELIVERY_ESTIMATE =
 export const PITCH_LINES = [
   "A real postcard in your mailbox, not another post in your feed.",
   "Artists turn their work into editions of 6 or 12 postcards.",
-  "Choose how often you want them delivered: once or twice a month.",
+  "Choose how often you want them mailed: once or twice a month.",
   "Pay once, then let the mail surprise you.",
+] as const;
+
+/**
+ * What pausing an artist or closing an edition means for the people who
+ * already collected: nothing. Said the same way on the artist's page, the
+ * edition's page, and in the studio.
+ */
+export const KEEPS_EVERY_CARD = "Everyone who already collected still gets every card.";
+
+/** The pitch to an artist: the heading and the line under it, on the front page and at /open-a-studio. */
+export const ARTIST_PITCH = {
+  heading: "Put your pictures in the mail",
+  lede: "Share your art with the world and put a little delight in someone's mailbox. Your pictures become real postcards, mailed one at a time to the people who want them.",
+} as const;
+
+/** How it works for an artist, in three steps. Shown once, at /open-a-studio. */
+export const ARTIST_STEPS = [
+  { title: "Open your studio", text: "Tell us about yourself, then make your editions: 6 or 12 postcards each." },
+  { title: "Collectors say yes", text: "They pay once and choose how often the cards come." },
+  { title: "We print and mail", text: "Every card goes out on its day, from our printer to their door." },
 ] as const;

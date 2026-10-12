@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { Page } from "@shared/schema";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { ApiError, apiGet } from "@/lib/api";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { NotFoundPage } from "./NotFoundPage";
 import styles from "./PagePage.module.css";
 
@@ -27,7 +28,7 @@ export function PagePage() {
     // A page that does not exist is an answer, not a failure to get one.
     retry: (count, error) => !(error instanceof ApiError && error.status === 404) && count < 2,
   });
-
+  usePageTitle(page.data?.title);
 
   if (page.isPending) {
     return (

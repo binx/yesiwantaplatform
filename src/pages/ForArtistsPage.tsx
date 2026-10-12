@@ -3,6 +3,8 @@ import { Button } from "antd";
 import { formatMoney } from "@shared/money";
 import { artistShareCents, cardGrossCents, platformFeeCentsFor } from "@shared/schema";
 import { EDITION_SIZES } from "@shared/platform";
+import { ARTIST_PITCH, ARTIST_STEPS } from "@shared/copy";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useStore } from "@/lib/useStore";
 import { useCustomer } from "@/lib/account";
@@ -25,6 +27,7 @@ import styles from "./ForArtistsPage.module.css";
 export function ForArtistsPage() {
   const store = useStore();
   const customer = useCustomer();
+  usePageTitle("Open a studio");
 
   const { pricing, currency, locale } = store;
   const money = (cents: number) => formatMoney(cents, currency, locale);
@@ -42,21 +45,6 @@ export function ForArtistsPage() {
     return { size, priceCents, printCents: pricing.printCostCents * size, feeCents, keptCents };
   });
 
-  const steps = [
-    {
-      title: "Set up your studio",
-      text: `Tell us about yourself, then set up your art editions: ${EDITION_SIZES.join(" or ")} postcards each.`,
-    },
-    {
-      title: "Collectors purchase your art",
-      text: "Customers choose how often they want the cards mailed to them.",
-    },
-    {
-      title: "We print and post",
-      text: "Every card goes out on its day, from our printer to their mailbox.",
-    },
-  ];
-
   const studioButton = (label: string) => (
     <Link to={isArtist ? "/studio" : "/studio/new"}>
       <Button type="primary" size="large" className={cx(styles.actionButton)}>
@@ -67,17 +55,14 @@ export function ForArtistsPage() {
 
   return (
     <PageWrapper>
-      <h1 className={styles.heading}>Put your pictures in the post</h1>
-      <p className={styles.lede}>
-        Share your art with the world and put a little delight in someone's mailbox. Your pictures become real postcards, mailed
-        one at a time to the people who want them.
-      </p>
+      <h1 className={styles.heading}>{ARTIST_PITCH.heading}</h1>
+      <p className={styles.lede}>{ARTIST_PITCH.lede}</p>
       <div className={styles.lead}>{studioButton("Get started")}</div>
 
       <section className={styles.section}>
         <h2>How it works</h2>
         <ol className={styles.flow}>
-          {steps.map((step, index) => (
+          {ARTIST_STEPS.map((step, index) => (
             <li key={step.title} className={styles.step}>
               <span className={styles.stepNumber} aria-hidden>
                 {index + 1}
@@ -103,7 +88,7 @@ export function ForArtistsPage() {
                   <dd>{money(example.priceCents)}</dd>
                 </div>
                 <div>
-                  <dt>Postcard printing and postage</dt>
+                  <dt>Printing and postage</dt>
                   <dd>&minus;{money(example.printCents)}</dd>
                 </div>
                 <div>

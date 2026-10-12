@@ -6,6 +6,7 @@ import { artistProfileInputSchema, MAX_ARTIST_LINKS, type ArtistLink, type Artis
 import type { Image } from "@shared/schema";
 import { useCreateArtist, useSlugAvailable, useUpdateProfile, useUploadAvatar, useUploadBanner, type StudioView } from "@/lib/platform";
 import { useCustomer } from "@/lib/account";
+import { useStore } from "@/lib/useStore";
 import { assetUrl } from "@/lib/store-source";
 import { cx } from "@/lib/cx";
 import styles from "./Studio.module.css";
@@ -120,7 +121,7 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
 
       <div className={styles.field}>
         <label className={styles.label} htmlFor="artist-bio">
-          Your page
+          About you
         </label>
         <Input.TextArea id="artist-bio" value={draft.bio} autoSize={{ minRows: 6 }} maxLength={10_000} placeholder="Who you are, what you make, why postcards. Markdown works." onChange={(e) => set("bio", e.target.value)} />
         <span className={styles.help}>Markdown: **bold**, _italics_, links, headings. Rendered on your page under your name.</span>
@@ -128,15 +129,15 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
 
       <div className={styles.field}>
         <span className={styles.label} id="artist-visibility-label">
-          Gallery
+          In the gallery
         </span>
         <Radio.Group
           aria-labelledby="artist-visibility-label"
           value={draft.visibility}
           onChange={(e) => set("visibility", e.target.value as ArtistVisibility)}
           options={[
-            { value: "public", label: "Public" },
-            { value: "private", label: "Private" },
+            { value: "public", label: "Yes" },
+            { value: "private", label: "No" },
           ]}
         />
         <span className={styles.help}>
@@ -200,7 +201,7 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
             {draft.links.map((link, index) => (
               <li key={index} className={styles.linkRow}>
                 <Input aria-label={`Link ${index + 1} label`} placeholder="Instagram, website, shop…" maxLength={40} value={link.label} onChange={(e) => setLink(index, { label: e.target.value })} className={styles.linkLabel} />
-                <Input aria-label={`Link ${index + 1} address`} placeholder="https://" inputMode="url" maxLength={500} value={link.url} onChange={(e) => setLink(index, { url: e.target.value })} />
+                <Input aria-label={`Link ${index + 1} URL`} placeholder="https://" inputMode="url" maxLength={500} value={link.url} onChange={(e) => setLink(index, { url: e.target.value })} />
                 <Button aria-label={`Remove link ${index + 1}`} icon={<DeleteOutlined />} onClick={() => removeLink(index)} />
               </li>
             ))}
@@ -211,7 +212,7 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
             Add a link
           </Button>
         </div>
-        <span className={styles.help}>Your website, your shop, your accounts. Full addresses, starting with https://. A blank label shows the site's name.</span>
+        <span className={styles.help}>Your website, your shop, your accounts. Full links, starting with https://. A blank label shows the site's name.</span>
       </div>
 
       {error ? <Alert type="error" showIcon title={error} /> : null}
@@ -233,13 +234,14 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
 /** "Open a studio": the form, with a word about what it means first. */
 export function StudioNewPage() {
   const customer = useCustomer();
+  const store = useStore();
 
   return (
     <div>
       <h1>Open a studio</h1>
       <p style={{ maxWidth: "40rem" }}>
-        You get a page at your own address. On it you sell editions: sets of 6 or 12 postcards — photos you took, each with a note — that collectors buy once
-        and receive one by one, once or twice a month as they choose. We print and mail every card. After printing and a small fee, the rest is yours.
+        You get a page at your own URL. On it you sell editions: 6 or 12 postcards — photos you took, each with a note — that collectors buy once
+        and receive one by one. We print and mail every card. After printing and postage and a {store.pricing.platformFeePercent}% fee, the rest is yours.
       </p>
       <p style={{ maxWidth: "40rem" }}>Your page starts as a draft. Nobody sees it until you put an edition on sale and go live.</p>
       <ProfileForm

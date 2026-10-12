@@ -43,8 +43,8 @@ export const artistLinkSchema = z.object({
     .string()
     .trim()
     .max(500, "500 characters at most.")
-    .url("Use a full address, starting with https://.")
-    .refine((value) => value.startsWith("https://") || value.startsWith("http://"), "Use a full address, starting with https://."),
+    .url("Use a full link, starting with https://.")
+    .refine((value) => value.startsWith("https://") || value.startsWith("http://"), "Use a full link, starting with https://."),
 });
 
 /** How many links an artist may list. Enough for a website and the usual accounts. */

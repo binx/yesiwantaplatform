@@ -42,7 +42,7 @@ export class StoreErrorBoundary extends Component<Props, State> {
           <PageWrapper width="prose">
             <h1>Welcome to Yes I Want A Postcard</h1>
             <p>
-              This store has not been set up yet. The wizard takes three steps and ends with you
+              This site has not been set up yet. The wizard takes three steps and ends with you
               signed in to the admin.
             </p>
             <p>
@@ -65,11 +65,11 @@ export class StoreErrorBoundary extends Component<Props, State> {
           <Alert
             type="error"
             showIcon
-            title="Couldn't load this store"
+            title="Couldn't load the site"
             description={
               <>
                 <p style={{ marginTop: 0 }}>
-                  The storefront could not reach its API. If you are developing locally, check
+                  The site could not reach its API. If you are developing locally, check
                   that the API is running:
                 </p>
                 <pre style={{ margin: 0 }}>npm run dev:all</pre>

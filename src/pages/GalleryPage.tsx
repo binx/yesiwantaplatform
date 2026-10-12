@@ -3,6 +3,7 @@ import { Button, Skeleton } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { EditionTile } from "@/components/platform/ArtistTile";
 import { useGallery } from "@/lib/platform";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { useStore } from "@/lib/useStore";
 import platform from "@/components/platform/Platform.module.css";
 
@@ -13,6 +14,7 @@ import platform from "@/components/platform/Platform.module.css";
 export function GalleryPage() {
   const store = useStore();
   const gallery = useGallery(24);
+  usePageTitle("Gallery");
   const editions = gallery.data?.pages.flatMap((page) => page.editions) ?? [];
 
   return (

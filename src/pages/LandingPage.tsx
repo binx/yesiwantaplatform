@@ -155,18 +155,24 @@ export function LandingPage() {
       <PageWrapper width="wide">
         <div className={platform.sectionHeading}>
           <h2>Artists you can say yes to</h2>
-          <Link to="/artists">All artists</Link>
         </div>
         {artists.isPending ? (
           <Skeleton active paragraph={{ rows: 4 }} />
         ) : featured.length === 0 ? (
           <p className={platform.empty}>No artists have gone live yet. {customer.data?.artistSlug ? <Link to="/studio">Yours could be first.</Link> : <Link to="/studio/new">Yours could be first.</Link>}</p>
         ) : (
-          <div className={platform.grid}>
-            {featured.map((artist) => (
-              <ArtistTile key={artist.id} artist={artist} locale={store.locale} />
-            ))}
-          </div>
+          <>
+            <div className={platform.grid}>
+              {featured.map((artist) => (
+                <ArtistTile key={artist.id} artist={artist} />
+              ))}
+            </div>
+            <p className={styles.more}>
+              <Link to="/artists" className={styles.pathAction}>
+                All artists
+              </Link>
+            </p>
+          </>
         )}
 
         <section id="how" className={styles.how}>
@@ -189,7 +195,7 @@ export function LandingPage() {
                 </li>
               </ol>
               <Link to="/artists" className={styles.pathAction}>
-                Find an artist
+                Browse artists
               </Link>
             </div>
             <div className={styles.path}>
@@ -220,14 +226,18 @@ export function LandingPage() {
         {onSale.length > 0 ? (
           <>
             <div className={platform.sectionHeading}>
-              <h2>On sale now</h2>
-              <Link to="/gallery">The gallery</Link>
+              <h2>Postcard art editions</h2>
             </div>
             <div className={platform.grid}>
               {onSale.map((edition) => (
                 <EditionTile key={edition.id} edition={edition} artist={edition.artist} locale={store.locale} />
               ))}
             </div>
+            <p className={styles.more}>
+              <Link to="/gallery" className={styles.pathAction}>
+                All editions
+              </Link>
+            </p>
           </>
         ) : null}
 

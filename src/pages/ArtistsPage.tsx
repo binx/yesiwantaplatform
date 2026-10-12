@@ -3,12 +3,10 @@ import { Skeleton } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { ArtistTile } from "@/components/platform/ArtistTile";
 import { useArtists } from "@/lib/platform";
-import { useStore } from "@/lib/useStore";
 import platform from "@/components/platform/Platform.module.css";
 
-/** The directory: every live artist, and what their editions start at. */
+/** The directory: every live artist, and how many editions each has on sale. */
 export function ArtistsPage() {
-  const store = useStore();
   const artists = useArtists();
 
   return (
@@ -26,7 +24,7 @@ export function ArtistsPage() {
       ) : (
         <div className={platform.grid}>
           {artists.data.map((artist) => (
-            <ArtistTile key={artist.id} artist={artist} locale={store.locale} />
+            <ArtistTile key={artist.id} artist={artist} />
           ))}
         </div>
       )}

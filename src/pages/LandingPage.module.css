@@ -541,3 +541,8 @@
     padding-bottom: 15rem;
   }
 }
+
+/* The way to the rest of a grid: one of the panels' links, set under the tiles. */
+.more {
+  margin: 1.25rem 0 0;
+}

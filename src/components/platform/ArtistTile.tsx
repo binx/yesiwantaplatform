@@ -10,14 +10,14 @@ import styles from "./Platform.module.css";
 
 /**
  * One artist in a grid: their newest edition's banner (or their face, when
- * none has one), their name, what their editions start at. Never a card:
- * the cards are the surprise.
+ * none has one), their name, how many editions they have on sale. Never a
+ * card: the cards are the surprise.
  *
  * The whole tile is one link, so a screen reader hears the name once; the
  * picture is decorative because the name beside it is the name.
  */
-export function ArtistTile({ artist, locale }: { artist: ArtistSummary; locale: string }) {
-  const from = artist.fromPriceCents === null ? null : formatMoney(artist.fromPriceCents, artist.currency, locale);
+export function ArtistTile({ artist }: { artist: ArtistSummary }) {
+  const available = artist.editionCount === 0 ? null : `${artist.editionCount} ${artist.editionCount === 1 ? "edition" : "editions"} available`;
   return (
     <Link to={artistPath(artist.slug)} className={cx(styles.tile)}>
       <div className={styles.tileImage}>
@@ -31,11 +31,7 @@ export function ArtistTile({ artist, locale }: { artist: ArtistSummary; locale: 
             <p className={styles.tileName}>{artist.name}</p>
           </div>
         </div>
-        {from ? (
-          <p className={styles.tileMeta}>
-            from <strong>{from}</strong>
-          </p>
-        ) : null}
+        {available ? <p className={styles.tileMeta}>{available}</p> : null}
       </div>
     </Link>
   );

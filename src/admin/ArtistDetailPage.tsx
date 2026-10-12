@@ -67,7 +67,6 @@ export function ArtistDetailPage() {
 
       <Card title="Page" style={{ marginBottom: "1.25rem" }}>
         <Descriptions column={1} size="small" bordered>
-          <Descriptions.Item label="Tagline">{artist.tagline ?? "—"}</Descriptions.Item>
           <Descriptions.Item label="Links">
             {artist.links.length === 0
               ? "—"

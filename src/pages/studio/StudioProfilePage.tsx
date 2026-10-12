@@ -13,7 +13,6 @@ import styles from "./Studio.module.css";
 interface Draft {
   slug: string;
   name: string;
-  tagline: string;
   bio: string;
   visibility: ArtistVisibility;
   avatar: Image | null;
@@ -31,8 +30,8 @@ function slugify(value: string): string {
 }
 
 /**
- * The page's own form: address, name, a line, the story, the pictures,
- * and where else to find them. Prices live on editions, not here.
+ * The page's own form: URL, name, the story, the pictures (the banner is
+ * not optional: a page always has one), and where else to find them. Prices live on editions, not here.
  *
  * Shared by "open a studio" (create) and "your profile" (edit): the fields
  * are the same, the only difference is which route gets the result.
@@ -61,7 +60,6 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
     const parsed = artistProfileInputSchema.safeParse({
       slug: draft.slug,
       name: draft.name,
-      tagline: draft.tagline.trim() || null,
       bio: draft.bio,
       visibility: draft.visibility,
       avatar: draft.avatar,
@@ -102,7 +100,7 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
 
       <div className={styles.field}>
         <label className={styles.label} htmlFor="artist-slug">
-          Your address
+          Your studio URL
         </label>
         <Input
           id="artist-slug"
@@ -115,16 +113,9 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
           }}
         />
         <span className={styles.help}>
-          {draft.slug.length < 3 ? "At least 3 characters: letters, numbers and hyphens." : slugCheck.data?.available === false ? <span className={styles.error}>That address is taken.</span> : slugCheck.data?.available ? "Available." : "Lowercase letters, numbers and hyphens."}
+          {draft.slug.length < 3 ? "At least 3 characters: letters, numbers and hyphens." : slugCheck.data?.available === false ? <span className={styles.error}>That URL is taken.</span> : slugCheck.data?.available ? "Available." : "Lowercase letters, numbers and hyphens."}
           {mode === "edit" ? " Changing it breaks links people have shared." : ""}
         </span>
-      </div>
-
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor="artist-tagline">
-          One line about what you send (optional)
-        </label>
-        <Input id="artist-tagline" value={draft.tagline} maxLength={140} placeholder="photos from the road, and what I was thinking" onChange={(e) => set("tagline", e.target.value)} />
       </div>
 
       <div className={styles.field}>
@@ -151,7 +142,7 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
         <span className={styles.help}>
           {draft.visibility === "public"
             ? "Your editions on sale appear in the site's gallery, with your name on them."
-            : "Your editions show only on your own page, never in the site's gallery. People find you by your address."}
+            : "Your editions show only on your own page, never in the site's gallery. People find you by your URL."}
 
         </span>
       </div>
@@ -181,7 +172,9 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
       </div>
 
       <div className={styles.field}>
-        <span className={styles.label}>Banner across the top of your page (optional)</span>
+        <span className={styles.label} id="artist-banner-label">
+          Banner across the top of your page
+        </span>
         {draft.banner ? <img className={styles.bannerPreview} src={assetUrl(draft.banner.path)} alt="" /> : <div className={cx(styles.bannerPreview, styles.bannerEmpty)} aria-hidden />}
         <div className={styles.avatarRow}>
           <Upload
@@ -192,16 +185,11 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
               return Upload.LIST_IGNORE;
             }}
           >
-            <Button icon={<UploadOutlined />} loading={uploadBanner.isPending}>
-              {draft.banner ? "Replace" : "Upload"}
+            <Button icon={<UploadOutlined />} loading={uploadBanner.isPending} aria-describedby="artist-banner-label">
+              {draft.banner ? "Replace banner" : "Upload a banner"}
             </Button>
           </Upload>
-          {draft.banner ? (
-            <Button type="link" size="small" onClick={() => set("banner", null)}>
-              Remove
-            </Button>
-          ) : null}
-          <span className={styles.help}>Wide works best: it is shown about three times as wide as it is tall.</span>
+          <span className={styles.help}>Required. Wide works best: it is shown about three times as wide as it is tall.</span>
         </div>
       </div>
 
@@ -229,7 +217,7 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
       {error ? <Alert type="error" showIcon title={error} /> : null}
 
       <div className={styles.actions}>
-        <Button type="primary" size="large" loading={pending.isPending} disabled={draft.name.trim() === "" || draft.slug.length < 3} onClick={submit}>
+        <Button type="primary" size="large" loading={pending.isPending} disabled={draft.name.trim() === "" || draft.slug.length < 3 || draft.banner === null} onClick={submit}>
           {mode === "create" ? "Open your studio" : "Save"}
         </Button>
         {mode === "edit" ? (
@@ -259,7 +247,6 @@ export function StudioNewPage() {
         initial={{
           slug: slugify(customer.data?.name ?? ""),
           name: customer.data?.name ?? "",
-          tagline: "",
           bio: "",
           visibility: "public",
           avatar: null,
@@ -284,7 +271,6 @@ export function StudioProfilePage() {
         initial={{
           slug: artist.slug,
           name: artist.name,
-          tagline: artist.tagline ?? "",
           bio: artist.bio,
           visibility: artist.visibility,
           avatar: artist.avatar,

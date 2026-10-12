@@ -5,11 +5,9 @@ import { designInputSchema, imageInputSchema } from "../../shared/api.js";
 import {
   artistProfileInputSchema,
   artistStatusSchema,
-  earningsSchema,
   editionCardsInputSchema,
   editionInputSchema,
   editionStatusSchema,
-  type Earnings,
   type EditionInput,
 } from "../../shared/platform.js";
 import { postcardBackSchema } from "../../shared/postcards.js";
@@ -50,13 +48,13 @@ import {
   type EditionRecord,
 } from "../../db/editions-repository.js";
 import { editionHasPurchases, listPurchasesForArtist } from "../../db/purchases-repository.js";
-import { listPayoutsForArtist, sumEarningsForArtist } from "../../db/payouts-repository.js";
+import { sumEarningsForArtist } from "../../db/payouts-repository.js";
 import { findCustomerById } from "../auth.js";
 import { createOnboardingLink, ensureConnectAccount, refreshConnectStatus } from "../connect.js";
 import { httpError, requireCustomer, uploadRateLimit, verifyCsrf, writeRateLimit } from "../middleware.js";
 import { classifyStripeError, StripeNotConfiguredError } from "../stripe.js";
 import { deleteDesignFile, mapUploadError, storeImage, storePostcardDesign, uploadMiddleware } from "../uploads.js";
-import { presentCollectors, presentStudioEditions, toArtistStudio, toPayout } from "../presenters.js";
+import { presentCollectors, presentStudioEditions, toArtistStudio } from "../presenters.js";
 
 /**
  * The studio: everything an artist does with their own page.
@@ -183,6 +181,10 @@ artistRouter.put("/profile", async (req, res) => {
  * Stores a profile picture and hands the image back; it is persisted with
  * the profile on Save. The avatar and the banner are the same upload with
  * different homes on the page, so they share one handler.
+ *
+ * Needs a customer, not an artist: the banner is required to open a studio,
+ * so it is uploaded before the artist row exists. Files are kept under the
+ * customer's id for that reason.
  */
 function storeProfileImage(req: Request, res: Response, next: NextFunction): void {
   uploadMiddleware(req, res, (uploadError: unknown) => {
@@ -191,7 +193,7 @@ function storeProfileImage(req: Request, res: Response, next: NextFunction): voi
         if (uploadError) return next(mapUploadError(uploadError));
         if (!req.file) throw httpError(400, "No file was uploaded.");
         const { alt } = imageInputSchema.parse(req.body ?? {});
-        const stored = await storeImage(`artists-${artistOf(res).id}`, req.file.buffer);
+        const stored = await storeImage(`profile-${req.session.customerId!}`, req.file.buffer);
         res.status(201).json({ ...stored, alt });
       } catch (error) {
         next(error);
@@ -200,8 +202,8 @@ function storeProfileImage(req: Request, res: Response, next: NextFunction): voi
   });
 }
 
-artistRouter.post("/avatar", uploadRateLimit, storeProfileImage);
-artistRouter.post("/banner", uploadRateLimit, storeProfileImage);
+studioRouter.post("/avatar", uploadRateLimit, storeProfileImage);
+studioRouter.post("/banner", uploadRateLimit, storeProfileImage);
 
 /**
  * Go live, or pause. Going live needs a page worth visiting: at least one
@@ -459,30 +461,12 @@ artistRouter.delete("/editions/:id", async (req, res) => {
 
 /* ------------------------------------------------------------- collectors */
 
-/** Who collects what: a name and a town each, and how far along. The street is the platform's business, not the artist's. */
+/** Each purchase of theirs: which edition, how far along. Who bought it and where it goes are the platform's business, not the artist's. */
 artistRouter.get("/collectors", async (_req, res) => {
   res.json(await presentCollectors(await listPurchasesForArtist(artistOf(res).id)));
 });
 
-/* --------------------------------------------------------------- earnings */
-
-artistRouter.get("/earnings", async (_req, res) => {
-  const artist = artistOf(res);
-  const [settings, totals, payouts, counts] = await Promise.all([
-    getSettings(),
-    sumEarningsForArtist(artist.id),
-    listPayoutsForArtist(artist.id),
-    countForArtists([artist.id]),
-  ]);
-  const earnings: Earnings = earningsSchema.parse({
-    currency: settings?.currency ?? "USD",
-    pendingCents: totals.pendingCents,
-    paidCents: totals.paidCents,
-    sentCount: counts.get(artist.id)?.mailed ?? 0,
-    payouts: payouts.map(toPayout),
-  });
-  res.json(earnings);
-});
+/* ---------------------------------------------------------------- payouts */
 
 /** Start (or resume) Stripe onboarding: answers with the hosted link to send the artist to. */
 artistRouter.post("/payouts/onboard", async (req, res) => {

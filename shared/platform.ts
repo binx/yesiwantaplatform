@@ -89,8 +89,6 @@ export const artistPublicSchema = z.object({
   id: z.string(),
   slug: artistSlugSchema,
   name: z.string().min(1),
-  /** One line under the name. */
-  tagline: z.string().nullable().default(null),
   /** Sanitised HTML rendered from the artist's Markdown. */
   bioHtml: z.string().default(""),
   avatar: imageSchema.nullable().default(null),
@@ -113,7 +111,6 @@ export const artistSummarySchema = artistPublicSchema.pick({
   id: true,
   slug: true,
   name: true,
-  tagline: true,
   avatar: true,
   currency: true,
   collectorCount: true,
@@ -130,12 +127,12 @@ export const artistSummarySchema = artistPublicSchema.pick({
 export const artistProfileInputSchema = z.object({
   slug: artistSlugSchema,
   name: z.string().trim().min(1, "A name is required.").max(80, "80 characters at most."),
-  tagline: z.string().trim().max(140, "140 characters at most.").nullable().default(null),
   /** Markdown. Rendered and sanitised on the way out, like a page. */
   bio: z.string().max(10_000).default(""),
   visibility: artistVisibilitySchema.default("public"),
   avatar: imageSchema.nullable().default(null),
-  banner: imageSchema.nullable().default(null),
+  /** Required: a page always has a picture across the top. Rows made before this was so may still lack one. */
+  banner: imageSchema,
   links: artistLinksSchema,
 });
 
@@ -391,12 +388,9 @@ export const collectResponseSchema = z.object({
   purchaseId: z.string(),
 });
 
-/** What the artist is told about a collector: the name on their cards and a town, not an address. */
+/** What the artist is told about a purchase of theirs: which edition, how far along. Never who, never where. */
 export const collectorSchema = z.object({
   id: z.string(),
-  name: z.string(),
-  city: z.string(),
-  country: z.string(),
   edition: z.object({ id: z.string(), title: z.string() }),
   status: purchaseStatusSchema,
   cardCount: editionSizeSchema,
@@ -461,17 +455,7 @@ export const payoutSchema = z.object({
   paidAt: z.number().int().nullable(),
 });
 
-export const earningsSchema = z.object({
-  currency: z.string(),
-  pendingCents: centsSchema,
-  paidCents: centsSchema,
-  /** Cards sent to collectors, all time. */
-  sentCount: z.number().int(),
-  payouts: z.array(payoutSchema),
-});
-
 export type Payout = z.infer<typeof payoutSchema>;
-export type Earnings = z.infer<typeof earningsSchema>;
 
 /* ---------------------------------------------------- a card, as received */
 

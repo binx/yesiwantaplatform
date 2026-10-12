@@ -135,7 +135,6 @@ export const artists = sqliteTable(
       .references(() => customers.id, { onDelete: "cascade" }),
     slug: text("slug").notNull(),
     name: text("name").notNull(),
-    tagline: text("tagline"),
     /** Markdown. Rendered to HTML at read time, never stored as HTML. */
     bio: text("bio").notNull().default(""),
     avatarPath: text("avatar_path"),

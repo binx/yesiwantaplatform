@@ -5,7 +5,7 @@ import { artistProfileInputSchema, editionInputSchema, type ArtistProfileInput, 
 import { PRINT_SIZES, postcardBackSchema, type Orientation, type PostcardBack } from "../shared/postcards.js";
 import { EmailTakenError, countAdmins, createAdmin, createCustomer } from "../server/auth.js";
 import { storeImage, storePostcardDesign } from "../server/uploads.js";
-import { createArtist, findArtistBySlug, setArtistStatus, updateArtistProfile } from "./artists-repository.js";
+import { createArtist, findArtistBySlug, setArtistStatus } from "./artists-repository.js";
 import { getDatabase } from "./client.js";
 import { createDesign } from "./designs-repository.js";
 import { createEdition, replaceEditionCards, setEditionStatus, updateDraftEdition } from "./editions-repository.js";
@@ -48,6 +48,8 @@ interface DemoArtist {
   profile: Omit<ArtistProfileInput, "avatar" | "banner">;
   avatarAlt: string;
   avatar: (size: number) => string;
+  bannerAlt: string;
+  banner: (width: number, height: number) => string;
   orientation: Orientation;
   editions: DemoEdition[];
 }
@@ -152,7 +154,6 @@ const june: DemoArtist = {
   profile: {
     slug: "june-okafor",
     name: "June Okafor",
-    tagline: "Watercolour skies from a kitchen window in Leith",
     bio: `I paint the same patch of sky every morning, from the same chair, before anyone else is up.
 
 Most of them go in a drawer. The ones that don't become **postcards**: a small sky in the post, once or twice a month, for a year or so. Each one has a note on the back about the weather that day, which is to say about not much at all.
@@ -166,6 +167,8 @@ I've been doing this since 2019. The chair is older.`,
   },
   avatarAlt: "June Okafor",
   avatar: avatar("J", "#2f4858", "#fbf6ec"),
+  bannerAlt: "A wash of morning sky over Leith",
+  banner: banner("June Okafor", "Watercolour skies from a kitchen window in Leith", "#9fc5e8", "#2f4858", "#fbf6ec"),
   orientation: "landscape",
   editions: [
     {
@@ -226,7 +229,6 @@ const tomas: DemoArtist = {
   profile: {
     slug: "tomas-reyes",
     name: "Tomás Reyes",
-    tagline: "Risograph animals, two colours at a time",
     bio: `I run a riso printer out of a shed in Oakland and draw animals that don't quite exist.
 
 Each card is two inks on cream stock, drawn by hand and printed by a machine that is older than I am and twice as stubborn. Registration drifts. That's the point.
@@ -237,6 +239,8 @@ Postcards are the only thing I make that I don't mind leaving the house.`,
   },
   avatarAlt: "Tomás Reyes",
   avatar: avatar("T", "#e2725b", "#f6efe0"),
+  bannerAlt: "Two inks on cream stock",
+  banner: banner("Tomás Reyes", "Risograph animals, two colours at a time", "#e2725b", "#1f2a5a", "#f6efe0"),
   orientation: "portrait",
   editions: [
     {
@@ -293,9 +297,13 @@ async function seedArtist(demo: DemoArtist): Promise<boolean> {
   }
 
   const customerId = await demoCustomer(demo.email, demo.profile.name);
-  const artist = await createArtist(customerId, artistProfileInputSchema.parse({ ...demo.profile, avatar: null, banner: null }));
-  const avatarImage = await storeImage(`artists-${artist.id}`, await render(demo.avatar(800)));
-  await updateArtistProfile(artist.id, artistProfileInputSchema.parse({ ...demo.profile, avatar: { ...avatarImage, alt: demo.avatarAlt }, banner: null }));
+  // Profile pictures are the customer's, stored before the page exists, as the studio's own upload route does.
+  const bannerImage = await storeImage(`profile-${customerId}`, await render(demo.banner(1800, 600)));
+  const avatarImage = await storeImage(`profile-${customerId}`, await render(demo.avatar(800)));
+  const artist = await createArtist(
+    customerId,
+    artistProfileInputSchema.parse({ ...demo.profile, avatar: { ...avatarImage, alt: demo.avatarAlt }, banner: { ...bannerImage, alt: demo.bannerAlt } }),
+  );
 
   const { width, height } = PRINT_SIZES[demo.orientation];
   for (const edition of demo.editions) {

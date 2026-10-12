@@ -56,7 +56,6 @@ export function toPublicArtist(artist: ArtistRecord, counts: ArtistCounts = NO_C
     id: artist.id,
     slug: artist.slug,
     name: artist.name,
-    tagline: artist.tagline,
     bioHtml: renderMarkdown(artist.bio),
     avatar: artist.avatar,
     banner: artist.banner,
@@ -77,7 +76,6 @@ export function toArtistSummary(artist: ArtistRecord, counts: ArtistCounts = NO_
     id: artist.id,
     slug: artist.slug,
     name: artist.name,
-    tagline: artist.tagline,
     avatar: artist.avatar,
     currency,
     collectorCount: counts.collectors,
@@ -237,7 +235,7 @@ export async function presentCollections(purchases: PurchaseRecord[]): Promise<C
   });
 }
 
-/** What the artist is told about each collector: a name, a town, and how far along their run is. Never the street. */
+/** What the artist is told about each purchase: which edition, and how far along its run is. Never a name, never an address. */
 export async function presentCollectors(purchases: PurchaseRecord[]): Promise<Collector[]> {
   const [editions, schedules] = await Promise.all([
     findEditionsByIds(purchases.map((purchase) => purchase.editionId)),
@@ -247,9 +245,6 @@ export async function presentCollectors(purchases: PurchaseRecord[]): Promise<Co
   return purchases.map((purchase) =>
     collectorSchema.parse({
       id: purchase.id,
-      name: purchase.address.name,
-      city: purchase.address.city,
-      country: purchase.address.country,
       edition: { id: purchase.editionId, title: editionById.get(purchase.editionId)?.title ?? "An edition" },
       status: purchase.status,
       cardCount: purchase.cardCount,

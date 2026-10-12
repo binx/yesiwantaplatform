@@ -107,6 +107,7 @@ function webhook(event: object) {
 }
 
 let artistId = "";
+let artistBanner: Record<string, unknown> = {};
 let editionId = "";
 let purchaseId = "";
 let checkoutSessionId = "";
@@ -135,19 +136,23 @@ describe("an artist makes an edition", () => {
   it("creates the page, builds a set of six, puts it on sale and goes live", async () => {
     const { agent, csrf } = await signIn("artist@example.com");
 
-    const created = await agent.post("/api/studio").set("x-csrf-token", csrf).send({ slug: "rachel", name: "Rachel", tagline: "photos from the road", bio: "**Hi.**" }).expect(201);
-    artistId = created.body.artist.id;
-    expect(created.body.artist).toMatchObject({ status: "draft", links: [], banner: null });
-
-    // Where else to find them, and a picture across the top. A link without a proper address is refused.
-    const badLink = await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ slug: "rachel", name: "Rachel", links: [{ label: "Instagram", url: "instagram.com/rachel" }] });
-    expect(badLink.status).toBe(400);
+    // A page always has a picture across the top, so it is uploaded before the page exists.
+    const withoutBanner = await agent.post("/api/studio").set("x-csrf-token", csrf).send({ slug: "rachel", name: "Rachel", bio: "**Hi.**" });
+    expect(withoutBanner.status).toBe(400);
     const bannerPng = await sharp({ create: { width: 900, height: 300, channels: 3, background: "#ffcc00" } }).png().toBuffer();
     const banner = await agent.post("/api/studio/banner").set("x-csrf-token", csrf).attach("file", bannerPng, { filename: "banner.png", contentType: "image/png" }).expect(201);
+    artistBanner = banner.body as Record<string, unknown>;
+    const created = await agent.post("/api/studio").set("x-csrf-token", csrf).send({ slug: "rachel", name: "Rachel", bio: "**Hi.**", banner: artistBanner }).expect(201);
+    artistId = created.body.artist.id;
+    expect(created.body.artist).toMatchObject({ status: "draft", links: [], banner: { path: banner.body.path, width: 900, height: 300 } });
+
+    // Where else to find them. A link without a proper address is refused.
+    const badLink = await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ slug: "rachel", name: "Rachel", banner: artistBanner, links: [{ label: "Instagram", url: "instagram.com/rachel" }] });
+    expect(badLink.status).toBe(400);
     const profile = await agent
       .put("/api/studio/profile")
       .set("x-csrf-token", csrf)
-      .send({ slug: "rachel", name: "Rachel", tagline: "photos from the road", bio: "**Hi.**", banner: banner.body, links: [{ label: "Instagram", url: "https://instagram.com/rachel" }] })
+      .send({ slug: "rachel", name: "Rachel", bio: "**Hi.**", banner: artistBanner, links: [{ label: "Instagram", url: "https://instagram.com/rachel" }] })
       .expect(200);
     expect(profile.body.artist.banner).toMatchObject({ path: banner.body.path, width: 900, height: 300 });
 
@@ -330,11 +335,12 @@ describe("a fan collects the edition", () => {
     expect(again.status).toBe(409);
     expect(again.body.error).toMatch(/already collecting/);
 
-    // The artist sees a name and a town, not a street, and how far along.
+    // The artist sees that someone collects, and how far along: never who, never where.
     const artist = await signIn("artist@example.com");
     const collectors = await artist.agent.get("/api/studio/collectors").expect(200);
-    expect(collectors.body).toEqual([expect.objectContaining({ name: "Grandma", city: "Marfa", status: "paid", sentCount: 0, cardCount: 6, nextMailDate: schedule[0] })]);
-    expect(JSON.stringify(collectors.body)).not.toContain("Test Street");
+    expect(collectors.body).toEqual([expect.objectContaining({ status: "paid", sentCount: 0, cardCount: 6, nextMailDate: schedule[0] })]);
+    for (const field of ["name", "city", "country", "address"]) expect(collectors.body[0]).not.toHaveProperty(field);
+    for (const secret of ["Grandma", "Test Street"]) expect(JSON.stringify(collectors.body)).not.toContain(secret);
     expect((await request(app).get("/api/artists/rachel").expect(200)).body.artist.collectorCount).toBe(1);
 
     // Bought once: the edition can no longer go back to being a draft.
@@ -386,7 +392,7 @@ describe("the first card's day", () => {
 
   it("keeps a private artist's editions out of the gallery, but not off their own page", async () => {
     const { agent, csrf } = await signIn("artist@example.com");
-    const profile = { slug: "rachel", name: "Rachel", tagline: "photos from the road", bio: "**Hi.**" };
+    const profile = { slug: "rachel", name: "Rachel", bio: "**Hi.**", banner: artistBanner };
 
     const hidden = await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ ...profile, visibility: "private" }).expect(200);
     expect(hidden.body.artist.visibility).toBe("private");
@@ -402,11 +408,15 @@ describe("the first card's day", () => {
 
 
   it("records the card's share of the price in the ledger the moment Lob accepts it", async () => {
+    // $30 over six cards is $5 a card; less $1.20 to print and $0.60 to the platform. The artist sees the totals on their overview.
     const artist = await signIn("artist@example.com");
-    const earnings = await artist.agent.get("/api/studio/earnings").expect(200);
-    // $30 over six cards is $5 a card; less $1.20 to print and $0.60 to the platform.
-    expect(earnings.body).toMatchObject({ pendingCents: 230, paidCents: 0, sentCount: 1, currency: "USD" });
-    expect(earnings.body.payouts).toEqual([expect.objectContaining({ postcardId, purchaseId, grossCents: 500, printCostCents: 120, platformFeeCents: 150, amountCents: 230, status: "pending" })]);
+    const studio = await artist.agent.get("/api/studio").expect(200);
+    expect(studio.body.earnings).toEqual({ pendingCents: 230, paidCents: 0, currency: "USD" });
+    expect(studio.body.artist.mailedCount).toBe(1);
+    // The ledger itself is the admin's.
+    const admin = await signInAdmin();
+    const ledger = await admin.agent.get("/api/admin/payouts").expect(200);
+    expect(ledger.body.payouts).toEqual([expect.objectContaining({ postcardId, purchaseId, grossCents: 500, printCostCents: 120, platformFeeCents: 150, amountCents: 230, status: "pending" })]);
   });
 });
 

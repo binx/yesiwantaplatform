@@ -1,25 +1,50 @@
-import { Link, useOutletContext } from "react-router-dom";
-import { Alert, App, Button, Popconfirm } from "antd";
+import { useEffect } from "react";
+import { Link, useOutletContext, useSearchParams } from "react-router-dom";
+import { Alert, App, Button, Popconfirm, Tag } from "antd";
 import { artistPath } from "@shared/platform";
 import { formatMoney } from "@shared/money";
-import { useSetArtistStatus, type StudioView } from "@/lib/platform";
+import { useRefreshPayoutStatus, useSetArtistStatus, useStartOnboarding, type StudioView } from "@/lib/platform";
 import { useStore } from "@/lib/useStore";
 import { cx } from "@/lib/cx";
 import styles from "./Studio.module.css";
 
 /**
- * The studio's front page: the numbers, and the one switch that matters.
+ * The studio's front page: the numbers, the one switch that matters, and
+ * where the money goes.
  *
  * Going live is what makes the page public and its editions collectable;
  * it is refused until an edition is on sale, because a visitor's first
  * look should have something in it to collect.
+ *
+ * Payouts are Stripe Connect transfers. The ledger accrues from the first
+ * card whether or not onboarding is done; the button here sends the artist
+ * to Stripe's hosted flow, and coming back refreshes the one flag that
+ * decides whether the sweep can pay them.
  */
 export function StudioOverviewPage() {
   const view = useOutletContext<StudioView>();
   const store = useStore();
   const setStatus = useSetArtistStatus();
+  const onboard = useStartOnboarding();
+  const refresh = useRefreshPayoutStatus();
+  const [params, setParams] = useSearchParams();
   const { message } = App.useApp();
   const { artist, earnings, editionCounts } = view;
+
+  // Back from Stripe: ask whether onboarding finished, once, then drop the flag.
+  useEffect(() => {
+    const flag = params.get("onboarding");
+    if (!flag) return;
+    refresh.mutate(undefined, {
+      onSuccess: ({ payoutsEnabled }) => void message.info(payoutsEnabled ? "Stripe is ready to pay you." : "Stripe still needs something from you. Continue the setup below."),
+    });
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete("onboarding");
+      return next;
+    }, { replace: true });
+    // Once, on arrival: the flag is the trigger, and it is cleared here.
+  }, [params.get("onboarding")]);
   const money = (cents: number) => formatMoney(cents, earnings.currency, store.locale);
   const onSale = editionCounts.onSale;
   const pricing = view.pricing ?? store.pricing;
@@ -47,11 +72,7 @@ export function StudioOverviewPage() {
           showIcon
           style={{ marginBottom: "1.5rem" }}
           title="Set up payouts to get paid"
-          description={
-            <>
-              Your earnings accrue from the first card, but nothing can be transferred until Stripe has your details. <Link to="/studio/earnings">Set up payouts</Link>.
-            </>
-          }
+          description="Your earnings accrue from the first card, but nothing can be transferred until Stripe has your details. Set up payouts below."
         />
       ) : null}
 
@@ -90,6 +111,43 @@ export function StudioOverviewPage() {
           <Link to="/studio/profile">
             <Button>Edit your profile</Button>
           </Link>
+        </div>
+      </div>
+
+      <div className={cx(styles.panel, artist.payoutsEnabled ? "" : styles.panelAccent)}>
+        <h2>Payouts</h2>
+        {artist.payoutsEnabled ? (
+          <p className={styles.note}>
+            Stripe is set up. Each card's share is transferred to your account within an hour of the printer accepting it. <Tag color="green">ready</Tag>
+          </p>
+        ) : artist.hasStripeAccount ? (
+          <p className={styles.note}>You started setting up Stripe but it isn't finished. Your earnings wait here until it is.</p>
+        ) : (
+          <p className={styles.note}>
+            To be paid, connect a Stripe account. It takes a few minutes: Stripe asks who you are and where to send the money. Your earnings accrue
+            meanwhile.
+          </p>
+        )}
+        <div className={styles.actions}>
+          {!artist.payoutsEnabled ? (
+            <Button
+              type="primary"
+              loading={onboard.isPending}
+              onClick={() =>
+                onboard.mutate(undefined, {
+                  onSuccess: ({ url }) => window.location.assign(url),
+                  onError: (error: unknown) => void message.error(error instanceof Error ? error.message : "Could not start Stripe setup."),
+                })
+              }
+            >
+              {artist.hasStripeAccount ? "Continue Stripe setup" : "Set up payouts with Stripe"}
+            </Button>
+          ) : null}
+          {artist.hasStripeAccount ? (
+            <Button loading={refresh.isPending} onClick={() => refresh.mutate(undefined, { onSuccess: ({ payoutsEnabled }) => void message.info(payoutsEnabled ? "Ready to be paid." : "Not ready yet.") })}>
+              Check status
+            </Button>
+          ) : null}
         </div>
       </div>
 

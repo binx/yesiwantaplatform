@@ -104,7 +104,6 @@ export const router = createBrowserRouter([
           { path: "editions/new", lazy: async () => ({ Component: (await import("./pages/studio/StudioEditionPage")).StudioNewEditionPage }) },
           { path: "editions/:id", lazy: async () => ({ Component: (await import("./pages/studio/StudioEditionPage")).StudioEditionPage }) },
           { path: "collectors", lazy: async () => ({ Component: (await import("./pages/studio/StudioCollectorsPage")).StudioCollectorsPage }) },
-          { path: "earnings", lazy: async () => ({ Component: (await import("./pages/studio/StudioEarningsPage")).StudioEarningsPage }) },
         ],
       },
       // Operator-authored pages, matched last. A bare `:slug` is greedy, and

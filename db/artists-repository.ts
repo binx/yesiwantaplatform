@@ -19,7 +19,6 @@ export interface ArtistRow {
   customerId: string;
   slug: string;
   name: string;
-  tagline: string | null;
   bio: string;
   avatarPath: string | null;
   avatarWidth: number | null;
@@ -42,7 +41,6 @@ export interface ArtistRecord {
   customerId: string;
   slug: string;
   name: string;
-  tagline: string | null;
   bio: string;
   avatar: Image | null;
   banner: Image | null;
@@ -84,7 +82,6 @@ export function buildArtist(row: ArtistRow): ArtistRecord {
     customerId: row.customerId,
     slug: row.slug,
     name: row.name,
-    tagline: row.tagline,
     bio: row.bio,
     avatar: toImage(row.avatarPath, row.avatarWidth, row.avatarHeight, row.avatarAlt, row.name),
     banner: toImage(row.bannerPath, row.bannerWidth, row.bannerHeight, row.bannerAlt, ""),
@@ -120,7 +117,6 @@ function profileColumns(dialect: string, input: ArtistProfileInput) {
   return {
     slug: input.slug,
     name: input.name,
-    tagline: input.tagline,
     bio: input.bio,
     ...avatarColumns(input.avatar),
     ...bannerColumns(input.banner),

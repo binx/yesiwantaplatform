@@ -43,8 +43,9 @@ Forked from postcards-v2 (`git remote postcards`), itself a fork of Beluga v2
 9. **Refusals are stored in the other party's words.** Lob's on the postcard
    row, Stripe's on the payout row. Shown in full to the admin only;
    collectors and artists get "we're looking into it".
-10. **Artists never see a street address.** `presentCollectors` gives them a
-    name and a town. The platform mails.
+10. **Artists never see who collects.** `presentCollectors` gives them a
+    purchase's edition and progress, never a name or any part of an address.
+    The platform mails.
 
 ## Layout
 

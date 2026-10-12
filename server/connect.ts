@@ -47,8 +47,8 @@ export async function createOnboardingLink(accountId: string): Promise<string> {
   const link = await stripe.accountLinks.create({
     account: accountId,
     type: "account_onboarding",
-    refresh_url: new URL("/studio/earnings?onboarding=refresh", env.PUBLIC_URL).toString(),
-    return_url: new URL("/studio/earnings?onboarding=return", env.PUBLIC_URL).toString(),
+    refresh_url: new URL("/studio?onboarding=refresh", env.PUBLIC_URL).toString(),
+    return_url: new URL("/studio?onboarding=return", env.PUBLIC_URL).toString(),
   });
   return link.url;
 }

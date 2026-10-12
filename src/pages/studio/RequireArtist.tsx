@@ -1,5 +1,5 @@
 import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
-import { Skeleton, Tag } from "antd";
+import { Skeleton } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useCustomer } from "@/lib/account";
 import { useStudio } from "@/lib/platform";
@@ -50,7 +50,6 @@ export function RequireArtist() {
   if (creating) return <Navigate to="/studio" replace />;
 
   const { artist } = studio.data;
-  const statusColor = artist.status === "live" ? "green" : artist.status === "paused" ? "gold" : "default";
 
   return (
     <PageWrapper width="wide">
@@ -58,14 +57,15 @@ export function RequireArtist() {
         <div>
           <h1 className={styles.title}>Studio</h1>
           <p className={styles.subtitle}>
-            {artist.name} <Tag color={statusColor}>{artist.status === "live" ? "Live" : artist.status === "paused" ? "Paused" : "Draft"}</Tag>
-            {artist.status === "live" ? (
+            {artist.name}
+            {artist.status === "draft" ? (
+              <span>/artist/{artist.slug} — not public yet</span>
+            ) : (
               <a href={`/artist/${artist.slug}`} target="_blank" rel="noreferrer">
                 /artist/{artist.slug}
               </a>
-            ) : (
-              <span>/artist/{artist.slug} — not public yet</span>
             )}
+            {artist.status === "paused" ? <span>— paused</span> : null}
           </p>
         </div>
       </header>

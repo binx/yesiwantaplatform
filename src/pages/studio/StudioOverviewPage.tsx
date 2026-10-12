@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import { Alert, App, Button, Popconfirm, Tag } from "antd";
-import { artistPath } from "@shared/platform";
 import { formatMoney } from "@shared/money";
 import { KEEPS_EVERY_CARD } from "@shared/copy";
 import { useRefreshPayoutStatus, useSetArtistStatus, useStartOnboarding, type StudioView } from "@/lib/platform";
@@ -89,7 +88,7 @@ export function StudioOverviewPage() {
         <h2>{artist.status === "live" ? "You're live" : artist.status === "paused" ? "You're paused" : "Ready to go live?"}</h2>
         <p className={styles.note}>
           {artist.status === "live"
-            ? `Anyone can collect your editions on sale at ${artistPath(artist.slug)}.`
+            ? "Anyone can collect your editions on sale."
             : artist.status === "paused"
               ? `Nobody new can collect. ${KEEPS_EVERY_CARD}`
               : onSale === 0
@@ -106,12 +105,11 @@ export function StudioOverviewPage() {
               {artist.status === "paused" ? "Go live again" : "Go live"}
             </Button>
           )}
-          <Link to={editionCounts.draft + onSale + editionCounts.closed === 0 ? "/studio/editions/new" : "/studio/editions"}>
-            <Button>{editionCounts.draft + onSale + editionCounts.closed === 0 ? "Start an edition" : "Your editions"}</Button>
-          </Link>
-          <Link to="/studio/profile">
-            <Button>Edit your profile</Button>
-          </Link>
+          {editionCounts.draft + onSale + editionCounts.closed === 0 ? (
+            <Link to="/studio/editions/new">
+              <Button>Start an edition</Button>
+            </Link>
+          ) : null}
         </div>
       </div>
 

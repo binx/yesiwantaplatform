@@ -10,7 +10,7 @@ import styles from "./Postcard.module.css";
 /**
  * One mailing address, as a form.
  *
- * Shared by the collect flow, the account's address page and the admin's
+ * Shared by the collect flow, the account's settings and the admin's
  * return address, so all three refuse the same things (Lob's limits, through
  * `recipientSchema`). USPS's own check runs on the server when the address
  * is saved, and a refusal comes back as a sentence the form shows.

@@ -88,7 +88,7 @@ export function EditionPage() {
           ) : mine ? (
             <>
               <p className={styles.collectNote}>You're collecting this edition.</p>
-              <Link to="/account/collections">
+              <Link to="/account">
                 <Button size="large">Your collections</Button>
               </Link>
             </>

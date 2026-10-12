@@ -91,7 +91,6 @@ export const artists = pgTable(
       .references(() => customers.id, { onDelete: "cascade" }),
     slug: text("slug").notNull(),
     name: text("name").notNull(),
-    tagline: text("tagline"),
     bio: text("bio").notNull().default(""),
     avatarPath: text("avatar_path"),
     avatarWidth: integer("avatar_width"),

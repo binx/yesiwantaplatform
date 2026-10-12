@@ -102,7 +102,7 @@ for (const { name, context } of dialects) {
 
     async function artist(slug = `artist-${randomUUID().slice(0, 8)}`) {
       const owner = await customer("Rachel");
-      return db.artists.createArtist(owner, { slug, name: "Rachel", tagline: "photos from the road", bio: "# Hello", visibility: "public", avatar: null, banner: null, links: [] });
+      return db.artists.createArtist(owner, { slug, name: "Rachel", bio: "# Hello", visibility: "public", avatar: null, banner: { path: "artists-x/first.webp", width: 1200, height: 400, alt: "", widths: [] }, links: [] });
     }
 
     async function design(artistId: string) {
@@ -190,7 +190,7 @@ for (const { name, context } of dialects) {
       expect(await db.artists.slugIsTaken("first-artist", a.id)).toBe(false);
 
       // The banner and the links round-trip through both dialects' column types.
-      expect(a).toMatchObject({ banner: null, links: [] });
+      expect(a).toMatchObject({ banner: { path: "artists-x/first.webp", width: 1200, height: 400, alt: "", widths: [] }, links: [] });
       const banner = { path: "artists-x/banner.webp", width: 900, height: 300, alt: "", widths: [] };
       const links = [
         { label: "", url: "https://www.rachel.example/" },
@@ -199,7 +199,6 @@ for (const { name, context } of dialects) {
       const updated = await db.artists.updateArtistProfile(a.id, {
         slug: "first-artist",
         name: "Rachel",
-        tagline: null,
         bio: "",
         visibility: "public",
         avatar: null,

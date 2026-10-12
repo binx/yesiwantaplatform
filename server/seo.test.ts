@@ -102,13 +102,13 @@ describe("metaForPath", () => {
     const { createCustomer } = await import("./auth.js");
     const { createArtist, setArtistStatus } = await import("../db/artists-repository.js");
     const owner = await createCustomer("seo-artist@example.com", "a-sufficiently-long-password", "Rachel");
-    const artist = await createArtist(owner, { slug: "seo-rachel", name: "Rachel", tagline: "photos from the road", bio: "", visibility: "public", avatar: null, banner: null, links: [] });
+    const artist = await createArtist(owner, { slug: "seo-rachel", name: "Rachel", bio: "", visibility: "public", avatar: null, banner: { path: "artists-x/first.webp", width: 1200, height: 400, alt: "", widths: [] }, links: [] });
     expect((await metaForPath("/artist/seo-rachel")).status).toBe(404);
     await setArtistStatus(artist.id, "live");
     const page = await metaForPath("/artist/seo-rachel");
     expect(page.status).toBe(200);
     expect(page.title).toBe(SITE_TITLE);
-    expect(page.description).toBe("photos from the road");
+    expect(page.description).toBe("Editions of postcards by Rachel, mailed to you one by one.");
     expect(page.jsonLd).toMatchObject({ "@type": "Person", name: "Rachel" });
   });
 

@@ -118,7 +118,7 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
       const bio = plainText(artist.bio);
       return {
         ...fallback,
-        description: truncate(artist.tagline ?? (bio || `Editions of postcards by ${artist.name}, mailed to you one by one.`)),
+        description: truncate(bio || `Editions of postcards by ${artist.name}, mailed to you one by one.`),
         canonical: absolute(path),
         image: artist.avatar ? absolute(`/assets/${artist.avatar.path}`) : fallback.image,
         jsonLd: {
@@ -126,7 +126,6 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
           "@type": "Person",
           name: artist.name,
           url: absolute(path),
-          ...(artist.tagline ? { description: artist.tagline } : {}),
         },
       };
     }

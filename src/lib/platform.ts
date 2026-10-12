@@ -8,7 +8,6 @@ import type {
   CollectResponse,
   Collection,
   Collector,
-  Earnings,
   Edition,
   EditionCardsInput,
   EditionInput,
@@ -288,14 +287,7 @@ export function useCollectors(): UseQueryResult<Collector[]> {
   });
 }
 
-/* --------------------------------------------------------------- earnings */
-
-export function useEarnings(): UseQueryResult<Earnings> {
-  return useQuery({
-    queryKey: ["studio", "earnings"],
-    queryFn: ({ signal }) => apiGet<Earnings>("/studio/earnings", signal),
-  });
-}
+/* ---------------------------------------------------------------- payouts */
 
 export function useStartOnboarding() {
   return useMutation({

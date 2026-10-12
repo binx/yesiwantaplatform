@@ -42,6 +42,13 @@ export function AccountOverviewPage() {
             </p>
           </div>
           <div className={cx(styles.cardActions)}>
+            {profile.artistSlug ? (
+              <Link to="/studio">
+                <Button type="primary" size="small">
+                  Your studio
+                </Button>
+              </Link>
+            ) : null}
             <Button size="small" onClick={() => setEditing((v) => !v)}>
               {editing ? "Cancel" : "Edit name"}
             </Button>
@@ -66,7 +73,7 @@ export function AccountOverviewPage() {
         ) : null}
         {profile.artistSlug ? (
           <p className={cx(styles.meta, styles.studioLink)}>
-            You have an artist page at <Link to={`/artist/${profile.artistSlug}`}>/artist/{profile.artistSlug}</Link>. <Link to="/studio">Open your studio</Link>.
+            Your artist page is at <Link to={`/artist/${profile.artistSlug}`}>/artist/{profile.artistSlug}</Link>. Editions, collectors and payouts are in <Link to="/studio">your studio</Link>.
           </p>
         ) : (
           <p className={cx(styles.meta, styles.studioLink)}>

@@ -30,7 +30,7 @@ beforeAll(async () => {
   await createAdmin("admin@example.com", PASSWORD);
   await createCustomer("customer@example.com", PASSWORD, null);
   const artistCustomer = await createCustomer("artist@example.com", PASSWORD, "Rachel");
-  await createArtist(artistCustomer, { slug: "rachel", name: "Rachel", tagline: null, bio: "", visibility: "public", avatar: null, banner: null, links: [] });
+  await createArtist(artistCustomer, { slug: "rachel", name: "Rachel", bio: "", visibility: "public", avatar: null, banner: { path: "artists-x/first.webp", width: 1200, height: 400, alt: "", widths: [] }, links: [] });
 
   app = createApp();
 });
@@ -98,6 +98,9 @@ const CUSTOMER_MUTATIONS = [
   { method: "put", path: "/api/account/address" },
   { method: "post", path: "/api/checkout/collect" },
   { method: "post", path: "/api/studio" },
+  // Profile pictures are uploaded before the studio exists, so a customer may send them.
+  { method: "post", path: "/api/studio/avatar" },
+  { method: "post", path: "/api/studio/banner" },
 ] as const;
 
 const CUSTOMER_READS = [
@@ -111,8 +114,6 @@ const CUSTOMER_READS = [
 
 const STUDIO_MUTATIONS = [
   { method: "put", path: "/api/studio/profile" },
-  { method: "post", path: "/api/studio/avatar" },
-  { method: "post", path: "/api/studio/banner" },
   { method: "post", path: "/api/studio/status" },
   { method: "post", path: "/api/studio/designs" },
   { method: "put", path: "/api/studio/designs/some-design" },
@@ -133,7 +134,6 @@ const STUDIO_READS = [
   "/api/studio/editions",
   "/api/studio/editions/some-edition",
   "/api/studio/collectors",
-  "/api/studio/earnings",
 ] as const;
 
 const ADMIN_PASSWORD_RESET_ROUTES = ["/api/session/forgot-password", "/api/session/reset-password"] as const;

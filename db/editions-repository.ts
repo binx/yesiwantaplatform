@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
+
 import type { Cadence, EditionInput, EditionSize, EditionStatus } from "../shared/platform.js";
 import type { Image } from "../shared/schema.js";
 import { getDatabase } from "./client.js";
@@ -358,69 +359,53 @@ export async function findEditionCardsByIds(ids: string[]): Promise<EditionCardR
 
 /* ---------------------------------------------------------------- gallery */
 
-export interface GalleryEntry {
-  card: EditionCardRecord;
-  edition: EditionRecord;
-}
-
-/** A cursor is the last entry's first-mailed moment and id, so a page is stable while cards keep going out. */
+/** A cursor is the last edition's creation moment and id, so a page is stable while editions keep going on sale. */
 function decodeCursor(cursor: string | undefined): { at: number; id: string } | null {
   if (!cursor) return null;
   const [at, id] = Buffer.from(cursor, "base64url").toString("utf8").split("|");
   return at && id && Number.isFinite(Number(at)) ? { at: Number(at), id } : null;
 }
 
-function encodeCursor(card: EditionCardRecord): string {
-  return Buffer.from(`${card.firstMailedAt ?? 0}|${card.id}`, "utf8").toString("base64url");
+function encodeCursor(edition: EditionRecord): string {
+  return Buffer.from(`${edition.createdAt}|${edition.id}`, "utf8").toString("base64url");
 }
 
 /**
- * Cards that have been mailed at least once, from editions their artists
- * chose to show, newest first, a page at a time. Artist visibility and
- * status are filtered in the route.
+ * The gallery: editions on sale that their artists chose to show, from
+ * artists who are live and public, newest first, a page at a time. The
+ * artist filter is in the query rather than the route so a page is never
+ * short because of what was dropped after the fact.
  */
-export async function listGalleryCards(options: { limit?: number; cursor?: string; artistId?: string } = {}): Promise<{ entries: GalleryEntry[]; nextCursor: string | null }> {
+export async function listGalleryEditions(options: { limit?: number; cursor?: string } = {}): Promise<{ editions: EditionRecord[]; nextCursor: string | null }> {
   const { drizzle: db, schema, dialect } = await getDatabase();
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
   const after = decodeCursor(options.cursor);
   const afterAt = after ? timeFor(dialect, after.at) : null;
 
   const rows = (await db
-    .select({ card: schema.editionCards, edition: schema.editions })
-    .from(schema.editionCards)
-    .innerJoin(schema.editions, eq(schema.editions.id, schema.editionCards.editionId))
+    .select({ edition: schema.editions })
+    .from(schema.editions)
+    .innerJoin(schema.artists, eq(schema.artists.id, schema.editions.artistId))
     .where(
       and(
-        isNotNull(schema.editionCards.firstMailedAt),
+        eq(schema.editions.status, "on_sale"),
         eq(schema.editions.inGallery, true),
-        options.artistId ? eq(schema.editions.artistId, options.artistId) : undefined,
+        eq(schema.artists.status, "live"),
+        eq(schema.artists.visibility, "public"),
         after && afterAt !== null
           ? or(
-              lt(schema.editionCards.firstMailedAt, afterAt),
-              and(eq(schema.editionCards.firstMailedAt, afterAt), lt(schema.editionCards.id, after.id)),
+              lt(schema.editions.createdAt, afterAt),
+              and(eq(schema.editions.createdAt, afterAt), lt(schema.editions.id, after.id)),
             )
           : undefined,
       ),
     )
-    .orderBy(desc(schema.editionCards.firstMailedAt), desc(schema.editionCards.id))
-    .limit(limit + 1)) as unknown as { card: EditionCardRow; edition: EditionRow }[];
+    .orderBy(desc(schema.editions.createdAt), desc(schema.editions.id))
+    .limit(limit + 1)) as unknown as { edition: EditionRow }[];
 
-  const entries = rows.slice(0, limit).map((row) => ({ card: buildEditionCard(row.card), edition: buildEdition(row.edition) }));
-  const last = entries[entries.length - 1];
-  return { entries, nextCursor: rows.length > limit && last ? encodeCursor(last.card) : null };
+  const editions = rows.slice(0, limit).map((row) => buildEdition(row.edition));
+  const last = editions[editions.length - 1];
+  return { editions, nextCursor: rows.length > limit && last ? encodeCursor(last) : null };
 }
 
-/** The most recently mailed shown design of each artist, for a directory tile. */
-export async function latestMailedDesignIds(artistIds: string[]): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
-  if (artistIds.length === 0) return map;
-  const { drizzle: db, schema } = await getDatabase();
-  const rows = (await db
-    .select({ artistId: schema.editions.artistId, designId: schema.editionCards.designId })
-    .from(schema.editionCards)
-    .innerJoin(schema.editions, eq(schema.editions.id, schema.editionCards.editionId))
-    .where(and(inArray(schema.editions.artistId, [...new Set(artistIds)]), isNotNull(schema.editionCards.firstMailedAt), eq(schema.editions.inGallery, true)))
-    .orderBy(desc(schema.editionCards.firstMailedAt), desc(schema.editionCards.id))) as unknown as { artistId: string; designId: string }[];
-  for (const row of rows) if (!map.has(row.artistId)) map.set(row.artistId, row.designId);
-  return map;
-}
+

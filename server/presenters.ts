@@ -7,7 +7,7 @@ import {
   editionSchema,
   editionStudioSchema,
   editionSummarySchema,
-  galleryCardSchema,
+  galleryEditionSchema,
   payoutSchema,
   receivedPostcardSchema,
   type ArtistPublic,
@@ -18,7 +18,7 @@ import {
   type Edition,
   type EditionStudio,
   type EditionSummary,
-  type GalleryCard,
+  type GalleryEdition,
   type Payout,
   type ReceivedPostcard,
 } from "../shared/platform.js";
@@ -29,12 +29,11 @@ import { findDesignsByIds, toPublicDesign, type Design } from "../db/designs-rep
 import {
   findEditionCardsByIds,
   findEditionsByIds,
-  latestMailedDesignIds,
   listCardsForEditions,
+
   listOnSaleEditionsForArtists,
   type EditionCardRecord,
   type EditionRecord,
-  type GalleryEntry,
 } from "../db/editions-repository.js";
 import { countCollectorsForEditions, type PurchaseRecord } from "../db/purchases-repository.js";
 import type { PayoutRecord } from "../db/payouts-repository.js";
@@ -71,13 +70,9 @@ export function toPublicArtist(artist: ArtistRecord, counts: ArtistCounts = NO_C
   });
 }
 
-export function toArtistSummary(
-  artist: ArtistRecord,
-  counts: ArtistCounts = NO_COUNTS,
-  latest: Design | null = null,
-  currency = "USD",
-  onSale: EditionRecord[] = [],
-): ArtistSummary {
+/** The tile's picture is the newest on-sale edition that has a banner; a card is never shown before it is mailed. */
+export function toArtistSummary(artist: ArtistRecord, counts: ArtistCounts = NO_COUNTS, currency = "USD", onSale: EditionRecord[] = []): ArtistSummary {
+  const newest = [...onSale].sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id)).find((edition) => edition.banner);
   return artistSummarySchema.parse({
     id: artist.id,
     slug: artist.slug,
@@ -87,23 +82,24 @@ export function toArtistSummary(
     currency,
     collectorCount: counts.collectors,
     mailedCount: counts.mailed,
-    latest: latest ? toPublicDesign(latest, `A postcard by ${artist.name}`) : null,
+    banner: newest?.banner ?? null,
     fromPriceCents: onSale.length > 0 ? Math.min(...onSale.map((edition) => edition.priceCents)) : null,
     editionCount: onSale.length,
   });
 }
 
-/** Summaries for many artists: their counts, latest card and editions on sale in a few grouped queries. */
+/** Summaries for many artists: their counts and editions on sale in two grouped queries. */
 export async function summariseArtists(artists: ArtistRecord[], currency: string): Promise<ArtistSummary[]> {
   const ids = artists.map((artist) => artist.id);
-  const [counts, latestIds, onSale] = await Promise.all([countForArtists(ids), latestMailedDesignIds(ids), listOnSaleEditionsForArtists(ids)]);
-  const designs = await findDesignsByIds([...latestIds.values()]);
-  const designById = new Map(designs.map((design) => [design.id, design]));
-  return artists.map((artist) => {
-    const latestId = latestIds.get(artist.id);
-    const theirs = onSale.filter((edition) => edition.artistId === artist.id);
-    return toArtistSummary(artist, counts.get(artist.id), latestId ? (designById.get(latestId) ?? null) : null, currency, theirs);
-  });
+  const [counts, onSale] = await Promise.all([countForArtists(ids), listOnSaleEditionsForArtists(ids)]);
+  return artists.map((artist) =>
+    toArtistSummary(
+      artist,
+      counts.get(artist.id),
+      currency,
+      onSale.filter((edition) => edition.artistId === artist.id),
+    ),
+  );
 }
 
 export function toArtistStudio(artist: ArtistRecord, email: string, counts: ArtistCounts, currency: string): ArtistStudio {
@@ -266,16 +262,18 @@ export async function presentCollectors(purchases: PurchaseRecord[]): Promise<Co
 
 /* ---------------------------------------------------------------- gallery */
 
-export function toGalleryCard(entry: GalleryEntry, design: Design, artist: ArtistRecord): GalleryCard {
-  return galleryCardSchema.parse({
-    editionCardId: entry.card.id,
-    design: toPublicDesign(design, entry.card.title ?? `A postcard by ${artist.name}`),
-    title: entry.card.title,
-    mailDate: new Date(entry.card.firstMailedAt ?? entry.edition.createdAt).toISOString().slice(0, 10),
-    artist: { id: artist.id, slug: artist.slug, name: artist.name },
-    edition: { slug: entry.edition.slug, title: entry.edition.title },
-  });
+/** Editions in the gallery: each one's summary, with the artist who makes it. */
+export async function presentGalleryEditions(editions: EditionRecord[], currency: string): Promise<GalleryEdition[]> {
+  const [collectors, artists] = await Promise.all([
+    countCollectorsForEditions(editions.map((edition) => edition.id)),
+    findArtistsByIds(editions.map((edition) => edition.artistId)),
+  ]);
+  const artistById = new Map(artists.map((artist) => [artist.id, artist]));
+  return editions.map((edition) =>
+    galleryEditionSchema.parse({ ...editionFields(edition, collectors, currency), artist: artistLink(artistById.get(edition.artistId), edition.artistId) }),
+  );
 }
+
 
 /* ------------------------------------------------------- cards, as mailed */
 

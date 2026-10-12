@@ -15,7 +15,6 @@ import type {
   EditionStatus,
   EditionStudio,
   EditionSummary,
-  GalleryCard,
   GalleryPage,
 } from "@shared/platform";
 import type { PostcardBack, PostcardDesign, Recipient } from "@shared/postcards";
@@ -45,7 +44,6 @@ export interface ArtistPage {
   artist: ArtistPublic;
   /** On sale and closed; drafts never leave the studio. */
   editions: EditionSummary[];
-  recent: GalleryCard[];
 }
 
 export function useArtist(slug: string | undefined): UseQueryResult<ArtistPage> {
@@ -71,7 +69,9 @@ export function useEdition(artistSlug: string | undefined, editionSlug: string |
   });
 }
 
+/** The gallery: editions on sale, newest first, a page at a time. */
 export function useGallery(limit = 24) {
+
   return useInfiniteQuery({
     queryKey: ["gallery", limit],
     queryFn: ({ pageParam, signal }) => {

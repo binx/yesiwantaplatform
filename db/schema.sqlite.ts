@@ -151,7 +151,7 @@ export const artists = sqliteTable(
     links: text("links").notNull().default("[]"),
     /** draft | live | paused */
     status: text("status").notNull().default("draft"),
-    /** public | private. Private keeps the artist's cards out of the shared gallery. */
+    /** public | private. Private keeps the artist's editions out of the shared gallery. */
     visibility: text("visibility").notNull().default("public"),
     stripeAccountId: text("stripe_account_id"),
     payoutsEnabled: integer("payouts_enabled", { mode: "boolean" }).notNull().default(false),
@@ -204,9 +204,9 @@ export const pages = sqliteTable(
  *
  * The print file is written at Lob's exact size on upload, so nothing is
  * re-rendered at send time and a bad image fails while the artist is still
- * looking at it. A design that has been mailed keeps its files: the gallery
- * and every collector's account show the thumbnail, and the print file is
- * what a retry sends.
+ * looking at it. A design that has been mailed keeps its files: every
+ * collector's account shows the thumbnail, and the print file is what a
+ * retry sends.
  */
 export const postcardDesigns = sqliteTable(
   "postcard_designs",
@@ -270,7 +270,7 @@ export const editions = sqliteTable(
     /** For the whole set, not per card. */
     priceCents: integer("price_cents").notNull(),
     status: text("status").notNull().default("draft"),
-    /** Whether its cards appear in the shared gallery once mailed. */
+    /** Whether it appears in the shared gallery while on sale. */
     inGallery: integer("in_gallery", { mode: "boolean" }).notNull().default(true),
     ...timestamps,
   },
@@ -279,8 +279,8 @@ export const editions = sqliteTable(
 
 /**
  * One card of an edition, in its place in the set. `firstMailedAt` is set
- * the first time any collector's copy of it is accepted by Lob, and is what
- * puts it in the gallery.
+ * the first time any collector's copy of it is accepted by Lob.
+
  */
 export const editionCards = sqliteTable(
   "edition_cards",

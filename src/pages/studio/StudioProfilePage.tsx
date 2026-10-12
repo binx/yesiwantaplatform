@@ -150,8 +150,9 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
         />
         <span className={styles.help}>
           {draft.visibility === "public"
-            ? "Cards you mail can appear in the site's gallery of recent postcards, with your name on them."
-            : "Your cards stay between you and your collectors: they show on your own page, but never in the site's gallery."}
+            ? "Your editions on sale appear in the site's gallery, with your name on them."
+            : "Your editions show only on your own page, never in the site's gallery. People find you by your address."}
+
         </span>
       </div>
 

@@ -100,7 +100,7 @@ export function StudioOverviewPage() {
           <li>A collector pays once, picks whether their cards come once or twice a month, and the day the first one goes. From then on we print and mail their cards one by one, on schedule.</li>
           <li>
             As the printer accepts each card, its part of the price is added to your earnings
-            {` (less ${money(pricing.printCostCents)} to print and mail it and a ${money(pricing.platformFeeCents)} fee)`}. Payouts go to your Stripe account
+            {` (less ${money(pricing.printCostCents)} to print and mail it and a ${pricing.platformFeePercent}% fee)`}. Payouts go to your Stripe account
             within the hour.
           </li>
         </ol>

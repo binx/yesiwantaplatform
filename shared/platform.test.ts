@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { artistSlugSchema, defaultStartDate, editionSchedule, editionSizeSchema, mailDaysFor, startDateProblem } from "./platform";
-import { artistShareCents, cardGrossCents } from "./schema";
+import { artistShareCents, cardGrossCents, platformFeeCentsFor } from "./schema";
 
 describe("the artist's share", () => {
   it("is the price less printing and the fee, never below zero", () => {
-    const pricing = { printCostCents: 120, platformFeeCents: 60 };
-    expect(artistShareCents(500, pricing)).toBe(320);
-    expect(artistShareCents(180, pricing)).toBe(0);
+    const pricing = { printCostCents: 120, platformFeePercent: 30 };
+    expect(platformFeeCentsFor(500, pricing)).toBe(150);
+    expect(platformFeeCentsFor(205, pricing)).toBe(61);
+    expect(artistShareCents(500, pricing)).toBe(230);
+    expect(artistShareCents(171, pricing)).toBe(0);
     expect(artistShareCents(100, pricing)).toBe(0);
   });
 });

@@ -12,6 +12,11 @@
   line-height: 1.55;
 }
 
+/* The first button: right under the pitch, before anyone has to read on. */
+.lead {
+  margin-top: 1.5rem;
+}
+
 .section {
   margin-top: 3rem;
 }
@@ -123,11 +128,17 @@
  * edge, the price drawn as a bar with the artist's part of it lit, and
  * what they keep set large in the chroma itself.
  */
+/* One receipt per edition size, side by side until the page is narrow. */
+.examples {
+  margin: 1.25rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
+  gap: 1.5rem;
+}
+
 .example {
   position: relative;
   overflow: hidden;
-  margin: 1.25rem 0 0;
-  width: min(100%, 30rem);
   display: grid;
   gap: 1rem;
   padding: 2rem 1.75rem 1.75rem;
@@ -205,11 +216,6 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-}
-
-.keepNote {
-  font-size: 0.875rem;
-  color: var(--beluga-muted);
 }
 
 .note {

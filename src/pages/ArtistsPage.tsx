@@ -22,7 +22,7 @@ export function ArtistsPage() {
           Nobody has gone live yet. <Link to="/open-a-studio">Are you an artist?</Link>
         </p>
       ) : (
-        <div className={platform.grid}>
+        <div className={`${platform.grid} ${platform.gridWide}`}>
           {artists.data.map((artist) => (
             <ArtistTile key={artist.id} artist={artist} />
           ))}

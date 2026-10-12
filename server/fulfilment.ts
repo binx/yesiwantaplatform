@@ -4,7 +4,7 @@ import { imageStore } from "./image-store.js";
 import { LobError, LobNotConfiguredError, sendPostcard } from "./lob.js";
 import { sendPostcardSentEmail } from "./email.js";
 import { isInternational, todayIso } from "../shared/postcards.js";
-import { artistShareCents, cardGrossCents } from "../shared/schema.js";
+import { artistShareCents, cardGrossCents, platformFeeCentsFor } from "../shared/schema.js";
 import { getSettings } from "../db/repository.js";
 import { findArtistsByIds, getArtist } from "../db/artists-repository.js";
 import { findDesignsByIds } from "../db/designs-repository.js";
@@ -229,7 +229,7 @@ export async function sendDuePostcards(today = todayIso(), options: SweepOptions
           purchaseId: purchase.id,
           grossCents: gross,
           printCostCents: settings.pricing.printCostCents,
-          platformFeeCents: settings.pricing.platformFeeCents,
+          platformFeeCents: platformFeeCentsFor(gross, settings.pricing),
           amountCents: artistShareCents(gross, settings.pricing),
           currency: purchase.currency,
         });

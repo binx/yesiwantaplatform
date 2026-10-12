@@ -41,8 +41,8 @@ export const storeSettings = sqliteTable("store_settings", {
    * the payout ledger the moment Lob accepts a card, never recomputed later.
    */
   printCostCents: integer("print_cost_cents").notNull().default(120),
-  /** What the platform keeps per sent card, in cents. */
-  platformFeeCents: integer("platform_fee_cents").notNull().default(60),
+  /** What the platform keeps of each sent card's share, as a whole percentage. */
+  platformFeePercent: integer("platform_fee_percent").notNull().default(30),
   /** The least an edition may charge per card. Below it a card loses money. */
   minCardPriceCents: integer("min_card_price_cents").notNull().default(300),
   /** The platform's US address, JSON in the recipient shape. Lob prints it as the return address. */

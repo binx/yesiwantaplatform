@@ -405,8 +405,8 @@ describe("the first card's day", () => {
     const artist = await signIn("artist@example.com");
     const earnings = await artist.agent.get("/api/studio/earnings").expect(200);
     // $30 over six cards is $5 a card; less $1.20 to print and $0.60 to the platform.
-    expect(earnings.body).toMatchObject({ pendingCents: 320, paidCents: 0, sentCount: 1, currency: "USD" });
-    expect(earnings.body.payouts).toEqual([expect.objectContaining({ postcardId, purchaseId, grossCents: 500, printCostCents: 120, platformFeeCents: 60, amountCents: 320, status: "pending" })]);
+    expect(earnings.body).toMatchObject({ pendingCents: 230, paidCents: 0, sentCount: 1, currency: "USD" });
+    expect(earnings.body.payouts).toEqual([expect.objectContaining({ postcardId, purchaseId, grossCents: 500, printCostCents: 120, platformFeeCents: 150, amountCents: 230, status: "pending" })]);
   });
 });
 
@@ -427,7 +427,7 @@ describe("paying the artist", () => {
     expect(await sendPendingPayouts()).toMatchObject({ paid: 1, failed: 0, deferred: 0 });
     expect(transfers).toHaveBeenCalledTimes(1);
     const [params, options] = transfers.mock.calls[0] as unknown as [Stripe.TransferCreateParams, { idempotencyKey: string }];
-    expect(params).toMatchObject({ amount: 320, currency: "usd", destination: "acct_rachel", transfer_group: purchaseId });
+    expect(params).toMatchObject({ amount: 230, currency: "usd", destination: "acct_rachel", transfer_group: purchaseId });
     expect(options.idempotencyKey).toMatch(/^payout-/);
 
     // Paid once: a second sweep finds nothing.
@@ -436,7 +436,7 @@ describe("paying the artist", () => {
 
     const admin = await signInAdmin();
     const overview = await admin.agent.get("/api/admin/overview").expect(200);
-    expect(overview.body.payouts.paid).toBe(320);
+    expect(overview.body.payouts.paid).toBe(230);
     expect(overview.body.revenueCents).toBe(3000);
     expect(overview.body.purchases.paid).toBe(1);
     expect(overview.body.editions.on_sale).toBe(1);

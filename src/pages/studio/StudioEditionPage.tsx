@@ -224,7 +224,7 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
           {!fixed && priceWrong
             ? `At least ${money(floor)} for a set of ${draft.cardCount}: below that a card costs more to send than it brings in.`
             : share !== null
-              ? `Each card earns you ${money(share)} as it's mailed, after ${money(pricing.printCostCents)} printing and a ${money(pricing.platformFeeCents)} fee. At least ${money(floor)} for a set of ${draft.cardCount}.`
+              ? `Each card earns you ${money(share)} as it's mailed, after ${money(pricing.printCostCents)} printing and a ${pricing.platformFeePercent}% fee. At least ${money(floor)} for a set of ${draft.cardCount}.`
               : ""}
         </span>
       </div>

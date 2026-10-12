@@ -65,7 +65,7 @@ describe("completing setup", () => {
 
   it("stores the currency uppercased, the store name as given, and the default price", async () => {
     const { getSettings } = await import("../db/repository.js");
-    expect(await getSettings()).toMatchObject({ name: "Test Store", currency: "USD", pricing: { printCostCents: 120, platformFeeCents: 60, minCardPriceCents: 300 } });
+    expect(await getSettings()).toMatchObject({ name: "Test Store", currency: "USD", pricing: { printCostCents: 120, platformFeePercent: 30, minCardPriceCents: 300 } });
   });
 });
 

@@ -133,8 +133,8 @@ database needs a home.
 ### The money
 
 Three numbers in Admin → Settings → Pricing: what one printed and mailed card
-costs the platform, what the platform keeps per card, and the least an
-edition may charge per card. Every ledger row is computed from the price
+costs the platform, the percentage of each card's share the platform keeps,
+and the least an edition may charge per card. Every ledger row is computed from the price
 snapshot on the purchase — split evenly across the set, the odd cents on
 card 1 — and the two costs as they stood when Lob accepted the card;
 changing the settings later changes nothing already recorded.

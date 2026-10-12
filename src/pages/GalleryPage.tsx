@@ -29,7 +29,7 @@ export function GalleryPage() {
         </p>
       ) : (
         <>
-          <div className={platform.grid}>
+          <div className={`${platform.grid} ${platform.gridWide}`}>
             {editions.map((edition) => (
               <EditionTile key={edition.id} edition={edition} artist={edition.artist} locale={store.locale} />
             ))}

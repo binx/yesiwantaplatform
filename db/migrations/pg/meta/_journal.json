@@ -15,6 +15,13 @@
       "when": 1791796603535,
       "tag": "0001_conscious_malcolm_colcord",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791799391398,
+      "tag": "0002_fluffy_black_knight",
+      "breakpoints": true
     }
   ]
 }

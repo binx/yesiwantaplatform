@@ -172,16 +172,15 @@ I've been doing this since 2019. The chair is older.`,
       input: {
         slug: "twelve-skies",
         title: "Twelve Skies",
-        description: `A year of mornings, two a month, chosen from the drawer.
+        description: `Twelve mornings, chosen from the drawer.
 
 Twelve skies, no two alike: the first ones are from January and the last from a December that is still some way off. Every card has a few lines on the back about that day. You get the whole year for one price, and the first card goes out on the next 1st or 15th after you order.`,
         cardCount: 12,
-        cadence: "twice_monthly",
         priceCents: 5400,
         inGallery: true,
       },
       bannerAlt: "A pale sky over the Firth of Forth",
-      banner: banner("Twelve Skies", "A year of mornings, two a month", "#9fc5e8", "#f4c7a1", "#2f4858"),
+      banner: banner("Twelve Skies", "Twelve mornings from the drawer", "#9fc5e8", "#f4c7a1", "#2f4858"),
       cards: [
         { title: "January, frost", back: { text: "Minus two and the gulls are standing on the ice like they own it." }, front: sky("January, frost", "#dfe9f3", "#f7f3ea", "#f9e3b0", "#5b6b7a", 1) },
         { title: "January, late", back: { text: "The light came back at about half three. I nearly missed it." }, front: sky("January, late", "#6c7fa1", "#e6b89c", "#f6d58e", "#3d4452", 2) },
@@ -201,11 +200,10 @@ Twelve skies, no two alike: the first ones are from January and the last from a 
       input: {
         slug: "harbour-mornings",
         title: "Harbour Mornings",
-        description: `Six skies over Leith docks, one a month, from the walk I take when I can't sit still.
+        description: `Six skies over Leith docks, from the walk I take when I can't sit still.
 
 Smaller and rougher than the window paintings. Boats, cranes, and the water doing what it does.`,
         cardCount: 6,
-        cadence: "monthly",
         priceCents: 3000,
         inGallery: true,
       },
@@ -245,11 +243,10 @@ Postcards are the only thing I make that I don't mind leaving the house.`,
       input: {
         slug: "night-creatures",
         title: "Night Creatures",
-        description: `Six animals that come out after dark, one a month, in fluorescent pink and midnight blue.
+        description: `Six animals that come out after dark, in fluorescent pink and midnight blue.
 
 An owl that isn't quite an owl. A moth with opinions. Nothing you'd want to meet in the shed at 2am, and all of them friendly.`,
         cardCount: 6,
-        cadence: "monthly",
         priceCents: 2700,
         inGallery: true,
       },

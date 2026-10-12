@@ -137,11 +137,10 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
       const edition = artist && artist.status !== "draft" ? await findEditionBySlug(artist.id, editionMatch[2]!) : null;
       if (!artist || !edition || edition.status === "draft") return { ...fallback, status: 404 };
       const price = formatMoney(edition.priceCents, currency, locale);
-      const pace = edition.cadence === "twice_monthly" ? "two a month" : "one a month";
       return {
         ...fallback,
         title: `${edition.title} by ${artist.name} · ${storeName}`,
-        description: truncate(plainText(edition.description) || `${edition.cardCount} postcards by ${artist.name}, ${pace}, for ${price}.`),
+        description: truncate(plainText(edition.description) || `${edition.cardCount} postcards by ${artist.name}, for ${price}.`),
         canonical: absolute(path),
       };
     }

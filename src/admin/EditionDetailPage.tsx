@@ -50,7 +50,7 @@ export function EditionDetailPage() {
         description={
           <>
             {artist ? `${artist.name} · ` : ""}
-            {editionShape(edition.cardCount, edition.cadence)} · <Tag color={editionStatusColor(edition.status)}>{editionStatusWords(edition.status)}</Tag>
+            {editionShape(edition.cardCount)} · <Tag color={editionStatusColor(edition.status)}>{editionStatusWords(edition.status)}</Tag>
           </>
         }
         actions={
@@ -63,7 +63,7 @@ export function EditionDetailPage() {
       <Card style={{ marginBottom: "1.25rem" }}>
         <Descriptions column={1} size="small" bordered>
           <Descriptions.Item label="Artist">{artist ? <Link to={`/admin/artists/${artist.id}`}>{artist.name}</Link> : "—"}</Descriptions.Item>
-          <Descriptions.Item label="Shape">{editionShape(edition.cardCount, edition.cadence)}</Descriptions.Item>
+          <Descriptions.Item label="Shape">{editionShape(edition.cardCount)}</Descriptions.Item>
           <Descriptions.Item label="Price">
             {money(edition.priceCents)} for the set · {money(Math.floor(edition.priceCents / edition.cardCount))} a card
           </Descriptions.Item>

@@ -358,7 +358,7 @@ artistRouter.post("/editions", async (req, res) => {
 
 /**
  * Change an edition. A draft can change anything; past that only its words
- * can, because collectors paid for the cards, size, cadence and price as
+ * can, because collectors paid for the cards, size and price as
  * they are. A change to those on a sold edition is refused rather than
  * quietly dropped.
  */
@@ -376,9 +376,8 @@ artistRouter.put("/editions/:id", async (req, res) => {
       const fixed =
         parsed.data.slug !== edition.slug ||
         parsed.data.cardCount !== edition.cardCount ||
-        parsed.data.cadence !== edition.cadence ||
         parsed.data.priceCents !== edition.priceCents;
-      if (fixed) throw httpError(409, "This edition is on sale, so its address, size, cadence and price are fixed. Its title, description and banner can still change.");
+      if (fixed) throw httpError(409, "This edition is on sale, so its address, size and price are fixed. Its title, description and banner can still change.");
       if (!parsed.data.banner) throw httpError(409, "An edition on sale needs a banner: it's what visitors see in place of the cards. Choose a new one instead.");
       await updateEditionWords(edition.id, artist.id, parsed.data);
     }

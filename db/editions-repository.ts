@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 
-import type { Cadence, EditionInput, EditionSize, EditionStatus } from "../shared/platform.js";
+import type { EditionInput, EditionSize, EditionStatus } from "../shared/platform.js";
 import type { Image } from "../shared/schema.js";
 import { getDatabase } from "./client.js";
 import { affectedRows, epochOrNull, isUniqueViolation, nowFor, timeFor, toBool, toCount, toEpochMs } from "./repository.js";
@@ -9,7 +9,7 @@ import { affectedRows, epochOrNull, isUniqueViolation, nowFor, timeFor, toBool, 
 /**
  * Editions: the sets an artist sells, and the cards in each.
  *
- * An edition's cards, size, cadence and price can change only while it is a
+ * An edition's cards, size and price can change only while it is a
  * `draft`; the conditional updates here are what hold that, so a route that
  * forgot to check could still not rewrite something a collector paid for.
  */
@@ -25,7 +25,6 @@ export interface EditionRow {
   bannerHeight: number | null;
   bannerAlt: string | null;
   cardCount: number;
-  cadence: string;
   priceCents: number;
   status: string;
   inGallery: unknown;
@@ -40,7 +39,6 @@ export interface EditionRecord {
   description: string;
   banner: Image | null;
   cardCount: EditionSize;
-  cadence: Cadence;
   priceCents: number;
   status: EditionStatus;
   inGallery: boolean;
@@ -88,7 +86,6 @@ export function buildEdition(row: EditionRow): EditionRecord {
         ? { path: row.bannerPath, width: row.bannerWidth, height: row.bannerHeight, alt: row.bannerAlt ?? "", widths: [] }
         : null,
     cardCount: row.cardCount === 12 ? 12 : 6,
-    cadence: row.cadence === "twice_monthly" ? "twice_monthly" : "monthly",
     priceCents: row.priceCents,
     status: toStatus(row.status),
     inGallery: toBool(row.inGallery),
@@ -129,7 +126,6 @@ export async function createEdition(artistId: string, input: EditionInput, id = 
       description: input.description,
       ...bannerColumns(input.banner),
       cardCount: input.cardCount,
-      cadence: input.cadence,
       priceCents: input.priceCents,
       inGallery: input.inGallery,
       status: "draft",
@@ -160,7 +156,6 @@ export async function updateDraftEdition(id: string, artistId: string, input: Ed
         description: input.description,
         ...bannerColumns(input.banner),
         cardCount: input.cardCount,
-        cadence: input.cadence,
         priceCents: input.priceCents,
         inGallery: input.inGallery,
         updatedAt: nowFor(dialect),

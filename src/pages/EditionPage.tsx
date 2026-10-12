@@ -73,7 +73,7 @@ export function EditionPage() {
             by <Link to={artistPath(artist.slug)}>{artist.name}</Link>
           </p>
           <p className={styles.artistFacts}>
-            {editionShape(edition.cardCount, edition.cadence)}
+            {editionShape(edition.cardCount)}
           </p>
         </div>
         <div className={styles.collectBox}>

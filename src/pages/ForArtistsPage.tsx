@@ -60,12 +60,11 @@ export function ForArtistsPage() {
           </li>
           <li>
             <strong>Make an edition.</strong> {EDITION_SIZES.join(" or ")} cards, a photo you took on each front and your note on each
-            back, sent once a month or twice a month. You set one price for the set, and collectors pay it up front. Make as many
-            editions as you like.
+            back. You set one price for the set, and collectors pay it up front. Make as many editions as you like.
           </li>
           <li>
-            <strong>We do the rest.</strong> Each collector picks the day their first card goes, and we print and post every card
-            on their schedule. {DELIVERY_ESTIMATE}
+            <strong>We do the rest.</strong> Each collector picks how often their cards come, once or twice a month, and the day the
+            first one goes. We print and post every card on their schedule. {DELIVERY_ESTIMATE}
           </li>
         </ol>
       </section>

@@ -70,7 +70,7 @@ export function EditionTile({ edition, artist, locale }: { edition: EditionSumma
           </div>
         </div>
         <p className={styles.tileMeta}>
-          {editionShape(edition.cardCount, edition.cadence)} · <strong>{formatMoney(edition.priceCents, edition.currency, locale)}</strong>
+          {editionShape(edition.cardCount)} · <strong>{formatMoney(edition.priceCents, edition.currency, locale)}</strong>
         </p>
       </div>
     </Link>

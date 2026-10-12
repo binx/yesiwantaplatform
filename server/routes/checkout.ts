@@ -16,8 +16,10 @@ import { verifyRecipient } from "../lob.js";
 /**
  * Collecting an edition.
  *
- * The client sends an edition id, an address and, if they like, the day the
- * first card should go — never a price. The price is read from the edition's
+ * The client sends an edition id, an address, how often the cards should
+ * come and, if they like, the day the first one should go — never a price.
+ * The cadence is theirs to choose and is snapshotted on the purchase with
+ * the edition's size. The price is read from the edition's
  * row here and handed to Stripe as an inline one-time `price_data`, so a
  * tampered request cannot change what anything costs, and there is no
  * Stripe Price to keep in step with the edition.
@@ -73,7 +75,8 @@ checkoutRouter.post("/checkout/collect", writeRateLimit, verifyCsrf, requireCust
 
   const currency = settings.currency.toLowerCase();
   const purchaseId = newPurchaseId();
-  const schedule = editionSchedule(startDate, edition.cardCount, edition.cadence);
+  const cadence = parsed.data.cadence;
+  const schedule = editionSchedule(startDate, edition.cardCount, cadence);
 
   try {
     // One Stripe Customer per person, made on their first purchase and
@@ -101,7 +104,7 @@ checkoutRouter.post("/checkout/collect", writeRateLimit, verifyCsrf, requireCust
               unit_amount: edition.priceCents,
               product_data: {
                 name: `${edition.title} — ${artist.name}`,
-                description: `${edition.cardCount} postcards, ${CADENCE_WORDS[edition.cadence]}, printed and mailed to you from ${schedule[0]} to ${schedule[schedule.length - 1]}. Paid once.`,
+                description: `${edition.cardCount} postcards, ${CADENCE_WORDS[cadence]}, printed and mailed to you from ${schedule[0]} to ${schedule[schedule.length - 1]}. Paid once.`,
               },
             },
           },
@@ -128,7 +131,7 @@ checkoutRouter.post("/checkout/collect", writeRateLimit, verifyCsrf, requireCust
       priceCents: edition.priceCents,
       currency: settings.currency,
       cardCount: edition.cardCount,
-      cadence: edition.cadence,
+      cadence,
       startDate,
       address: parsed.data.address,
     });

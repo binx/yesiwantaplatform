@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { Alert, App, Button, Checkbox, Input, Popconfirm, Radio, Skeleton, Upload } from "antd";
 import { ArrowDownOutlined, ArrowUpOutlined, UploadOutlined } from "@ant-design/icons";
-import { EDITION_SIZES, editionInputSchema, editionPath, type ArtistStudio, type Cadence, type EditionInput, type EditionSize, type EditionStudio } from "@shared/platform";
+import { EDITION_SIZES, editionInputSchema, editionPath, type ArtistStudio, type EditionInput, type EditionSize, type EditionStudio } from "@shared/platform";
 import type { PostcardDesign } from "@shared/postcards";
 import { formatMoney, parseCents } from "@shared/money";
 import { artistShareCents, cardGrossCents, type Image } from "@shared/schema";
@@ -11,7 +11,6 @@ import { ProductImage } from "@/components/ui/ProductImage";
 import { useCreateEdition, useDeleteEdition, useSetEditionCards, useSetEditionStatus, useStudioEdition, useUpdateEdition, useUploadEditionBanner, type StudioView } from "@/lib/platform";
 import { useStore } from "@/lib/useStore";
 import { assetUrl } from "@/lib/store-source";
-import { cadenceWords } from "@/lib/postcards";
 import { cx } from "@/lib/cx";
 import { DesignPicker } from "./StudioDesigns";
 import { EditionStatusTag } from "./StudioEditionsPage";
@@ -23,7 +22,6 @@ interface Draft {
   description: string;
   banner: Image | null;
   cardCount: EditionSize;
-  cadence: Cadence;
   price: string;
   inGallery: boolean;
 }
@@ -43,7 +41,7 @@ const fail = (error: unknown, fallback: string) => (error instanceof Error ? err
  * An edition's own form: its words, its banner, its shape and its price.
  *
  * Shared by "new edition" and the editor. Once an edition is on sale its
- * address, size, cadence and price are what collectors paid for, so those
+ * address, size and price are what collectors paid for, so those
  * fields are disabled — the server refuses a change to them anyway — and
  * only the words and the banner stay open. The cards are a surprise: a
  * visitor sees the banner and the writeup, never the cards themselves. What each card earns is worked out here with
@@ -84,7 +82,6 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
       description: draft.description,
       banner: draft.banner,
       cardCount: draft.cardCount,
-      cadence: draft.cadence,
       priceCents,
       inGallery: draft.inGallery,
     } satisfies Record<keyof EditionInput, unknown>);
@@ -200,26 +197,11 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
             options={EDITION_SIZES.map((size) => ({ value: size, label: String(size) }))}
           />
         </div>
-        <div className={styles.field}>
-          <span className={styles.label} id="edition-cadence-label">
-            How often
-          </span>
-          <Radio.Group
-            aria-labelledby="edition-cadence-label"
-            value={draft.cadence}
-            disabled={fixed}
-            onChange={(e) => set("cadence", e.target.value as Cadence)}
-            options={[
-              { value: "monthly", label: "Once a month" },
-              { value: "twice_monthly", label: "Twice a month" },
-            ]}
-          />
-        </div>
       </div>
       <span className={styles.help}>
         {fixed
-          ? "Size, cadence and price are fixed while it's on sale: collectors paid for exactly this."
-          : `Each collector gets ${draft.cardCount} postcards, ${cadenceWords(draft.cadence)}, starting on a day they pick.`}
+          ? "Size and price are fixed while it's on sale: collectors paid for exactly this."
+          : `Each collector gets ${draft.cardCount} postcards, once or twice a month as they prefer, starting on a day they pick.`}
       </span>
       {dropped > 0 ? <Alert type="warning" showIcon title={`Saving drops the last ${dropped} ${dropped === 1 ? "card" : "cards"} you chose: a set of ${draft.cardCount} holds ${draft.cardCount}.`} /> : null}
 
@@ -288,7 +270,6 @@ export function StudioNewEditionPage() {
           description: "",
           banner: null,
           cardCount: 6,
-          cadence: "monthly",
           price: (Math.max(pricing.minCardPriceCents * 6, 3000) / 100).toFixed(2),
           inGallery: true,
         }}
@@ -345,7 +326,6 @@ export function StudioEditionPage() {
             description: data.description,
             banner: data.banner,
             cardCount: data.cardCount,
-            cadence: data.cadence,
             price: (data.priceCents / 100).toFixed(2),
             inGallery: data.inGallery,
           }}
@@ -393,7 +373,7 @@ function StatusPanel({ edition, artist, cardsDirty }: { edition: EditionStudio; 
           <p className={styles.note}>
             {needs.length > 0
               ? `A draft: only you can see it. To put it on sale, ${needs.length === 1 ? needs[0] : `${needs.slice(0, -1).join(", ")} and ${needs.at(-1)}`}.`
-              : "Ready. Once it's on sale its cards, size, cadence and price are fixed."}
+              : "Ready. Once it's on sale its cards, size and price are fixed."}
           </p>
           <div className={styles.actions}>
             <Button type="primary" loading={setStatus.isPending} disabled={needs.length > 0} onClick={() => move("on_sale", "On sale.")}>

@@ -136,7 +136,7 @@ function EditionFeature({ artist, edition, locale }: { artist: ArtistPublic; edi
 
           </h2>
           <p className={styles.artistFacts}>
-            {editionShape(edition.cardCount, edition.cadence)}
+            {editionShape(edition.cardCount)}
           </p>
           {edition.descriptionHtml ? <div className={cx(pageStyles.body, styles.featureDescription)} dangerouslySetInnerHTML={{ __html: edition.descriptionHtml }} /> : null}
           <p className={styles.featureMore}>

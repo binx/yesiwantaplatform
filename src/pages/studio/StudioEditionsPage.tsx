@@ -70,7 +70,7 @@ function EditionRow({ edition }: { edition: EditionStudio }) {
           <Link to={`/studio/editions/${edition.id}`}>{edition.title}</Link> <EditionStatusTag status={edition.status} />
         </p>
         <p className={styles.note}>
-          {editionShape(edition.cardCount, edition.cadence)} · {formatMoney(edition.priceCents, edition.currency, store.locale)}
+          {editionShape(edition.cardCount)} · {formatMoney(edition.priceCents, edition.currency, store.locale)}
         </p>
         <p className={styles.note}>
           {edition.status === "draft"

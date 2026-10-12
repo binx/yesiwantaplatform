@@ -238,7 +238,7 @@ export const postcardDesigns = sqliteTable(
  * the artist's writeup of what will arrive — and each card only once it is
  * in their letterbox.
  *
- * Built as a `draft`; once `on_sale` its cards, size, cadence and price are
+ * Built as a `draft`; once `on_sale` its cards, size and price are
  * fixed — a collector paid for exactly these — and only its words can
  * change. `closed` stops new collectors; everyone who already paid still
  * gets every card. The slug is unique per artist: `/artist/:slug/:edition`.
@@ -265,8 +265,6 @@ export const editions = sqliteTable(
     bannerAlt: text("banner_alt"),
     /** 6 or 12. */
     cardCount: integer("card_count").notNull(),
-    /** monthly | twice_monthly */
-    cadence: text("cadence").notNull(),
     /** For the whole set, not per card. */
     priceCents: integer("price_cents").notNull(),
     status: text("status").notNull().default("draft"),
@@ -308,9 +306,9 @@ export const editionCards = sqliteTable(
 /**
  * A purchase: one person collecting one edition, paid once, up front.
  *
- * The price, size and cadence are snapshots of the edition at checkout, and
- * the start date is the collector's: the first card goes that day and the
- * rest follow on the cadence. When Stripe confirms payment the webhook
+ * The price and size are snapshots of the edition at checkout; the cadence
+ * and the start date are the collector's: the first card goes that day and
+ * the rest follow as often as they asked. When Stripe confirms payment the webhook
  * writes every card of the run as a `postcards` row.
  *
  *   incomplete  Checkout begun; the webhook has not confirmed payment
@@ -337,6 +335,7 @@ export const purchases = sqliteTable(
     refundedCents: integer("refunded_cents").notNull().default(0),
     currency: text("currency").notNull().default("USD"),
     cardCount: integer("card_count").notNull(),
+    /** monthly | twice_monthly: the collector's choice. */
     cadence: text("cadence").notNull(),
     /** ISO date, YYYY-MM-DD: the first card's day. Its day of the month sets the rest. */
     startDate: text("start_date").notNull(),

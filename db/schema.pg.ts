@@ -174,7 +174,6 @@ export const editions = pgTable(
     bannerHeight: integer("banner_height"),
     bannerAlt: text("banner_alt"),
     cardCount: integer("card_count").notNull(),
-    cadence: text("cadence").notNull(),
     priceCents: integer("price_cents").notNull(),
     status: text("status").notNull().default("draft"),
     inGallery: boolean("in_gallery").notNull().default(true),

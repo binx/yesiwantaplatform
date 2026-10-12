@@ -100,7 +100,7 @@ export function EditionsPage() {
             },
             { title: "Title", dataIndex: "title", render: (title: string, edition) => <Link to={`/admin/editions/${edition.id}`}>{title}</Link> },
             { title: "Artist", dataIndex: "artist", render: (artist: AdminEdition["artist"]) => (artist ? <Link to={`/admin/artists/${artist.id}`}>{artist.name}</Link> : "—") },
-            { title: "Shape", key: "shape", render: (_value, edition) => editionShape(edition.cardCount, edition.cadence) },
+            { title: "Shape", key: "shape", render: (_value, edition) => editionShape(edition.cardCount) },
             { title: "Price", dataIndex: "priceCents", align: "right", render: (cents: number, edition) => formatMoney(cents, edition.currency, locale) },
             { title: "Status", dataIndex: "status", render: (status: EditionStatus) => <Tag color={editionStatusColor(status)}>{editionStatusWords(status)}</Tag> },
             { title: "Collectors", dataIndex: "collectorCount", align: "right" },

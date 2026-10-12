@@ -183,10 +183,11 @@ export function LandingPage() {
                   <strong>Pick an edition.</strong> 6 or 12 cards, paid for once, at the price the artist sets.
                 </li>
                 <li>
-                  <strong>Give us your address.</strong> And, if you like, the day the first card goes. Change the address anytime.
+                  <strong>Give us your address.</strong> Say whether you want a card once or twice a month and, if you like, the day
+                  the first one goes. Change the address anytime.
                 </li>
                 <li>
-                  <strong>Check your letterbox.</strong> A card arrives once or twice a month until the set is done. Nothing renews,
+                  <strong>Check your letterbox.</strong> A card arrives as often as you asked until the set is done. Nothing renews,
                   so there's nothing to cancel.
                 </li>
               </ol>

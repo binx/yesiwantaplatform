@@ -3,10 +3,10 @@
 ## What this is
 
 Yes I Want A Postcard: artists sell editions of postcards. An edition is a
-set of 6 or 12 cards, sent monthly or twice a month, at one price. A
-collector pays for the whole set once, picks the day their run starts
-(default: the next 1st or 15th), and Lob prints and mails each card on its
-day. Each sent card earns the artist its share of the price, less a print
+set of 6 or 12 cards at one price. A collector pays for the whole set once,
+picks whether the cards come once or twice a month and the day their run
+starts (default: the next 1st or 15th), and Lob prints and mails each card
+on its day. Each sent card earns the artist its share of the price, less a print
 cost and a platform fee, transferred through Stripe Connect.
 
 Forked from postcards-v2 (`git remote postcards`), itself a fork of Beluga v2
@@ -34,10 +34,11 @@ Forked from postcards-v2 (`git remote postcards`), itself a fork of Beluga v2
    only its conditional claims (`claimPostcard`, `claimPayout`) decide who
    does what. Our ids are the idempotency keys. Never send or transfer from
    a request handler.
-8. **An edition on sale is fixed.** Its cards, size, cadence, price and slug
-   change only as a `draft` (the repository's conditional updates hold it,
-   not just the route), and it goes back to draft only if nobody ever
-   bought it. One card per purchase per position: the unique index on
+8. **An edition on sale is fixed.** Its cards, size, price and slug change
+   only as a `draft` (the repository's conditional updates hold it, not just
+   the route), and it goes back to draft only if nobody ever bought it. The
+   cadence is not the edition's at all: the collector chooses it at checkout
+   and it is snapshotted on the purchase. One card per purchase per position: the unique index on
    `postcards (purchase_id, position)` makes writing a run idempotent.
 9. **Refusals are stored in the other party's words.** Lob's on the postcard
    row, Stripe's on the payout row. Shown in full to the admin only;

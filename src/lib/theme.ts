@@ -145,12 +145,12 @@ export function themeCssVars(theme: Theme): Record<string, string> {
  * rings and selected rows, and the near-black it defaults to made "Save this
  * design" and "Add to cart" read as chrome rather than as the thing to press.
  * The label is always ink, whatever the scheme — dark text is what stays
- * legible on a yellow this bright (12.7:1 against `#18181b`).
+ * legible on the magenta (5.1:1 against `#18181b`; white would only get 3.5:1).
  */
 export const ACTION_BUTTON = {
-  fill: "#ffd60a",
-  hover: "#ffe14d",
-  active: "#f0c500",
+  fill: "#ff2d8a",
+  hover: "#ff4d9c",
+  active: "#ff1f80",
   label: "#18181b",
 } as const;
 
@@ -208,7 +208,7 @@ export function toAntdTheme(theme: Theme): ThemeConfig {
         fontWeight: 500,
         primaryShadow: "none",
         defaultShadow: "none",
-        // Primary buttons are the bright yellow, not the theme's primary — see ACTION_BUTTON.
+        // Primary buttons are the chroma magenta, not the theme's primary — see ACTION_BUTTON.
         colorPrimary: ACTION_BUTTON.fill,
         colorPrimaryHover: ACTION_BUTTON.hover,
         colorPrimaryActive: ACTION_BUTTON.active,

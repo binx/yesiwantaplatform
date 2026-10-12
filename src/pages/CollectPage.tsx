@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
-import { Alert, Button, Input, Skeleton } from "antd";
+import { Alert, Button, Input, Radio, Skeleton } from "antd";
 import { formatMoney } from "@shared/money";
-import { START_DATE_MAX_DAYS, artistPath, defaultStartDate, editionPath, editionSchedule, startDateProblem, startDateRange } from "@shared/platform";
+import { START_DATE_MAX_DAYS, artistPath, defaultStartDate, editionPath, editionSchedule, startDateProblem, startDateRange, type Cadence } from "@shared/platform";
 import { todayIso, type Recipient } from "@shared/postcards";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { Field, RecipientFields } from "@/components/postcard/RecipientFields";
@@ -17,16 +17,18 @@ import { NotFoundPage } from "./NotFoundPage";
 import styles from "@/components/platform/Platform.module.css";
 
 /**
- * Collect an edition: where the cards go, when the first one does, then Stripe.
+ * Collect an edition: where the cards go, how often, when the first one does, then Stripe.
  *
  * Signed in only — a run of cards has to belong to someone who can come back
  * and see where it is — so a visitor is sent to sign in with this page as the
  * way back. The address is prefilled from the account and saved back to it;
  * the price is shown from the edition and never sent.
  *
- * The start date is optional. Left empty, the server picks the next 1st or
- * 15th; the page says which day that is, and shows the whole run either way,
- * worked out by the same `editionSchedule` the server will use. Its rules are
+ * How often the cards come is the collector's call, once or twice a month,
+ * and goes to the server with the order. The start date is optional. Left
+ * empty, the server picks the next 1st or 15th; the page says which day that
+ * is, and shows the whole run either way, worked out from the chosen cadence
+ * by the same `editionSchedule` the server will use. The date's rules are
  * checked here with `startDateProblem` so the form can say so as you type,
  * and checked again on the server, which is the one that counts.
  */
@@ -41,6 +43,7 @@ export function CollectPage() {
   const [draft, setDraft] = useState<Recipient>(BLANK_RECIPIENT);
   const [errors, setErrors] = useState<RecipientErrors>({});
   const [seeded, setSeeded] = useState(false);
+  const [cadence, setCadence] = useState<Cadence>("monthly");
   /** Empty means "the default": the next 1st or 15th. */
   const [startDate, setStartDate] = useState("");
 
@@ -93,7 +96,8 @@ export function CollectPage() {
   const range = startDateRange(today);
   const fallback = defaultStartDate(today);
   const problem = startDate ? startDateProblem(startDate, today) : null;
-  const schedule = problem ? null : editionSchedule(startDate || fallback, edition.cardCount, edition.cadence);
+  const schedule = problem ? null : editionSchedule(startDate || fallback, edition.cardCount, cadence);
+  const months = cadence === "twice_monthly" ? edition.cardCount / 2 : edition.cardCount;
   const first = schedule?.[0];
   const last = schedule?.[schedule.length - 1];
 
@@ -106,7 +110,7 @@ export function CollectPage() {
     setErrors({});
     if (problem) return;
     collect.mutate(
-      { editionId: edition.id, address: result.value, ...(startDate ? { startDate } : {}) },
+      { editionId: edition.id, address: result.value, cadence, ...(startDate ? { startDate } : {}) },
       {
         onSuccess: ({ url }) => {
           window.location.assign(url);
@@ -119,7 +123,7 @@ export function CollectPage() {
     <PageWrapper width="wide">
       <h1>Collect {edition.title}</h1>
       <p>
-        From <Link to={artistPath(artist.slug)}>{artist.name}</Link>: {editionShape(edition.cardCount, edition.cadence)}, for {price} paid once.
+        From <Link to={artistPath(artist.slug)}>{artist.name}</Link>: {editionShape(edition.cardCount)}, for {price} paid once.
       </p>
 
       <div className={cx(styles.collectLayout)}>
@@ -136,6 +140,23 @@ export function CollectPage() {
                 if (errors[key]) setErrors((current) => ({ ...current, [key]: undefined }));
               }}
             />
+          </div>
+
+          <h2 className={styles.startHeading}>How often?</h2>
+          <div className={styles.startDate}>
+            <Radio.Group
+              aria-label="How often the cards come"
+              value={cadence}
+              onChange={(e) => setCadence(e.target.value as Cadence)}
+              options={[
+                { value: "monthly", label: "Once a month" },
+                { value: "twice_monthly", label: "Twice a month" },
+              ]}
+            />
+            <p className={styles.collectNote}>
+              {cadence === "twice_monthly" ? "Two cards a month, fourteen days apart" : "One card a month"}: the set of {edition.cardCount} takes {months}{" "}
+              months.
+            </p>
           </div>
 
           <h2 className={styles.startHeading}>When should the first one go?</h2>
@@ -208,7 +229,7 @@ export function CollectPage() {
             <strong>{price}</strong>, once
           </p>
           <p>
-            {edition.cardCount} postcards from {artist.name}, printed and mailed to you {edition.cadence === "twice_monthly" ? "twice a month" : "once a month"}. Each one is a
+            {edition.cardCount} postcards from {artist.name}, printed and mailed to you {cadence === "twice_monthly" ? "twice a month" : "once a month"}. Each one is a
             surprise until it arrives.
           </p>
           <p>You pay for the whole edition now. Nothing renews, so there's nothing to cancel; it ends on its own with the last card.</p>

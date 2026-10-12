@@ -156,12 +156,6 @@
   margin: 0;
 }
 
-.artistTagline {
-  margin: 0.25rem 0 0;
-  font-size: 1.125rem;
-  color: var(--beluga-muted);
-}
-
 .artistFacts {
   margin: 0.75rem 0 0;
   font-size: 0.9375rem;
@@ -414,12 +408,6 @@
 .artistLinks a:hover,
 .artistLinks a:focus-visible {
   border-color: var(--beluga-ink);
-}
-
-.collectShape {
-  margin: -0.25rem 0 0;
-  font-size: 0.9375rem;
-  color: var(--beluga-muted);
 }
 
 

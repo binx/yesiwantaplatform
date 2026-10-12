@@ -73,12 +73,11 @@ export function EditionPage() {
             by <Link to={artistPath(artist.slug)}>{artist.name}</Link>
           </p>
           <p className={styles.artistFacts}>
-            {editionShape(edition.cardCount, edition.cadence)} · {edition.collectorCount} {edition.collectorCount === 1 ? "collector" : "collectors"}
+            {editionShape(edition.cardCount)}
           </p>
         </div>
         <div className={styles.collectBox}>
           <p className={styles.collectPrice}>{price}</p>
-          <p className={styles.collectShape}>for all {edition.cardCount}, paid once</p>
           {isOwner ? (
             <Link to={`/studio/editions/${edition.id}`}>
               <Button size="large">This is your edition — open the studio</Button>
@@ -95,14 +94,11 @@ export function EditionPage() {
           ) : !collectable ? (
             <p className={styles.collectNote}>{artist.name} isn't taking new collectors right now.</p>
           ) : (
-            <>
-              <Link to={`/collect/${artist.slug}/${edition.slug}`}>
-                <Button type="primary" size="large">
-                  Collect this edition
-                </Button>
-              </Link>
-              <p className={styles.collectNote}>paid once · nothing renews · you pick when it starts</p>
-            </>
+            <Link to={`/collect/${artist.slug}/${edition.slug}`}>
+              <Button type="primary" size="large">
+                Collect this edition
+              </Button>
+            </Link>
           )}
         </div>
       </header>

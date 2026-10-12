@@ -29,17 +29,13 @@ export function ArtistTile({ artist, locale }: { artist: ArtistSummary; locale: 
           {artist.avatar ? <img className={styles.tileAvatar} src={`/assets/${artist.avatar.path}`} alt="" width={40} height={40} /> : null}
           <div>
             <p className={styles.tileName}>{artist.name}</p>
-            {artist.tagline ? <p className={styles.tileTagline}>{artist.tagline}</p> : null}
           </div>
         </div>
-        <p className={styles.tileMeta}>
-          {from ? (
-            <>
-              from <strong>{from}</strong> ·{" "}
-            </>
-          ) : null}
-          {artist.collectorCount} {artist.collectorCount === 1 ? "collector" : "collectors"}
-        </p>
+        {from ? (
+          <p className={styles.tileMeta}>
+            from <strong>{from}</strong>
+          </p>
+        ) : null}
       </div>
     </Link>
   );
@@ -74,7 +70,7 @@ export function EditionTile({ edition, artist, locale }: { edition: EditionSumma
           </div>
         </div>
         <p className={styles.tileMeta}>
-          {editionShape(edition.cardCount, edition.cadence)} · <strong>{formatMoney(edition.priceCents, edition.currency, locale)}</strong>
+          {editionShape(edition.cardCount)} · <strong>{formatMoney(edition.priceCents, edition.currency, locale)}</strong>
         </p>
       </div>
     </Link>

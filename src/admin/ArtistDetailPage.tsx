@@ -100,7 +100,7 @@ export function ArtistDetailPage() {
             scroll={{ x: "max-content" }}
             columns={[
               { title: "Title", dataIndex: "title", render: (title: string, edition) => <Link to={`/admin/editions/${edition.id}`}>{title}</Link> },
-              { title: "Shape", key: "shape", render: (_value, edition) => editionShape(edition.cardCount, edition.cadence) },
+              { title: "Shape", key: "shape", render: (_value, edition) => editionShape(edition.cardCount) },
               { title: "Price", dataIndex: "priceCents", align: "right", render: (cents: number, edition) => formatMoney(cents, edition.currency, locale) },
               { title: "Status", dataIndex: "status", render: (status: EditionStatus) => <Tag color={editionStatusColor(status)}>{status === "on_sale" ? "on sale" : status}</Tag> },
               { title: "Collectors", dataIndex: "collectorCount", align: "right" },

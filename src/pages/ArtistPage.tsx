@@ -72,11 +72,6 @@ export function ArtistPage() {
           )}
           <div>
             <h1 className={styles.artistName}>{artist.name}</h1>
-            {artist.tagline ? <p className={styles.artistTagline}>{artist.tagline}</p> : null}
-            <p className={styles.artistFacts}>
-              {artist.collectorCount} {artist.collectorCount === 1 ? "collector" : "collectors"} · {artist.mailedCount} card
-              {artist.mailedCount === 1 ? "" : "s"} sent
-            </p>
           </div>
           {artist.links.length > 0 ? (
             <ul className={styles.artistLinks} aria-label={`Where else to find ${artist.name}`}>
@@ -141,7 +136,7 @@ function EditionFeature({ artist, edition, locale }: { artist: ArtistPublic; edi
 
           </h2>
           <p className={styles.artistFacts}>
-            {editionShape(edition.cardCount, edition.cadence)} · {edition.collectorCount} {edition.collectorCount === 1 ? "collector" : "collectors"}
+            {editionShape(edition.cardCount)}
           </p>
           {edition.descriptionHtml ? <div className={cx(pageStyles.body, styles.featureDescription)} dangerouslySetInnerHTML={{ __html: edition.descriptionHtml }} /> : null}
           <p className={styles.featureMore}>
@@ -150,7 +145,6 @@ function EditionFeature({ artist, edition, locale }: { artist: ArtistPublic; edi
         </div>
         <div className={styles.collectBox}>
           <p className={styles.collectPrice}>{formatMoney(edition.priceCents, edition.currency, locale)}</p>
-          <p className={styles.collectShape}>for all {edition.cardCount}, paid once</p>
           {edition.status === "closed" ? (
             <p className={styles.collectNote}>Closed to new collectors.</p>
           ) : collectable ? (

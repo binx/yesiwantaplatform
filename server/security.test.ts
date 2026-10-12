@@ -362,7 +362,7 @@ describe("studio routes", () => {
     const response = await agent
       .post("/api/studio/editions")
       .set("x-csrf-token", csrf)
-      .send({ slug: "cheap", title: "Cheap", cardCount: 6, cadence: "monthly", priceCents: 1799 });
+      .send({ slug: "cheap", title: "Cheap", cardCount: 6, priceCents: 1799 });
     expect(response.status).toBe(400);
     expect(response.body.error).toMatch(/at least 18\.00/);
   });
@@ -372,7 +372,7 @@ describe("studio routes", () => {
     const response = await agent
       .post("/api/studio/editions")
       .set("x-csrf-token", csrf)
-      .send({ slug: "odd", title: "Odd", cardCount: 7, cadence: "monthly", priceCents: 5000 });
+      .send({ slug: "odd", title: "Odd", cardCount: 7, priceCents: 5000 });
     expect(response.status).toBe(400);
     expect(response.body.error).toMatch(/6 or 12/);
   });

@@ -22,7 +22,7 @@ export function Footer() {
         <nav className={styles.links} aria-label="Footer">
           <Link to="/artists">Artists</Link>
           <Link to="/gallery">Gallery</Link>
-          <Link to={customer.data?.artistSlug ? "/studio" : "/for-artists"}>For artists</Link>
+          <Link to={customer.data?.artistSlug ? "/studio" : "/for-artists"}>Open a studio</Link>
           <Link to={accountHref}>Your account</Link>
           {store.pages.map((page) => (
             <Link key={page.id} to={`/${page.slug}`}>
@@ -32,7 +32,7 @@ export function Footer() {
         </nav>
 
         <p className={styles.legal}>
-          {store.name} · a project by <a href="https://rachelbinx.com">rachel binx</a>, for the love of mail
+          a project by <a href="https://rachelbinx.com">rachel binx</a>, for the love of mail
         </p>
       </div>
     </footer>

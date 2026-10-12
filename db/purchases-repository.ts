@@ -10,9 +10,9 @@ import { affectedRows, epochOrNull, jsonFor, nowFor, parseJson, toCount, toEpoch
  *
  * Stripe is the authority on payment; the webhook is the only thing that
  * moves a row out of `incomplete`, and the only thing that marks one
- * refunded. What is ours is the address, the start date, and the snapshot
- * of the edition — price, size, cadence — that the ledger and the schedule
- * read.
+ * refunded. What is ours is the address, the start date, the cadence the
+ * collector chose, and the snapshot of the edition — price, size — that the
+ * ledger and the schedule read.
  */
 
 export interface PurchaseRow {

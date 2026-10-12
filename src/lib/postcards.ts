@@ -89,7 +89,7 @@ export function cadenceWords(cadence: Cadence): string {
   return cadence === "twice_monthly" ? "two a month" : "one a month";
 }
 
-/** "6 postcards, one a month". */
-export function editionShape(cardCount: number, cadence: Cadence): string {
-  return `${cardCount} postcards, ${cadenceWords(cadence)}`;
+/** "6 postcards", or with a collector's cadence, "6 postcards, one a month". */
+export function editionShape(cardCount: number, cadence?: Cadence): string {
+  return cadence ? `${cardCount} postcards, ${cadenceWords(cadence)}` : `${cardCount} postcards`;
 }

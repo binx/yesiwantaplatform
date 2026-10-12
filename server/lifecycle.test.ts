@@ -122,12 +122,11 @@ function chosenStartDate(): string {
   }
 }
 
-const EDITION: { slug: string; title: string; description: string; cardCount: number; cadence: string; priceCents: number; banner: { path: string; alt: string } | null } = {
+const EDITION: { slug: string; title: string; description: string; cardCount: number; priceCents: number; banner: { path: string; alt: string } | null } = {
   slug: "birds",
   title: "Birds of Marfa",
   description: "Six *birds*.",
   cardCount: 6,
-  cadence: "monthly",
   priceCents: 3000,
   banner: null,
 };
@@ -170,7 +169,7 @@ describe("an artist makes an edition", () => {
 
     const edition = await agent.post("/api/studio/editions").set("x-csrf-token", csrf).send(EDITION).expect(201);
     editionId = edition.body.id;
-    expect(edition.body).toMatchObject({ status: "draft", cards: [], cardCount: 6, cadence: "monthly", priceCents: 3000 });
+    expect(edition.body).toMatchObject({ status: "draft", cards: [], cardCount: 6, priceCents: 3000 });
 
     // Five cards are not a set of six.
     await agent.put(`/api/studio/editions/${editionId}/cards`).set("x-csrf-token", csrf).send({ cards: designIds.slice(0, 5).map((designId) => ({ designId })) }).expect(200);
@@ -237,7 +236,7 @@ describe("an artist makes an edition", () => {
 });
 
 describe("a fan collects the edition", () => {
-  it("starts a one-time Checkout at the edition's price, on the day they chose", async () => {
+  it("starts a one-time Checkout at the edition's price, on the day they chose, as often as they chose", async () => {
     const { agent, csrf } = await signIn("fan@example.com");
     const startDate = chosenStartDate();
 
@@ -279,10 +278,13 @@ describe("a fan collects the edition", () => {
 
   it("starts on the next 1st or 15th when no day is given, and refuses the artist's own", async () => {
     const fan = await signIn("fan@example.com");
-    // Not paid yet: the incomplete one does not block a retry.
-    const retry = await fan.agent.post("/api/checkout/collect").set("x-csrf-token", fan.csrf).send({ editionId, address: ADDRESS }).expect(200);
+    // Not paid yet: the incomplete one does not block a retry. The cadence is
+    // the collector's, snapshotted on the purchase; an edition has none.
+    const retry = await fan.agent.post("/api/checkout/collect").set("x-csrf-token", fan.csrf).send({ editionId, address: ADDRESS, cadence: "twice_monthly" }).expect(200);
     const { getPurchase, deleteIncompletePurchase } = await import("../db/purchases-repository.js");
-    expect(["01", "15"]).toContain((await getPurchase(retry.body.purchaseId as string))!.startDate.slice(8));
+    const retried = (await getPurchase(retry.body.purchaseId as string))!;
+    expect(["01", "15"]).toContain(retried.startDate.slice(8));
+    expect(retried.cadence).toBe("twice_monthly");
     await deleteIncompletePurchase(retry.body.purchaseId as string);
 
     const self = await signIn("artist@example.com");

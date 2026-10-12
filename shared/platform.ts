@@ -164,7 +164,9 @@ export const editionSizeSchema = z.union([z.literal(6), z.literal(12)], { messag
 export type EditionSize = z.infer<typeof editionSizeSchema>;
 
 /**
- * How often a collector's cards arrive.
+ * How often a collector's cards arrive. The collector's choice, made at
+ * checkout and snapshotted on their purchase: an edition itself has no
+ * cadence, only a size.
  *
  *   monthly        on one day of every month
  *   twice_monthly  on two days of every month, fourteen days apart
@@ -176,7 +178,7 @@ export type Cadence = z.infer<typeof cadenceSchema>;
  * Where an edition is in its life.
  *
  *   draft    being made; only its artist sees it, and everything can change
- *   on_sale  listed and collectable. Its cards, size, cadence and price are
+ *   on_sale  listed and collectable. Its cards, size and price are
  *            fixed — collectors paid for exactly these — and only its words
  *            and banner can change. Back to draft only while nobody has
  *            bought it
@@ -208,7 +210,6 @@ export const editionSchema = z.object({
   /** A wide picture across the top of the edition's page, standing in for the cards. */
   banner: imageSchema.nullable().default(null),
   cardCount: editionSizeSchema,
-  cadence: cadenceSchema,
   /** For the whole set. */
   priceCents: centsSchema,
   currency: z.string().length(3),
@@ -229,7 +230,6 @@ export const editionSummarySchema = editionSchema.pick({
   banner: true,
 
   cardCount: true,
-  cadence: true,
   priceCents: true,
   currency: true,
   status: true,
@@ -253,7 +253,6 @@ export const editionInputSchema = z.object({
   description: z.string().max(10_000).default(""),
   banner: imageSchema.nullable().default(null),
   cardCount: editionSizeSchema,
-  cadence: cadenceSchema,
   priceCents: centsSchema.min(50, "Stripe cannot charge less than 50 cents."),
   inGallery: z.boolean().default(true),
 });
@@ -377,10 +376,12 @@ export const collectionSchema = z.object({
   paidAt: z.number().int().nullable(),
 });
 
-/** Collect an edition: which one, where to mail it, and optionally when to start. The price is never sent. */
+/** Collect an edition: which one, where to mail it, how often, and optionally when to start. The price is never sent. */
 export const collectInputSchema = z.object({
   editionId: z.string().min(1),
   address: recipientSchema,
+  /** How often the cards come. Left out, one a month. */
+  cadence: cadenceSchema.default("monthly"),
   /** The first card's day. Left out, it is the next 1st or 15th. */
   startDate: mailDateSchema.optional(),
 });

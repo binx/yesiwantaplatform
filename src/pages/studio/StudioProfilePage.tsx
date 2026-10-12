@@ -251,7 +251,7 @@ export function StudioNewPage() {
       <h1>Open a studio</h1>
       <p style={{ maxWidth: "40rem" }}>
         You get a page at your own address. On it you sell editions: sets of 6 or 12 postcards — photos you took, each with a note — that collectors buy once
-        and receive one by one, once or twice a month. We print and mail every card. After printing and a small fee, the rest is yours.
+        and receive one by one, once or twice a month as they choose. We print and mail every card. After printing and a small fee, the rest is yours.
       </p>
       <p style={{ maxWidth: "40rem" }}>Your page starts as a draft. Nobody sees it until you put an edition on sale and go live.</p>
       <ProfileForm

@@ -52,7 +52,7 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-decoration: none;
-  color: var(--beluga-muted);
+  color: var(--beluga-ink);
   padding-bottom: 2px;
   border-bottom: 1px solid transparent;
 }

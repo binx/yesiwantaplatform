@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { storeSchema, defaultHero } from "@shared/schema";
 import { demoStore } from "@shared/demo-store";
-import { renderWithProviders, screen } from "@/test-utils";
+import { renderWithProviders, screen, within } from "@/test-utils";
 import { LandingPage } from "./LandingPage";
 
 vi.mock("@/lib/platform", async (importOriginal) => {
@@ -44,7 +44,7 @@ describe("the landing page", () => {
     const nav = screen.getByRole("navigation", { name: "Main" });
     expect(nav).toContainElement(screen.getByRole("link", { name: "Artists" }));
     expect(nav).toContainElement(screen.getByRole("link", { name: "Gallery" }));
-    expect(nav).toContainElement(screen.getByRole("link", { name: "For artists" }));
+    expect(within(nav).getByRole("link", { name: "Open a studio" })).toHaveAttribute("href", "/for-artists");
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/account/login");
   });
 

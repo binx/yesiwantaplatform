@@ -118,14 +118,13 @@ for (const { name, context } of dialects) {
     }
 
     /** A draft edition of six with every card in place, ready to go on sale. */
-    async function edition(artistId: string, overrides: Partial<{ slug: string; cadence: "monthly" | "twice_monthly" }> = {}) {
+    async function edition(artistId: string, overrides: Partial<{ slug: string }> = {}) {
       const created = await db.editions.createEdition(artistId, {
         slug: overrides.slug ?? `set-${randomUUID().slice(0, 8)}`,
         title: "Birds",
         description: "",
         banner: null,
         cardCount: 6,
-        cadence: overrides.cadence ?? "monthly",
         priceCents: 3000,
         inGallery: true,
       });
@@ -147,7 +146,7 @@ for (const { name, context } of dialects) {
         priceCents: set.edition.priceCents,
         currency: "USD",
         cardCount: set.edition.cardCount,
-        cadence: set.edition.cadence,
+        cadence: "monthly",
         startDate,
         address,
       });
@@ -232,10 +231,10 @@ for (const { name, context } of dialects) {
     it("keeps a draft's cards in order, and fixes them once it is on sale", async () => {
       const a = await artist();
       const set = await edition(a.id, { slug: "birds" });
-      expect(set.edition).toMatchObject({ status: "draft", cardCount: 6, cadence: "monthly", inGallery: true });
+      expect(set.edition).toMatchObject({ status: "draft", cardCount: 6, inGallery: true });
       expect(set.cards.map((c) => c.position)).toEqual([1, 2, 3, 4, 5, 6]);
       expect(set.cards.map((c) => c.designId)).toEqual(set.designs.map((d) => d.id));
-      await expect(db.editions.createEdition(a.id, { slug: "birds", title: "Again", description: "", banner: null, cardCount: 6, cadence: "monthly", priceCents: 3000, inGallery: true })).rejects.toThrow(/already have an edition/);
+      await expect(db.editions.createEdition(a.id, { slug: "birds", title: "Again", description: "", banner: null, cardCount: 6, priceCents: 3000, inGallery: true })).rejects.toThrow(/already have an edition/);
       expect(await db.designs.designIsUsed(set.designs[0]!.id)).toBe(true);
       expect(await db.designs.designIsLocked(set.designs[0]!.id)).toBe(false);
 
@@ -249,7 +248,7 @@ for (const { name, context } of dialects) {
       expect(await db.designs.designIsLocked(set.designs[0]!.id)).toBe(true);
       // On sale: the cards and the numbers hold; the words still change.
       expect(await db.editions.replaceEditionCards(set.edition.id, [])).toBe(false);
-      expect(await db.editions.updateDraftEdition(set.edition.id, a.id, { slug: "birds", title: "Birds", description: "", banner: null, cardCount: 12, cadence: "monthly", priceCents: 1, inGallery: true })).toBe(false);
+      expect(await db.editions.updateDraftEdition(set.edition.id, a.id, { slug: "birds", title: "Birds", description: "", banner: null, cardCount: 12, priceCents: 1, inGallery: true })).toBe(false);
       const banner = { path: "artists-x/birds.webp", width: 900, height: 300, alt: "Birds on a wire", widths: [] };
       expect(await db.editions.updateEditionWords(set.edition.id, a.id, { title: "Birds of Marfa", description: "*Hi*", banner, inGallery: false })).toBe(true);
       expect(await db.editions.getEdition(set.edition.id)).toMatchObject({ title: "Birds of Marfa", priceCents: 3000, inGallery: false, banner });
@@ -259,15 +258,15 @@ for (const { name, context } of dialects) {
 
       // A draft shrunk to fewer cards drops the extra ones.
       const other = await edition(a.id);
-      await db.editions.updateDraftEdition(other.edition.id, a.id, { slug: other.edition.slug, title: "Fewer", description: "", banner: null, cardCount: 6, cadence: "twice_monthly", priceCents: 2400, inGallery: true });
-      expect(await db.editions.getEdition(other.edition.id)).toMatchObject({ cadence: "twice_monthly", priceCents: 2400 });
+      await db.editions.updateDraftEdition(other.edition.id, a.id, { slug: other.edition.slug, title: "Fewer", description: "", banner: null, cardCount: 6, priceCents: 2400, inGallery: true });
+      expect(await db.editions.getEdition(other.edition.id)).toMatchObject({ title: "Fewer", priceCents: 2400 });
       expect(await db.editions.deleteDraftEdition(other.edition.id, randomUUID())).toBe(false);
       expect(await db.editions.deleteDraftEdition(other.edition.id, a.id)).toBe(true);
     });
 
     it("pays a purchase once, writes every card of its run on its day, and moves the cards still to come", async () => {
       const a = await artist();
-      const set = await edition(a.id, { cadence: "twice_monthly" });
+      const set = await edition(a.id);
       const who = await customer("Maya");
       const id = db.purchases.newPurchaseId();
       await db.purchases.createIncompletePurchase({ id, customerId: who, editionId: set.edition.id, artistId: a.id, checkoutSessionId: `cs_${id}`, priceCents: 3000, currency: "USD", cardCount: 6, cadence: "twice_monthly", startDate: "2026-11-05", address: ADDRESS });

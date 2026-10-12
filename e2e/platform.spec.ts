@@ -107,7 +107,7 @@ test("the studio needs a sign-in, then opens a page that goes live once an editi
 
   // Its cards and banner through the API; the designer is covered by the server suite.
   const editionId = page.url().split("/").pop()!;
-  await fillAndSell(page, editionId, { slug: "birds", title: "Birds", description: "Six birds from the **road**.", cardCount: 6, cadence: "monthly", priceCents: 3000 });
+  await fillAndSell(page, editionId, { slug: "birds", title: "Birds", description: "Six birds from the **road**.", cardCount: 6, priceCents: 3000 });
 
   await page.goto("/studio");
   await page.getByRole("button", { name: "Go live" }).click();
@@ -136,7 +136,7 @@ test("collecting asks for an address and a day, shows the schedule, and stops at
   await signIn(apiPage, artistEmail);
   const headers = { "x-csrf-token": await csrfOf(apiPage) };
   expect((await apiPage.request.post("/api/studio", { headers, data: { slug, name: "Live Artist" } })).ok()).toBeTruthy();
-  const edition = { slug: "flowers", title: "Flowers", description: "Six flowers, one a month.", cardCount: 6, cadence: "monthly", priceCents: 3000 };
+  const edition = { slug: "flowers", title: "Flowers", description: "Six flowers from the garden.", cardCount: 6, priceCents: 3000 };
   const created = await apiPage.request.post("/api/studio/editions", { headers, data: edition });
   expect(created.ok()).toBeTruthy();
   const cards = await fillAndSell(apiPage, ((await created.json()) as { id: string }).id, edition);

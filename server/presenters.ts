@@ -7,7 +7,7 @@ import {
   editionSchema,
   editionStudioSchema,
   editionSummarySchema,
-  galleryCardSchema,
+  galleryEditionSchema,
   payoutSchema,
   receivedPostcardSchema,
   type ArtistPublic,
@@ -18,7 +18,7 @@ import {
   type Edition,
   type EditionStudio,
   type EditionSummary,
-  type GalleryCard,
+  type GalleryEdition,
   type Payout,
   type ReceivedPostcard,
 } from "../shared/platform.js";
@@ -34,7 +34,6 @@ import {
   listOnSaleEditionsForArtists,
   type EditionCardRecord,
   type EditionRecord,
-  type GalleryEntry,
 } from "../db/editions-repository.js";
 import { countCollectorsForEditions, type PurchaseRecord } from "../db/purchases-repository.js";
 import type { PayoutRecord } from "../db/payouts-repository.js";
@@ -266,16 +265,18 @@ export async function presentCollectors(purchases: PurchaseRecord[]): Promise<Co
 
 /* ---------------------------------------------------------------- gallery */
 
-export function toGalleryCard(entry: GalleryEntry, design: Design, artist: ArtistRecord): GalleryCard {
-  return galleryCardSchema.parse({
-    editionCardId: entry.card.id,
-    design: toPublicDesign(design, entry.card.title ?? `A postcard by ${artist.name}`),
-    title: entry.card.title,
-    mailDate: new Date(entry.card.firstMailedAt ?? entry.edition.createdAt).toISOString().slice(0, 10),
-    artist: { id: artist.id, slug: artist.slug, name: artist.name },
-    edition: { slug: entry.edition.slug, title: entry.edition.title },
-  });
+/** Editions in the gallery: each one's summary, with the artist who makes it. */
+export async function presentGalleryEditions(editions: EditionRecord[], currency: string): Promise<GalleryEdition[]> {
+  const [collectors, artists] = await Promise.all([
+    countCollectorsForEditions(editions.map((edition) => edition.id)),
+    findArtistsByIds(editions.map((edition) => edition.artistId)),
+  ]);
+  const artistById = new Map(artists.map((artist) => [artist.id, artist]));
+  return editions.map((edition) =>
+    galleryEditionSchema.parse({ ...editionFields(edition, collectors, currency), artist: artistLink(artistById.get(edition.artistId), edition.artistId) }),
+  );
 }
+
 
 /* ------------------------------------------------------- cards, as mailed */
 

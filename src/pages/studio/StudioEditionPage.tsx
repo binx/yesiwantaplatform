@@ -248,9 +248,10 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
       </div>
 
       <Checkbox checked={draft.inGallery} onChange={(e) => set("inGallery", e.target.checked)}>
-        Show its cards in the gallery once they're mailed
+        Show this edition in the gallery while it's on sale
       </Checkbox>
-      {view.artist.visibility === "private" ? <span className={styles.help}>Your page is private, so none of your cards go in the gallery whatever this says.</span> : null}
+      {view.artist.visibility === "private" ? <span className={styles.help}>Your page is private, so none of your editions go in the gallery whatever this says.</span> : null}
+
 
       {error ? <Alert type="error" showIcon title={error} /> : null}
 

@@ -9,7 +9,8 @@ vi.mock("@/lib/platform", async (importOriginal) => {
   return {
     ...actual,
     useArtists: () => ({ data: [], isPending: false }),
-    useGallery: () => ({ data: { pages: [{ cards: [], nextCursor: null }] }, isPending: false }),
+    useGallery: () => ({ data: { pages: [{ editions: [], nextCursor: null }] }, isPending: false }),
+
   };
 });
 

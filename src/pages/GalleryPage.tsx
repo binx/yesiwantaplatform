@@ -1,30 +1,38 @@
+import { Link } from "react-router-dom";
 import { Button, Skeleton } from "antd";
 import { PageWrapper } from "@/components/layout/PageWrapper";
-import { GalleryTile } from "@/components/platform/ArtistTile";
+import { EditionTile } from "@/components/platform/ArtistTile";
 import { useGallery } from "@/lib/platform";
 import { useStore } from "@/lib/useStore";
 import platform from "@/components/platform/Platform.module.css";
 
-/** What recently went out in the post, newest first, a page at a time. Each card appears once, from the day it first went. */
+/**
+ * Every edition on sale, newest first, a page at a time. Never the cards:
+ * what arrives is the surprise, and this is where you pick whose.
+ */
 export function GalleryPage() {
   const store = useStore();
   const gallery = useGallery(24);
-  const cards = gallery.data?.pages.flatMap((page) => page.cards) ?? [];
+  const editions = gallery.data?.pages.flatMap((page) => page.editions) ?? [];
 
   return (
     <PageWrapper width="wide">
       <h1>Gallery</h1>
-      <p>Postcards recently mailed to collectors. The card in the letterbox is the real thing; this is the echo.</p>
+      <p>Editions of postcards you can collect right now. You choose the artist; what lands in the letterbox is up to them.</p>
 
       {gallery.isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />
-      ) : cards.length === 0 ? (
-        <p className={platform.empty}>Nothing has been mailed yet.</p>
+      ) : gallery.isError ? (
+        <p className={platform.empty}>The gallery could not be loaded. Try again in a moment.</p>
+      ) : editions.length === 0 ? (
+        <p className={platform.empty}>
+          Nothing is on sale yet. <Link to="/for-artists">Are you an artist?</Link>
+        </p>
       ) : (
         <>
-          <div className={platform.galleryGrid}>
-            {cards.map((card) => (
-              <GalleryTile key={card.editionCardId} card={card} locale={store.locale} />
+          <div className={platform.grid}>
+            {editions.map((edition) => (
+              <EditionTile key={edition.id} edition={edition} artist={edition.artist} locale={store.locale} />
             ))}
           </div>
           {gallery.hasNextPage ? (

@@ -5,7 +5,7 @@ import { formatMoney } from "@shared/money";
 import { PITCH_LINES } from "@shared/copy";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { useSiteLinks } from "@/components/layout/siteLinks";
-import { ArtistTile, GalleryTile } from "@/components/platform/ArtistTile";
+import { ArtistTile, EditionTile } from "@/components/platform/ArtistTile";
 import { useArtists, useGallery } from "@/lib/platform";
 import { useStore } from "@/lib/useStore";
 import { useCustomer } from "@/lib/account";
@@ -94,7 +94,7 @@ function PostcardField() {
 
 /**
  * The front page: yesiwantapostcard.com's pitch, with the artists you can
- * say yes to under it, and what recently went out in the post. The parts the
+ * say yes to under it, and the editions on sale right now. The parts the
  * operator can edit are read from settings; the price floor is never typed
  * into prose — it is the same setting the studio enforces.
  *
@@ -109,7 +109,7 @@ export function LandingPage() {
   const customer = useCustomer();
   const { links, accountHref, accountLabel } = useSiteLinks();
   const floor = formatMoney(store.pricing.minCardPriceCents, store.currency, store.locale);
-  const recent = gallery.data?.pages[0]?.cards ?? [];
+  const onSale = gallery.data?.pages[0]?.editions ?? [];
   const featured = (artists.data ?? []).slice(0, 6);
 
   return (
@@ -220,19 +220,20 @@ export function LandingPage() {
           </div>
         </section>
 
-        {recent.length > 0 ? (
+        {onSale.length > 0 ? (
           <>
             <div className={platform.sectionHeading}>
-              <h2>Recently in the post</h2>
+              <h2>On sale now</h2>
               <Link to="/gallery">The gallery</Link>
             </div>
-            <div className={platform.galleryGrid}>
-              {recent.map((card) => (
-                <GalleryTile key={card.editionCardId} card={card} locale={store.locale} />
+            <div className={platform.grid}>
+              {onSale.map((edition) => (
+                <EditionTile key={edition.id} edition={edition} artist={edition.artist} locale={store.locale} />
               ))}
             </div>
           </>
         ) : null}
+
       </PageWrapper>
     </>
   );

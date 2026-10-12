@@ -208,10 +208,16 @@ describe("an artist makes an edition", () => {
     expect((await agent.put(`/api/studio/designs/${designIds[0]}`).set("x-csrf-token", csrf).send({ text: "changed" })).status).toBe(409);
     expect((await agent.delete(`/api/studio/designs/${designIds[0]}`).set("x-csrf-token", csrf)).status).toBe(409);
 
+    // On sale, but the artist is still a draft: the gallery has nothing to show yet.
+    expect((await request(app).get("/api/gallery").expect(200)).body).toEqual({ editions: [], nextCursor: null });
+
     const live = await agent.post("/api/studio/status").set("x-csrf-token", csrf).send({ status: "live" }).expect(200);
     expect(live.body.artist.status).toBe("live");
 
-    // Now public: the page lists the edition, the edition shows its cards.
+    // Now public: the gallery lists the edition with its artist, and the page lists the edition.
+    const gallery = await request(app).get("/api/gallery").expect(200);
+    expect(gallery.body.editions).toEqual([expect.objectContaining({ slug: "birds", title: "Birds of Marfa", priceCents: 3000, artist: expect.objectContaining({ slug: "rachel", name: "Rachel" }) })]);
+    expect(JSON.stringify(gallery.body)).not.toContain(designIds[0]!);
     const page = await request(app).get("/api/artists/rachel").expect(200);
     expect(page.body.artist.bioHtml).toContain("<strong>Hi.</strong>");
     expect(page.body.artist.collectorCount).toBe(0);
@@ -223,6 +229,7 @@ describe("an artist makes an edition", () => {
     expect(shown.body.edition.cards).toBeUndefined();
     expect(JSON.stringify(shown.body)).not.toContain(designIds[1]!);
     expect(JSON.stringify(page.body)).not.toContain(designIds[1]!);
+    expect(page.body.recent).toBeUndefined();
     await request(app).get("/api/artists/rachel/editions/nope").expect(404);
     const listed = (await request(app).get("/api/artists").expect(200)).body as { slug: string; fromPriceCents: number; editionCount: number }[];
     expect(listed).toEqual([expect.objectContaining({ slug: "rachel", fromPriceCents: 3000, editionCount: 1 })]);
@@ -369,26 +376,28 @@ describe("the first card's day", () => {
     const collections = await fan.agent.get("/api/account/collections").expect(200);
     expect(collections.body[0]).toMatchObject({ sentCount: 1, nextMailDate: schedule[1] });
 
-    // The gallery shows the card that went, and only that one.
-    const gallery = await request(app).get("/api/gallery").expect(200);
-    expect(gallery.body.cards).toEqual([expect.objectContaining({ title: "The road", artist: expect.objectContaining({ slug: "rachel" }), edition: { slug: "birds", title: "Birds of Marfa" } })]);
+    // The card that went stays a surprise to everyone else: neither the artist's page nor the gallery shows it.
+    const page = await request(app).get("/api/artists/rachel").expect(200);
+    expect(JSON.stringify(page.body)).not.toContain("The road");
+    expect(JSON.stringify((await request(app).get("/api/gallery").expect(200)).body)).not.toContain("The road");
   });
 
-  it("keeps a private artist's cards out of the gallery, but not off their own page", async () => {
+  it("keeps a private artist's editions out of the gallery, but not off their own page", async () => {
     const { agent, csrf } = await signIn("artist@example.com");
     const profile = { slug: "rachel", name: "Rachel", tagline: "photos from the road", bio: "**Hi.**" };
 
     const hidden = await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ ...profile, visibility: "private" }).expect(200);
     expect(hidden.body.artist.visibility).toBe("private");
 
-    expect((await request(app).get("/api/gallery").expect(200)).body.cards).toEqual([]);
+    expect((await request(app).get("/api/gallery").expect(200)).body.editions).toEqual([]);
     const page = await request(app).get("/api/artists/rachel").expect(200);
     expect(page.body.artist.status).toBe("live");
-    expect(page.body.recent).toHaveLength(1);
+    expect(page.body.editions).toHaveLength(1);
 
     await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ ...profile, visibility: "public" }).expect(200);
-    expect((await request(app).get("/api/gallery").expect(200)).body.cards).toHaveLength(1);
+    expect((await request(app).get("/api/gallery").expect(200)).body.editions).toHaveLength(1);
   });
+
 
   it("records the card's share of the price in the ledger the moment Lob accepts it", async () => {
     const artist = await signIn("artist@example.com");

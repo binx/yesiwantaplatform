@@ -74,11 +74,10 @@ export const artistStatusSchema = z.enum(["draft", "live", "paused"]);
 export type ArtistStatus = z.infer<typeof artistStatusSchema>;
 
 /**
- * Whether the artist's mailed cards join the shared gallery.
+ * Whether the artist's editions join the shared gallery.
  *
- *   public   each card they mail can appear in "recently in the post"
- *   private  their cards are only ever on their own page and in their
- *            collectors' letterboxes
+ *   public   each edition they put on sale can appear in the gallery
+ *   private  their editions are only ever on their own page
  *
  * Independent of `status`: a private artist is still listed and collectable.
  */
@@ -214,6 +213,7 @@ export const editionSchema = z.object({
   priceCents: centsSchema,
   currency: z.string().length(3),
   status: editionStatusSchema,
+  /** Whether it is shown in the shared gallery while on sale. */
   inGallery: z.boolean(),
   /** Paid purchases, all time. */
   collectorCount: z.number().int().min(0),
@@ -410,23 +410,23 @@ export type Collector = z.infer<typeof collectorSchema>;
 
 /* ---------------------------------------------------------------- gallery */
 
-/** One card in the public gallery: what was mailed, from which edition, by whom, when it first went. */
-export const galleryCardSchema = z.object({
-  editionCardId: z.string(),
-  design: postcardDesignSchema,
-  title: z.string().nullable(),
-  mailDate: mailDateSchema,
-  artist: artistSummarySchema.pick({ id: true, slug: true, name: true }),
-  edition: z.object({ slug: z.string(), title: z.string() }),
+/**
+ * One edition in the public gallery: the edition, and who makes it. Never a
+ * card — the cards are the surprise, and the gallery is where a visitor
+ * picks whose surprises they want.
+ */
+export const galleryEditionSchema = editionSummarySchema.extend({
+  artist: artistSummarySchema.pick({ id: true, slug: true, name: true, avatar: true }),
 });
 
 export const galleryPageSchema = z.object({
-  cards: z.array(galleryCardSchema),
+  editions: z.array(galleryEditionSchema),
   nextCursor: z.string().nullable(),
 });
 
-export type GalleryCard = z.infer<typeof galleryCardSchema>;
+export type GalleryEdition = z.infer<typeof galleryEditionSchema>;
 export type GalleryPage = z.infer<typeof galleryPageSchema>;
+
 
 /* ---------------------------------------------------------------- payouts */
 

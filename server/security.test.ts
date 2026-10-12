@@ -169,7 +169,8 @@ describe("anonymous access", () => {
     expect(list.body).toEqual([]);
     await request(app).get("/api/artists/rachel").expect(404);
     const gallery = await request(app).get("/api/gallery").expect(200);
-    expect(gallery.body).toEqual({ cards: [], nextCursor: null });
+    expect(gallery.body).toEqual({ editions: [], nextCursor: null });
+
   });
 });
 

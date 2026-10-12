@@ -1,14 +1,11 @@
 import { Link, useParams } from "react-router-dom";
-import { Alert, Button, Skeleton, Tag } from "antd";
-import { formatMoney } from "@shared/money";
-import { artistLinkLabel, editionPath, type EditionSummary } from "@shared/platform";
+import { Alert, Button, Skeleton } from "antd";
+import { artistLinkLabel } from "@shared/platform";
 import { PageWrapper } from "@/components/layout/PageWrapper";
-import { GalleryTile } from "@/components/platform/ArtistTile";
-import { ProductImage } from "@/components/ui/ProductImage";
+import { EditionTile } from "@/components/platform/ArtistTile";
 import { ApiError } from "@/lib/api";
 import { useArtist } from "@/lib/platform";
 import { useCustomer } from "@/lib/account";
-import { editionShape } from "@/lib/postcards";
 import { useStore } from "@/lib/useStore";
 import { assetUrl } from "@/lib/store-source";
 import { cx } from "@/lib/cx";
@@ -17,8 +14,8 @@ import styles from "@/components/platform/Platform.module.css";
 import pageStyles from "./PagePage.module.css";
 
 /**
- * An artist's page: who they are, where else to find them, the editions
- * they make, and what they have sent.
+ * An artist's page: who they are, where else to find them, and the editions
+ * they make. Never what they have sent: the cards are the surprise.
  *
  * The bio arrived as sanitised HTML from the server — the same allow-list a
  * site page gets — so it is rendered the same way a page is. The links are
@@ -51,7 +48,7 @@ export function ArtistPage() {
     );
   }
 
-  const { artist, editions, recent } = page.data;
+  const { artist, editions } = page.data;
   const isOwner = customer.data?.artistSlug === artist.slug;
 
   return (
@@ -103,20 +100,7 @@ export function ArtistPage() {
       ) : (
         <div className={styles.grid}>
           {editions.map((edition) => (
-            <EditionTile key={edition.id} artistSlug={artist.slug} edition={edition} locale={store.locale} />
-          ))}
-        </div>
-      )}
-
-      <div className={styles.sectionHeading}>
-        <h2>Recently mailed</h2>
-      </div>
-      {recent.length === 0 ? (
-        <p className={styles.empty}>Nothing has gone out yet. The first card is coming.</p>
-      ) : (
-        <div className={styles.galleryGrid}>
-          {recent.map((card) => (
-            <GalleryTile key={card.editionCardId} card={card} locale={store.locale} showArtist={false} />
+            <EditionTile key={edition.id} edition={edition} artist={{ slug: artist.slug }} locale={store.locale} />
           ))}
         </div>
       )}
@@ -124,27 +108,3 @@ export function ArtistPage() {
   );
 }
 
-/**
- * One edition in the artist's list: its banner, its name, its shape and its
- * price. The whole tile is the link. No banner, no picture: the cards are a
- * surprise, so there is nothing else to show.
- */
-function EditionTile({ artistSlug, edition, locale }: { artistSlug: string; edition: EditionSummary; locale: string }) {
-  return (
-    <Link to={editionPath(artistSlug, edition.slug)} className={cx(styles.tile, !edition.banner && styles.tilePlain)}>
-      {edition.banner ? (
-        <div className={styles.tileImage}>
-          <ProductImage image={edition.banner} ratio={3} sizes="(max-width: 800px) 100vw, 33vw" decorative />
-        </div>
-      ) : null}
-      <div className={styles.tileBody}>
-        <p className={styles.tileName}>
-          {edition.title} {edition.status === "closed" ? <Tag className={cx(styles.closedTag)}>Closed</Tag> : null}
-        </p>
-        <p className={styles.tileMeta}>
-          {editionShape(edition.cardCount, edition.cadence)} · <strong>{formatMoney(edition.priceCents, edition.currency, locale)}</strong>
-        </p>
-      </div>
-    </Link>
-  );
-}

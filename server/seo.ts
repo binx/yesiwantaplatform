@@ -101,7 +101,8 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
     }
 
     if (path === "/gallery") {
-      return { ...fallback, description: truncate("Postcards recently mailed to collectors, by the artists who made them.") };
+      return { ...fallback, description: truncate("Editions of postcards you can collect right now, by the artists who make them.") };
+
     }
 
     if (path === "/for-artists") {

@@ -316,7 +316,8 @@ for (const { name, context } of dialects) {
       expect(await db.purchases.deleteIncompletePurchase(id)).toBe(false);
     });
 
-    it("sends what is due, and the first copy of each card puts it in the gallery", async () => {
+    it("sends what is due, and the first copy of each card marks it mailed", async () => {
+
       const a = await artist();
       const set = await edition(a.id);
       const grandma = await paidPurchase(set, ADDRESS, "2026-10-15");
@@ -336,8 +337,7 @@ for (const { name, context } of dialects) {
 
       expect((await db.artists.countForArtists([a.id])).get(a.id)).toEqual({ collectors: 2, mailed: 1 });
       expect((await db.editions.latestMailedDesignIds([a.id])).get(a.id)).toBe(set.cards[0]!.designId);
-      const gallery = await db.editions.listGalleryCards({ artistId: a.id, limit: 10 });
-      expect(gallery.entries.map((e) => e.card.id)).toEqual([set.cards[0]!.id]);
+
 
       // The collector sees the card that went, and only that one.
       const received = await db.postcards.listPostcardsForCustomer(grandma.customerId);

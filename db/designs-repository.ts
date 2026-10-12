@@ -16,9 +16,9 @@ import { affectedRows, jsonFor, parseJson, toCount, toEpochMs } from "./reposito
  *
  * A design belongs to one artist and may be a card in any of their
  * editions; once an edition is on sale its cards are fixed, and once mailed a
- * design is kept forever, because it is what the gallery and every
- * collector's account show. Deleting is allowed only while nothing refers to
- * it.
+ * design is kept forever, because it is what every collector's account
+ * shows. Deleting is allowed only while nothing refers to it.
+
  */
 
 export interface DesignRow {

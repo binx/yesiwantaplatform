@@ -88,16 +88,16 @@ export function StudioOverviewPage() {
         <h2>{artist.status === "live" ? "You're live" : artist.status === "paused" ? "You're paused" : "Ready to go live?"}</h2>
         <p className={styles.note}>
           {artist.status === "live"
-            ? "Anyone can collect your editions on sale."
+            ? `Pausing takes you out of the directory and stops new collectors. Your page stays up at its address. ${KEEPS_EVERY_CARD} You're paid for each one as it's mailed, and you can go live again whenever you like.`
             : artist.status === "paused"
-              ? `Nobody new can collect. ${KEEPS_EVERY_CARD}`
+              ? `You're out of the directory and nobody new can collect. ${KEEPS_EVERY_CARD} You're paid for each one as it's mailed.`
               : onSale === 0
                 ? "Going live needs an edition on sale, so your first visitor has something to collect."
                 : "Your page goes public and your editions on sale can be collected."}
         </p>
         <div className={styles.actions}>
           {artist.status === "live" ? (
-            <Popconfirm title="Pause new collectors?" description={KEEPS_EVERY_CARD} onConfirm={() => setStatus.mutate("paused", { onError: fail })}>
+            <Popconfirm title="Pause new collectors?" onConfirm={() => setStatus.mutate("paused", { onError: fail })}>
               <Button loading={setStatus.isPending}>Pause</Button>
             </Popconfirm>
           ) : (
@@ -121,12 +121,7 @@ export function StudioOverviewPage() {
           </p>
         ) : artist.hasStripeAccount ? (
           <p className={styles.note}>You started setting up Stripe but it isn't finished. Your earnings wait here until it is.</p>
-        ) : (
-          <p className={styles.note}>
-            To be paid, connect a Stripe account. It takes a few minutes: Stripe asks who you are and where to send the money. Your earnings accrue
-            meanwhile.
-          </p>
-        )}
+        ) : null}
         <div className={styles.actions}>
           {!artist.payoutsEnabled ? (
             <Button

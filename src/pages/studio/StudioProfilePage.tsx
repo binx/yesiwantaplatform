@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import { Alert, App, Button, Input, Radio, Upload } from "antd";
-import { DeleteOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
-import { artistProfileInputSchema, MAX_ARTIST_LINKS, type ArtistLink, type ArtistProfileInput, type ArtistVisibility } from "@shared/platform";
+import { CameraOutlined, DeleteOutlined, PlusOutlined, UploadOutlined, UserOutlined } from "@ant-design/icons";
+import { artistLinkLabel, artistProfileInputSchema, MAX_ARTIST_LINKS, type ArtistLink, type ArtistProfileInput, type ArtistVisibility } from "@shared/platform";
 import type { Image } from "@shared/schema";
 import { useCreateArtist, useSlugAvailable, useUpdateProfile, useUploadAvatar, useUploadBanner, type StudioView } from "@/lib/platform";
 import { useCustomer } from "@/lib/account";
@@ -31,8 +31,10 @@ function slugify(value: string): string {
 }
 
 /**
- * The page's own form: URL, name, the story, the pictures (the banner is
- * not optional: a page always has one), and where else to find them. Prices live on editions, not here.
+ * The page's own form, laid out like the page: the banner and the photo
+ * first, as they will look, with the name and address beside them, then
+ * the words, the links and the gallery switch in sections. The banner is
+ * not optional: a page always has one. Prices live on editions, not here.
  *
  * Shared by "open a studio" (create) and "your profile" (edit): the fields
  * are the same, the only difference is which route gets the result.
@@ -82,150 +84,203 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
     });
   };
 
+  const Heading = mode === "create" ? "h2" : "h3";
+  const host = window.location.host;
+  const shownLinks = draft.links.filter((link) => link.url.trim() !== "" || link.label.trim() !== "");
+
   return (
-    <div className={styles.form}>
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor="artist-name">
-          Your name, as it prints on the card
-        </label>
-        <Input
-          id="artist-name"
-          value={draft.name}
-          maxLength={80}
-          onChange={(e) => {
-            set("name", e.target.value);
-            if (!slugTouched) set("slug", slugify(e.target.value));
-          }}
-        />
-      </div>
-
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor="artist-slug">
-          Your studio URL
-        </label>
-        <Input
-          id="artist-slug"
-          prefix={<span className={styles.slugPreview}>{`${window.location.host}/artist/`}</span>}
-          value={draft.slug}
-          maxLength={40}
-          onChange={(e) => {
-            setSlugTouched(true);
-            set("slug", slugify(e.target.value));
-          }}
-        />
-        <span className={styles.help}>
-          {draft.slug.length < 3 ? "At least 3 characters: letters, numbers and hyphens." : slugCheck.data?.available === false ? <span className={styles.error}>That URL is taken.</span> : slugCheck.data?.available ? "Available." : "Lowercase letters, numbers and hyphens."}
-          {mode === "edit" ? " Changing it breaks links people have shared." : ""}
-        </span>
-      </div>
-
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor="artist-bio">
-          About you
-        </label>
-        <Input.TextArea id="artist-bio" value={draft.bio} autoSize={{ minRows: 6 }} maxLength={10_000} placeholder="Who you are, what you make, why postcards. Markdown works." onChange={(e) => set("bio", e.target.value)} />
-        <span className={styles.help}>Markdown: **bold**, _italics_, links, headings. Rendered on your page under your name.</span>
-      </div>
-
-      <div className={styles.field}>
-        <span className={styles.label} id="artist-visibility-label">
-          In the gallery
-        </span>
-        <Radio.Group
-          aria-labelledby="artist-visibility-label"
-          value={draft.visibility}
-          onChange={(e) => set("visibility", e.target.value as ArtistVisibility)}
-          options={[
-            { value: "public", label: "Yes" },
-            { value: "private", label: "No" },
-          ]}
-        />
-        <span className={styles.help}>
-          {draft.visibility === "public"
-            ? "Your editions on sale appear in the site's gallery, with your name on them."
-            : "Your editions show only on your own page, never in the site's gallery. People find you by your URL."}
-
-        </span>
-      </div>
-
-      <div className={styles.field}>
-        <span className={styles.label}>Photo of you (optional)</span>
-        <div className={styles.avatarRow}>
-          {draft.avatar ? <img className={styles.avatarPreview} src={assetUrl(draft.avatar.path)} alt="" /> : <div className={styles.avatarPreview} aria-hidden />}
-          <Upload
-            accept="image/*"
-            showUploadList={false}
-            beforeUpload={(file) => {
-              uploadAvatar.mutate({ file, alt: draft.name }, { onSuccess: (image) => set("avatar", image), onError: () => void message.error("That image could not be uploaded.") });
-              return Upload.LIST_IGNORE;
-            }}
-          >
-            <Button icon={<UploadOutlined />} loading={uploadAvatar.isPending}>
-              {draft.avatar ? "Replace" : "Upload"}
-            </Button>
-          </Upload>
+    <div className={styles.profile}>
+      {/* The page as it will look: the banner, the photo over its edge, the name and address beside it. */}
+      <div className={styles.hero}>
+        <div className={styles.heroBanner}>
+          {draft.banner ? (
+            <img src={assetUrl(draft.banner.path)} alt="" />
+          ) : (
+            <div className={styles.heroBannerEmpty}>
+              <span>A banner goes here. Wide works best: it is shown about three times as wide as it is tall.</span>
+            </div>
+          )}
+          <div className={styles.heroBannerActions}>
+            <Upload
+              accept="image/*"
+              showUploadList={false}
+              beforeUpload={(file) => {
+                uploadBanner.mutate({ file, alt: "" }, { onSuccess: (image) => set("banner", image), onError: () => void message.error("That image could not be uploaded.") });
+                return Upload.LIST_IGNORE;
+              }}
+            >
+              <Button size="small" icon={<UploadOutlined />} loading={uploadBanner.isPending}>
+                {draft.banner ? "Replace banner" : "Upload a banner"}
+              </Button>
+            </Upload>
+          </div>
+        </div>
+        <div className={styles.heroBody}>
+          <div className={styles.heroAvatar}>
+            {draft.avatar ? (
+              <img src={assetUrl(draft.avatar.path)} alt="" />
+            ) : (
+              <div className={styles.heroAvatarEmpty} aria-hidden>
+                <UserOutlined />
+              </div>
+            )}
+            <div className={styles.heroAvatarButton}>
+              <Upload
+                accept="image/*"
+                showUploadList={false}
+                beforeUpload={(file) => {
+                  uploadAvatar.mutate({ file, alt: draft.name }, { onSuccess: (image) => set("avatar", image), onError: () => void message.error("That image could not be uploaded.") });
+                  return Upload.LIST_IGNORE;
+                }}
+              >
+                <Button shape="circle" icon={<CameraOutlined />} loading={uploadAvatar.isPending} aria-label={draft.avatar ? "Replace your photo" : "Add a photo of you"} title={draft.avatar ? "Replace your photo" : "Add a photo of you"} />
+              </Upload>
+            </div>
+          </div>
+          <div className={styles.heroIdentity}>
+            <p className={cx(styles.heroName, draft.name.trim() === "" && styles.heroPlaceholder)}>{draft.name.trim() || "Your name"}</p>
+            <p className={styles.heroUrl}>
+              {host}/artist/{draft.slug || "…"}
+            </p>
+            {shownLinks.length > 0 ? (
+              <ul className={styles.heroLinks} aria-label="Your links, as they will show">
+                {shownLinks.map((link, index) => (
+                  <li key={index}>{artistLinkLabel(link) || "…"}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
           {draft.avatar ? (
-            <Button type="link" size="small" onClick={() => set("avatar", null)}>
-              Remove
+            <Button type="link" size="small" className={cx(styles.heroRemovePhoto)} onClick={() => set("avatar", null)}>
+              Remove photo
             </Button>
           ) : null}
         </div>
       </div>
 
-      <div className={styles.field}>
-        <span className={styles.label} id="artist-banner-label">
-          Banner across the top of your page
-        </span>
-        {draft.banner ? <img className={styles.bannerPreview} src={assetUrl(draft.banner.path)} alt="" /> : <div className={cx(styles.bannerPreview, styles.bannerEmpty)} aria-hidden />}
-        <div className={styles.avatarRow}>
-          <Upload
-            accept="image/*"
-            showUploadList={false}
-            beforeUpload={(file) => {
-              uploadBanner.mutate({ file, alt: "" }, { onSuccess: (image) => set("banner", image), onError: () => void message.error("That image could not be uploaded.") });
-              return Upload.LIST_IGNORE;
-            }}
-          >
-            <Button icon={<UploadOutlined />} loading={uploadBanner.isPending} aria-describedby="artist-banner-label">
-              {draft.banner ? "Replace banner" : "Upload a banner"}
-            </Button>
-          </Upload>
-          <span className={styles.help}>Required. Wide works best: it is shown about three times as wide as it is tall.</span>
+      <section className={styles.section}>
+        <div className={styles.sectionIntro}>
+          <Heading id="profile-identity">Name and address</Heading>
+          <p>The name prints on every card. The address is where your page lives.</p>
         </div>
-      </div>
+        <div className={styles.sectionFields}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="artist-name">
+              Your name, as it prints on the card
+            </label>
+            <Input
+              id="artist-name"
+              size="large"
+              value={draft.name}
+              maxLength={80}
+              onChange={(e) => {
+                set("name", e.target.value);
+                if (!slugTouched) set("slug", slugify(e.target.value));
+              }}
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="artist-slug">
+              Your studio URL
+            </label>
+            <Input
+              id="artist-slug"
+              prefix={<span className={styles.slugPreview}>{`${host}/artist/`}</span>}
+              value={draft.slug}
+              maxLength={40}
+              onChange={(e) => {
+                setSlugTouched(true);
+                set("slug", slugify(e.target.value));
+              }}
+            />
+            <span className={styles.help}>
+              {draft.slug.length < 3 ? "At least 3 characters: letters, numbers and hyphens." : slugCheck.data?.available === false ? <span className={styles.error}>That URL is taken.</span> : slugCheck.data?.available ? "Available." : "Lowercase letters, numbers and hyphens."}
+              {mode === "edit" ? " Changing it breaks links people have shared." : ""}
+            </span>
+          </div>
+        </div>
+      </section>
 
-      <div className={styles.field}>
-        <span className={styles.label}>Where else to find you (optional)</span>
-        {draft.links.length > 0 ? (
-          <ul className={styles.linkList}>
-            {draft.links.map((link, index) => (
-              <li key={index} className={styles.linkRow}>
-                <Input aria-label={`Link ${index + 1} label`} placeholder="Instagram, website, shop…" maxLength={40} value={link.label} onChange={(e) => setLink(index, { label: e.target.value })} className={styles.linkLabel} />
-                <Input aria-label={`Link ${index + 1} URL`} placeholder="https://" inputMode="url" maxLength={500} value={link.url} onChange={(e) => setLink(index, { url: e.target.value })} />
-                <Button aria-label={`Remove link ${index + 1}`} icon={<DeleteOutlined />} onClick={() => removeLink(index)} />
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        <div>
-          <Button icon={<PlusOutlined />} disabled={draft.links.length >= MAX_ARTIST_LINKS} onClick={addLink}>
-            Add a link
+      <section className={styles.section}>
+        <div className={styles.sectionIntro}>
+          <Heading id="profile-about">About you</Heading>
+          <p>Shown on your page under your name.</p>
+        </div>
+        <div className={styles.sectionFields}>
+          <div className={styles.field}>
+            <label className="sr-only" htmlFor="artist-bio">
+              About you
+            </label>
+            <Input.TextArea id="artist-bio" value={draft.bio} autoSize={{ minRows: 6 }} maxLength={10_000} placeholder="Who you are, what you make, why postcards." onChange={(e) => set("bio", e.target.value)} />
+            <span className={styles.help}>Markdown works: **bold**, _italics_, links, headings.</span>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.section}>
+        <div className={styles.sectionIntro}>
+          <Heading id="profile-links">Where else to find you</Heading>
+          <p>Your website, your shop, your accounts. Optional.</p>
+        </div>
+        <div className={styles.sectionFields}>
+          {draft.links.length > 0 ? (
+            <ul className={styles.linkList}>
+              {draft.links.map((link, index) => (
+                <li key={index} className={styles.linkRow}>
+                  <Input aria-label={`Link ${index + 1} label`} placeholder="Instagram, website, shop…" maxLength={40} value={link.label} onChange={(e) => setLink(index, { label: e.target.value })} className={styles.linkLabel} />
+                  <Input aria-label={`Link ${index + 1} URL`} placeholder="https://" inputMode="url" maxLength={500} value={link.url} onChange={(e) => setLink(index, { url: e.target.value })} />
+                  <Button aria-label={`Remove link ${index + 1}`} icon={<DeleteOutlined />} onClick={() => removeLink(index)} />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div>
+            <Button icon={<PlusOutlined />} disabled={draft.links.length >= MAX_ARTIST_LINKS} onClick={addLink}>
+              Add a link
+            </Button>
+          </div>
+          <span className={styles.help}>Full links, starting with https://. A blank label shows the site's name.</span>
+        </div>
+      </section>
+
+      <section className={styles.section}>
+        <div className={styles.sectionIntro}>
+          <Heading id="profile-visibility">In the gallery</Heading>
+          <p>Whether your editions on sale join the site's gallery.</p>
+        </div>
+        <div className={styles.sectionFields}>
+          <div className={styles.field}>
+            <Radio.Group
+              aria-labelledby="profile-visibility"
+              optionType="button"
+              value={draft.visibility}
+              onChange={(e) => set("visibility", e.target.value as ArtistVisibility)}
+              options={[
+                { value: "public", label: "Listed" },
+                { value: "private", label: "Not listed" },
+              ]}
+            />
+            <span className={styles.help}>
+              {draft.visibility === "public"
+                ? "Your editions on sale appear in the site's gallery, with your name on them."
+                : "Your editions show only on your own page, never in the site's gallery. People find you by your URL."}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <div className={styles.profileFooter}>
+        {error ? <Alert type="error" showIcon title={error} /> : null}
+        <div className={styles.profileButtons}>
+          {mode === "edit" ? (
+            <Link to="/studio">
+              <Button size="large">Cancel</Button>
+            </Link>
+          ) : null}
+          <Button type="primary" size="large" loading={pending.isPending} disabled={draft.name.trim() === "" || draft.slug.length < 3 || draft.banner === null} onClick={submit}>
+            {mode === "create" ? "Open your studio" : "Save"}
           </Button>
         </div>
-        <span className={styles.help}>Your website, your shop, your accounts. Full links, starting with https://. A blank label shows the site's name.</span>
-      </div>
-
-      {error ? <Alert type="error" showIcon title={error} /> : null}
-
-      <div className={styles.actions}>
-        <Button type="primary" size="large" loading={pending.isPending} disabled={draft.name.trim() === "" || draft.slug.length < 3 || draft.banner === null} onClick={submit}>
-          {mode === "create" ? "Open your studio" : "Save"}
-        </Button>
-        {mode === "edit" ? (
-          <Link to="/studio">
-            <Button size="large">Cancel</Button>
-          </Link>
-        ) : null}
       </div>
     </div>
   );
@@ -267,7 +322,12 @@ export function StudioProfilePage() {
 
   return (
     <div>
-      <h2>Your profile</h2>
+      <div className={styles.sectionHeader}>
+        <h2>Your profile</h2>
+        <p className={styles.note}>
+          Prices, sizes and schedules belong to each edition. <Link to="/studio/editions">Your editions</Link>.
+        </p>
+      </div>
       <ProfileForm
         mode="edit"
         initial={{
@@ -280,9 +340,6 @@ export function StudioProfilePage() {
           links: artist.links,
         }}
       />
-      <p className={cx(styles.note)} style={{ marginTop: "1.5rem" }}>
-        Prices, sizes and schedules belong to each edition. <Link to="/studio/editions">Your editions</Link>.
-      </p>
     </div>
   );
 }

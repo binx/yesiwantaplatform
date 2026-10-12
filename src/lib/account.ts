@@ -113,6 +113,16 @@ export function useUpdateAddress() {
   });
 }
 
+/** One collection goes somewhere else from now on. The account's own address stays. */
+export function useUpdateCollectionAddress(collectionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: MailingAddressInput) =>
+      csrfPut<{ address: MailingAddressInput; verification: Verification }>(`/account/collections/${encodeURIComponent(collectionId)}/address`, input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: collectionsQueryKey }),
+  });
+}
+
 /* ------------------------------------------------------------- collections */
 
 /** What this person has collected: each edition, its schedule, and what they paid. Also their receipts. */

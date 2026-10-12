@@ -46,17 +46,28 @@ export function CollectPage() {
   const [draft, setDraft] = useState<Recipient>(BLANK_RECIPIENT);
   const [errors, setErrors] = useState<RecipientErrors>({});
   const [seeded, setSeeded] = useState(false);
+  /** A gift: the address is this set's alone and is not saved on the account. */
+  const [forSomeoneElse, setForSomeoneElse] = useState(false);
   const [cadence, setCadence] = useState<Cadence>("monthly");
   /** Empty means "the default": the next 1st or 15th. */
   const [startDate, setStartDate] = useState("");
+
+  /** The collector's own: the saved address, or a blank form with their name on it. */
+  const ownAddress = (): Recipient => customer.data?.address ?? { ...BLANK_RECIPIENT, name: customer.data?.name ?? "" };
 
   // Prefill once from the account's saved address; typing afterwards wins.
   useEffect(() => {
     if (seeded || !customer.data) return;
     setSeeded(true);
-    if (customer.data.address) setDraft(customer.data.address);
-    else if (customer.data.name) setDraft((current) => ({ ...current, name: customer.data?.name ?? "" }));
+    setDraft(ownAddress());
   }, [customer.data, seeded]);
+
+  // A gift starts from a blank form; back to "me" is the saved address again.
+  const chooseRecipient = (gift: boolean) => {
+    setForSomeoneElse(gift);
+    setErrors({});
+    setDraft(gift ? { ...BLANK_RECIPIENT, country: draft.country } : ownAddress());
+  };
 
   if (customer.isPending || page.isPending) {
     return (
@@ -113,7 +124,7 @@ export function CollectPage() {
     setErrors({});
     if (problem) return;
     collect.mutate(
-      { editionId: edition.id, address: result.value, cadence, ...(startDate ? { startDate } : {}) },
+      { editionId: edition.id, address: result.value, cadence, forSomeoneElse, ...(startDate ? { startDate } : {}) },
       {
         onSuccess: ({ url }) => {
           window.location.assign(url);
@@ -131,7 +142,23 @@ export function CollectPage() {
 
       <div className={cx(styles.collectLayout)}>
         <div>
-          <h2>Where should they go?</h2>
+          <h2>Who are they for?</h2>
+          <div className={styles.startDate}>
+            <Radio.Group
+              aria-label="Who the cards are for"
+              value={forSomeoneElse ? "gift" : "me"}
+              onChange={(e) => chooseRecipient(e.target.value === "gift")}
+              options={[
+                { value: "me", label: "Me" },
+                { value: "gift", label: "Someone else" },
+              ]}
+            />
+            <p className={styles.collectNote}>
+              {forSomeoneElse ? "A gift. Their address stays with this set only, and never touches your own." : "Your address is saved to your account, and the next set starts from it."}
+            </p>
+          </div>
+
+          <h2 className={styles.startHeading}>Where should they go?</h2>
           <div className={styles.addressForm}>
             <RecipientFields
               draft={draft}
@@ -232,12 +259,16 @@ export function CollectPage() {
             <strong>{price}</strong>
           </p>
           <p>
-            {edition.cardCount} postcards from {artist.name}, printed and mailed to you {cadence === "twice_monthly" ? "twice a month" : "once a month"}. Each one is a
-            surprise until it arrives.
+            {edition.cardCount} postcards from {artist.name}, printed and mailed {forSomeoneElse ? "to them" : "to you"}{" "}
+            {cadence === "twice_monthly" ? "twice a month" : "once a month"}. Each one is a surprise until it arrives.
           </p>
           <p>Nothing renews, so there's nothing to cancel; it ends on its own with the last card.</p>
           <p>{DELIVERY_ESTIMATE}</p>
-          <p>Your address is saved to your account. If you move, change it there, and the cards still to come follow you.</p>
+          <p>
+            {forSomeoneElse
+              ? "If they move, change where this set goes from your account, and the cards still to come follow them."
+              : "If you move, change your address in your account, and the cards still to come follow you."}
+          </p>
         </aside>
       </div>
     </PageWrapper>

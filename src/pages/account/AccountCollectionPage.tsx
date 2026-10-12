@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Alert, Skeleton, Tag } from "antd";
+import { Alert, App, Button, Skeleton, Tag } from "antd";
 import { formatMoney } from "@shared/money";
 import { artistPath, editionPath, type Collection } from "@shared/platform";
-import { formatRecipient } from "@shared/postcards";
-import { useCollections } from "@/lib/account";
+import { formatRecipient, type Recipient } from "@shared/postcards";
+import { RecipientFields } from "@/components/postcard/RecipientFields";
+import { useCollections, useUpdateCollectionAddress } from "@/lib/account";
+import { validateRecipient, type RecipientErrors } from "@/lib/recipient-form";
 import { useStore } from "@/lib/useStore";
 import { customerStatusLabel, editionShape, formatDay, formatMailDate, purchaseStatusLabel } from "@/lib/postcards";
 import { assetUrl } from "@/lib/store-source";
@@ -17,7 +20,9 @@ import styles from "./Account.module.css";
  * the moment Stripe reports it.
  *
  * Found in the account's own list rather than fetched by id, so no route
- * takes a purchase id from the request.
+ * takes a purchase id. Where it goes can be changed here, for this set
+ * alone: a gift that moves, or a set that should not follow the collector
+ * when they do.
  */
 export function AccountCollectionPage() {
   const { id } = useParams<{ id: string }>();
@@ -31,7 +36,7 @@ export function AccountCollectionPage() {
   if (!collection) {
     return (
       <p className={cx(styles.empty)}>
-        That isn't one of your collections. <Link to="/account">Back to your collections</Link>.
+        That isn't one of your collections. <Link to="/account/collections">Back to your collections</Link>.
       </p>
     );
   }
@@ -39,7 +44,7 @@ export function AccountCollectionPage() {
   return (
     <div>
       <p className={cx(styles.meta)}>
-        <Link to="/account">← Collections</Link>
+        <Link to="/account/collections">← Collections</Link>
       </p>
       <CollectionDetail collection={collection} locale={store.locale} />
       <p className={cx(styles.meta)}>Need to stop this collection early? Get in touch and we'll refund the cards still to come.</p>
@@ -72,7 +77,7 @@ function CollectionDetail({ collection, locale }: { collection: Collection; loca
         <dd>{formatMailDate(collection.startDate, locale)}</dd>
         <dt>Mailed to</dt>
         <dd>
-          {collection.address.name}, {formatRecipient(collection.address, locale)}
+          <MailedTo collection={collection} locale={locale} />
         </dd>
         <dt>Paid</dt>
         <dd>
@@ -112,5 +117,75 @@ function CollectionDetail({ collection, locale }: { collection: Collection; loca
         </tbody>
       </table>
     </section>
+  );
+}
+
+/**
+ * The address as a sentence, and — while a card is still to come — the
+ * form that changes it for this set only.
+ */
+function MailedTo({ collection, locale }: { collection: Collection; locale: string }) {
+  const update = useUpdateCollectionAddress(collection.id);
+  const { message } = App.useApp();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<Recipient>(collection.address);
+  const [errors, setErrors] = useState<RecipientErrors>({});
+  const canChange = collection.status === "paid" && collection.nextMailDate !== null;
+
+  const submit = () => {
+    const result = validateRecipient(draft);
+    if (!result.ok) {
+      setErrors(result.errors);
+      return;
+    }
+    setErrors({});
+    update.mutate(result.value, {
+      onSuccess: ({ verification }) => {
+        message.success(verification.changed && verification.suggested ? "Saved. USPS knows it slightly differently; that's fine." : "Saved.");
+        setEditing(false);
+      },
+    });
+  };
+
+  if (!editing) {
+    return (
+      <span className={styles.settingsRow}>
+        <span>
+          {collection.address.name}, {formatRecipient(collection.address, locale)}
+        </span>
+        {canChange ? (
+          <Button size="small" onClick={() => setEditing(true)}>
+            Change
+          </Button>
+        ) : null}
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <div className={styles.addressForm}>
+        <RecipientFields
+          draft={draft}
+          errors={errors}
+          locale={locale}
+          allowInternational
+          onChange={(key, value) => {
+            setDraft((current) => ({ ...current, [key]: value }));
+            if (errors[key]) setErrors((current) => ({ ...current, [key]: undefined }));
+          }}
+        />
+      </div>
+      {update.isError ? <Alert className={cx(styles.alert)} type="error" showIcon title={update.error instanceof Error ? update.error.message : "Could not save."} /> : null}
+      <p className={styles.actions}>
+        <Button type="primary" size="small" loading={update.isPending} onClick={submit}>
+          Save
+        </Button>
+        <Button type="link" size="small" onClick={() => setEditing(false)}>
+          Cancel
+        </Button>
+      </p>
+      <p className={cx(styles.meta)}>Only this set's cards still to come go to the new address. Your other collections, and the address on your account, stay as they are.</p>
+    </>
   );
 }

@@ -12,7 +12,7 @@ import {
 } from "../../shared/account.js";
 import { getMailingAddress, setMailingAddress } from "../../db/customers-repository.js";
 import { findArtistByCustomer } from "../../db/artists-repository.js";
-import { listPurchasesForCustomer, updatePurchaseAddresses } from "../../db/purchases-repository.js";
+import { listPurchasesForCustomer, updatePurchaseAddress, updatePurchaseAddresses } from "../../db/purchases-repository.js";
 import { listPostcardsForCustomer, updateUnsentPostcardAddresses } from "../../db/postcards-repository.js";
 import {
   EmailTakenError,
@@ -198,26 +198,48 @@ meRouter.put("/", async (req, res) => {
 
 /* ----------------------------------------------------------------- address */
 
-/**
- * Where the cards go. Saved on the account and copied onto every open
- * purchase and every card still to come, so a collector who moves changes
- * one thing. Checked against
- * USPS on the way in; a refusal is a 400 with the suggestion attached, so
- * the form can offer USPS's spelling rather than just saying no.
- */
-meRouter.put("/address", async (req, res) => {
-  const parsed = mailingAddressInputSchema.safeParse(req.body);
+/** USPS's verdict on an address, as the two routes below ask for it. A refusal is a 400 the form can act on. */
+async function verifiedAddress(body: unknown) {
+  const parsed = mailingAddressInputSchema.safeParse(body);
   if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "That address could not be used.");
-
   const verification = await verifyRecipient(parsed.data);
   if (verification.deliverability === "undeliverable") {
     throw httpError(400, "USPS does not recognize that address. Check the street, city, state and ZIP.");
   }
+  return { address: parsed.data, verification };
+}
 
-  await setMailingAddress(req.session.customerId!, parsed.data);
-  const purchaseIds = await updatePurchaseAddresses(req.session.customerId!, parsed.data);
-  await updateUnsentPostcardAddresses(purchaseIds, parsed.data);
-  res.json({ address: parsed.data, verification });
+/**
+ * Where the cards go. Saved on the account and copied onto every open
+ * purchase that was going to the old address, and every card of theirs
+ * still to come, so a collector who moves changes one thing. A set sent
+ * somewhere else — a gift — stays where it is. Checked against USPS on the
+ * way in; a refusal is a 400 with the suggestion attached, so the form can
+ * offer USPS's spelling rather than just saying no.
+ */
+meRouter.put("/address", async (req, res) => {
+  const { address, verification } = await verifiedAddress(req.body);
+  const customerId = req.session.customerId!;
+  const previous = await getMailingAddress(customerId);
+  await setMailingAddress(customerId, address);
+  const purchaseIds = await updatePurchaseAddresses(customerId, previous, address);
+  await updateUnsentPostcardAddresses(purchaseIds, address);
+  res.json({ address, verification });
+});
+
+/**
+ * One collection goes somewhere else from now on: its cards still to come,
+ * and nothing else of this person's. The account's own address is not
+ * touched. Only the caller's own paid purchase: anyone else's, or one with
+ * nothing still to come, is a 404.
+ */
+meRouter.put("/collections/:id/address", async (req, res) => {
+  const { address, verification } = await verifiedAddress(req.body);
+  const id = String(req.params.id);
+  const moved = await updatePurchaseAddress(id, req.session.customerId!, address);
+  if (!moved) throw httpError(404, "That isn't one of your collections.");
+  await updateUnsentPostcardAddresses([id], address);
+  res.json({ address, verification });
 });
 
 /* ------------------------------------------------------------- collections */

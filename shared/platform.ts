@@ -381,6 +381,8 @@ export const collectInputSchema = z.object({
   cadence: cadenceSchema.default("monthly"),
   /** The first card's day. Left out, it is the next 1st or 15th. */
   startDate: mailDateSchema.optional(),
+  /** A gift: the address is this set's alone and is not saved on the account. */
+  forSomeoneElse: z.boolean().default(false),
 });
 
 export const collectResponseSchema = z.object({

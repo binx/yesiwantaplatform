@@ -292,6 +292,13 @@ describe("a fan collects the edition", () => {
     expect(retried.cadence).toBe("twice_monthly");
     await deleteIncompletePurchase(retry.body.purchaseId as string);
 
+    // A gift: the set gets the address, the account keeps its own.
+    const gift = { ...ADDRESS, name: "Aunt May", line1: "5 Gift Lane" };
+    const given = await fan.agent.post("/api/checkout/collect").set("x-csrf-token", fan.csrf).send({ editionId, address: gift, forSomeoneElse: true }).expect(200);
+    expect((await getPurchase(given.body.purchaseId as string))!.address.line1).toBe("5 Gift Lane");
+    expect((await fan.agent.get("/api/account").expect(200)).body.customer.address.line1).toBe("1 Test Street");
+    await deleteIncompletePurchase(given.body.purchaseId as string);
+
     const self = await signIn("artist@example.com");
     const response = await self.agent.post("/api/checkout/collect").set("x-csrf-token", self.csrf).send({ editionId, address: ADDRESS });
     expect(response.status).toBe(409);
@@ -521,6 +528,33 @@ describe("the collector moves, then asks for their money back", () => {
     const cards = await listPostcardsForPurchase(purchaseId);
     expect(cards[0]!.recipient.line1).toBe("1 Test Street");
     expect(cards.slice(1).every((card) => card.recipient.line1 === "9 New Road")).toBe(true);
+  });
+
+  it("lets one set go somewhere else, and leaves it there when the collector moves again", async () => {
+    const fan = await signIn("fan@example.com");
+    const gift = { ...ADDRESS, name: "Aunt May", line1: "5 Gift Lane" };
+
+    // Nobody else's collection: not found, not forbidden, so the id tells them nothing.
+    const other = await signIn("artist@example.com");
+    await other.agent.put(`/api/account/collections/${purchaseId}/address`).set("x-csrf-token", other.csrf).send(gift).expect(404);
+    await fan.agent.put("/api/account/collections/nope/address").set("x-csrf-token", fan.csrf).send(gift).expect(404);
+
+    await fan.agent.put(`/api/account/collections/${purchaseId}/address`).set("x-csrf-token", fan.csrf).send(gift).expect(200);
+    const { listPostcardsForPurchase } = await import("../db/postcards-repository.js");
+    let cards = await listPostcardsForPurchase(purchaseId);
+    expect(cards[0]!.recipient.line1).toBe("1 Test Street");
+    expect(cards.slice(1).every((card) => card.recipient.line1 === "5 Gift Lane")).toBe(true);
+    // The account's own address did not move with it.
+    expect((await fan.agent.get("/api/account").expect(200)).body.customer.address.line1).toBe("9 New Road");
+    const collections = await fan.agent.get("/api/account/collections").expect(200);
+    expect(collections.body[0].address).toMatchObject({ name: "Aunt May", line1: "5 Gift Lane" });
+
+    // The collector moves again: the gift stays where it was sent.
+    await fan.agent.put("/api/account/address").set("x-csrf-token", fan.csrf).send({ ...ADDRESS, line1: "12 Third Street" }).expect(200);
+    cards = await listPostcardsForPurchase(purchaseId);
+    expect(cards.slice(1).every((card) => card.recipient.line1 === "5 Gift Lane")).toBe(true);
+    const { getPurchase } = await import("../db/purchases-repository.js");
+    expect((await getPurchase(purchaseId))!.address.line1).toBe("5 Gift Lane");
   });
 
   it("keeps the cards coming after a partial refund, and withdraws the rest after a full one", async () => {

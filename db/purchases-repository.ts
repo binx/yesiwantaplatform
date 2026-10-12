@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, count, desc, eq, inArray, sum } from "drizzle-orm";
 import type { Cadence, EditionSize, PurchaseStatus } from "../shared/platform.js";
-import { recipientSchema, type Recipient } from "../shared/postcards.js";
+import { recipientSchema, sameRecipient, type Recipient } from "../shared/postcards.js";
 import { getDatabase } from "./client.js";
 import { affectedRows, epochOrNull, jsonFor, nowFor, parseJson, toCount, toEpochMs } from "./repository.js";
 
@@ -295,20 +295,36 @@ export async function recordPurchaseRefund(id: string, refundedCents: number, fu
     .where(eq(schema.purchases.id, id));
 }
 
-/** A collector moved: every purchase not yet refunded takes the new address. Their unsent cards are updated separately. */
-export async function updatePurchaseAddresses(customerId: string, address: Recipient): Promise<string[]> {
+/**
+ * A collector moved: every purchase of theirs not yet refunded that was going
+ * to the old address takes the new one. A set sent somewhere else — a gift —
+ * keeps its own. With no old address nothing was going there, so nothing
+ * moves. Their unsent cards are updated separately. Returns the ids that moved.
+ */
+export async function updatePurchaseAddresses(customerId: string, from: Recipient | null, to: Recipient): Promise<string[]> {
+  if (!from) return [];
   const { drizzle: db, schema, dialect } = await getDatabase();
   const open = (await db
-    .select({ id: schema.purchases.id })
+    .select({ id: schema.purchases.id, address: schema.purchases.address })
     .from(schema.purchases)
-    .where(and(eq(schema.purchases.customerId, customerId), inArray(schema.purchases.status, ["incomplete", "paid"])))) as unknown as { id: string }[];
-  if (open.length === 0) return [];
-  const ids = open.map((row) => row.id);
+    .where(and(eq(schema.purchases.customerId, customerId), inArray(schema.purchases.status, ["incomplete", "paid"])))) as unknown as { id: string; address: unknown }[];
+  const ids = open.filter((row) => sameRecipient(recipientSchema.parse(parseJson(row.address, {})), from)).map((row) => row.id);
+  if (ids.length === 0) return [];
   await db
     .update(schema.purchases)
-    .set({ address: jsonFor(dialect, address) as never, updatedAt: nowFor(dialect) })
+    .set({ address: jsonFor(dialect, to) as never, updatedAt: nowFor(dialect) })
     .where(inArray(schema.purchases.id, ids));
   return ids;
+}
+
+/** One set goes somewhere else from now on. Only a paid purchase, and only the collector's own: anything else is false. */
+export async function updatePurchaseAddress(id: string, customerId: string, address: Recipient): Promise<boolean> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+  const result = await db
+    .update(schema.purchases)
+    .set({ address: jsonFor(dialect, address) as never, updatedAt: nowFor(dialect) })
+    .where(and(eq(schema.purchases.id, id), eq(schema.purchases.customerId, customerId), eq(schema.purchases.status, "paid")));
+  return affectedRows(result) > 0;
 }
 
 /** A fresh id for a purchase, minted before Stripe is asked so it can travel in the session's metadata. */

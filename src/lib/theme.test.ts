@@ -50,7 +50,7 @@ describe.each(schemes)("the %s palette", (colorScheme) => {
     );
   });
 
-  it("paints primary buttons the action yellow, with an ink label that reads on it", () => {
+  it("paints primary buttons the action magenta, with an ink label that reads on it", () => {
     const button = toAntdTheme({ ...defaultTheme, colorScheme, colorPage: null }).components?.Button;
 
     expect(button?.colorPrimary).toBe(ACTION_BUTTON.fill);

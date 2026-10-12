@@ -44,7 +44,7 @@ describe("the landing page", () => {
     const nav = screen.getByRole("navigation", { name: "Main" });
     expect(nav).toContainElement(screen.getByRole("link", { name: "Artists" }));
     expect(nav).toContainElement(screen.getByRole("link", { name: "Gallery" }));
-    expect(nav).toContainElement(screen.getByRole("link", { name: "For artists" }));
+    expect(nav).toContainElement(screen.getByRole("link", { name: "Sell your postcards" }));
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/account/login");
   });
 

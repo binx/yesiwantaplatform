@@ -165,6 +165,16 @@ p {
 
 a {
   color: inherit;
+  /* A link looks like a link: underlined, with a little air under the
+     baseline. Navigation, tiles and the links that wrap buttons opt out
+     in their own modules. */
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 1px;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
 }
 
 :focus-visible {

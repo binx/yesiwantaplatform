@@ -42,7 +42,7 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   text-decoration: none;
-  color: var(--beluga-muted);
+  color: var(--beluga-ink);
   padding-bottom: 0.15rem;
   background: var(--chroma) bottom / 0 2px no-repeat;
   transition:

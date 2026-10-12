@@ -175,20 +175,18 @@ export function LandingPage() {
               <p className={styles.pathKicker}>For collectors</p>
               <h2 className={styles.pathHeading}>Add a little mail magic to your life</h2>
               <p>
-                An artist you like takes photos, makes pictures, goes places. Instead of posting them, they make an edition: a set of
-                real postcards, each with a picture on the front and a short note on the back, mailed to you one at a time.
+                An artist you like makes an edition: a set of real postcards, their picture on the front and a note on the back,
+                mailed to you one at a time.
               </p>
               <ol className={styles.steps}>
                 <li>
-                  <strong>Pick an edition.</strong> 6 or 12 cards, paid for once, at the price the artist sets.
+                  <strong>Pick an edition.</strong> 6 or 12 cards, paid once.
                 </li>
                 <li>
-                  <strong>Give us your address.</strong> Say whether you want a card once or twice a month and, if you like, the day
-                  the first one goes. Change the address anytime.
+                  <strong>Say where and how often.</strong> Your address, once or twice a month, and if you like, the first card's day.
                 </li>
                 <li>
-                  <strong>Check your letterbox.</strong> A card arrives as often as you asked until the set is done. Nothing renews,
-                  so there's nothing to cancel.
+                  <strong>Check your letterbox.</strong> A card arrives until the set is done. Nothing renews, nothing to cancel.
                 </li>
               </ol>
               <Link to="/artists" className={styles.pathAction}>
@@ -197,24 +195,26 @@ export function LandingPage() {
             </div>
             <div className={styles.path}>
               <p className={styles.pathKicker}>For artists</p>
-              <h2 className={styles.pathHeading}>Share your art, build an audience</h2>
+              <h2 className={styles.pathHeading}>Put your pictures in the post</h2>
               <p>
-                Your best work deserves better than a feed. Put a set of pictures and a few words in the hands of the people who
-                want to hear from you, one card at a time — no algorithm, nothing online, just a card that arrives.
+                Turn a set of your pictures into postcards. We print and mail them to the people who want them, one card at a time,
+                and pay you for each one.
               </p>
               <ol className={styles.steps}>
                 <li>
-                  <strong>Open a studio.</strong> Make your page, at your own address.
+                  <strong>Open a studio.</strong> Your own page, at your own address.
                 </li>
                 <li>
-                  <strong>Make an edition.</strong> 6 or 12 cards, a photo on the front and your note on the back, at a price you set.
+                  <strong>Make an edition.</strong> 6 or 12 postcards, one price for the set.
                 </li>
                 <li>
-                  <strong>We do the rest.</strong> We print and mail every card on each collector's schedule, and pay you for each one
-                  sent, after printing and a small fee.
+                  <strong>Collectors buy it.</strong> Paid once, up front. They pick how often the cards come.
+                </li>
+                <li>
+                  <strong>We print and post.</strong> Every card on its day, and you are paid for each one.
                 </li>
               </ol>
-              <Link to="/studio/new" className={styles.pathAction}>
+              <Link to="/for-artists" className={styles.pathAction}>
                 Open a studio
               </Link>
             </div>

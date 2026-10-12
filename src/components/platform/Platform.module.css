@@ -114,49 +114,7 @@
 }
 
 
-/* ---------------------------------------------------------- the artist page */
-
-/* The artist in a column of their own, the editions in the wide one beside
-   it. A page with one edition is then a portrait and a feature, not a grid
-   with one tile in it. */
-.artistLayout {
-  display: grid;
-  grid-template-columns: minmax(0, 19rem) minmax(0, 1fr);
-  gap: 3rem 4rem;
-  align-items: start;
-}
-
-.artistAside {
-  display: grid;
-  gap: 1.25rem;
-  justify-items: start;
-}
-
-.artistOwnerLink {
-  justify-self: stretch;
-}
-
-.artistEditions {
-  display: grid;
-  gap: 3rem;
-}
-
-.artistPaused {
-  margin: 0;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--beluga-line);
-  border-left: 4px solid var(--beluga-accent);
-  background: var(--beluga-surface);
-}
-
-.artistAvatar {
-  width: 7rem;
-  height: 7rem;
-  border-radius: 50%;
-  object-fit: cover;
-  background: var(--beluga-surface);
-  border: 1px solid var(--beluga-line);
-}
+/* ------------------------------------------- the edition page, and shared */
 
 .artistName {
   margin: 0;
@@ -192,6 +150,12 @@
   color: var(--beluga-muted);
 }
 
+@media (max-width: 800px) {
+  .collectBox {
+    justify-items: stretch;
+  }
+}
+
 .bio {
   max-width: var(--beluga-measure);
   line-height: 1.7;
@@ -222,110 +186,6 @@
   font-style: italic;
 }
 
-@media (max-width: 800px) {
-  .artistLayout {
-    grid-template-columns: 1fr;
-    gap: 2.5rem;
-  }
-
-  .artistAvatar {
-    width: 5rem;
-    height: 5rem;
-  }
-}
-
-/* ---------------------------------------------- an edition, on its artist's page */
-
-.feature {
-  display: grid;
-  border: 1px solid var(--beluga-line);
-  background: var(--beluga-surface);
-  overflow: hidden;
-}
-
-.featureBanner {
-  display: block;
-  background: var(--beluga-page);
-}
-
-.featureBanner img,
-.featureBanner [role="img"],
-.featureBanner div {
-  width: 100%;
-  object-fit: cover;
-}
-
-.featureBody {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 1.5rem 2.5rem;
-  align-items: start;
-  padding: 1.5rem 1.75rem 1.75rem;
-}
-
-.featureWords {
-  display: grid;
-  gap: 0.5rem;
-  max-width: var(--beluga-measure);
-}
-
-.featureTitle {
-  margin: 0;
-  font-size: 1.75rem;
-  line-height: 1.2;
-}
-
-.featureTitle a {
-  color: inherit;
-  text-decoration: none;
-}
-
-.featureTitle a:hover,
-.featureTitle a:focus-visible {
-  text-decoration: underline;
-}
-
-.featureWords .artistFacts {
-  margin: 0;
-}
-
-/* The writeup, cut at a few lines: the whole of it is on the edition's page. */
-.featureDescription {
-  margin-top: 0.5rem;
-  line-height: 1.6;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 5;
-  line-clamp: 5;
-  overflow: hidden;
-}
-
-.featureMore {
-  margin: 0;
-  font-size: 0.875rem;
-}
-
-.featureEmpty {
-  padding: 3rem 1.5rem;
-  border: 1px dashed var(--beluga-line);
-  text-align: center;
-  color: var(--beluga-muted);
-  font-style: italic;
-}
-
-.featureEmpty p {
-  margin: 0;
-}
-
-@media (max-width: 800px) {
-  .featureBody {
-    grid-template-columns: 1fr;
-  }
-
-  .collectBox {
-    justify-items: stretch;
-  }
-}
 
 
 /* ---------------------------------------------------------------- collect */
@@ -377,7 +237,7 @@
   }
 }
 
-/* ------------------------------------------------- the artist page, more */
+/* ------------------------------------------------------- the edition page */
 
 /* Three times as wide as tall, whatever was uploaded: the studio says so. */
 .artistBanner {
@@ -389,31 +249,6 @@
   margin-bottom: 2rem;
   border: 1px solid var(--beluga-line);
   background: var(--beluga-surface);
-}
-
-.artistLinks {
-  margin: 0.75rem 0 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.artistLinks a {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border: 1px solid var(--beluga-line);
-  border-radius: 999px;
-  background: var(--beluga-surface);
-  font-size: 0.875rem;
-  text-decoration: none;
-  color: inherit;
-}
-
-.artistLinks a:hover,
-.artistLinks a:focus-visible {
-  border-color: var(--beluga-ink);
 }
 
 

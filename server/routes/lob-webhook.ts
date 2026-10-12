@@ -17,7 +17,7 @@ import { env, hasLobWebhook } from "../env.js";
  * Stripe's, prefixed, because both providers' ids begin `evt_`.
  *
  * Nothing here sends an email. The timeline lives on the postcards page the
- * subscriber already has; a day-by-day feed of USPS scans is noise.
+ * collector already has; a day-by-day feed of USPS scans is noise.
  */
 export const lobWebhookRouter: Router = Router();
 

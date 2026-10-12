@@ -108,7 +108,7 @@ export function LandingPage() {
   const gallery = useGallery(8);
   const customer = useCustomer();
   const { links, accountHref, accountLabel } = useSiteLinks();
-  const floor = formatMoney(store.pricing.minMonthlyPriceCents, store.currency, store.locale);
+  const floor = formatMoney(store.pricing.minCardPriceCents, store.currency, store.locale);
   const recent = gallery.data?.pages[0]?.cards ?? [];
   const featured = (artists.data ?? []).slice(0, 6);
 

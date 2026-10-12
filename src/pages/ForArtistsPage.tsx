@@ -31,7 +31,7 @@ export function ForArtistsPage() {
   const costCents = pricing.printCostCents + pricing.platformFeeCents;
   /* A worked example: a round price above the floor, so the arithmetic is
    * easy to follow and the share is never a zero. */
-  const exampleCents = Math.max(pricing.minMonthlyPriceCents, 500);
+  const exampleCents = Math.max(pricing.minCardPriceCents, 500);
   const isArtist = Boolean(customer.data?.artistSlug);
 
   return (
@@ -63,7 +63,7 @@ export function ForArtistsPage() {
       <section className={styles.section}>
         <h2>What it pays</h2>
         <p>
-          You set the price, from {money(pricing.minMonthlyPriceCents)} a month. Each month, for every subscriber, printing and postage
+          You set the price, from {money(pricing.minCardPriceCents)} a month. Each month, for every subscriber, printing and postage
           take {money(pricing.printCostCents)} and our fee takes {money(pricing.platformFeeCents)}. The rest is yours, sent to your
           bank through Stripe once the month's cards are in the post.
         </p>

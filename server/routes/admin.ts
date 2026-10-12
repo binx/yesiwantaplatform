@@ -11,17 +11,15 @@ import {
   type EnvironmentStatus,
   type LobTestResult,
 } from "../../shared/api.js";
-import { artistStatusSchema, mailingStatusSchema, payoutStatusSchema, subscriptionStatusSchema } from "../../shared/platform.js";
+import { artistStatusSchema, editionStatusSchema, payoutStatusSchema, purchaseStatusSchema } from "../../shared/platform.js";
 import { postcardBackSchema } from "../../shared/postcards.js";
 import { SlugTakenError, updateSettings } from "../../db/admin-repository.js";
 import { getSettings } from "../../db/repository.js";
 import { createPage, deletePage, listPageDrafts, pageExists, reorderPages, updatePage } from "../../db/pages-repository.js";
 import { countArtistsByStatus, countForArtists, findArtistsByIds, getArtist, listArtists, setArtistStatus } from "../../db/artists-repository.js";
-import { findDesignsByIds } from "../../db/designs-repository.js";
-import { countMailingsByStatus, countPostcardsByMailing, getMailing, listMailings, listMailingsForArtist } from "../../db/mailings-repository.js";
-import { cancelPostcard, countPostcardsByStatus, getPostcard, listPostcardsByStatus, listPostcardsForMailing, requeuePostcard } from "../../db/postcards-repository.js";
-import { countSubscriptionsByStatus, listSubscriptions, listSubscriptionsForArtist } from "../../db/subscriptions-repository.js";
-import { countPaidMonthsForSubscriptions, listOrders, sumRevenueCents } from "../../db/orders-repository.js";
+import { countEditionsByStatus, getEdition, listEditions, listEditionsForArtist } from "../../db/editions-repository.js";
+import { cancelPostcard, countPostcardsByStatus, getPostcard, listPostcardsByStatus, listPostcardsForEdition, requeuePostcard } from "../../db/postcards-repository.js";
+import { countPurchasesByStatus, listPurchases, listPurchasesForArtist, listPurchasesForEdition, sumRevenueCents, type PurchaseRecord } from "../../db/purchases-repository.js";
 import { listPayouts, requeuePayout, sumPayoutsByStatus } from "../../db/payouts-repository.js";
 import { getDatabase } from "../../db/client.js";
 import { refreshFontOrigins, verifyFontUrl } from "../fonts.js";
@@ -33,8 +31,8 @@ import { renderMarkdown } from "../markdown.js";
 import { escapeHtml } from "../html.js";
 import { sendEmailReportingFailure } from "../email.js";
 import { LobError, LobNotConfiguredError, sendTestPostcard } from "../lob.js";
-import { getLastPayoutSweep, getLastSweep, sendDueMailings, sendDuePostcards, sendPendingPayouts } from "../fulfilment.js";
-import { toMailing, toOrder, toPayout, toPublicArtist, toSubscription } from "../presenters.js";
+import { getLastPayoutSweep, getLastSweep, sendDuePostcards, sendPendingPayouts } from "../fulfilment.js";
+import { presentCollections, presentStudioEditions, toPayout, toPublicArtist } from "../presenters.js";
 import { destroySessionsForUser, findAdminById, updateAdminPassword, verifyPasswordFor } from "../auth.js";
 import { toEpochMs } from "../../db/repository.js";
 import { desc } from "drizzle-orm";
@@ -131,10 +129,10 @@ adminRouter.post("/lob/test", emailRateLimit, async (req, res) => {
 
 /** Everything the dashboard needs in one read: counts of every noun, and the last sweeps. */
 adminRouter.get("/overview", async (_req, res) => {
-  const [artists, subscriptions, mailings, postcards, payouts, revenueCents, settings] = await Promise.all([
+  const [artists, purchases, editions, postcards, payouts, revenueCents, settings] = await Promise.all([
     countArtistsByStatus(),
-    countSubscriptionsByStatus(),
-    countMailingsByStatus(),
+    countPurchasesByStatus(),
+    countEditionsByStatus(),
     countPostcardsByStatus(),
     sumPayoutsByStatus(),
     sumRevenueCents(),
@@ -142,8 +140,8 @@ adminRouter.get("/overview", async (_req, res) => {
   ]);
   res.json({
     artists,
-    subscriptions,
-    mailings,
+    purchases,
+    editions,
     postcards,
     payouts,
     revenueCents,
@@ -160,11 +158,9 @@ adminRouter.get("/fulfilment", async (_req, res) => {
   res.json({ postcards: await countPostcardsByStatus(), hasLob, lobMode, lastRun: getLastSweep() });
 });
 
-/** Run the sweeps now rather than waiting for the next tick. */
+/** Run the print sweep now rather than waiting for the next tick. */
 adminRouter.post("/fulfilment/run", async (_req, res) => {
-  const mailings = await sendDueMailings();
-  const postcards = await sendDuePostcards();
-  res.json({ ...postcards, mailings });
+  res.json(await sendDuePostcards());
 });
 
 adminRouter.post("/payouts/run", async (_req, res) => {
@@ -297,26 +293,17 @@ adminRouter.get("/artists", async (req, res) => {
 adminRouter.get("/artists/:id", async (req, res) => {
   const artist = await getArtist(req.params.id);
   if (!artist) throw httpError(404, "Artist not found.");
-  const [settings, counts, mailings, subscriptions] = await Promise.all([
+  const [settings, counts, editions, purchases] = await Promise.all([
     getSettings(),
     countForArtists([artist.id]),
-    listMailingsForArtist(artist.id),
-    listSubscriptionsForArtist(artist.id),
+    listEditionsForArtist(artist.id),
+    listPurchasesForArtist(artist.id),
   ]);
   const currency = settings?.currency ?? "USD";
-  const [designs, mailingCounts, paidMonths] = await Promise.all([
-    findDesignsByIds(mailings.map((m) => m.designId)),
-    countPostcardsByMailing(mailings.map((m) => m.id)),
-    countPaidMonthsForSubscriptions(subscriptions.map((s) => s.id)),
-  ]);
-  const designById = new Map(designs.map((d) => [d.id, d]));
   res.json({
     artist: { ...toPublicArtist(artist, counts.get(artist.id), currency), bio: artist.bio, payoutsEnabled: artist.payoutsEnabled, stripeAccountId: artist.stripeAccountId, customerId: artist.customerId },
-    mailings: mailings.flatMap((m) => {
-      const design = designById.get(m.designId);
-      return design ? [toMailing(m, design, mailingCounts.get(m.id), artist.name)] : [];
-    }),
-    subscriptions: subscriptions.map((s) => toSubscription(s, artist, 0, paidMonths.get(s.id) ?? 0)),
+    editions: await presentStudioEditions(editions, currency, artist.name),
+    purchases: await presentAdminPurchases(purchases),
   });
 });
 
@@ -339,9 +326,9 @@ adminRouter.get("/customers", async (_req, res) => {
     .limit(500)) as unknown as { id: string; email: string; name: string | null; emailVerifiedAt: unknown; createdAt: unknown }[];
   const { artists } = await listArtists({ limit: 500 });
   const slugByCustomer = new Map(artists.map((a) => [a.customerId, a.slug]));
-  const { subscriptions } = await listSubscriptions({ status: "active", limit: 200 });
-  const activeByCustomer = new Map<string, number>();
-  for (const s of subscriptions) activeByCustomer.set(s.customerId, (activeByCustomer.get(s.customerId) ?? 0) + 1);
+  const { purchases } = await listPurchases({ status: "paid", limit: 200 });
+  const paidByCustomer = new Map<string, number>();
+  for (const p of purchases) paidByCustomer.set(p.customerId, (paidByCustomer.get(p.customerId) ?? 0) + 1);
   res.json(
     rows.map((row) => ({
       id: row.id,
@@ -350,63 +337,70 @@ adminRouter.get("/customers", async (_req, res) => {
       emailVerified: row.emailVerifiedAt !== null && row.emailVerifiedAt !== undefined,
       createdAt: toEpochMs(row.createdAt),
       artistSlug: slugByCustomer.get(row.id) ?? null,
-      activeSubscriptions: activeByCustomer.get(row.id) ?? 0,
+      purchases: paidByCustomer.get(row.id) ?? 0,
     })),
   );
 });
 
-/* ----------------------------------------------------------- subscriptions */
+/* --------------------------------------------------------------- purchases */
 
-adminRouter.get("/subscriptions", async (req, res) => {
-  const status = subscriptionStatusSchema.safeParse(req.query.status);
-  const page = await listSubscriptions({ ...(status.success ? { status: status.data } : {}), limit: Number(req.query.limit ?? 50), offset: Number(req.query.offset ?? 0) });
-  const artists = await findArtistsByIds(page.subscriptions.map((s) => s.artistId));
-  const artistById = new Map(artists.map((a) => [a.id, a]));
-  res.json({ subscriptions: page.subscriptions.map((s) => ({ ...toSubscription(s, artistById.get(s.artistId), 0), customerId: s.customerId })), total: page.total });
+/** Collections as the admin sees them: the collector's own view, plus whose they are and the Stripe id to look up. */
+async function presentAdminPurchases(purchases: PurchaseRecord[]) {
+  const collections = await presentCollections(purchases);
+  return collections.map((collection, index) => ({
+    ...collection,
+    customerId: purchases[index]!.customerId,
+    stripePaymentIntentId: purchases[index]!.stripePaymentIntentId,
+  }));
+}
+
+adminRouter.get("/purchases", async (req, res) => {
+  const status = purchaseStatusSchema.safeParse(req.query.status);
+  const page = await listPurchases({ ...(status.success ? { status: status.data } : {}), limit: Number(req.query.limit ?? 50), offset: Number(req.query.offset ?? 0) });
+  res.json({ purchases: await presentAdminPurchases(page.purchases), total: page.total });
 });
 
-/* ---------------------------------------------------------------- mailings */
+/* ---------------------------------------------------------------- editions */
 
-adminRouter.get("/mailings", async (req, res) => {
-  const status = mailingStatusSchema.safeParse(req.query.status);
-  const page = await listMailings({ ...(status.success ? { status: status.data } : {}), limit: Number(req.query.limit ?? 50), offset: Number(req.query.offset ?? 0) });
-  const [designs, artists, counts] = await Promise.all([
-    findDesignsByIds(page.mailings.map((m) => m.designId)),
-    findArtistsByIds(page.mailings.map((m) => m.artistId)),
-    countPostcardsByMailing(page.mailings.map((m) => m.id)),
+adminRouter.get("/editions", async (req, res) => {
+  const status = editionStatusSchema.safeParse(req.query.status);
+  const [settings, page] = await Promise.all([
+    getSettings(),
+    listEditions({ ...(status.success ? { status: status.data } : {}), limit: Number(req.query.limit ?? 50), offset: Number(req.query.offset ?? 0) }),
   ]);
-  const designById = new Map(designs.map((d) => [d.id, d]));
+  const artists = await findArtistsByIds(page.editions.map((e) => e.artistId));
   const artistById = new Map(artists.map((a) => [a.id, a]));
+  const currency = settings?.currency ?? "USD";
+  const presented = await presentStudioEditions(page.editions, currency, "the artist");
   res.json({
-    mailings: page.mailings.flatMap((m) => {
-      const design = designById.get(m.designId);
-      const artist = artistById.get(m.artistId);
-      return design ? [{ ...toMailing(m, design, counts.get(m.id), artist?.name), artist: artist ? { id: artist.id, slug: artist.slug, name: artist.name } : null }] : [];
+    editions: presented.map((edition) => {
+      const artist = artistById.get(edition.artistId);
+      return { ...edition, artist: artist ? { id: artist.id, slug: artist.slug, name: artist.name } : null };
     }),
     total: page.total,
   });
 });
 
-/** One mailing, card by card, with Lob's words on each failure. */
-adminRouter.get("/mailings/:id", async (req, res) => {
-  const mailing = await getMailing(req.params.id);
-  if (!mailing) throw httpError(404, "Mailing not found.");
-  const [designs, artist, counts, cards] = await Promise.all([
-    findDesignsByIds([mailing.designId]),
-    getArtist(mailing.artistId),
-    countPostcardsByMailing([mailing.id]),
-    listPostcardsForMailing(mailing.id),
+/** One edition: its cards, who collected it, and every card of theirs with Lob's words on each failure. */
+adminRouter.get("/editions/:id", async (req, res) => {
+  const edition = await getEdition(req.params.id);
+  if (!edition) throw httpError(404, "Edition not found.");
+  const [settings, artist, purchases, postcards] = await Promise.all([
+    getSettings(),
+    getArtist(edition.artistId),
+    listPurchasesForEdition(edition.id),
+    listPostcardsForEdition(edition.id),
   ]);
-  const design = designs[0];
-  if (!design) throw httpError(404, "The mailing's design is gone.");
+  const [presented] = await presentStudioEditions([edition], settings?.currency ?? "USD", artist?.name ?? "the artist");
   res.json({
-    mailing: toMailing(mailing, design, counts.get(mailing.id), artist?.name),
+    edition: presented,
     artist: artist ? { id: artist.id, slug: artist.slug, name: artist.name } : null,
-    postcards: cards,
+    purchases: await presentAdminPurchases(purchases),
+    postcards,
   });
 });
 
-/** Cards Lob refused, across every mailing: the "needs attention" list. */
+/** Cards Lob refused, across every edition: the "needs attention" list. */
 adminRouter.get("/postcards/errors", async (_req, res) => {
   res.json(await listPostcardsByStatus("error"));
 });
@@ -447,16 +441,6 @@ adminRouter.get("/payouts", async (req, res) => {
 adminRouter.post("/payouts/:id/retry", async (req, res) => {
   if (!(await requeuePayout(req.params.id))) throw httpError(409, "Only a failed payout can be retried.");
   res.status(204).end();
-});
-
-/* ------------------------------------------------------------------ orders */
-
-/** Every paid invoice, newest first. */
-adminRouter.get("/orders", async (req, res) => {
-  const page = await listOrders({ limit: Number(req.query.limit ?? 50), offset: Number(req.query.offset ?? 0) });
-  const artists = await findArtistsByIds(page.orders.map((o) => o.artistId));
-  const artistById = new Map(artists.map((a) => [a.id, a]));
-  res.json({ orders: page.orders.map((o) => ({ ...toOrder(o, artistById.get(o.artistId)), customerId: o.customerId })), total: page.total });
 });
 
 /* ----------------------------------------------------------------- account */

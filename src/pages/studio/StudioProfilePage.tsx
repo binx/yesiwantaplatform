@@ -60,7 +60,7 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
 
   const slugCheck = useSlugAvailable(draft.slug, draft.slug !== initial.slug || mode === "create");
   const priceCents = parseCents(draft.price);
-  const floor = store.pricing.minMonthlyPriceCents;
+  const floor = store.pricing.minCardPriceCents;
   const priceWrong = priceCents === null || priceCents < floor;
   const share = priceCents === null ? null : artistShareCents(priceCents, store.pricing);
   const money = (cents: number) => formatMoney(cents, store.currency, store.locale);
@@ -307,7 +307,7 @@ export function StudioNewPage() {
           name: customer.data?.name ?? "",
           tagline: "",
           bio: "",
-          price: (Math.max(store.pricing.minMonthlyPriceCents, 500) / 100).toFixed(2),
+          price: (Math.max(store.pricing.minCardPriceCents, 500) / 100).toFixed(2),
           termMonths: DEFAULT_TERM_MONTHS,
           sendDay: 15,
           visibility: "public",

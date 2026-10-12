@@ -30,7 +30,7 @@ beforeAll(async () => {
   await createAdmin("admin@example.com", PASSWORD);
   await createCustomer("customer@example.com", PASSWORD, null);
   const artistCustomer = await createCustomer("artist@example.com", PASSWORD, "Rachel");
-  await createArtist(artistCustomer, { slug: "rachel", name: "Rachel", tagline: null, bio: "", monthlyPriceCents: 500, sendDay: 15, visibility: "public", avatar: null, termMonths: 6, banner: null, links: [] });
+  await createArtist(artistCustomer, { slug: "rachel", name: "Rachel", tagline: null, bio: "", visibility: "public", avatar: null, banner: null, links: [] });
 
   app = createApp();
 });
@@ -86,27 +86,23 @@ const READS = [
   "/api/admin/artists",
   "/api/admin/artists/some-artist",
   "/api/admin/customers",
-  "/api/admin/subscriptions",
-  "/api/admin/mailings",
-  "/api/admin/mailings/some-mailing",
+  "/api/admin/purchases",
+  "/api/admin/editions",
+  "/api/admin/editions/some-edition",
   "/api/admin/postcards/errors",
   "/api/admin/payouts",
-  "/api/admin/orders",
 ] as const;
 
 const CUSTOMER_MUTATIONS = [
   { method: "put", path: "/api/account" },
   { method: "put", path: "/api/account/address" },
-  { method: "post", path: "/api/account/subscriptions/some-subscription/cancel" },
-  { method: "post", path: "/api/account/subscriptions/some-subscription/resume" },
-  { method: "post", path: "/api/checkout/subscribe" },
+  { method: "post", path: "/api/checkout/collect" },
   { method: "post", path: "/api/studio" },
 ] as const;
 
 const CUSTOMER_READS = [
-  "/api/account/subscriptions",
+  "/api/account/collections",
   "/api/account/postcards",
-  "/api/account/orders",
   "/api/checkout/some-session",
   "/api/checkout/address/me",
   "/api/studio",
@@ -121,9 +117,11 @@ const STUDIO_MUTATIONS = [
   { method: "post", path: "/api/studio/designs" },
   { method: "put", path: "/api/studio/designs/some-design" },
   { method: "delete", path: "/api/studio/designs/some-design" },
-  { method: "post", path: "/api/studio/mailings" },
-  { method: "put", path: "/api/studio/mailings/some-mailing" },
-  { method: "delete", path: "/api/studio/mailings/some-mailing" },
+  { method: "post", path: "/api/studio/editions" },
+  { method: "put", path: "/api/studio/editions/some-edition" },
+  { method: "delete", path: "/api/studio/editions/some-edition" },
+  { method: "put", path: "/api/studio/editions/some-edition/cards" },
+  { method: "post", path: "/api/studio/editions/some-edition/status" },
   { method: "post", path: "/api/studio/payouts/onboard" },
   { method: "post", path: "/api/studio/payouts/refresh" },
 ] as const;
@@ -131,9 +129,9 @@ const STUDIO_MUTATIONS = [
 const STUDIO_READS = [
   "/api/studio",
   "/api/studio/designs",
-  "/api/studio/mailings",
-  "/api/studio/mailings/some-mailing/postcards",
-  "/api/studio/subscribers",
+  "/api/studio/editions",
+  "/api/studio/editions/some-edition",
+  "/api/studio/collectors",
   "/api/studio/earnings",
 ] as const;
 
@@ -192,7 +190,7 @@ const SETTINGS = {
   name: "Renamed",
   currency: "USD",
   stripePublishableKey: null,
-  pricing: { printCostCents: 120, platformFeeCents: 60, minMonthlyPriceCents: 300 },
+  pricing: { printCostCents: 120, platformFeeCents: 60, minCardPriceCents: 300 },
   theme: { colorPrimary: "#18181b", colorAccent: "#e07a5f", fontFamily: "system-ui", borderRadius: 2 },
 };
 
@@ -337,14 +335,14 @@ describe("studio routes", () => {
     expect(studio.body.artist.slug).toBe("rachel");
     expect(studio.body.artist.email).toBe("artist@example.com");
     // A design id from nowhere is a 404, not a 403 with the body attached.
-    await agent.get("/api/studio/mailings/not-mine/postcards").expect(404);
+    await agent.get("/api/studio/editions/not-mine").expect(404);
   });
 
-  it("refuses to go live with an empty queue", async () => {
+  it("refuses to go live with nothing on sale", async () => {
     const { agent, csrf } = await signInCustomer("artist@example.com");
     const response = await agent.post("/api/studio/status").set("x-csrf-token", csrf).send({ status: "live" });
     expect(response.status).toBe(409);
-    expect(response.body.error).toMatch(/queue/i);
+    expect(response.body.error).toMatch(/edition on sale/i);
   });
 
   it("refuses a second artist page for the same account", async () => {
@@ -352,15 +350,29 @@ describe("studio routes", () => {
     await agent
       .post("/api/studio")
       .set("x-csrf-token", csrf)
-      .send({ slug: "rachel-two", name: "Rachel", monthlyPriceCents: 500 })
+      .send({ slug: "rachel-two", name: "Rachel" })
       .expect(409);
   });
 
-  it("refuses a price below the platform's floor", async () => {
+  it("refuses an edition priced below the platform's floor per card", async () => {
     const { agent, csrf } = await signInCustomer("artist@example.com");
-    const response = await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ slug: "rachel", name: "Rachel", monthlyPriceCents: 100 });
+    // Six cards at the default floor of $3 is $18; $17.99 is a card short.
+    const response = await agent
+      .post("/api/studio/editions")
+      .set("x-csrf-token", csrf)
+      .send({ slug: "cheap", title: "Cheap", cardCount: 6, cadence: "monthly", priceCents: 1799 });
     expect(response.status).toBe(400);
-    expect(response.body.error).toMatch(/at least/);
+    expect(response.body.error).toMatch(/at least 18\.00/);
+  });
+
+  it("refuses an edition of a size the platform does not sell", async () => {
+    const { agent, csrf } = await signInCustomer("artist@example.com");
+    const response = await agent
+      .post("/api/studio/editions")
+      .set("x-csrf-token", csrf)
+      .send({ slug: "odd", title: "Odd", cardCount: 7, cadence: "monthly", priceCents: 5000 });
+    expect(response.status).toBe(400);
+    expect(response.body.error).toMatch(/6 or 12/);
   });
 });
 
@@ -458,7 +470,7 @@ describe("input validation", () => {
     const response = await agent
       .put("/api/admin/settings")
       .set("x-csrf-token", csrf)
-      .send({ ...SETTINGS, pricing: { ...SETTINGS.pricing, minMonthlyPriceCents: 10 } })
+      .send({ ...SETTINGS, pricing: { ...SETTINGS.pricing, minCardPriceCents: 10 } })
       .expect(400);
     expect(response.body.error).toMatch(/50 cents/i);
   });
@@ -471,7 +483,7 @@ describe("input validation", () => {
 
   it("refuses a reserved artist slug", async () => {
     const { agent, csrf } = await signInCustomer("artist@example.com");
-    const response = await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ slug: "admin", name: "Rachel", monthlyPriceCents: 500 });
+    const response = await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ slug: "admin", name: "Rachel" });
     expect(response.status).toBe(400);
     expect(response.body.error).toMatch(/already/);
   });
@@ -483,10 +495,10 @@ describe("public API", () => {
     expect(JSON.stringify(response.body)).not.toMatch(/sk_(test|live)_/);
   });
 
-  it("refuses a subscription without Stripe, before it asks anything else", async () => {
+  it("refuses to collect an edition that is not for sale", async () => {
     const { agent, csrf } = await signInCustomer();
-    // The test environment sets a fake key, so this reaches the artist check: a draft artist is not subscribable.
-    const response = await agent.post("/api/checkout/subscribe").set("x-csrf-token", csrf).send({ artistId: "nobody", address: {} });
+    // The test environment sets a fake key, so this reaches the edition check.
+    const response = await agent.post("/api/checkout/collect").set("x-csrf-token", csrf).send({ editionId: "nobody", address: {} });
     expect([400, 409, 503]).toContain(response.status);
   });
 });

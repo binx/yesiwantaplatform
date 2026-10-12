@@ -428,7 +428,7 @@ export async function sendTestPostcard(back: PostcardBack): Promise<LobPostcard>
  *
  * This is the one place outside the fulfilment sweep that talks to Lob, and
  * it is a read: `POST /v1/us_verifications` answers in a second with what
- * USPS makes of an address, so a typo in a ZIP is caught while the subscriber is
+ * USPS makes of an address, so a typo in a ZIP is caught while the collector is
  * looking at the field rather than by the sweep after payment. It is called
  * from a request handler behind its own rate limit (`verifyRateLimit`), and
  * cached here, because Lob bills verifications past the plan's allowance

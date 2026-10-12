@@ -48,7 +48,7 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
   const [publishableKey, setPublishableKey] = useState(initial.stripePublishableKey ?? "");
   const [printCost, setPrintCost] = useState((initial.pricing.printCostCents / 100).toFixed(2));
   const [fee, setFee] = useState((initial.pricing.platformFeeCents / 100).toFixed(2));
-  const [minPrice, setMinPrice] = useState((initial.pricing.minMonthlyPriceCents / 100).toFixed(2));
+  const [minPrice, setMinPrice] = useState((initial.pricing.minCardPriceCents / 100).toFixed(2));
   const [returnAddress, setReturnAddress] = useState<Recipient>(initial.returnAddress ?? BLANK_RECIPIENT);
   const [returnAddressErrors, setReturnAddressErrors] = useState<RecipientErrors>({});
   const [theme, setTheme] = useState<Theme>(initial.theme ?? defaultTheme);
@@ -68,7 +68,7 @@ function SettingsForm({ initial }: { initial: SettingsInput }) {
   const returnAddressWrong = returnAddressResult !== null && !returnAddressResult.ok;
   const returnAddressValue = returnAddressResult?.ok ? returnAddressResult.value : null;
 
-  const pricing = pricingWrong ? null : { printCostCents, platformFeeCents: feeCents, minMonthlyPriceCents: minPriceCents };
+  const pricing = pricingWrong ? null : { printCostCents, platformFeeCents: feeCents, minCardPriceCents: minPriceCents };
   const dirty =
     name !== saved.current.name ||
     currency !== saved.current.currency ||

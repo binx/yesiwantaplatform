@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
-import { artistLinkSchema, DEFAULT_TERM_MONTHS, type ArtistLink, type ArtistProfileInput, type ArtistStatus, type ArtistVisibility } from "../shared/platform.js";
+import { and, asc, count, countDistinct, eq, inArray } from "drizzle-orm";
+import { artistLinkSchema, type ArtistLink, type ArtistProfileInput, type ArtistStatus, type ArtistVisibility } from "../shared/platform.js";
 import type { Image } from "../shared/schema.js";
 import { SlugTakenError } from "./admin-repository.js";
 import { getDatabase } from "./client.js";
 import { affectedRows, isUniqueViolation, jsonFor, nowFor, parseJson, toBool, toCount, toEpochMs } from "./repository.js";
 
 /**
- * Artists — the people with a page, a price and a queue.
+ * Artists — the people with a page and the editions on it.
  *
  * Rows leave here as `ArtistRecord`: everything on the row, with the
  * Markdown still Markdown. Rendering happens in the route layer; what a
@@ -30,9 +30,6 @@ export interface ArtistRow {
   bannerHeight: number | null;
   bannerAlt: string | null;
   links: unknown;
-  monthlyPriceCents: number;
-  termMonths: number;
-  sendDay: number;
   status: string;
   visibility: string;
   stripeAccountId: string | null;
@@ -50,9 +47,6 @@ export interface ArtistRecord {
   avatar: Image | null;
   banner: Image | null;
   links: ArtistLink[];
-  monthlyPriceCents: number;
-  termMonths: number;
-  sendDay: number;
   status: ArtistStatus;
   visibility: ArtistVisibility;
   stripeAccountId: string | null;
@@ -95,11 +89,6 @@ export function buildArtist(row: ArtistRow): ArtistRecord {
     avatar: toImage(row.avatarPath, row.avatarWidth, row.avatarHeight, row.avatarAlt, row.name),
     banner: toImage(row.bannerPath, row.bannerWidth, row.bannerHeight, row.bannerAlt, ""),
     links: toLinks(row.links),
-    monthlyPriceCents: row.monthlyPriceCents,
-    // Clamped like the send day: a hand-edited 0 is still a subscription with an end.
-    termMonths: Math.min(24, Math.max(1, row.termMonths || DEFAULT_TERM_MONTHS)),
-    // Clamped on the way out too: a hand-edited 31 would never fire in February.
-    sendDay: Math.min(28, Math.max(1, row.sendDay)),
     status: toStatus(row.status),
     visibility: toVisibility(row.visibility),
     stripeAccountId: row.stripeAccountId,
@@ -136,9 +125,6 @@ function profileColumns(dialect: string, input: ArtistProfileInput) {
     ...avatarColumns(input.avatar),
     ...bannerColumns(input.banner),
     links: jsonFor(dialect, input.links) as never,
-    monthlyPriceCents: input.monthlyPriceCents,
-    termMonths: input.termMonths,
-    sendDay: input.sendDay,
     visibility: input.visibility,
   };
 }
@@ -261,8 +247,8 @@ export async function listArtists(options: ArtistListOptions = {}): Promise<{ ar
 }
 
 export interface ArtistCounts {
-  /** Subscriptions that are paid up right now. */
-  subscribers: number;
+  /** People who have paid for one of their editions, all time. */
+  collectors: number;
   /** Cards accepted by the printer, all time. */
   mailed: number;
 }
@@ -273,14 +259,14 @@ export async function countForArtists(artistIds: string[]): Promise<Map<string, 
   if (artistIds.length === 0) return map;
   const { drizzle: db, schema } = await getDatabase();
   const ids = [...new Set(artistIds)];
-  for (const id of ids) map.set(id, { subscribers: 0, mailed: 0 });
+  for (const id of ids) map.set(id, { collectors: 0, mailed: 0 });
 
-  const subscribers = (await db
-    .select({ artistId: schema.subscriptions.artistId, value: count() })
-    .from(schema.subscriptions)
-    .where(and(inArray(schema.subscriptions.artistId, ids), eq(schema.subscriptions.status, "active")))
-    .groupBy(schema.subscriptions.artistId)) as unknown as { artistId: string; value: unknown }[];
-  for (const row of subscribers) map.get(row.artistId)!.subscribers = toCount(row.value);
+  const collectors = (await db
+    .select({ artistId: schema.purchases.artistId, value: countDistinct(schema.purchases.customerId) })
+    .from(schema.purchases)
+    .where(and(inArray(schema.purchases.artistId, ids), eq(schema.purchases.status, "paid")))
+    .groupBy(schema.purchases.artistId)) as unknown as { artistId: string; value: unknown }[];
+  for (const row of collectors) map.get(row.artistId)!.collectors = toCount(row.value);
 
   const mailed = (await db
     .select({ artistId: schema.postcards.artistId, value: count() })
@@ -289,22 +275,6 @@ export async function countForArtists(artistIds: string[]): Promise<Map<string, 
     .groupBy(schema.postcards.artistId)) as unknown as { artistId: string; value: unknown }[];
   for (const row of mailed) map.get(row.artistId)!.mailed = toCount(row.value);
 
-  return map;
-}
-
-/** The most recently mailed design of each artist, for a directory tile. */
-export async function latestMailedDesignIds(artistIds: string[]): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
-  if (artistIds.length === 0) return map;
-  const { drizzle: db, schema } = await getDatabase();
-
-  const rows = (await db
-    .select({ artistId: schema.mailings.artistId, designId: schema.mailings.designId, mailDate: schema.mailings.mailDate })
-    .from(schema.mailings)
-    .where(and(inArray(schema.mailings.artistId, [...new Set(artistIds)]), eq(schema.mailings.status, "mailed"), eq(schema.mailings.inGallery, true)))
-    .orderBy(desc(schema.mailings.mailDate), desc(schema.mailings.id))) as unknown as { artistId: string; designId: string; mailDate: string }[];
-
-  for (const row of rows) if (!map.has(row.artistId)) map.set(row.artistId, row.designId);
   return map;
 }
 

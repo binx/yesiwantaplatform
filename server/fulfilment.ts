@@ -2,24 +2,23 @@ import Stripe from "stripe";
 import { env, hasLob, hasStripe } from "./env.js";
 import { imageStore } from "./image-store.js";
 import { LobError, LobNotConfiguredError, sendPostcard } from "./lob.js";
-import { sendMailingSentEmail, sendPostcardSentEmail } from "./email.js";
+import { sendPostcardSentEmail } from "./email.js";
 import { isInternational, todayIso } from "../shared/postcards.js";
-import { artistShareCents } from "../shared/schema.js";
+import { artistShareCents, cardGrossCents } from "../shared/schema.js";
 import { getSettings } from "../db/repository.js";
 import { findArtistsByIds, getArtist } from "../db/artists-repository.js";
 import { findDesignsByIds } from "../db/designs-repository.js";
-import { findDueMailings, markMailingMailed } from "../db/mailings-repository.js";
+import { findEditionsByIds, markEditionCardMailed } from "../db/editions-repository.js";
 import {
   buildPostcard,
   claimPostcard,
   findDuePostcards,
   markPostcardFailed,
   markPostcardSent,
-  materialisePostcards,
   releasePostcard,
   releaseStalePostcards,
 } from "../db/postcards-repository.js";
-import { getSubscription, listActiveSubscriptionsForArtist } from "../db/subscriptions-repository.js";
+import { getPurchase } from "../db/purchases-repository.js";
 import {
   claimPayout,
   findPayablePayouts,
@@ -32,17 +31,18 @@ import { findCustomerById } from "./auth.js";
 import { getStripe } from "./stripe.js";
 
 /**
- * Fulfilment: three sweeps, in the order money and paper move.
+ * Fulfilment: two sweeps, in the order paper and money move.
  *
- *   1. `sendDueMailings`  — a mailing whose day has come is turned into one
- *      postcard row per active subscriber.
- *   2. `sendDuePostcards` — each scheduled card is sent to Lob, and the
- *      moment Lob accepts it the card's share is written to the payout
- *      ledger.
- *   3. `sendPendingPayouts` — each pending ledger row whose artist can be
+ * The cards themselves are written by the Stripe webhook the moment a
+ * purchase is paid, every card of the run at once, each with its own day.
+ *
+ *   1. `sendDuePostcards` — each scheduled card whose day has come is sent
+ *      to Lob, and the moment Lob accepts it the card's share of the
+ *      purchase price is written to the payout ledger.
+ *   2. `sendPendingPayouts` — each pending ledger row whose artist can be
  *      paid is transferred through Stripe Connect.
  *
- * All three are `setInterval`s in the API process. What makes two instances
+ * Both are `setInterval`s in the API process. What makes two instances
  * safe is not the timer but the conditional update each sweep claims with:
  * only one of two racing claims on the same row can win, so a duplicate tick
  * costs a wasted query, never two postcards in one letterbox or two
@@ -79,7 +79,7 @@ const MAX_ATTEMPTS = 8;
 const RETRY_WAIT_CAP_MS = 10_000;
 const RETRY_WAIT_DEFAULT_MS = 5_000;
 
-/** Rows per sweep, so one enormous mailing day cannot hold the tick for an hour. */
+/** Rows per sweep, so one enormous mail day cannot hold the tick for an hour. */
 const BATCH = 100;
 
 /**
@@ -93,7 +93,7 @@ export function setAutoSweep(enabled: boolean): void {
   autoSweep = enabled;
 }
 
-/** The nudge after a mailing goes: send today's cards now rather than at the next tick. */
+/** The nudge after a purchase is paid: send any card already due now rather than at the next tick. */
 export function kickSweep(): void {
   if (!autoSweep) return;
   void sendDuePostcards().catch(logSweepError);
@@ -126,51 +126,6 @@ export interface SweepOptions {
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-/* ---------------------------------------------------------------- mailings */
-
-export interface MailingSweepResult {
-  /** Mailings whose day came. */
-  mailed: number;
-  /** Postcard rows written across them. */
-  postcards: number;
-}
-
-/**
- * Turn every due mailing into cards.
- *
- * The cards are written first and the mailing marked after: the unique index
- * on (mailing, subscription) makes the write idempotent, so a crash between
- * the two, or two instances ticking at once, leaves nothing missing and
- * nothing doubled. Only the instance whose mark wins tells the artist.
- */
-export async function sendDueMailings(today = todayIso()): Promise<MailingSweepResult> {
-  const result: MailingSweepResult = { mailed: 0, postcards: 0 };
-  const due = await findDueMailings(today, BATCH);
-  if (due.length === 0) return result;
-
-  for (const mailing of due) {
-    try {
-      const subscriptions = await listActiveSubscriptionsForArtist(mailing.artistId);
-      const written = await materialisePostcards(mailing, subscriptions);
-      if (!(await markMailingMailed(mailing.id, subscriptions.length))) continue;
-
-      result.mailed += 1;
-      result.postcards += written;
-      console.log(`[fulfilment] mailing ${mailing.id} went to ${subscriptions.length} subscriber${subscriptions.length === 1 ? "" : "s"}.`);
-
-      const artist = await getArtist(mailing.artistId);
-      const owner = artist ? await findCustomerById(artist.customerId) : null;
-      if (artist && owner) await sendMailingSentEmail(owner.email, { artistName: artist.name, subscriberCount: subscriptions.length, mailDate: mailing.mailDate, title: mailing.title });
-    } catch (error) {
-      console.error(`[fulfilment] mailing ${mailing.id} could not be sent:`, error);
-    }
-  }
-
-  // The cards just written are dated today: send them now, not in fifteen minutes.
-  if (result.postcards > 0) kickSweep();
-  return result;
-}
 
 /* --------------------------------------------------------------- postcards */
 
@@ -208,6 +163,8 @@ export async function sendDuePostcards(today = todayIso(), options: SweepOptions
   const designById = new Map(designs.map((design) => [design.id, design]));
   const artists = await findArtistsByIds(due.map((row) => row.artistId));
   const artistById = new Map(artists.map((artist) => [artist.id, artist]));
+  const editions = await findEditionsByIds(due.map((row) => row.editionId));
+  const editionById = new Map(editions.map((edition) => [edition.id, edition]));
   let pausedOnce = false;
   // Read once per sweep: the return address goes on every card, and the
   // pricing on every ledger row.
@@ -239,7 +196,7 @@ export async function sendDuePostcards(today = todayIso(), options: SweepOptions
         from: returnAddress,
         front,
         back: design.back,
-        description: `${artist.name} → ${postcard.recipient.name} (${row.mailDate})`,
+        description: `${artist.name} → ${postcard.recipient.name} (card ${row.position}, ${row.mailDate})`,
         footer: { artistName: artist.name, siteName },
       };
 
@@ -255,34 +212,40 @@ export async function sendDuePostcards(today = todayIso(), options: SweepOptions
       }
 
       await markPostcardSent(postcard.id, lob);
+      await markEditionCardMailed(row.editionCardId);
       result.sent += 1;
 
-      // The ledger row, with the numbers as they are right now. Written
-      // after the card is recorded sent, so a crash between the two leaves
-      // a sent card unpaid — which the admin can see — rather than a paid
-      // card unsent, which nobody could.
-      const subscription = await getSubscription(row.subscriptionId);
-      if (subscription && settings) {
-        const share = artistShareCents(subscription.priceCents, settings.pricing);
+      // The ledger row: this card's part of what the collector paid, with
+      // the platform's numbers as they are right now. Written after the card
+      // is recorded sent, so a crash between the two leaves a sent card
+      // unpaid — which the admin can see — rather than a paid card unsent,
+      // which nobody could.
+      const purchase = await getPurchase(row.purchaseId);
+      if (purchase && settings) {
+        const gross = cardGrossCents(purchase.priceCents, purchase.cardCount, row.position);
         await recordEarning({
           artistId: row.artistId,
           postcardId: postcard.id,
-          mailingId: row.mailingId,
-          grossCents: subscription.priceCents,
+          purchaseId: purchase.id,
+          grossCents: gross,
           printCostCents: settings.pricing.printCostCents,
           platformFeeCents: settings.pricing.platformFeeCents,
-          amountCents: share,
-          currency: subscription.currency,
+          amountCents: artistShareCents(gross, settings.pricing),
+          currency: purchase.currency,
         });
       }
 
       // Told after the row is written, so a crash between the two leaves a
       // sent card recorded as sent rather than an email about one that is not.
-      const recipient = subscription ? await findCustomerById(subscription.customerId) : null;
-      if (recipient) {
+      const recipient = purchase ? await findCustomerById(purchase.customerId) : null;
+      const edition = editionById.get(row.editionId);
+      if (recipient && purchase) {
         await sendPostcardSentEmail(recipient.email, {
           artistName: artist.name,
           artistSlug: artist.slug,
+          editionTitle: edition?.title ?? "your edition",
+          position: row.position,
+          cardCount: purchase.cardCount,
           recipientName: postcard.recipient.name,
           expectedDeliveryDate: lob.expectedDeliveryDate,
         });
@@ -387,7 +350,7 @@ export async function sendPendingPayouts(): Promise<PayoutSweepResult> {
           amount: payout.amountCents,
           currency: payout.currency.toLowerCase(),
           destination: artist.stripeAccountId,
-          transfer_group: payout.mailingId,
+          transfer_group: payout.purchaseId,
           description: `Postcard ${payout.postcardId.slice(0, 8)} — ${artist.name}`,
           metadata: { yiwap_payout_id: payout.id, yiwap_postcard_id: payout.postcardId, yiwap_artist_id: artist.id },
         },
@@ -427,17 +390,14 @@ export async function sendPendingPayouts(): Promise<PayoutSweepResult> {
 
 /** The scheduler. Unref'd so it never holds the process open. */
 export function startFulfilmentScheduler(): { close: () => void } {
-  const tick = () =>
-    void sendDueMailings()
-      .then(() => sendDuePostcards())
-      .catch(logSweepError);
+  const tick = () => void sendDuePostcards().catch(logSweepError);
 
   const sweep = setInterval(tick, SWEEP_INTERVAL_MS);
   const payouts = setInterval(() => void sendPendingPayouts().catch(logSweepError), PAYOUT_INTERVAL_MS);
   sweep.unref();
   payouts.unref();
 
-  // Once shortly after boot too: a server that was down over a mailing day
+  // Once shortly after boot too: a server that was down over a mail day
   // should not wait another fifteen minutes to catch up.
   const initial = setTimeout(tick, 10_000);
   const initialPayouts = setTimeout(() => void sendPendingPayouts().catch(logSweepError), 60_000);

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray, ne } from "drizzle-orm";
 import {
   postcardDesignSchema,
   postcardBackSchema,
@@ -14,10 +14,11 @@ import { affectedRows, jsonFor, parseJson, toCount, toEpochMs } from "./reposito
 /**
  * Postcard designs — the front image and back message an artist saved.
  *
- * A design belongs to one artist and may be queued as at most one mailing at
- * a time; once mailed it is kept forever, because it is what the gallery and
- * every subscriber's account show. Deleting is allowed only while nothing
- * refers to it.
+ * A design belongs to one artist and may be a card in any of their
+ * editions; once an edition is on sale its cards are fixed, and once mailed a
+ * design is kept forever, because it is what the gallery and every
+ * collector's account show. Deleting is allowed only while nothing refers to
+ * it.
  */
 
 export interface DesignRow {
@@ -150,7 +151,7 @@ export async function listDesignsForArtist(artistId: string): Promise<Design[]> 
   return rows.map(buildDesign);
 }
 
-/** Change the back of a design. Refused once it is on a mailing that is not queued: what was printed is the record. */
+/** Change the back of a design. The studio refuses it once the design is on sale: what collectors paid for is the record. */
 export async function updateDesignBack(id: string, artistId: string, back: PostcardBack): Promise<boolean> {
   const { drizzle: db, schema, dialect } = await getDatabase();
 
@@ -162,23 +163,24 @@ export async function updateDesignBack(id: string, artistId: string, back: Postc
   return affectedRows(result) === 1;
 }
 
-/** Whether any mailing — queued, mailed or cancelled — refers to this design. */
+/** Whether any edition, in any state, has this design as one of its cards. */
 export async function designIsUsed(id: string): Promise<boolean> {
   const { drizzle: db, schema } = await getDatabase();
   const rows = (await db
     .select({ value: count() })
-    .from(schema.mailings)
-    .where(eq(schema.mailings.designId, id))) as unknown as { value: unknown }[];
+    .from(schema.editionCards)
+    .where(eq(schema.editionCards.designId, id))) as unknown as { value: unknown }[];
   return toCount(rows[0]?.value) > 0;
 }
 
-/** Whether this design has been mailed: on a mailing past `queued`. */
-export async function designIsMailed(id: string): Promise<boolean> {
+/** Whether this design is a card in an edition past `draft`: collectors may have paid for it as it is. */
+export async function designIsLocked(id: string): Promise<boolean> {
   const { drizzle: db, schema } = await getDatabase();
   const rows = (await db
     .select({ value: count() })
-    .from(schema.mailings)
-    .where(and(eq(schema.mailings.designId, id), eq(schema.mailings.status, "mailed")))) as unknown as { value: unknown }[];
+    .from(schema.editionCards)
+    .innerJoin(schema.editions, eq(schema.editions.id, schema.editionCards.editionId))
+    .where(and(eq(schema.editionCards.designId, id), ne(schema.editions.status, "draft")))) as unknown as { value: unknown }[];
   return toCount(rows[0]?.value) > 0;
 }
 

@@ -60,10 +60,9 @@ async function loadWith(databaseUrl: string) {
   const admin = await import("./admin-repository.js");
   const artists = await import("./artists-repository.js");
   const designs = await import("./designs-repository.js");
-  const subscriptions = await import("./subscriptions-repository.js");
-  const mailings = await import("./mailings-repository.js");
+  const editions = await import("./editions-repository.js");
+  const purchases = await import("./purchases-repository.js");
   const postcards = await import("./postcards-repository.js");
-  const orders = await import("./orders-repository.js");
   const payouts = await import("./payouts-repository.js");
   const pages = await import("./pages-repository.js");
   const customers = await import("./customers-repository.js");
@@ -73,7 +72,7 @@ async function loadWith(databaseUrl: string) {
   await runMigrations();
   await seedIfEmpty();
 
-  return { ...repository, admin, artists, designs, subscriptions, mailings, postcards, orders, payouts, pages, customers, auth, getDatabase, resetDatabase };
+  return { ...repository, admin, artists, designs, editions, purchases, postcards, payouts, pages, customers, auth, getDatabase, resetDatabase };
 }
 
 const ADDRESS = { name: "Grandma", line1: "1 Test Street", line2: null, city: "Marfa", state: "TX", postalCode: "79843", country: "US" };
@@ -103,7 +102,7 @@ for (const { name, context } of dialects) {
 
     async function artist(slug = `artist-${randomUUID().slice(0, 8)}`) {
       const owner = await customer("Rachel");
-      return db.artists.createArtist(owner, { slug, name: "Rachel", tagline: "photos from the road", bio: "# Hello", monthlyPriceCents: 500, sendDay: 15, visibility: "public", avatar: null, termMonths: 6, banner: null, links: [] });
+      return db.artists.createArtist(owner, { slug, name: "Rachel", tagline: "photos from the road", bio: "# Hello", visibility: "public", avatar: null, banner: null, links: [] });
     }
 
     async function design(artistId: string) {
@@ -118,17 +117,48 @@ for (const { name, context } of dialects) {
       });
     }
 
-    async function activeSubscription(artistId: string, address = ADDRESS) {
+    /** A draft edition of six with every card in place, ready to go on sale. */
+    async function edition(artistId: string, overrides: Partial<{ slug: string; cadence: "monthly" | "twice_monthly" }> = {}) {
+      const created = await db.editions.createEdition(artistId, {
+        slug: overrides.slug ?? `set-${randomUUID().slice(0, 8)}`,
+        title: "Birds",
+        description: "",
+        cardCount: 6,
+        cadence: overrides.cadence ?? "monthly",
+        priceCents: 3000,
+        inGallery: true,
+      });
+      const designs = [];
+      for (let i = 0; i < 6; i += 1) designs.push(await design(artistId));
+      await db.editions.replaceEditionCards(created.id, designs.map((d) => ({ designId: d.id, title: null })));
+      return { edition: created, designs, cards: await db.editions.listCardsForEdition(created.id) };
+    }
+
+    async function paidPurchase(set: Awaited<ReturnType<typeof edition>>, address = ADDRESS, startDate = "2026-11-01") {
       const who = await customer(address.name);
-      const id = db.subscriptions.newSubscriptionId();
-      await db.subscriptions.createIncompleteSubscription({ id, customerId: who, artistId, checkoutSessionId: `cs_${id}`, priceCents: 500, currency: "USD", termMonths: 6, address });
-      await db.subscriptions.activateSubscription(id, { stripeSubscriptionId: `sub_${id}`, currentPeriodEnd: Date.now() + 30 * 86_400_000 });
-      return (await db.subscriptions.getSubscription(id))!;
+      const id = db.purchases.newPurchaseId();
+      await db.purchases.createIncompletePurchase({
+        id,
+        customerId: who,
+        editionId: set.edition.id,
+        artistId: set.edition.artistId,
+        checkoutSessionId: `cs_${id}`,
+        priceCents: set.edition.priceCents,
+        currency: "USD",
+        cardCount: set.edition.cardCount,
+        cadence: set.edition.cadence,
+        startDate,
+        address,
+      });
+      await db.purchases.markPurchasePaid(id, `pi_${id}`);
+      const purchase = (await db.purchases.getPurchase(id))!;
+      await db.postcards.materialisePostcards(purchase, set.cards);
+      return purchase;
     }
 
     it("returns a schema-valid snapshot with the pricing", async () => {
       const store = await db.getStoreSnapshot();
-      expect(store?.pricing).toEqual({ printCostCents: 120, platformFeeCents: 60, minMonthlyPriceCents: 300 });
+      expect(store?.pricing).toEqual({ printCostCents: 120, platformFeeCents: 60, minCardPriceCents: 300 });
       expect(store?.pages).toEqual([]);
     });
 
@@ -137,12 +167,12 @@ for (const { name, context } of dialects) {
       const returnAddress = { name: "Yes I Want A Postcard", line1: "185 Berry St", line2: null, city: "San Francisco", state: "CA", postalCode: "94107", country: "US" };
       await db.admin.updateSettings({
         ...settings,
-        pricing: { printCostCents: 150, platformFeeCents: 75, minMonthlyPriceCents: 400 },
+        pricing: { printCostCents: 150, platformFeeCents: 75, minCardPriceCents: 400 },
         returnAddress,
         hero: { heading: "Hello", text: null, buttonLabel: null, buttonHref: "/artists", image: null },
       });
       const updated = (await db.getSettings())!;
-      expect(updated.pricing).toEqual({ printCostCents: 150, platformFeeCents: 75, minMonthlyPriceCents: 400 });
+      expect(updated.pricing).toEqual({ printCostCents: 150, platformFeeCents: 75, minCardPriceCents: 400 });
       expect(updated.returnAddress).toEqual(returnAddress);
       expect(updated.hero.heading).toBe("Hello");
       expect(updated.hero.buttonHref).toBe("/artists");
@@ -159,8 +189,8 @@ for (const { name, context } of dialects) {
       expect(await db.artists.slugIsTaken("first-artist")).toBe(true);
       expect(await db.artists.slugIsTaken("first-artist", a.id)).toBe(false);
 
-      // The term, the banner and the links round-trip through both dialects' column types.
-      expect(a).toMatchObject({ termMonths: 6, banner: null, links: [] });
+      // The banner and the links round-trip through both dialects' column types.
+      expect(a).toMatchObject({ banner: null, links: [] });
       const banner = { path: "artists-x/banner.webp", width: 900, height: 300, alt: "", widths: [] };
       const links = [
         { label: "", url: "https://www.rachel.example/" },
@@ -171,15 +201,12 @@ for (const { name, context } of dialects) {
         name: "Rachel",
         tagline: null,
         bio: "",
-        monthlyPriceCents: 500,
-        termMonths: 12,
-        sendDay: 15,
         visibility: "public",
         avatar: null,
         banner,
         links,
       });
-      expect(updated).toMatchObject({ termMonths: 12, banner, links });
+      expect(updated).toMatchObject({ banner, links });
       expect((await db.artists.findArtistBySlug("first-artist"))?.links).toEqual(links);
 
       await expect(artist("first-artist")).rejects.toThrow(/already in use/);
@@ -201,99 +228,126 @@ for (const { name, context } of dialects) {
       expect(await db.designs.designIsUsed(created.id)).toBe(false);
     });
 
-    it("keeps a subscription's address as JSON and only activates an incomplete one", async () => {
+    it("keeps a draft's cards in order, and fixes them once it is on sale", async () => {
       const a = await artist();
-      const who = await customer("Maya");
-      const id = db.subscriptions.newSubscriptionId();
-      await db.subscriptions.createIncompleteSubscription({ id, customerId: who, artistId: a.id, checkoutSessionId: `cs_${id}`, priceCents: 500, currency: "USD", termMonths: 6, address: ADDRESS });
-      expect(await db.subscriptions.findOpenSubscription(who, a.id)).toBeNull();
+      const set = await edition(a.id, { slug: "birds" });
+      expect(set.edition).toMatchObject({ status: "draft", cardCount: 6, cadence: "monthly", inGallery: true });
+      expect(set.cards.map((c) => c.position)).toEqual([1, 2, 3, 4, 5, 6]);
+      expect(set.cards.map((c) => c.designId)).toEqual(set.designs.map((d) => d.id));
+      await expect(db.editions.createEdition(a.id, { slug: "birds", title: "Again", description: "", cardCount: 6, cadence: "monthly", priceCents: 3000, inGallery: true })).rejects.toThrow(/already have an edition/);
+      expect(await db.designs.designIsUsed(set.designs[0]!.id)).toBe(true);
+      expect(await db.designs.designIsLocked(set.designs[0]!.id)).toBe(false);
 
-      expect(await db.subscriptions.activateSubscription(id, { stripeSubscriptionId: "sub_a", currentPeriodEnd: 1_800_000_000_000 })).toBe(true);
-      expect(await db.subscriptions.activateSubscription(id, { stripeSubscriptionId: "sub_b", currentPeriodEnd: null })).toBe(false);
+      // Reordered: the last first.
+      const reordered = [set.designs[5]!, ...set.designs.slice(0, 5)];
+      expect(await db.editions.replaceEditionCards(set.edition.id, reordered.map((d) => ({ designId: d.id, title: null })))).toBe(true);
+      expect((await db.editions.listCardsForEdition(set.edition.id)).map((c) => c.designId)).toEqual(reordered.map((d) => d.id));
 
-      const found = (await db.subscriptions.findSubscriptionByStripeId("sub_a"))!;
-      expect(found).toMatchObject({ id, status: "active", currentPeriodEnd: 1_800_000_000_000, cancelAtPeriodEnd: false, address: ADDRESS });
-      expect(await db.subscriptions.findOpenSubscription(who, a.id)).toMatchObject({ id });
+      expect(await db.editions.setEditionStatus(set.edition.id, ["draft"], "on_sale")).toBe(true);
+      expect(await db.editions.setEditionStatus(set.edition.id, ["draft"], "on_sale")).toBe(false);
+      expect(await db.designs.designIsLocked(set.designs[0]!.id)).toBe(true);
+      // On sale: the cards and the numbers hold; the words still change.
+      expect(await db.editions.replaceEditionCards(set.edition.id, [])).toBe(false);
+      expect(await db.editions.updateDraftEdition(set.edition.id, a.id, { slug: "birds", title: "Birds", description: "", cardCount: 12, cadence: "monthly", priceCents: 1, inGallery: true })).toBe(false);
+      expect(await db.editions.updateEditionWords(set.edition.id, a.id, { title: "Birds of Marfa", description: "*Hi*", inGallery: false })).toBe(true);
+      expect(await db.editions.getEdition(set.edition.id)).toMatchObject({ title: "Birds of Marfa", priceCents: 3000, inGallery: false });
+      expect(await db.editions.deleteDraftEdition(set.edition.id, a.id)).toBe(false);
+      expect((await db.editions.listEditionsForArtist(a.id, ["on_sale"])).map((e) => e.id)).toEqual([set.edition.id]);
+      expect(await db.editions.findEditionBySlug(a.id, "birds")).toMatchObject({ id: set.edition.id });
 
-      await db.subscriptions.syncSubscription(id, { status: "past_due", currentPeriodEnd: null, cancelAtPeriodEnd: true });
-      expect((await db.subscriptions.getSubscription(id))).toMatchObject({ status: "past_due", cancelAtPeriodEnd: true });
-
-      const moved = { ...ADDRESS, line1: "9 New Road" };
-      expect(await db.subscriptions.updateSubscriptionAddresses(who, moved)).toBe(1);
-      expect((await db.subscriptions.getSubscription(id))?.address.line1).toBe("9 New Road");
-
-      await db.subscriptions.syncSubscription(id, { status: "cancelled", currentPeriodEnd: null, cancelAtPeriodEnd: false });
-      expect((await db.subscriptions.getSubscription(id))?.cancelledAt).toBeTypeOf("number");
-      expect(await db.subscriptions.listActiveSubscriptionsForArtist(a.id)).toHaveLength(0);
+      // A draft shrunk to fewer cards drops the extra ones.
+      const other = await edition(a.id);
+      await db.editions.updateDraftEdition(other.edition.id, a.id, { slug: other.edition.slug, title: "Fewer", description: "", cardCount: 6, cadence: "twice_monthly", priceCents: 2400, inGallery: true });
+      expect(await db.editions.getEdition(other.edition.id)).toMatchObject({ cadence: "twice_monthly", priceCents: 2400 });
+      expect(await db.editions.deleteDraftEdition(other.edition.id, randomUUID())).toBe(false);
+      expect(await db.editions.deleteDraftEdition(other.edition.id, a.id)).toBe(true);
     });
 
-    it("queues one mailing a month, materialises a card per active subscriber, and sends it", async () => {
+    it("pays a purchase once, writes every card of its run on its day, and moves the cards still to come", async () => {
       const a = await artist();
-      const d = await design(a.id);
-      const grandma = await activeSubscription(a.id);
-      const grandpa = await activeSubscription(a.id, { ...ADDRESS, name: "Grandpa" });
-      // A paused-out subscriber gets nothing.
-      const lapsed = await activeSubscription(a.id, { ...ADDRESS, name: "Lapsed" });
-      await db.subscriptions.syncSubscription(lapsed.id, { status: "past_due", currentPeriodEnd: null, cancelAtPeriodEnd: false });
+      const set = await edition(a.id, { cadence: "twice_monthly" });
+      const who = await customer("Maya");
+      const id = db.purchases.newPurchaseId();
+      await db.purchases.createIncompletePurchase({ id, customerId: who, editionId: set.edition.id, artistId: a.id, checkoutSessionId: `cs_${id}`, priceCents: 3000, currency: "USD", cardCount: 6, cadence: "twice_monthly", startDate: "2026-11-05", address: ADDRESS });
+      expect(await db.purchases.findPurchaseByCheckoutSession(`cs_${id}`)).toMatchObject({ id, status: "incomplete", address: ADDRESS });
+      expect(await db.purchases.editionHasPurchases(set.edition.id)).toBe(true);
 
-      const mailing = await db.mailings.createMailing({ artistId: a.id, designId: d.id, mailDate: "2026-10-15", title: "October", inGallery: true });
-      expect(mailing.period).toBe("2026-10");
-      await expect(db.mailings.createMailing({ artistId: a.id, designId: d.id, mailDate: "2026-10-20", title: null, inGallery: true })).rejects.toThrow(/already scheduled/);
-      expect(await db.mailings.takenMailDates(a.id)).toEqual(["2026-10-15"]);
-      expect(await db.designs.designIsUsed(d.id)).toBe(true);
+      expect(await db.purchases.markPurchasePaid(id, "pi_a")).toBe(true);
+      expect(await db.purchases.markPurchasePaid(id, "pi_b")).toBe(false);
+      const purchase = (await db.purchases.findPurchaseByPaymentIntent("pi_a"))!;
+      expect(purchase).toMatchObject({ id, status: "paid", startDate: "2026-11-05", paidAt: expect.any(Number) });
 
-      expect((await db.mailings.findDueMailings("2026-10-14", 10)).map((m) => m.id)).not.toContain(mailing.id);
-      expect((await db.mailings.findDueMailings("2026-10-15", 10)).map((m) => m.id)).toContain(mailing.id);
+      expect(await db.postcards.materialisePostcards(purchase, set.cards)).toBe(6);
+      // Idempotent: a redelivered webhook writes nothing new.
+      expect(await db.postcards.materialisePostcards(purchase, set.cards)).toBe(0);
+      const run = await db.postcards.listPostcardsForPurchase(id);
+      expect(run.map((c) => c.mailDate)).toEqual(["2026-11-05", "2026-11-19", "2026-12-05", "2026-12-19", "2027-01-05", "2027-01-19"]);
+      expect(run.map((c) => c.position)).toEqual([1, 2, 3, 4, 5, 6]);
+      expect(await db.purchases.findRunningPurchase(who, set.edition.id)).toMatchObject({ id });
+      expect((await db.purchases.countCollectorsForEditions([set.edition.id])).get(set.edition.id)).toBe(1);
 
-      const active = await db.subscriptions.listActiveSubscriptionsForArtist(a.id);
-      expect(active.map((s) => s.id).sort()).toEqual([grandma.id, grandpa.id].sort());
-      expect(await db.postcards.materialisePostcards(mailing, active)).toBe(2);
-      // Idempotent: a second sweep writes nothing new.
-      expect(await db.postcards.materialisePostcards(mailing, active)).toBe(0);
-      expect(await db.mailings.markMailingMailed(mailing.id, active.length)).toBe(true);
-      expect(await db.mailings.markMailingMailed(mailing.id, active.length)).toBe(false);
-      expect(await db.designs.designIsMailed(d.id)).toBe(true);
+      const moved = { ...ADDRESS, line1: "9 New Road" };
+      const ids = await db.purchases.updatePurchaseAddresses(who, moved);
+      expect(ids).toEqual([id]);
+      await db.postcards.markPostcardSent(run[0]!.id, { id: "psc_first", url: null, expectedDeliveryDate: null });
+      expect(await db.postcards.updateUnsentPostcardAddresses(ids, moved)).toBe(5);
+      const after = await db.postcards.listPostcardsForPurchase(id);
+      expect(after[0]!.recipient.line1).toBe("1 Test Street");
+      expect(after[1]!.recipient.line1).toBe("9 New Road");
 
-      const cards = await db.postcards.listPostcardsForMailing(mailing.id);
-      expect(cards.map((c) => c.recipient.name)).toEqual(["Grandma", "Grandpa"]);
-      expect(cards.every((c) => c.status === "scheduled" && c.mailDate === "2026-10-15")).toBe(true);
+      const schedule = (await db.postcards.listSchedules([id])).get(id)!;
+      expect(schedule[0]).toEqual({ position: 1, mailDate: "2026-11-05", status: "sent" });
+      expect((await db.postcards.countPostcardsByEdition([set.edition.id])).get(set.edition.id)).toEqual({ sent: 1, scheduled: 5 });
 
-      const due = await db.postcards.findDuePostcards("2026-10-15", 50);
-      const first = due.find((row) => row.mailingId === mailing.id)!;
+      // A full refund cancels the rest.
+      await db.purchases.recordPurchaseRefund(id, 3000, true);
+      expect(await db.postcards.cancelUnsentPostcards(id)).toBe(5);
+      expect(await db.purchases.getPurchase(id)).toMatchObject({ status: "refunded", refundedCents: 3000 });
+      expect(await db.purchases.findRunningPurchase(who, set.edition.id)).toBeNull();
+      expect((await db.purchases.listPurchasesForCustomer(who)).map((p) => p.id)).toEqual([id]);
+      expect(await db.purchases.sumRevenueCents()).toBeGreaterThanOrEqual(0);
+
+      // An abandoned checkout is tidied away, and only that.
+      const abandoned = db.purchases.newPurchaseId();
+      await db.purchases.createIncompletePurchase({ id: abandoned, customerId: who, editionId: set.edition.id, artistId: a.id, checkoutSessionId: `cs_${abandoned}`, priceCents: 3000, currency: "USD", cardCount: 6, cadence: "monthly", startDate: "2026-11-01", address: ADDRESS });
+      expect(await db.purchases.deleteIncompletePurchase(abandoned)).toBe(true);
+      expect(await db.purchases.deleteIncompletePurchase(id)).toBe(false);
+    });
+
+    it("sends what is due, and the first copy of each card puts it in the gallery", async () => {
+      const a = await artist();
+      const set = await edition(a.id);
+      const grandma = await paidPurchase(set, ADDRESS, "2026-10-15");
+      await paidPurchase(set, { ...ADDRESS, name: "Grandpa" }, "2026-10-20");
+
+      const dueOn15 = (await db.postcards.findDuePostcards("2026-10-15", 50)).filter((row) => row.editionId === set.edition.id);
+      expect(dueOn15.map((row) => row.recipientName)).toEqual(["Grandma"]);
+      const first = dueOn15[0]!;
       expect(await db.postcards.claimPostcard(first.id)).toBe(true);
       expect(await db.postcards.claimPostcard(first.id)).toBe(false);
 
       await db.postcards.markPostcardSent(first.id, { id: "psc_1", url: null, expectedDeliveryDate: "2026-10-20" });
+      await db.editions.markEditionCardMailed(first.editionCardId);
       const sent = (await db.postcards.getPostcard(first.id))!;
-      expect(sent.status).toBe("sent");
+      expect(sent).toMatchObject({ status: "sent", position: 1, purchaseId: grandma.id });
       expect(sent.sentAt).toBeTypeOf("number");
 
-      const counts = (await db.mailings.countPostcardsByMailing([mailing.id])).get(mailing.id);
-      expect(counts).toEqual({ scheduled: 1, sent: 1, error: 0, cancelled: 0 });
-      expect((await db.artists.countForArtists([a.id])).get(a.id)).toEqual({ subscribers: 2, mailed: 1 });
-      expect((await db.artists.latestMailedDesignIds([a.id])).get(a.id)).toBe(d.id);
+      expect((await db.artists.countForArtists([a.id])).get(a.id)).toEqual({ collectors: 2, mailed: 1 });
+      expect((await db.editions.latestMailedDesignIds([a.id])).get(a.id)).toBe(set.cards[0]!.designId);
+      const gallery = await db.editions.listGalleryCards({ artistId: a.id, limit: 10 });
+      expect(gallery.entries.map((e) => e.card.id)).toEqual([set.cards[0]!.id]);
 
-      // The subscriber sees their card; the gallery shows the mailing.
+      // The collector sees the card that went, and only that one.
       const received = await db.postcards.listPostcardsForCustomer(grandma.customerId);
-      expect(received.map((c) => c.mailingId)).toEqual([mailing.id]);
-      expect((await db.mailings.listGalleryMailings({ limit: 10 })).mailings.map((m) => m.id)).toContain(mailing.id);
-
-      // A queued one can be withdrawn and the month reused; a mailed one cannot.
-      expect(await db.mailings.cancelQueuedMailing(mailing.id, a.id)).toBe(false);
-      const next = await db.mailings.createMailing({ artistId: a.id, designId: d.id, mailDate: "2026-11-15", title: null, inGallery: false });
-      expect(await db.mailings.cancelQueuedMailing(next.id, randomUUID())).toBe(false);
-      expect(await db.mailings.cancelQueuedMailing(next.id, a.id)).toBe(true);
-      const again = await db.mailings.createMailing({ artistId: a.id, designId: d.id, mailDate: "2026-11-01", title: null, inGallery: false });
-      expect(again.period).toBe("2026-11");
+      expect(received.map((c) => c.id)).toEqual([first.id]);
+      expect((await db.postcards.listPostcardsForEdition(set.edition.id)).length).toBe(12);
     });
 
     it("keeps tracking events per card and moves the status only forward, on either engine", async () => {
       const a = await artist();
-      const d = await design(a.id);
-      const sub = await activeSubscription(a.id);
-      const mailing = await db.mailings.createMailing({ artistId: a.id, designId: d.id, mailDate: "2026-09-14", title: null, inGallery: true });
-      await db.postcards.materialisePostcards(mailing, [sub]);
-      const card = (await db.postcards.listPostcardsForMailing(mailing.id))[0]!;
+      const purchase = await paidPurchase(await edition(a.id));
+      const card = (await db.postcards.listPostcardsForPurchase(purchase.id))[0]!;
+      const mailing = { id: card.id };
 
       expect(await db.postcards.recordTrackingEvent(card.id, { id: `evt_${mailing.id}_2`, type: "postcard.delivered", occurredAt: Date.parse("2026-09-18T15:00:00Z"), location: null })).toBe(true);
       expect(await db.postcards.recordTrackingEvent(card.id, { id: `evt_${mailing.id}_1`, type: "postcard.in_transit", occurredAt: Date.parse("2026-09-15T10:00:00Z"), location: "MARFA TX" })).toBe(true);
@@ -318,13 +372,10 @@ for (const { name, context } of dialects) {
 
     it("writes one ledger row per sent card, sums it, and pays it out once", async () => {
       const a = await artist();
-      const d = await design(a.id);
-      const sub = await activeSubscription(a.id);
-      const mailing = await db.mailings.createMailing({ artistId: a.id, designId: d.id, mailDate: "2026-09-14", title: null, inGallery: true });
-      await db.postcards.materialisePostcards(mailing, [sub]);
-      const card = (await db.postcards.listPostcardsForMailing(mailing.id))[0]!;
+      const purchase = await paidPurchase(await edition(a.id));
+      const card = (await db.postcards.listPostcardsForPurchase(purchase.id))[0]!;
 
-      const earning = { artistId: a.id, postcardId: card.id, mailingId: mailing.id, grossCents: 500, printCostCents: 120, platformFeeCents: 60, amountCents: 320, currency: "USD" };
+      const earning = { artistId: a.id, postcardId: card.id, purchaseId: purchase.id, grossCents: 500, printCostCents: 120, platformFeeCents: 60, amountCents: 320, currency: "USD" };
       expect(await db.payouts.recordEarning(earning)).toBe(true);
       expect(await db.payouts.recordEarning(earning)).toBe(false);
       expect(await db.payouts.sumEarningsForArtist(a.id)).toEqual({ pendingCents: 320, paidCents: 0 });
@@ -344,22 +395,6 @@ for (const { name, context } of dialects) {
       await db.payouts.markPayoutFailed(payable!.id, "no", "failed");
       expect(await db.payouts.requeuePayout(payable!.id)).toBe(true);
       expect((await db.payouts.getPayout(payable!.id))?.status).toBe("pending");
-    });
-
-    it("records a paid invoice once and a refund additively", async () => {
-      const a = await artist();
-      const sub = await activeSubscription(a.id);
-      const input = { subscriptionId: sub.id, customerId: sub.customerId, artistId: a.id, stripeInvoiceId: `in_${sub.id}`, stripePaymentIntentId: `pi_${sub.id}`, amountCents: 500, currency: "USD", periodStart: 1_700_000_000_000, periodEnd: 1_702_600_000_000 };
-      expect(await db.orders.recordPaidInvoice(input)).toBe(true);
-      expect(await db.orders.recordPaidInvoice(input)).toBe(false);
-
-      const order = (await db.orders.findOrderByPaymentIntent(`pi_${sub.id}`))!;
-      expect(order).toMatchObject({ amountCents: 500, refundedCents: 0, status: "paid", periodStart: 1_700_000_000_000 });
-      await db.orders.recordRefund(order.id, 200, false);
-      await db.orders.recordRefund(order.id, 300, true);
-      expect(await db.orders.findOrderByPaymentIntent(`pi_${sub.id}`)).toMatchObject({ refundedCents: 500, status: "refunded" });
-      expect((await db.orders.listOrdersForCustomer(sub.customerId)).map((o) => o.id)).toEqual([order.id]);
-      expect(await db.orders.sumRevenueCents()).toBeGreaterThanOrEqual(0);
     });
 
     it("keeps a customer's mailing address and Stripe customer", async () => {

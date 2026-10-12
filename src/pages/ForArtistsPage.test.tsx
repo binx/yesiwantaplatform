@@ -7,8 +7,8 @@ import { ForArtistsPage } from "./ForArtistsPage";
 const customer = vi.hoisted(() => ({ data: null as null | { artistSlug: string | null } }));
 vi.mock("@/lib/account", () => ({ useCustomer: () => customer }));
 
-const withPricing = (printCostCents: number, platformFeeCents: number, minMonthlyPriceCents: number) =>
-  storeSchema.parse({ ...demoStore, pricing: { printCostCents, platformFeeCents, minMonthlyPriceCents } });
+const withPricing = (printCostCents: number, platformFeeCents: number, minCardPriceCents: number) =>
+  storeSchema.parse({ ...demoStore, pricing: { printCostCents, platformFeeCents, minCardPriceCents } });
 
 describe("the for-artists page", () => {
   it("prints the floor, the costs and the worked example from settings, never from prose", () => {

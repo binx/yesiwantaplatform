@@ -19,7 +19,7 @@ export interface PayoutRow {
   id: string;
   artistId: string;
   postcardId: string;
-  mailingId: string;
+  purchaseId: string;
   grossCents: number;
   printCostCents: number;
   platformFeeCents: number;
@@ -37,7 +37,7 @@ export interface PayoutRecord {
   id: string;
   artistId: string;
   postcardId: string;
-  mailingId: string;
+  purchaseId: string;
   grossCents: number;
   printCostCents: number;
   platformFeeCents: number;
@@ -60,7 +60,7 @@ export function buildPayout(row: PayoutRow): PayoutRecord {
     id: row.id,
     artistId: row.artistId,
     postcardId: row.postcardId,
-    mailingId: row.mailingId,
+    purchaseId: row.purchaseId,
     grossCents: row.grossCents,
     printCostCents: row.printCostCents,
     platformFeeCents: row.platformFeeCents,
@@ -78,7 +78,7 @@ export function buildPayout(row: PayoutRow): PayoutRecord {
 export interface CreatePayoutInput {
   artistId: string;
   postcardId: string;
-  mailingId: string;
+  purchaseId: string;
   grossCents: number;
   printCostCents: number;
   platformFeeCents: number;
@@ -95,7 +95,7 @@ export async function recordEarning(input: CreatePayoutInput): Promise<boolean> 
       id: randomUUID(),
       artistId: input.artistId,
       postcardId: input.postcardId,
-      mailingId: input.mailingId,
+      purchaseId: input.purchaseId,
       grossCents: input.grossCents,
       printCostCents: input.printCostCents,
       platformFeeCents: input.platformFeeCents,

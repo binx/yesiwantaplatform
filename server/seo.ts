@@ -1,6 +1,7 @@
 import { getSettings } from "../db/repository.js";
 import { findPageBySlug } from "../db/pages-repository.js";
 import { findArtistBySlug } from "../db/artists-repository.js";
+import { findEditionBySlug } from "../db/editions-repository.js";
 import { languageOf } from "../shared/locale.js";
 import { formatMoney } from "../shared/money.js";
 import { SITE_TITLE } from "../shared/site.js";
@@ -59,10 +60,10 @@ function absolute(pathname: string): string {
   return new URL(pathname, env.PUBLIC_URL).toString();
 }
 
-const DEFAULT_DESCRIPTION = "Subscribe to an artist and get one of their postcards in the mail every month. Let's move beyond social media.";
+const DEFAULT_DESCRIPTION = "Collect an edition of an artist's postcards and get them in the mail, one by one, over the months. Let's move beyond social media.";
 
 /** Client routes with nothing to say about themselves beyond the platform's own line. */
-const PLAIN_ROUTES = ["/account", "/studio", "/subscribe", "/admin", "/setup"];
+const PLAIN_ROUTES = ["/account", "/studio", "/collect", "/admin", "/setup"];
 
 /**
  * Resolve the tags for one path.
@@ -96,15 +97,15 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
     if (path === "/") return fallback;
 
     if (path === "/artists") {
-      return { ...fallback, description: truncate("Every artist you can subscribe to, and what a month of their mail costs.") };
+      return { ...fallback, description: truncate("Every artist you can collect, and the editions of postcards they make.") };
     }
 
     if (path === "/gallery") {
-      return { ...fallback, description: truncate("Postcards recently mailed to subscribers, by the artists who made them.") };
+      return { ...fallback, description: truncate("Postcards recently mailed to collectors, by the artists who made them.") };
     }
 
     if (path === "/for-artists") {
-      return { ...fallback, title: `For artists · ${storeName}`, description: truncate("Mail one postcard a month to the people who want to hear from you. Set your price; we print, post and pay you.") };
+      return { ...fallback, title: `For artists · ${storeName}`, description: truncate("Make an edition of 6 or 12 postcards and sell it to the people who want to hear from you. Set your price; we print, post and pay you.") };
     }
 
     if (PLAIN_ROUTES.some((p) => path === p || path.startsWith(`${p}/`))) return fallback;
@@ -113,11 +114,10 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
     if (artistMatch) {
       const artist = await findArtistBySlug(artistMatch[1]!);
       if (!artist || artist.status === "draft") return { ...fallback, status: 404 };
-      const price = formatMoney(artist.monthlyPriceCents, currency, locale);
       const bio = plainText(artist.bio);
       return {
         ...fallback,
-        description: truncate(artist.tagline ?? (bio || `A postcard from ${artist.name} every month, for ${price}.`)),
+        description: truncate(artist.tagline ?? (bio || `Editions of postcards by ${artist.name}, mailed to you one by one.`)),
         canonical: absolute(path),
         image: artist.avatar ? absolute(`/assets/${artist.avatar.path}`) : fallback.image,
         jsonLd: {
@@ -127,6 +127,21 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
           url: absolute(path),
           ...(artist.tagline ? { description: artist.tagline } : {}),
         },
+      };
+    }
+
+    const editionMatch = /^\/artist\/([a-z0-9]+(?:-[a-z0-9]+)*)\/([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(path);
+    if (editionMatch) {
+      const artist = await findArtistBySlug(editionMatch[1]!);
+      const edition = artist && artist.status !== "draft" ? await findEditionBySlug(artist.id, editionMatch[2]!) : null;
+      if (!artist || !edition || edition.status === "draft") return { ...fallback, status: 404 };
+      const price = formatMoney(edition.priceCents, currency, locale);
+      const pace = edition.cadence === "twice_monthly" ? "two a month" : "one a month";
+      return {
+        ...fallback,
+        title: `${edition.title} by ${artist.name} · ${storeName}`,
+        description: truncate(plainText(edition.description) || `${edition.cardCount} postcards by ${artist.name}, ${pace}, for ${price}.`),
+        canonical: absolute(path),
       };
     }
 

@@ -111,34 +111,41 @@ async function sendTemplate(template: string, to: string, locals: Record<string,
   return deliver(to, rendered.subject, rendered.html);
 }
 
-/* ------------------------------------------------------------ subscribers */
+/* ------------------------------------------------------------- collectors */
 
-/** "You're subscribed to Rachel": the first thing a new subscriber hears. */
-export async function sendSubscriptionStartedEmail(
+/** "You're collecting Birds by Rachel": the first thing a new collector hears, with when the cards go. */
+export async function sendCollectionStartedEmail(
   to: string,
-  locals: { artistName: string; artistSlug: string; priceCents: number; currency: string; sendDay: number; termMonths: number },
+  locals: { artistName: string; artistSlug: string; editionTitle: string; priceCents: number; currency: string; cardCount: number; twiceMonthly: boolean; schedule: string[] },
 ): Promise<boolean> {
   const store = await storeLocals();
-  return sendTemplate("SubscriptionStarted", to, {
+  const first = locals.schedule[0];
+  const last = locals.schedule[locals.schedule.length - 1];
+  return sendTemplate("CollectionStarted", to, {
     artistName: locals.artistName,
     artistUrl: url(artistPath(locals.artistSlug)),
+    editionTitle: locals.editionTitle,
+    cardCount: locals.cardCount,
+    cadenceWords: locals.twiceMonthly ? "two a month" : "one a month",
     price: formatMoney(locals.priceCents, locals.currency, store.locale),
-    sendDay: locals.sendDay,
-    termMonths: locals.termMonths,
-    oneMonth: locals.termMonths === 1,
+    firstDay: first ? formatDay(first, store.locale) : "",
+    lastDay: last ? formatDay(last, store.locale) : "",
     accountUrl: url("/account"),
   });
 }
 
-/** "Your postcard from Rachel went to print today." One per card, on the day. */
+/** "Card 3 of 6 from Rachel went to print today." One per card, on the day. */
 export async function sendPostcardSentEmail(
   to: string,
-  locals: { artistName: string; artistSlug: string; recipientName: string; expectedDeliveryDate: string | null },
+  locals: { artistName: string; artistSlug: string; editionTitle: string; position: number; cardCount: number; recipientName: string; expectedDeliveryDate: string | null },
 ): Promise<boolean> {
   const store = await storeLocals();
   return sendTemplate("PostcardSent", to, {
     artistName: locals.artistName,
     artistUrl: url(artistPath(locals.artistSlug)),
+    editionTitle: locals.editionTitle,
+    position: locals.position,
+    cardCount: locals.cardCount,
     recipientName: locals.recipientName,
     expectedDelivery: locals.expectedDeliveryDate ? formatDay(locals.expectedDeliveryDate, store.locale) : null,
     postcardsUrl: url("/account/postcards"),
@@ -147,19 +154,9 @@ export async function sendPostcardSentEmail(
 
 /* ---------------------------------------------------------------- artists */
 
-/** "Someone new subscribed": to the artist, on each new subscription. */
-export async function sendNewSubscriberEmail(to: string, locals: { artistName: string; subscriberName: string; subscriberCity: string; subscriberCount: number }): Promise<boolean> {
-  return sendTemplate("NewSubscriber", to, { ...locals, studioUrl: url("/studio/subscribers") });
-}
-
-/** "Your September card went out to 41 people": to the artist, when a mailing goes. */
-export async function sendMailingSentEmail(to: string, locals: { artistName: string; subscriberCount: number; mailDate: string; title: string | null }): Promise<boolean> {
-  const store = await storeLocals();
-  return sendTemplate("MailingSent", to, {
-    ...locals,
-    day: formatDay(locals.mailDate, store.locale),
-    queueUrl: url("/studio/queue"),
-  });
+/** "Someone collected Birds": to the artist, on each new purchase. */
+export async function sendNewCollectorEmail(to: string, locals: { editionTitle: string; collectorName: string; collectorCity: string; collectorCount: number }): Promise<boolean> {
+  return sendTemplate("NewCollector", to, { ...locals, studioUrl: url("/studio/collectors") });
 }
 
 /* ---------------------------------------------------------------- account */

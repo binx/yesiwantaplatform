@@ -11,17 +11,9 @@ import {
   type CustomerSession,
 } from "../../shared/account.js";
 import { getMailingAddress, setMailingAddress } from "../../db/customers-repository.js";
-import { findArtistByCustomer, findArtistsByIds } from "../../db/artists-repository.js";
-import {
-  countPostcardsForSubscriptions,
-  getSubscriptionForCustomer,
-  listSubscriptionsForCustomer,
-  setCancelAtPeriodEnd,
-  updateSubscriptionAddresses,
-} from "../../db/subscriptions-repository.js";
-import { listPostcardsForCustomer } from "../../db/postcards-repository.js";
-import { getMailing, type MailingRecord } from "../../db/mailings-repository.js";
-import { countPaidMonthsForSubscriptions, listOrdersForCustomer } from "../../db/orders-repository.js";
+import { findArtistByCustomer } from "../../db/artists-repository.js";
+import { listPurchasesForCustomer, updatePurchaseAddresses } from "../../db/purchases-repository.js";
+import { listPostcardsForCustomer, updateUnsentPostcardAddresses } from "../../db/postcards-repository.js";
 import {
   EmailTakenError,
   TokenNotUsableError,
@@ -39,8 +31,7 @@ import {
 import { sendAccountEmail } from "../email.js";
 import { verifyRecipient } from "../lob.js";
 import { env } from "../env.js";
-import { classifyStripeError, requireStripe, StripeNotConfiguredError } from "../stripe.js";
-import { presentReceivedPostcards, toOrder, toSubscription } from "../presenters.js";
+import { presentCollections, presentReceivedPostcards } from "../presenters.js";
 import {
   csrfToken,
   customerLoginRateLimit,
@@ -209,7 +200,8 @@ meRouter.put("/", async (req, res) => {
 
 /**
  * Where the cards go. Saved on the account and copied onto every open
- * subscription, so a subscriber who moves changes one thing. Checked against
+ * purchase and every card still to come, so a collector who moves changes
+ * one thing. Checked against
  * USPS on the way in; a refusal is a 400 with the suggestion attached, so
  * the form can offer USPS's spelling rather than just saying no.
  */
@@ -223,90 +215,27 @@ meRouter.put("/address", async (req, res) => {
   }
 
   await setMailingAddress(req.session.customerId!, parsed.data);
-  await updateSubscriptionAddresses(req.session.customerId!, parsed.data);
+  const purchaseIds = await updatePurchaseAddresses(req.session.customerId!, parsed.data);
+  await updateUnsentPostcardAddresses(purchaseIds, parsed.data);
   res.json({ address: parsed.data, verification });
 });
 
-/* ----------------------------------------------------------- subscriptions */
-
-/** This customer's subscriptions only — never a query parameter, never another id. */
-meRouter.get("/subscriptions", async (req, res) => {
-  const subscriptions = await listSubscriptionsForCustomer(req.session.customerId!);
-  const [artists, counts, paidMonths] = await Promise.all([
-    findArtistsByIds(subscriptions.map((s) => s.artistId)),
-    countPostcardsForSubscriptions(subscriptions.map((s) => s.id)),
-    countPaidMonthsForSubscriptions(subscriptions.map((s) => s.id)),
-  ]);
-  const artistById = new Map(artists.map((a) => [a.id, a]));
-  res.json(subscriptions.map((s) => toSubscription(s, artistById.get(s.artistId), counts.get(s.id) ?? 0, paidMonths.get(s.id) ?? 0)));
-});
-
-function stripeHttp(error: unknown): never {
-  if (error instanceof StripeNotConfiguredError) throw httpError(503, error.message);
-  const classified = classifyStripeError(error);
-  if (classified) throw httpError(classified.status, classified.message);
-  throw error;
-}
+/* ------------------------------------------------------------- collections */
 
 /**
- * Stop at the end of the paid month. Stripe is told first and the row
- * mirrors it; the `customer.subscription.updated` webhook confirms. Cards
- * already scheduled in this period still go out — the month was paid for.
+ * This customer's purchases only — never a query parameter, never another
+ * id. Each with its schedule, so the account can say when the next card goes.
+ * It is also the receipt: what was paid, and what was refunded.
  */
-meRouter.post("/subscriptions/:id/cancel", async (req, res) => {
-  const subscription = await getSubscriptionForCustomer(req.params.id, req.session.customerId!);
-  if (!subscription) throw httpError(404, "No subscription found.");
-  if (subscription.status === "cancelled" || !subscription.stripeSubscriptionId) throw httpError(409, "That subscription is already over.");
-
-  try {
-    await requireStripe().subscriptions.update(subscription.stripeSubscriptionId, { cancel_at_period_end: true });
-  } catch (error) {
-    stripeHttp(error);
-  }
-  await setCancelAtPeriodEnd(subscription.id, true);
-  res.status(204).end();
-});
-
-/** Changed their mind before the month ran out. A term that has run its course is not resumable: it is over, by design. */
-meRouter.post("/subscriptions/:id/resume", async (req, res) => {
-  const subscription = await getSubscriptionForCustomer(req.params.id, req.session.customerId!);
-  if (!subscription) throw httpError(404, "No subscription found.");
-  if (subscription.status === "cancelled" || !subscription.stripeSubscriptionId) throw httpError(409, "That subscription is over. Subscribe again from the artist's page.");
-  const paidMonths = (await countPaidMonthsForSubscriptions([subscription.id])).get(subscription.id) ?? 0;
-  if (paidMonths >= subscription.termMonths) {
-    throw httpError(409, `All ${subscription.termMonths} months are paid for, so this subscription ends when the last card goes. Subscribe again from the artist's page to keep them coming.`);
-  }
-
-  try {
-    await requireStripe().subscriptions.update(subscription.stripeSubscriptionId, { cancel_at_period_end: false });
-  } catch (error) {
-    stripeHttp(error);
-  }
-  await setCancelAtPeriodEnd(subscription.id, false);
-  res.status(204).end();
+meRouter.get("/collections", async (req, res) => {
+  res.json(await presentCollections(await listPurchasesForCustomer(req.session.customerId!)));
 });
 
 /* --------------------------------------------------------------- postcards */
 
 /** Every card mailed to this person, newest first, with where each one is. */
 meRouter.get("/postcards", async (req, res) => {
-  const cards = await listPostcardsForCustomer(req.session.customerId!);
-  const mailings = new Map<string, MailingRecord>();
-  for (const id of new Set(cards.map((card) => card.mailingId))) {
-    const mailing = await getMailing(id);
-    if (mailing) mailings.set(id, mailing);
-  }
-  res.json(await presentReceivedPostcards(cards, mailings));
-});
-
-/* ------------------------------------------------------------------ orders */
-
-/** Receipts: one per month paid, per subscription. */
-meRouter.get("/orders", async (req, res) => {
-  const orders = await listOrdersForCustomer(req.session.customerId!);
-  const artists = await findArtistsByIds(orders.map((o) => o.artistId));
-  const artistById = new Map(artists.map((a) => [a.id, a]));
-  res.json(orders.map((order) => toOrder(order, artistById.get(order.artistId))));
+  res.json(await presentReceivedPostcards(await listPostcardsForCustomer(req.session.customerId!)));
 });
 
 /* ---------------------------------------------------------------- password */

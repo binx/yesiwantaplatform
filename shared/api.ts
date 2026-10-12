@@ -60,7 +60,7 @@ export const settingsInputSchema = z.object({
     .default(null),
   pricing: pricingSchema.extend({
     /** Stripe's floor for a charge is 50 cents. */
-    minMonthlyPriceCents: centsSchema.min(50, "Stripe cannot charge less than 50 cents."),
+    minCardPriceCents: centsSchema.min(50, "Stripe cannot charge less than 50 cents."),
   }),
   /**
    * The platform's own US address. Lob prints it as the return address on

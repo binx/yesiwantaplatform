@@ -104,7 +104,7 @@ interface SettingsRow {
   stripePublishableKey: string | null;
   printCostCents: number;
   platformFeeCents: number;
-  minMonthlyPriceCents: number;
+  minCardPriceCents: number;
   returnAddress: unknown;
   themeColorPrimary: string;
   themeColorAccent: string;
@@ -156,7 +156,7 @@ export async function getSettings(): Promise<Settings | null> {
     pricing: {
       printCostCents: row.printCostCents,
       platformFeeCents: row.platformFeeCents,
-      minMonthlyPriceCents: row.minMonthlyPriceCents,
+      minCardPriceCents: row.minCardPriceCents,
     },
     // Parsed with a fallback: a hand-edited row that no longer passes reads
     // as "no return address", which is the safe answer.

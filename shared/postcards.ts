@@ -244,7 +244,7 @@ export type PostcardDesign = z.infer<typeof postcardDesignSchema>;
 /**
  * Where one physical card is.
  *
- *   scheduled  written for a subscriber; waiting for the print sweep
+ *   scheduled  written for a collector; waiting for its day and the print sweep
  *   sending    claimed by the sweep — a second instance skips it
  *   sent       accepted by Lob; `lobId` is theirs
  *   error      Lob refused it; `lastError` says why, in Lob's own words
@@ -295,7 +295,7 @@ export const trackingEventSchema = z.object({
 export type TrackingEvent = z.infer<typeof trackingEventSchema>;
 
 /**
- * One physical postcard: a mailing's design, going to one subscriber.
+ * One physical postcard: one card of an edition, going to one collector.
  *
  * `lastError` is Lob's own words and is here for the admin. The account and
  * studio routes strip it before anyone else sees the card.
@@ -303,7 +303,9 @@ export type TrackingEvent = z.infer<typeof trackingEventSchema>;
 export const postcardSchema = z.object({
   id: z.string(),
   designId: z.string(),
-  subscriptionId: z.string(),
+  purchaseId: z.string(),
+  /** Which card of the set, 1-based. */
+  position: z.number().int().min(1),
   recipient: recipientSchema,
   mailDate: mailDateSchema,
   status: postcardStatusSchema,

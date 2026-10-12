@@ -21,9 +21,13 @@ CREATE TABLE "artists" (
 	"avatar_width" integer,
 	"avatar_height" integer,
 	"avatar_alt" text,
-	"monthly_price_cents" integer NOT NULL,
-	"send_day" integer DEFAULT 15 NOT NULL,
+	"banner_path" text,
+	"banner_width" integer,
+	"banner_height" integer,
+	"banner_alt" text,
+	"links" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"status" text DEFAULT 'draft' NOT NULL,
+	"visibility" text DEFAULT 'public' NOT NULL,
 	"stripe_account_id" text,
 	"payouts_enabled" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -48,34 +52,28 @@ CREATE TABLE "customers" (
 	CONSTRAINT "customers_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
-CREATE TABLE "mailings" (
+CREATE TABLE "edition_cards" (
 	"id" text PRIMARY KEY NOT NULL,
-	"artist_id" text NOT NULL,
+	"edition_id" text NOT NULL,
 	"design_id" text NOT NULL,
+	"position" integer NOT NULL,
 	"title" text,
-	"mail_date" text NOT NULL,
-	"period" text NOT NULL,
-	"status" text DEFAULT 'queued' NOT NULL,
-	"in_gallery" boolean DEFAULT true NOT NULL,
-	"subscriber_count" integer DEFAULT 0 NOT NULL,
-	"mailed_at" timestamp with time zone,
+	"first_mailed_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "orders" (
+CREATE TABLE "editions" (
 	"id" text PRIMARY KEY NOT NULL,
-	"subscription_id" text NOT NULL,
-	"customer_id" text NOT NULL,
 	"artist_id" text NOT NULL,
-	"stripe_invoice_id" text NOT NULL,
-	"stripe_payment_intent_id" text,
-	"status" text DEFAULT 'paid' NOT NULL,
-	"amount_cents" integer NOT NULL,
-	"refunded_cents" integer DEFAULT 0 NOT NULL,
-	"currency" text NOT NULL,
-	"period_start" timestamp with time zone,
-	"period_end" timestamp with time zone,
+	"slug" text NOT NULL,
+	"title" text NOT NULL,
+	"description" text DEFAULT '' NOT NULL,
+	"card_count" integer NOT NULL,
+	"cadence" text NOT NULL,
+	"price_cents" integer NOT NULL,
+	"status" text DEFAULT 'draft' NOT NULL,
+	"in_gallery" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -96,7 +94,7 @@ CREATE TABLE "payouts" (
 	"id" text PRIMARY KEY NOT NULL,
 	"artist_id" text NOT NULL,
 	"postcard_id" text NOT NULL,
-	"mailing_id" text NOT NULL,
+	"purchase_id" text NOT NULL,
 	"gross_cents" integer NOT NULL,
 	"print_cost_cents" integer NOT NULL,
 	"platform_fee_cents" integer NOT NULL,
@@ -135,8 +133,10 @@ CREATE TABLE "postcard_tracking_events" (
 --> statement-breakpoint
 CREATE TABLE "postcards" (
 	"id" text PRIMARY KEY NOT NULL,
-	"mailing_id" text NOT NULL,
-	"subscription_id" text NOT NULL,
+	"purchase_id" text NOT NULL,
+	"edition_id" text NOT NULL,
+	"edition_card_id" text NOT NULL,
+	"position" integer NOT NULL,
 	"artist_id" text NOT NULL,
 	"design_id" text NOT NULL,
 	"recipient_name" text NOT NULL,
@@ -159,6 +159,26 @@ CREATE TABLE "postcards" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "purchases" (
+	"id" text PRIMARY KEY NOT NULL,
+	"customer_id" text NOT NULL,
+	"edition_id" text NOT NULL,
+	"artist_id" text NOT NULL,
+	"status" text DEFAULT 'incomplete' NOT NULL,
+	"stripe_checkout_session_id" text NOT NULL,
+	"stripe_payment_intent_id" text,
+	"price_cents" integer NOT NULL,
+	"refunded_cents" integer DEFAULT 0 NOT NULL,
+	"currency" text DEFAULT 'USD' NOT NULL,
+	"card_count" integer NOT NULL,
+	"cadence" text NOT NULL,
+	"start_date" text NOT NULL,
+	"address" jsonb NOT NULL,
+	"paid_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "sessions" (
 	"sid" text PRIMARY KEY NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
@@ -173,7 +193,7 @@ CREATE TABLE "store_settings" (
 	"stripe_publishable_key" text,
 	"print_cost_cents" integer DEFAULT 120 NOT NULL,
 	"platform_fee_cents" integer DEFAULT 60 NOT NULL,
-	"min_monthly_price_cents" integer DEFAULT 300 NOT NULL,
+	"min_card_price_cents" integer DEFAULT 300 NOT NULL,
 	"return_address" jsonb,
 	"theme_color_primary" text DEFAULT '#1c1917' NOT NULL,
 	"theme_color_accent" text DEFAULT '#f5c542' NOT NULL,
@@ -198,23 +218,6 @@ CREATE TABLE "store_settings" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "subscriptions" (
-	"id" text PRIMARY KEY NOT NULL,
-	"customer_id" text NOT NULL,
-	"artist_id" text NOT NULL,
-	"status" text DEFAULT 'incomplete' NOT NULL,
-	"stripe_checkout_session_id" text NOT NULL,
-	"stripe_subscription_id" text,
-	"price_cents" integer NOT NULL,
-	"currency" text DEFAULT 'USD' NOT NULL,
-	"current_period_end" timestamp with time zone,
-	"cancel_at_period_end" boolean DEFAULT false NOT NULL,
-	"address" jsonb NOT NULL,
-	"cancelled_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "webhook_events" (
 	"id" text PRIMARY KEY NOT NULL,
 	"type" text NOT NULL,
@@ -222,32 +225,29 @@ CREATE TABLE "webhook_events" (
 );
 --> statement-breakpoint
 ALTER TABLE "artists" ADD CONSTRAINT "artists_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "mailings" ADD CONSTRAINT "mailings_artist_id_artists_id_fk" FOREIGN KEY ("artist_id") REFERENCES "public"."artists"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "mailings" ADD CONSTRAINT "mailings_design_id_postcard_designs_id_fk" FOREIGN KEY ("design_id") REFERENCES "public"."postcard_designs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "orders" ADD CONSTRAINT "orders_subscription_id_subscriptions_id_fk" FOREIGN KEY ("subscription_id") REFERENCES "public"."subscriptions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "orders" ADD CONSTRAINT "orders_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "orders" ADD CONSTRAINT "orders_artist_id_artists_id_fk" FOREIGN KEY ("artist_id") REFERENCES "public"."artists"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "edition_cards" ADD CONSTRAINT "edition_cards_edition_id_editions_id_fk" FOREIGN KEY ("edition_id") REFERENCES "public"."editions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "edition_cards" ADD CONSTRAINT "edition_cards_design_id_postcard_designs_id_fk" FOREIGN KEY ("design_id") REFERENCES "public"."postcard_designs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "editions" ADD CONSTRAINT "editions_artist_id_artists_id_fk" FOREIGN KEY ("artist_id") REFERENCES "public"."artists"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payouts" ADD CONSTRAINT "payouts_artist_id_artists_id_fk" FOREIGN KEY ("artist_id") REFERENCES "public"."artists"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payouts" ADD CONSTRAINT "payouts_postcard_id_postcards_id_fk" FOREIGN KEY ("postcard_id") REFERENCES "public"."postcards"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "postcard_designs" ADD CONSTRAINT "postcard_designs_artist_id_artists_id_fk" FOREIGN KEY ("artist_id") REFERENCES "public"."artists"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "postcard_tracking_events" ADD CONSTRAINT "postcard_tracking_events_postcard_id_postcards_id_fk" FOREIGN KEY ("postcard_id") REFERENCES "public"."postcards"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "postcards" ADD CONSTRAINT "postcards_mailing_id_mailings_id_fk" FOREIGN KEY ("mailing_id") REFERENCES "public"."mailings"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "postcards" ADD CONSTRAINT "postcards_subscription_id_subscriptions_id_fk" FOREIGN KEY ("subscription_id") REFERENCES "public"."subscriptions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "postcards" ADD CONSTRAINT "postcards_purchase_id_purchases_id_fk" FOREIGN KEY ("purchase_id") REFERENCES "public"."purchases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "postcards" ADD CONSTRAINT "postcards_edition_id_editions_id_fk" FOREIGN KEY ("edition_id") REFERENCES "public"."editions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "postcards" ADD CONSTRAINT "postcards_edition_card_id_edition_cards_id_fk" FOREIGN KEY ("edition_card_id") REFERENCES "public"."edition_cards"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "postcards" ADD CONSTRAINT "postcards_artist_id_artists_id_fk" FOREIGN KEY ("artist_id") REFERENCES "public"."artists"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "postcards" ADD CONSTRAINT "postcards_design_id_postcard_designs_id_fk" FOREIGN KEY ("design_id") REFERENCES "public"."postcard_designs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_artist_id_artists_id_fk" FOREIGN KEY ("artist_id") REFERENCES "public"."artists"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "purchases" ADD CONSTRAINT "purchases_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "purchases" ADD CONSTRAINT "purchases_edition_id_editions_id_fk" FOREIGN KEY ("edition_id") REFERENCES "public"."editions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "purchases" ADD CONSTRAINT "purchases_artist_id_artists_id_fk" FOREIGN KEY ("artist_id") REFERENCES "public"."artists"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "artists_slug_idx" ON "artists" USING btree ("slug");--> statement-breakpoint
 CREATE UNIQUE INDEX "artists_customer_idx" ON "artists" USING btree ("customer_id");--> statement-breakpoint
 CREATE INDEX "artists_status_idx" ON "artists" USING btree ("status");--> statement-breakpoint
-CREATE UNIQUE INDEX "mailings_artist_period_idx" ON "mailings" USING btree ("artist_id","period");--> statement-breakpoint
-CREATE INDEX "mailings_due_idx" ON "mailings" USING btree ("status","mail_date");--> statement-breakpoint
-CREATE INDEX "mailings_artist_idx" ON "mailings" USING btree ("artist_id","mail_date");--> statement-breakpoint
-CREATE UNIQUE INDEX "orders_invoice_idx" ON "orders" USING btree ("stripe_invoice_id");--> statement-breakpoint
-CREATE INDEX "orders_subscription_idx" ON "orders" USING btree ("subscription_id");--> statement-breakpoint
-CREATE INDEX "orders_customer_idx" ON "orders" USING btree ("customer_id");--> statement-breakpoint
-CREATE INDEX "orders_artist_idx" ON "orders" USING btree ("artist_id");--> statement-breakpoint
-CREATE INDEX "orders_created_idx" ON "orders" USING btree ("created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "edition_cards_position_idx" ON "edition_cards" USING btree ("edition_id","position");--> statement-breakpoint
+CREATE INDEX "edition_cards_design_idx" ON "edition_cards" USING btree ("design_id");--> statement-breakpoint
+CREATE INDEX "edition_cards_mailed_idx" ON "edition_cards" USING btree ("first_mailed_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "editions_artist_slug_idx" ON "editions" USING btree ("artist_id","slug");--> statement-breakpoint
+CREATE INDEX "editions_status_idx" ON "editions" USING btree ("status");--> statement-breakpoint
 CREATE UNIQUE INDEX "pages_slug_idx" ON "pages" USING btree ("slug");--> statement-breakpoint
 CREATE INDEX "pages_live_idx" ON "pages" USING btree ("is_live");--> statement-breakpoint
 CREATE UNIQUE INDEX "payouts_postcard_idx" ON "payouts" USING btree ("postcard_id");--> statement-breakpoint
@@ -256,13 +256,14 @@ CREATE INDEX "payouts_status_idx" ON "payouts" USING btree ("status");--> statem
 CREATE INDEX "postcard_designs_artist_idx" ON "postcard_designs" USING btree ("artist_id");--> statement-breakpoint
 CREATE INDEX "postcard_designs_created_idx" ON "postcard_designs" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "postcard_tracking_postcard_idx" ON "postcard_tracking_events" USING btree ("postcard_id","occurred_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "postcards_mailing_subscription_idx" ON "postcards" USING btree ("mailing_id","subscription_id");--> statement-breakpoint
-CREATE INDEX "postcards_subscription_idx" ON "postcards" USING btree ("subscription_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "postcards_purchase_position_idx" ON "postcards" USING btree ("purchase_id","position");--> statement-breakpoint
+CREATE INDEX "postcards_edition_card_idx" ON "postcards" USING btree ("edition_card_id");--> statement-breakpoint
 CREATE INDEX "postcards_artist_idx" ON "postcards" USING btree ("artist_id");--> statement-breakpoint
 CREATE INDEX "postcards_due_idx" ON "postcards" USING btree ("status","mail_date");--> statement-breakpoint
 CREATE INDEX "postcards_lob_idx" ON "postcards" USING btree ("lob_id");--> statement-breakpoint
-CREATE INDEX "sessions_expires_at_idx" ON "sessions" USING btree ("expires_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "subscriptions_checkout_session_idx" ON "subscriptions" USING btree ("stripe_checkout_session_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "subscriptions_stripe_idx" ON "subscriptions" USING btree ("stripe_subscription_id");--> statement-breakpoint
-CREATE INDEX "subscriptions_customer_idx" ON "subscriptions" USING btree ("customer_id");--> statement-breakpoint
-CREATE INDEX "subscriptions_artist_status_idx" ON "subscriptions" USING btree ("artist_id","status");
+CREATE UNIQUE INDEX "purchases_checkout_session_idx" ON "purchases" USING btree ("stripe_checkout_session_id");--> statement-breakpoint
+CREATE INDEX "purchases_payment_intent_idx" ON "purchases" USING btree ("stripe_payment_intent_id");--> statement-breakpoint
+CREATE INDEX "purchases_customer_idx" ON "purchases" USING btree ("customer_id");--> statement-breakpoint
+CREATE INDEX "purchases_edition_status_idx" ON "purchases" USING btree ("edition_id","status");--> statement-breakpoint
+CREATE INDEX "purchases_artist_status_idx" ON "purchases" USING btree ("artist_id","status");--> statement-breakpoint
+CREATE INDEX "sessions_expires_at_idx" ON "sessions" USING btree ("expires_at");

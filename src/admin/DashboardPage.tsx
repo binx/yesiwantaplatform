@@ -114,7 +114,7 @@ export function DashboardPage() {
           <p style={{ margin: 0 }}>
             Every sent card: the subscriber's monthly price, less <strong>{money(settings.data.pricing.printCostCents)}</strong> to print and mail and a{" "}
             <strong>{money(settings.data.pricing.platformFeeCents)}</strong> platform fee, goes to the artist. Artists may charge no less than{" "}
-            <strong>{money(settings.data.pricing.minMonthlyPriceCents)}</strong> a month.
+            <strong>{money(settings.data.pricing.minCardPriceCents)}</strong> a month.
           </p>
         ) : null}
       </Card>

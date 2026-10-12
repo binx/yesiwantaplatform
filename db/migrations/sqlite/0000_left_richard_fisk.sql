@@ -21,9 +21,13 @@ CREATE TABLE `artists` (
 	`avatar_width` integer,
 	`avatar_height` integer,
 	`avatar_alt` text,
-	`monthly_price_cents` integer NOT NULL,
-	`send_day` integer DEFAULT 15 NOT NULL,
+	`banner_path` text,
+	`banner_width` integer,
+	`banner_height` integer,
+	`banner_alt` text,
+	`links` text DEFAULT '[]' NOT NULL,
 	`status` text DEFAULT 'draft' NOT NULL,
+	`visibility` text DEFAULT 'public' NOT NULL,
 	`stripe_account_id` text,
 	`payouts_enabled` integer DEFAULT false NOT NULL,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
@@ -52,51 +56,40 @@ CREATE TABLE `customers` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `customers_email_unique` ON `customers` (`email`);--> statement-breakpoint
-CREATE TABLE `mailings` (
+CREATE TABLE `edition_cards` (
 	`id` text PRIMARY KEY NOT NULL,
-	`artist_id` text NOT NULL,
+	`edition_id` text NOT NULL,
 	`design_id` text NOT NULL,
+	`position` integer NOT NULL,
 	`title` text,
-	`mail_date` text NOT NULL,
-	`period` text NOT NULL,
-	`status` text DEFAULT 'queued' NOT NULL,
-	`in_gallery` integer DEFAULT true NOT NULL,
-	`subscriber_count` integer DEFAULT 0 NOT NULL,
-	`mailed_at` integer,
+	`first_mailed_at` integer,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
 	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
-	FOREIGN KEY (`artist_id`) REFERENCES `artists`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`edition_id`) REFERENCES `editions`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`design_id`) REFERENCES `postcard_designs`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `mailings_artist_period_idx` ON `mailings` (`artist_id`,`period`);--> statement-breakpoint
-CREATE INDEX `mailings_due_idx` ON `mailings` (`status`,`mail_date`);--> statement-breakpoint
-CREATE INDEX `mailings_artist_idx` ON `mailings` (`artist_id`,`mail_date`);--> statement-breakpoint
-CREATE TABLE `orders` (
+CREATE UNIQUE INDEX `edition_cards_position_idx` ON `edition_cards` (`edition_id`,`position`);--> statement-breakpoint
+CREATE INDEX `edition_cards_design_idx` ON `edition_cards` (`design_id`);--> statement-breakpoint
+CREATE INDEX `edition_cards_mailed_idx` ON `edition_cards` (`first_mailed_at`);--> statement-breakpoint
+CREATE TABLE `editions` (
 	`id` text PRIMARY KEY NOT NULL,
-	`subscription_id` text NOT NULL,
-	`customer_id` text NOT NULL,
 	`artist_id` text NOT NULL,
-	`stripe_invoice_id` text NOT NULL,
-	`stripe_payment_intent_id` text,
-	`status` text DEFAULT 'paid' NOT NULL,
-	`amount_cents` integer NOT NULL,
-	`refunded_cents` integer DEFAULT 0 NOT NULL,
-	`currency` text NOT NULL,
-	`period_start` integer,
-	`period_end` integer,
+	`slug` text NOT NULL,
+	`title` text NOT NULL,
+	`description` text DEFAULT '' NOT NULL,
+	`card_count` integer NOT NULL,
+	`cadence` text NOT NULL,
+	`price_cents` integer NOT NULL,
+	`status` text DEFAULT 'draft' NOT NULL,
+	`in_gallery` integer DEFAULT true NOT NULL,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
 	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
-	FOREIGN KEY (`subscription_id`) REFERENCES `subscriptions`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`artist_id`) REFERENCES `artists`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `orders_invoice_idx` ON `orders` (`stripe_invoice_id`);--> statement-breakpoint
-CREATE INDEX `orders_subscription_idx` ON `orders` (`subscription_id`);--> statement-breakpoint
-CREATE INDEX `orders_customer_idx` ON `orders` (`customer_id`);--> statement-breakpoint
-CREATE INDEX `orders_artist_idx` ON `orders` (`artist_id`);--> statement-breakpoint
-CREATE INDEX `orders_created_idx` ON `orders` (`created_at`);--> statement-breakpoint
+CREATE UNIQUE INDEX `editions_artist_slug_idx` ON `editions` (`artist_id`,`slug`);--> statement-breakpoint
+CREATE INDEX `editions_status_idx` ON `editions` (`status`);--> statement-breakpoint
 CREATE TABLE `pages` (
 	`id` text PRIMARY KEY NOT NULL,
 	`slug` text NOT NULL,
@@ -115,7 +108,7 @@ CREATE TABLE `payouts` (
 	`id` text PRIMARY KEY NOT NULL,
 	`artist_id` text NOT NULL,
 	`postcard_id` text NOT NULL,
-	`mailing_id` text NOT NULL,
+	`purchase_id` text NOT NULL,
 	`gross_cents` integer NOT NULL,
 	`print_cost_cents` integer NOT NULL,
 	`platform_fee_cents` integer NOT NULL,
@@ -164,8 +157,10 @@ CREATE TABLE `postcard_tracking_events` (
 CREATE INDEX `postcard_tracking_postcard_idx` ON `postcard_tracking_events` (`postcard_id`,`occurred_at`);--> statement-breakpoint
 CREATE TABLE `postcards` (
 	`id` text PRIMARY KEY NOT NULL,
-	`mailing_id` text NOT NULL,
-	`subscription_id` text NOT NULL,
+	`purchase_id` text NOT NULL,
+	`edition_id` text NOT NULL,
+	`edition_card_id` text NOT NULL,
+	`position` integer NOT NULL,
 	`artist_id` text NOT NULL,
 	`design_id` text NOT NULL,
 	`recipient_name` text NOT NULL,
@@ -186,17 +181,46 @@ CREATE TABLE `postcards` (
 	`tracking_status` text,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
 	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
-	FOREIGN KEY (`mailing_id`) REFERENCES `mailings`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`subscription_id`) REFERENCES `subscriptions`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`purchase_id`) REFERENCES `purchases`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`edition_id`) REFERENCES `editions`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`edition_card_id`) REFERENCES `edition_cards`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`artist_id`) REFERENCES `artists`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`design_id`) REFERENCES `postcard_designs`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `postcards_mailing_subscription_idx` ON `postcards` (`mailing_id`,`subscription_id`);--> statement-breakpoint
-CREATE INDEX `postcards_subscription_idx` ON `postcards` (`subscription_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `postcards_purchase_position_idx` ON `postcards` (`purchase_id`,`position`);--> statement-breakpoint
+CREATE INDEX `postcards_edition_card_idx` ON `postcards` (`edition_card_id`);--> statement-breakpoint
 CREATE INDEX `postcards_artist_idx` ON `postcards` (`artist_id`);--> statement-breakpoint
 CREATE INDEX `postcards_due_idx` ON `postcards` (`status`,`mail_date`);--> statement-breakpoint
 CREATE INDEX `postcards_lob_idx` ON `postcards` (`lob_id`);--> statement-breakpoint
+CREATE TABLE `purchases` (
+	`id` text PRIMARY KEY NOT NULL,
+	`customer_id` text NOT NULL,
+	`edition_id` text NOT NULL,
+	`artist_id` text NOT NULL,
+	`status` text DEFAULT 'incomplete' NOT NULL,
+	`stripe_checkout_session_id` text NOT NULL,
+	`stripe_payment_intent_id` text,
+	`price_cents` integer NOT NULL,
+	`refunded_cents` integer DEFAULT 0 NOT NULL,
+	`currency` text DEFAULT 'USD' NOT NULL,
+	`card_count` integer NOT NULL,
+	`cadence` text NOT NULL,
+	`start_date` text NOT NULL,
+	`address` text NOT NULL,
+	`paid_at` integer,
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
+	FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`edition_id`) REFERENCES `editions`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`artist_id`) REFERENCES `artists`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `purchases_checkout_session_idx` ON `purchases` (`stripe_checkout_session_id`);--> statement-breakpoint
+CREATE INDEX `purchases_payment_intent_idx` ON `purchases` (`stripe_payment_intent_id`);--> statement-breakpoint
+CREATE INDEX `purchases_customer_idx` ON `purchases` (`customer_id`);--> statement-breakpoint
+CREATE INDEX `purchases_edition_status_idx` ON `purchases` (`edition_id`,`status`);--> statement-breakpoint
+CREATE INDEX `purchases_artist_status_idx` ON `purchases` (`artist_id`,`status`);--> statement-breakpoint
 CREATE TABLE `sessions` (
 	`sid` text PRIMARY KEY NOT NULL,
 	`expires_at` integer NOT NULL,
@@ -212,7 +236,7 @@ CREATE TABLE `store_settings` (
 	`stripe_publishable_key` text,
 	`print_cost_cents` integer DEFAULT 120 NOT NULL,
 	`platform_fee_cents` integer DEFAULT 60 NOT NULL,
-	`min_monthly_price_cents` integer DEFAULT 300 NOT NULL,
+	`min_card_price_cents` integer DEFAULT 300 NOT NULL,
 	`return_address` text,
 	`theme_color_primary` text DEFAULT '#1c1917' NOT NULL,
 	`theme_color_accent` text DEFAULT '#f5c542' NOT NULL,
@@ -237,29 +261,6 @@ CREATE TABLE `store_settings` (
 	`updated_at` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE `subscriptions` (
-	`id` text PRIMARY KEY NOT NULL,
-	`customer_id` text NOT NULL,
-	`artist_id` text NOT NULL,
-	`status` text DEFAULT 'incomplete' NOT NULL,
-	`stripe_checkout_session_id` text NOT NULL,
-	`stripe_subscription_id` text,
-	`price_cents` integer NOT NULL,
-	`currency` text DEFAULT 'USD' NOT NULL,
-	`current_period_end` integer,
-	`cancel_at_period_end` integer DEFAULT false NOT NULL,
-	`address` text NOT NULL,
-	`cancelled_at` integer,
-	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
-	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
-	FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`artist_id`) REFERENCES `artists`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `subscriptions_checkout_session_idx` ON `subscriptions` (`stripe_checkout_session_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `subscriptions_stripe_idx` ON `subscriptions` (`stripe_subscription_id`);--> statement-breakpoint
-CREATE INDEX `subscriptions_customer_idx` ON `subscriptions` (`customer_id`);--> statement-breakpoint
-CREATE INDEX `subscriptions_artist_status_idx` ON `subscriptions` (`artist_id`,`status`);--> statement-breakpoint
 CREATE TABLE `webhook_events` (
 	`id` text PRIMARY KEY NOT NULL,
 	`type` text NOT NULL,

@@ -44,8 +44,8 @@ export function ForArtistsPage() {
 
   const steps = [
     {
-      title: "Open a studio, make an edition",
-      text: `Your own page, at your own address, with ${EDITION_SIZES.join(" or ")} postcards on it at one price for the set.`,
+      title: "Set up your studio",
+      text: `Tell us about yourself, then set up your art editions: ${EDITION_SIZES.join(" or ")} postcards each, at one price for the set.`,
     },
     {
       title: "Collectors buy it",
@@ -99,7 +99,7 @@ export function ForArtistsPage() {
               </h3>
               <dl className={styles.receipt}>
                 <div>
-                  <dt>A collector pays</dt>
+                  <dt>Edition price</dt>
                   <dd>{money(example.priceCents)}</dd>
                 </div>
                 <div>

@@ -207,7 +207,7 @@ export function LandingPage() {
               </p>
               <ol className={styles.steps}>
                 <li>
-                  <strong>Open a studio, make an edition.</strong> Your own page, with 6 or 12 postcards on it at one price.
+                  <strong>Set up your studio.</strong> Tell us about yourself, then set up your art editions: 6 or 12 postcards each, at one price.
                 </li>
                 <li>
                   <strong>Collectors buy it.</strong> Paid once, up front. They pick how often the cards come.

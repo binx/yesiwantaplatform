@@ -161,8 +161,8 @@ Most of them go in a drawer. The ones that don't become **postcards**: a small s
 I've been doing this since 2019. The chair is older.`,
     visibility: "public",
     links: [
-      { label: "Instagram", url: "https://instagram.com/juneokafor.sky" },
-      { label: "Website", url: "https://juneokafor.example.com" },
+      { kind: "instagram", label: "", url: "https://instagram.com/juneokafor.sky" },
+      { kind: "website", label: "", url: "https://juneokafor.example.com" },
     ],
   },
   avatarAlt: "June Okafor",
@@ -235,7 +235,7 @@ Each card is two inks on cream stock, drawn by hand and printed by a machine tha
 
 Postcards are the only thing I make that I don't mind leaving the house.`,
     visibility: "public",
-    links: [{ label: "Shop", url: "https://tomasreyes.example.com" }],
+    links: [{ kind: "custom", label: "Shop", url: "https://tomasreyes.example.com" }],
   },
   avatarAlt: "Tomás Reyes",
   avatar: avatar("T", "#e2725b", "#f6efe0"),

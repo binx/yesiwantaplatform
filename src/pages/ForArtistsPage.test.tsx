@@ -14,7 +14,7 @@ describe("the for-artists page", () => {
   it("prints the per-card floor, the costs and the worked edition from settings, never from prose", () => {
     customer.data = null;
     renderWithProviders(<ForArtistsPage />, { store: withPricing(130, 45, 350) });
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Share your art, build an audience");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Put your pictures in the post");
     expect(screen.getByText(/from \$3\.50 a card/)).toBeInTheDocument();
     expect(screen.getByText(/take \$1\.30 and our fee takes \$0\.45/)).toBeInTheDocument();
     // Six cards at $5.00: $5.00 − $1.75 = $3.25 a card, $19.50 a set, by cardGrossCents and artistShareCents, not by hand.

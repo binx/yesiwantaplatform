@@ -10,7 +10,7 @@ export interface SiteLink {
  * The site's main navigation, computed once for whoever draws it.
  *
  * The `Banner` draws it on every page but the front one; the front page's
- * hero draws it itself, so the two cannot disagree about where "Sell your postcards"
+ * hero draws it itself, so the two cannot disagree about where "Open a studio"
  * goes for a signed-in artist or what the account link is called.
  */
 export function useSiteLinks(): { links: SiteLink[]; accountHref: string; accountLabel: string } {
@@ -22,7 +22,7 @@ export function useSiteLinks(): { links: SiteLink[]; accountHref: string; accoun
     { to: "/gallery", label: "Gallery" },
     ...store.pages.filter((page) => page.inNav).map((page) => ({ to: `/${page.slug}`, label: page.title })),
     // The studio is where an artist works; for everyone else, the pitch.
-    { to: customer.data?.artistSlug ? "/studio" : "/for-artists", label: customer.data?.artistSlug ? "Your studio" : "Sell your postcards" },
+    { to: customer.data?.artistSlug ? "/studio" : "/for-artists", label: customer.data?.artistSlug ? "Your studio" : "Open a studio" },
   ];
 
   return {

@@ -1,26 +1,25 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Alert, App, Button, Form, Input, Popconfirm, Skeleton, Tag } from "antd";
-import { formatMoney } from "@shared/money";
-import type { Subscription } from "@shared/platform";
-import { useCancelSubscription, useCustomer, useCustomerLogout, useResumeSubscription, useSubscriptions, useUpdateProfile } from "@/lib/account";
+import { Alert, Button, Form, Input, Skeleton, Tag } from "antd";
+import { artistPath, editionPath, type Collection } from "@shared/platform";
+import { useCollections, useCustomer, useCustomerLogout, useUpdateProfile } from "@/lib/account";
 import { useStore } from "@/lib/useStore";
-import { formatDay, subscriptionStatusLabel } from "@/lib/postcards";
+import { editionShape, formatShortDate, purchaseStatusLabel } from "@/lib/postcards";
 import { assetUrl } from "@/lib/store-source";
 import { cx } from "@/lib/cx";
 import styles from "./Account.module.css";
 
 /**
- * The account's front page: who you are, and who you get mail from.
+ * The account's front page: who you are, and what you're collecting.
  *
- * The subscriptions list is the point — like a patron's page, each artist
- * with what it costs and a way out. Cancelling winds down at the period end
- * rather than stopping dead, and says so.
+ * Each collection is one line of progress — how many cards have gone, when
+ * the next one does. There is nothing to cancel: an edition is paid for once
+ * and ends on its own, and a refund is something the platform does.
  */
 export function AccountOverviewPage() {
   const store = useStore();
   const customer = useCustomer();
-  const subscriptions = useSubscriptions();
+  const collections = useCollections();
   const update = useUpdateProfile();
   const logout = useCustomerLogout();
   const navigate = useNavigate();
@@ -71,81 +70,58 @@ export function AccountOverviewPage() {
           </p>
         ) : (
           <p className={cx(styles.meta, styles.studioLink)}>
-            Are you an artist? <Link to="/studio/new">Open a studio</Link> and start sending your own.
+            Are you an artist? <Link to="/studio/new">Open a studio</Link> and make your own edition.
           </p>
         )}
       </div>
 
-      <h2>Your subscriptions</h2>
-      {subscriptions.isPending ? (
+      <h2>Your collections</h2>
+      {collections.isPending ? (
         <Skeleton active paragraph={{ rows: 4 }} />
-      ) : subscriptions.isError ? (
-        <Alert type="error" showIcon title="Your subscriptions could not be loaded." />
-      ) : subscriptions.data.length === 0 ? (
+      ) : collections.isError ? (
+        <Alert type="error" showIcon title="Your collections could not be loaded." />
+      ) : collections.data.length === 0 ? (
         <p className={cx(styles.empty)}>
-          You don't get postcards from anyone yet. <Link to="/artists">Find an artist</Link>.
+          You haven't collected anything yet. <Link to="/artists">Find an artist</Link>.
         </p>
       ) : (
-        subscriptions.data.map((subscription) => <SubscriptionCard key={subscription.id} subscription={subscription} locale={store.locale} />)
+        <>
+          {collections.data.map((collection) => (
+            <CollectionCard key={collection.id} collection={collection} locale={store.locale} />
+          ))}
+          <p className={cx(styles.meta)}>
+            The whole schedule, and what you paid, is under <Link to="/account/collections">Collections</Link>.
+          </p>
+        </>
       )}
     </div>
   );
 }
 
-function SubscriptionCard({ subscription, locale }: { subscription: Subscription; locale: string }) {
-  const { message } = App.useApp();
-  const cancel = useCancelSubscription();
-  const resume = useResumeSubscription();
-  const price = formatMoney(subscription.priceCents, subscription.currency, locale);
-  const status = subscriptionStatusLabel(subscription.status, subscription.cancelAtPeriodEnd);
-  const color = subscription.status === "active" && !subscription.cancelAtPeriodEnd ? "green" : subscription.status === "past_due" ? "red" : "default";
-  const fail = (fallback: string) => (error: unknown) => void message.error(error instanceof Error ? error.message : fallback);
+/** How far along a run is: "2 of 6 sent · next on 15 Nov". */
+function progress(collection: Collection, locale: string): string {
+  const sent = `${collection.sentCount} of ${collection.cardCount} sent`;
+  if (collection.status === "refunded") return `${sent} · refunded`;
+  if (collection.nextMailDate) return `${sent} · next on ${formatShortDate(collection.nextMailDate, locale)}`;
+  return sent;
+}
 
+function CollectionCard({ collection, locale }: { collection: Collection; locale: string }) {
+  const color = collection.status === "paid" ? "green" : "default";
   return (
     <div className={cx(styles.card)}>
-      <div className={cx(styles.cardHeader)}>
-        <div className={styles.subscriptionHead}>
-          {subscription.artist.avatar ? <img className={styles.avatar} src={assetUrl(subscription.artist.avatar.path)} alt="" width={48} height={48} /> : null}
-          <div>
-            <p>
-              <Link to={`/artist/${subscription.artist.slug}`}>
-                <strong>{subscription.artist.name}</strong>
-              </Link>{" "}
-              <Tag color={color}>{status}</Tag>
-            </p>
-            <p className={cx(styles.meta)}>
-              {price} a month · month {Math.min(Math.max(subscription.paidMonths, 1), subscription.termMonths)} of {subscription.termMonths} · {subscription.postcardCount} card
-              {subscription.postcardCount === 1 ? "" : "s"} received · since {formatDay(subscription.createdAt, locale)}
-            </p>
-            {subscription.status === "active" && subscription.currentPeriodEnd ? (
-              <p className={cx(styles.meta)}>
-                {subscription.cancelAtPeriodEnd ? "Ends" : "Renews"} {formatDay(subscription.currentPeriodEnd, locale)}
-              </p>
-            ) : null}
-            {subscription.status === "past_due" ? <p className={cx(styles.meta)}>The last payment didn't go through. Stripe will retry; no cards go out until it does.</p> : null}
-          </div>
-        </div>
-        <div className={cx(styles.cardActions)}>
-          {subscription.status === "cancelled" ? (
-            <Link to={`/subscribe/${subscription.artist.slug}`}>
-              <Button size="small">Subscribe again</Button>
-            </Link>
-          ) : subscription.cancelAtPeriodEnd ? (
-            <Button size="small" loading={resume.isPending} onClick={() => resume.mutate(subscription.id, { onError: fail("Could not resume.") })}>
-              Keep it going
-            </Button>
-          ) : (
-            <Popconfirm
-              title="Stop the postcards?"
-              description="You've paid for this month, so its card still comes. Nothing more is charged after that."
-              okText="Cancel subscription"
-              onConfirm={() => cancel.mutate(subscription.id, { onError: fail("Could not cancel.") })}
-            >
-              <Button size="small" danger loading={cancel.isPending}>
-                Cancel
-              </Button>
-            </Popconfirm>
-          )}
+      <div className={styles.collectionHead}>
+        {collection.edition.banner ? <img className={styles.collectionBanner} src={assetUrl(collection.edition.banner.path)} alt="" width={144} height={48} /> : null}
+        <div>
+          <p>
+            <Link to={editionPath(collection.artist.slug, collection.edition.slug)}>
+              <strong>{collection.edition.title}</strong>
+            </Link>{" "}
+            by <Link to={artistPath(collection.artist.slug)}>{collection.artist.name}</Link> <Tag color={color}>{purchaseStatusLabel(collection.status)}</Tag>
+          </p>
+          <p className={cx(styles.meta)}>
+            {editionShape(collection.cardCount, collection.cadence)} · {progress(collection, locale)}
+          </p>
         </div>
       </div>
     </div>

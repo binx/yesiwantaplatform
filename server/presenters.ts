@@ -2,34 +2,43 @@ import {
   artistPublicSchema,
   artistStudioSchema,
   artistSummarySchema,
+  collectionSchema,
+  collectorSchema,
+  editionSchema,
+  editionStudioSchema,
+  editionSummarySchema,
   galleryCardSchema,
-  mailingSchema,
-  orderReference,
-  orderSchema,
   payoutSchema,
   receivedPostcardSchema,
-  subscriberSchema,
-  subscriptionSchema,
   type ArtistPublic,
   type ArtistStudio,
   type ArtistSummary,
+  type Collection,
+  type Collector,
+  type Edition,
+  type EditionStudio,
+  type EditionSummary,
   type GalleryCard,
-  type Mailing,
-  type Order,
   type Payout,
   type ReceivedPostcard,
-  type Subscriber,
-  type Subscription,
 } from "../shared/platform.js";
 import type { Postcard, PostcardDesign } from "../shared/postcards.js";
 import type { ArtistCounts, ArtistRecord } from "../db/artists-repository.js";
-import { countForArtists, findArtistsByIds, latestMailedDesignIds } from "../db/artists-repository.js";
+import { countForArtists, findArtistsByIds } from "../db/artists-repository.js";
 import { findDesignsByIds, toPublicDesign, type Design } from "../db/designs-repository.js";
-import type { MailingCounts, MailingRecord } from "../db/mailings-repository.js";
-import type { OrderRecord } from "../db/orders-repository.js";
+import {
+  findEditionCardsByIds,
+  findEditionsByIds,
+  latestMailedDesignIds,
+  listCardsForEditions,
+  listOnSaleEditionsForArtists,
+  type EditionCardRecord,
+  type EditionRecord,
+  type GalleryEntry,
+} from "../db/editions-repository.js";
+import { countCollectorsForEditions, type PurchaseRecord } from "../db/purchases-repository.js";
 import type { PayoutRecord } from "../db/payouts-repository.js";
-import type { PostcardWithContext } from "../db/postcards-repository.js";
-import type { SubscriptionRecord } from "../db/subscriptions-repository.js";
+import { countPostcardsByEdition, listSchedules, type PostcardWithContext, type ScheduleEntry } from "../db/postcards-repository.js";
 import { renderMarkdown } from "./markdown.js";
 
 /**
@@ -37,11 +46,11 @@ import { renderMarkdown } from "./markdown.js";
  *
  * Every function here parses its result with the shared schema, so a field
  * that should never leave the server — a print path, a Stripe id, Lob's
- * error text on a subscriber's card — is refused by the schema rather than
+ * error text on a collector's card — is refused by the schema rather than
  * forgotten by a hand-written mapping.
  */
 
-const NO_COUNTS: ArtistCounts = { subscribers: 0, mailed: 0 };
+const NO_COUNTS: ArtistCounts = { collectors: 0, mailed: 0 };
 
 export function toPublicArtist(artist: ArtistRecord, counts: ArtistCounts = NO_COUNTS, currency = "USD"): ArtistPublic {
   return artistPublicSchema.parse({
@@ -53,42 +62,47 @@ export function toPublicArtist(artist: ArtistRecord, counts: ArtistCounts = NO_C
     avatar: artist.avatar,
     banner: artist.banner,
     links: artist.links,
-    monthlyPriceCents: artist.monthlyPriceCents,
     currency,
-    termMonths: artist.termMonths,
     status: artist.status,
     visibility: artist.visibility,
-    sendDay: artist.sendDay,
-    subscriberCount: counts.subscribers,
+    collectorCount: counts.collectors,
     mailedCount: counts.mailed,
     createdAt: artist.createdAt,
   });
 }
 
-export function toArtistSummary(artist: ArtistRecord, counts: ArtistCounts = NO_COUNTS, latest: Design | null = null, currency = "USD"): ArtistSummary {
+export function toArtistSummary(
+  artist: ArtistRecord,
+  counts: ArtistCounts = NO_COUNTS,
+  latest: Design | null = null,
+  currency = "USD",
+  onSale: EditionRecord[] = [],
+): ArtistSummary {
   return artistSummarySchema.parse({
     id: artist.id,
     slug: artist.slug,
     name: artist.name,
     tagline: artist.tagline,
     avatar: artist.avatar,
-    monthlyPriceCents: artist.monthlyPriceCents,
     currency,
-    subscriberCount: counts.subscribers,
+    collectorCount: counts.collectors,
     mailedCount: counts.mailed,
     latest: latest ? toPublicDesign(latest, `A postcard by ${artist.name}`) : null,
+    fromPriceCents: onSale.length > 0 ? Math.min(...onSale.map((edition) => edition.priceCents)) : null,
+    editionCount: onSale.length,
   });
 }
 
-/** Summaries for many artists: their counts and latest card in two grouped queries. */
+/** Summaries for many artists: their counts, latest card and editions on sale in a few grouped queries. */
 export async function summariseArtists(artists: ArtistRecord[], currency: string): Promise<ArtistSummary[]> {
   const ids = artists.map((artist) => artist.id);
-  const [counts, latestIds] = await Promise.all([countForArtists(ids), latestMailedDesignIds(ids)]);
+  const [counts, latestIds, onSale] = await Promise.all([countForArtists(ids), latestMailedDesignIds(ids), listOnSaleEditionsForArtists(ids)]);
   const designs = await findDesignsByIds([...latestIds.values()]);
   const designById = new Map(designs.map((design) => [design.id, design]));
   return artists.map((artist) => {
     const latestId = latestIds.get(artist.id);
-    return toArtistSummary(artist, counts.get(artist.id), latestId ? (designById.get(latestId) ?? null) : null, currency);
+    const theirs = onSale.filter((edition) => edition.artistId === artist.id);
+    return toArtistSummary(artist, counts.get(artist.id), latestId ? (designById.get(latestId) ?? null) : null, currency, theirs);
   });
 }
 
@@ -102,128 +116,232 @@ export function toArtistStudio(artist: ArtistRecord, email: string, counts: Arti
   });
 }
 
-/** The link an artist summary carries on a subscription, a card or an order. */
+/** The link an artist summary carries on a collection, a card or a gallery entry. */
 function artistLink(artist: ArtistRecord | undefined, id: string): { id: string; slug: string; name: string; avatar: ArtistRecord["avatar"] } {
   return artist
     ? { id: artist.id, slug: artist.slug, name: artist.name, avatar: artist.avatar }
     : { id, slug: "unknown", name: "An artist", avatar: null };
 }
 
-export function toSubscription(subscription: SubscriptionRecord, artist: ArtistRecord | undefined, postcardCount: number, paidMonths = 0): Subscription {
-  return subscriptionSchema.parse({
-    id: subscription.id,
-    artist: artistLink(artist, subscription.artistId),
-    status: subscription.status,
-    priceCents: subscription.priceCents,
-    currency: subscription.currency,
-    currentPeriodEnd: subscription.currentPeriodEnd,
-    cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
-    termMonths: subscription.termMonths,
-    paidMonths,
-    address: subscription.address,
-    postcardCount,
-    createdAt: subscription.createdAt,
-    cancelledAt: subscription.cancelledAt,
+/* --------------------------------------------------------------- editions */
+
+interface EditionContext {
+  cards: Map<string, EditionCardRecord[]>;
+  designs: Map<string, Design>;
+  collectors: Map<string, number>;
+}
+
+/** Everything an edition list needs, loaded once for all of them. */
+async function loadEditionContext(editions: EditionRecord[]): Promise<EditionContext> {
+  const ids = editions.map((edition) => edition.id);
+  const [cards, collectors] = await Promise.all([listCardsForEditions(ids), countCollectorsForEditions(ids)]);
+  const designIds = [...cards.values()].flat().map((card) => card.designId);
+  const designs = await findDesignsByIds(designIds);
+  return { cards, designs: new Map(designs.map((design) => [design.id, design])), collectors };
+}
+
+function presentCards(edition: EditionRecord, context: EditionContext, artistName: string) {
+  return (context.cards.get(edition.id) ?? []).flatMap((card) => {
+    const design = context.designs.get(card.designId);
+    if (!design) return [];
+    return [{ id: card.id, position: card.position, title: card.title, design: toPublicDesign(design, card.title ?? `${edition.title}, card ${card.position}, by ${artistName}`) }];
   });
 }
 
-/** What the artist is told about one subscriber: a name and a town. Never the street. */
-export function toSubscriber(subscription: SubscriptionRecord): Subscriber {
-  return subscriberSchema.parse({
-    id: subscription.id,
-    name: subscription.address.name,
-    city: subscription.address.city,
-    country: subscription.address.country,
-    status: subscription.status,
-    since: subscription.createdAt,
+function editionFields(edition: EditionRecord, collectors: Map<string, number>, currency: string) {
+  return {
+    id: edition.id,
+    artistId: edition.artistId,
+    slug: edition.slug,
+    title: edition.title,
+    descriptionHtml: renderMarkdown(edition.description),
+    banner: edition.banner,
+    cardCount: edition.cardCount,
+    cadence: edition.cadence,
+    priceCents: edition.priceCents,
+    currency,
+    status: edition.status,
+    inGallery: edition.inGallery,
+    collectorCount: collectors.get(edition.id) ?? 0,
+    createdAt: edition.createdAt,
+  };
+}
+
+/** Editions as a visitor sees them: the banner and the writeup, never the cards. Nothing about them is even loaded. */
+export async function presentEditions(editions: EditionRecord[], currency: string): Promise<Edition[]> {
+  const collectors = await countCollectorsForEditions(editions.map((edition) => edition.id));
+  return editions.map((edition) => editionSchema.parse(editionFields(edition, collectors, currency)));
+}
+
+/** Editions as a list. */
+export async function summariseEditions(editions: EditionRecord[], currency: string): Promise<EditionSummary[]> {
+  const collectors = await countCollectorsForEditions(editions.map((edition) => edition.id));
+  return editions.map((edition) => editionSummarySchema.parse(editionFields(edition, collectors, currency)));
+}
+
+/** Editions as their artist sees them: every card, the Markdown, and how the cards are moving. */
+export async function presentStudioEditions(editions: EditionRecord[], currency: string, artistName: string): Promise<EditionStudio[]> {
+  const [context, postcards] = await Promise.all([loadEditionContext(editions), countPostcardsByEdition(editions.map((edition) => edition.id))]);
+  return editions.map((edition) =>
+    editionStudioSchema.parse({
+      ...editionFields(edition, context.collectors, currency),
+      cards: presentCards(edition, context, artistName),
+      description: edition.description,
+      sentCount: postcards.get(edition.id)?.sent ?? 0,
+      scheduledCount: postcards.get(edition.id)?.scheduled ?? 0,
+    }),
+  );
+}
+
+/* -------------------------------------------------------------- purchases */
+
+const UNSENT = new Set(["scheduled", "sending", "error"]);
+
+function progress(schedule: ScheduleEntry[]): { sentCount: number; nextMailDate: string | null } {
+  return {
+    sentCount: schedule.filter((entry) => entry.status === "sent").length,
+    nextMailDate: schedule.find((entry) => UNSENT.has(entry.status))?.mailDate ?? null,
+  };
+}
+
+/**
+ * Purchases as their collectors see them: the edition and its banner, the
+ * schedule, and how far along it is. Everything resolved in a handful of
+ * grouped queries.
+ */
+export async function presentCollections(purchases: PurchaseRecord[]): Promise<Collection[]> {
+  const [artists, editions, schedules] = await Promise.all([
+    findArtistsByIds(purchases.map((purchase) => purchase.artistId)),
+    findEditionsByIds(purchases.map((purchase) => purchase.editionId)),
+    listSchedules(purchases.map((purchase) => purchase.id)),
+  ]);
+  const artistById = new Map(artists.map((artist) => [artist.id, artist]));
+  const editionById = new Map(editions.map((edition) => [edition.id, edition]));
+
+  return purchases.map((purchase) => {
+    const artist = artistById.get(purchase.artistId);
+    const edition = editionById.get(purchase.editionId);
+    const schedule = schedules.get(purchase.id) ?? [];
+    return collectionSchema.parse({
+      id: purchase.id,
+      artist: artistLink(artist, purchase.artistId),
+      edition: { id: purchase.editionId, slug: edition?.slug ?? "unknown", title: edition?.title ?? "An edition", banner: edition?.banner ?? null },
+      status: purchase.status,
+      priceCents: purchase.priceCents,
+      refundedCents: purchase.refundedCents,
+      currency: purchase.currency,
+      cardCount: purchase.cardCount,
+      cadence: purchase.cadence,
+      startDate: purchase.startDate,
+      address: purchase.address,
+      ...progress(schedule),
+      schedule,
+      createdAt: purchase.createdAt,
+      paidAt: purchase.paidAt,
+    });
   });
 }
 
-const EMPTY_MAILING_COUNTS: MailingCounts = { scheduled: 0, sent: 0, error: 0, cancelled: 0 };
-
-export function toMailing(mailing: MailingRecord, design: Design, counts: MailingCounts = EMPTY_MAILING_COUNTS, artistName = "the artist"): Mailing {
-  return mailingSchema.parse({
-    id: mailing.id,
-    artistId: mailing.artistId,
-    design: toPublicDesign(design, mailing.title ?? `A postcard by ${artistName}`),
-    title: mailing.title,
-    mailDate: mailing.mailDate,
-    period: mailing.period,
-    status: mailing.status,
-    inGallery: mailing.inGallery,
-    subscriberCount: mailing.subscriberCount,
-    postcards: counts,
-    mailedAt: mailing.mailedAt,
-    createdAt: mailing.createdAt,
-  });
+/** What the artist is told about each collector: a name, a town, and how far along their run is. Never the street. */
+export async function presentCollectors(purchases: PurchaseRecord[]): Promise<Collector[]> {
+  const [editions, schedules] = await Promise.all([
+    findEditionsByIds(purchases.map((purchase) => purchase.editionId)),
+    listSchedules(purchases.map((purchase) => purchase.id)),
+  ]);
+  const editionById = new Map(editions.map((edition) => [edition.id, edition]));
+  return purchases.map((purchase) =>
+    collectorSchema.parse({
+      id: purchase.id,
+      name: purchase.address.name,
+      city: purchase.address.city,
+      country: purchase.address.country,
+      edition: { id: purchase.editionId, title: editionById.get(purchase.editionId)?.title ?? "An edition" },
+      status: purchase.status,
+      cardCount: purchase.cardCount,
+      ...progress(schedules.get(purchase.id) ?? []),
+      since: purchase.paidAt ?? purchase.createdAt,
+    }),
+  );
 }
 
-export function toGalleryCard(mailing: MailingRecord, design: Design, artist: ArtistRecord): GalleryCard {
+/* ---------------------------------------------------------------- gallery */
+
+export function toGalleryCard(entry: GalleryEntry, design: Design, artist: ArtistRecord): GalleryCard {
   return galleryCardSchema.parse({
-    mailingId: mailing.id,
-    design: toPublicDesign(design, mailing.title ?? `A postcard by ${artist.name}`),
-    title: mailing.title,
-    mailDate: mailing.mailDate,
+    editionCardId: entry.card.id,
+    design: toPublicDesign(design, entry.card.title ?? `A postcard by ${artist.name}`),
+    title: entry.card.title,
+    mailDate: new Date(entry.card.firstMailedAt ?? entry.edition.createdAt).toISOString().slice(0, 10),
     artist: { id: artist.id, slug: artist.slug, name: artist.name },
+    edition: { slug: entry.edition.slug, title: entry.edition.title },
   });
 }
+
+/* ------------------------------------------------------- cards, as mailed */
 
 /**
  * A card as anyone but the admin may see it: the same shape, minus Lob's
  * error text and attempt counts. Those are for the person who can act on
- * them; a subscriber whose card is stuck needs "we're looking into it".
+ * them; a collector whose card is stuck needs "we're looking into it".
  */
 export function stripForCustomer(postcard: Postcard): Postcard {
   return { ...postcard, lastError: null, attempts: 0 };
 }
 
-export function toReceivedPostcard(card: PostcardWithContext, mailing: MailingRecord | undefined, artist: ArtistRecord | undefined, design: PostcardDesign): ReceivedPostcard {
+export function toReceivedPostcard(
+  card: PostcardWithContext,
+  editionCard: EditionCardRecord | undefined,
+  edition: EditionRecord | undefined,
+  artist: ArtistRecord | undefined,
+  design: PostcardDesign,
+): ReceivedPostcard {
   return receivedPostcardSchema.parse({
     ...stripForCustomer(card),
-    mailingId: card.mailingId,
-    title: mailing?.title ?? null,
+    title: editionCard?.title ?? null,
+    cardCount: edition?.cardCount ?? 6,
     artist: artistLink(artist, card.artistId),
+    edition: { id: card.editionId, slug: edition?.slug ?? "unknown", title: edition?.title ?? "An edition" },
     design,
   });
 }
 
-/** Cards for one person, with their mailings' titles and artists resolved in one pass. */
-export async function presentReceivedPostcards(cards: PostcardWithContext[], mailings: Map<string, MailingRecord>): Promise<ReceivedPostcard[]> {
-  const artists = await findArtistsByIds(cards.map((card) => card.artistId));
+/** Cards for one person, with their editions, titles and artists resolved in one pass. */
+export async function presentReceivedPostcards(cards: PostcardWithContext[]): Promise<ReceivedPostcard[]> {
+  const [artists, designs, editions, editionCards] = await Promise.all([
+    findArtistsByIds(cards.map((card) => card.artistId)),
+    findDesignsByIds(cards.map((card) => card.designId)),
+    findEditionsByIds(cards.map((card) => card.editionId)),
+    findEditionCardsByIds(cards.map((card) => card.editionCardId)),
+  ]);
   const artistById = new Map(artists.map((artist) => [artist.id, artist]));
-  const designs = await findDesignsByIds(cards.map((card) => card.designId));
   const designById = new Map(designs.map((design) => [design.id, design]));
+  const editionById = new Map(editions.map((edition) => [edition.id, edition]));
+  const editionCardById = new Map(editionCards.map((card) => [card.id, card]));
 
   return cards.flatMap((card) => {
     const design = designById.get(card.designId);
     if (!design) return [];
     const artist = artistById.get(card.artistId);
-    return [toReceivedPostcard(card, mailings.get(card.mailingId), artist, toPublicDesign(design, `A postcard by ${artist?.name ?? "an artist"}`))];
+    return [
+      toReceivedPostcard(
+        card,
+        editionCardById.get(card.editionCardId),
+        editionById.get(card.editionId),
+        artist,
+        toPublicDesign(design, `A postcard by ${artist?.name ?? "an artist"}`),
+      ),
+    ];
   });
 }
 
-export function toOrder(order: OrderRecord, artist: ArtistRecord | undefined): Order {
-  return orderSchema.parse({
-    id: order.id,
-    reference: orderReference(order.id),
-    subscriptionId: order.subscriptionId,
-    artist: artistLink(artist, order.artistId),
-    status: order.status,
-    amountCents: order.amountCents,
-    refundedCents: order.refundedCents,
-    currency: order.currency,
-    periodStart: order.periodStart,
-    periodEnd: order.periodEnd,
-    createdAt: order.createdAt,
-  });
-}
+/* ---------------------------------------------------------------- payouts */
 
 export function toPayout(payout: PayoutRecord): Payout {
   return payoutSchema.parse({
     id: payout.id,
     artistId: payout.artistId,
     postcardId: payout.postcardId,
-    mailingId: payout.mailingId,
+    purchaseId: payout.purchaseId,
     grossCents: payout.grossCents,
     printCostCents: payout.printCostCents,
     platformFeeCents: payout.platformFeeCents,

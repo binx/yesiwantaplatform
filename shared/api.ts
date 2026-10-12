@@ -16,7 +16,7 @@ import { cropSchema, defaultCrop, orientationSchema, postcardBackSchema, recipie
  * Request and response contracts, validated on both sides of the wire.
  *
  * Note what is absent: no request carries a price for something being
- * bought. An artist's monthly price is read from their row by the checkout
+ * bought. An edition's price is read from its row by the checkout
  * route, and the platform's cut from settings by the payout ledger.
  */
 
@@ -60,7 +60,7 @@ export const settingsInputSchema = z.object({
     .default(null),
   pricing: pricingSchema.extend({
     /** Stripe's floor for a charge is 50 cents. */
-    minMonthlyPriceCents: centsSchema.min(50, "Stripe cannot charge less than 50 cents."),
+    minCardPriceCents: centsSchema.min(50, "Stripe cannot charge less than 50 cents."),
   }),
   /**
    * The platform's own US address. Lob prints it as the return address on

@@ -4,7 +4,7 @@ import { recipientSchema } from "./postcards.js";
 /**
  * Customer accounts.
  *
- * Everyone on the platform signs in the same way — a subscriber, an artist,
+ * Everyone on the platform signs in the same way — a collector, an artist,
  * someone who is both — and this is that surface. It is public and
  * unauthenticated-facing, so every input here is validated as carefully as
  * the admin login is.
@@ -71,7 +71,7 @@ export const customerProfileSchema = z.object({
   name: z.string().nullable(),
   emailVerified: z.boolean(),
   createdAt: z.number().int(),
-  /** Where their cards go. Null until they set one, which subscribing asks for. */
+  /** Where their cards go. Null until they set one, which collecting asks for. */
   address: recipientSchema.nullable().default(null),
   /** Set once this person has an artist page — the studio is theirs. */
   artistSlug: z.string().nullable().default(null),

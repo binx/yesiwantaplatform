@@ -149,9 +149,22 @@
   background: var(--beluga-page);
 }
 
-/* ---------------------------------------------------------------- queue */
+/* -------------------------------------------------------------- editions */
 
-.queue {
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.sectionHeader h2 {
+  margin: 0;
+}
+
+.editionList {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -159,9 +172,9 @@
   gap: 1rem;
 }
 
-.queueRow {
+.editionRow {
   display: grid;
-  grid-template-columns: minmax(6rem, 9rem) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(7rem, 12rem) minmax(0, 1fr);
   gap: 1.25rem;
   align-items: start;
   padding: 1rem;
@@ -169,37 +182,149 @@
   background: var(--beluga-surface);
 }
 
-.queueRow img,
-.queueRow [role="img"] {
+.editionCover img,
+.editionCover [role="img"] {
   border: 1px solid var(--beluga-line);
 }
 
-.queueRowPast {
-  opacity: 0.85;
+.coverEmpty {
+  aspect-ratio: 3 / 1;
+  border: 1px dashed var(--beluga-line);
+  background: var(--beluga-page);
 }
 
-.queueBody p {
+.editionBody p {
   margin: 0 0 0.35rem;
 }
 
-.queueDate {
+.editionTitle {
+  font-weight: 600;
+  font-size: 1.0625rem;
+}
+
+.editionHeading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.designUse {
+  display: block;
+}
+
+/* The card slots of one edition, in mailing order. */
+.slotList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.slot {
+  display: grid;
+  grid-template-columns: 2rem minmax(4rem, 6rem) minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--beluga-line);
+  background: var(--beluga-surface);
+}
+
+.slot img,
+.slot [role="img"] {
+  border: 1px solid var(--beluga-line);
+}
+
+.slotEmpty {
+  border-style: dashed;
+  background: transparent;
+}
+
+.slotPicking {
+  outline: 2px solid var(--beluga-accent);
+  outline-offset: -2px;
+}
+
+.slotImageEmpty {
+  aspect-ratio: 1;
+  border: 1px dashed var(--beluga-line);
+}
+
+.slotNumber {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--beluga-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.slotBody {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+}
+
+.slotBody p {
+  margin: 0;
+}
+
+.slotLabel {
   font-weight: 600;
 }
 
-.queueActions {
+.slotActions {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  align-items: stretch;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.dateInput {
-  padding: 0.35rem 0.5rem;
+.pickerHeading {
+  margin-top: 0;
+}
+
+.pickerHeading:focus {
+  outline: none;
+}
+
+.pickButton {
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem;
   font: inherit;
+  text-align: left;
+  color: var(--beluga-ink);
   border: 1px solid var(--beluga-line);
   border-radius: var(--beluga-radius);
   background: var(--beluga-surface);
-  color: var(--beluga-ink);
+  cursor: pointer;
+}
+
+.pickButton:hover {
+  border-color: var(--beluga-accent);
+}
+
+.pickButton:focus-visible {
+  outline: 2px solid var(--beluga-primary);
+  outline-offset: 2px;
+}
+
+.pickLabel {
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .slot {
+    grid-template-columns: 1.5rem minmax(4rem, 5rem) minmax(0, 1fr);
+  }
+
+  .slotActions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
 }
 
 .table {
@@ -234,12 +359,6 @@
 .empty {
   color: var(--beluga-muted);
   font-style: italic;
-}
-
-@media (max-width: 640px) {
-  .queueRow {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* ---------------------------------------------------------------- profile */

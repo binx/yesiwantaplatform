@@ -1,22 +1,27 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, inArray, lte, sql } from "drizzle-orm";
-import { isShownTrackingEvent, type Postcard, type PostcardStatus, type TrackingEvent } from "../shared/postcards.js";
+import { editionSchedule } from "../shared/platform.js";
+import { isShownTrackingEvent, type Postcard, type PostcardStatus, type Recipient, type TrackingEvent } from "../shared/postcards.js";
 import { getDatabase } from "./client.js";
 import { affectedRows, epochOrNull, nowFor, timeFor, toCount, toEpochMs } from "./repository.js";
-import type { SubscriptionRecord } from "./subscriptions-repository.js";
+import type { EditionCardRecord } from "./editions-repository.js";
+import type { PurchaseRecord } from "./purchases-repository.js";
 
 /**
- * Postcards — the physical cards, one per subscriber per mailing.
+ * Postcards — the physical cards, one per card of a collector's run.
  *
- * Written by the mailing sweep when a mailing's day comes, and worked
- * through by the print sweep, whose conditional `claimPostcard` update is
- * what lets two API instances share one queue without mailing anyone twice.
+ * Written all at once by the Stripe webhook when a purchase is paid, each
+ * with its own mail date, and worked through by the print sweep as those
+ * days come, whose conditional `claimPostcard` update is what lets two API
+ * instances share one queue without mailing anyone twice.
  */
 
 export interface PostcardRow {
   id: string;
-  mailingId: string;
-  subscriptionId: string;
+  purchaseId: string;
+  editionId: string;
+  editionCardId: string;
+  position: number;
   artistId: string;
   designId: string;
   recipientName: string;
@@ -50,7 +55,8 @@ export function buildPostcard(row: PostcardRow, tracking: TrackingEvent[] = []):
   return {
     id: row.id,
     designId: row.designId,
-    subscriptionId: row.subscriptionId,
+    purchaseId: row.purchaseId,
+    position: row.position,
     recipient: {
       name: row.recipientName,
       line1: row.recipientLine1,
@@ -73,55 +79,86 @@ export function buildPostcard(row: PostcardRow, tracking: TrackingEvent[] = []):
   };
 }
 
-/** The row plus what the postcard row alone does not say: which mailing and artist. */
+/** The row plus what the postcard schema alone does not say: which edition, which of its cards, which artist. */
 export interface PostcardWithContext extends Postcard {
-  mailingId: string;
+  editionId: string;
+  editionCardId: string;
   artistId: string;
   createdAt: number;
 }
 
 export function buildPostcardWithContext(row: PostcardRow, tracking: TrackingEvent[] = []): PostcardWithContext {
-  return { ...buildPostcard(row, tracking), mailingId: row.mailingId, artistId: row.artistId, createdAt: toEpochMs(row.createdAt) };
+  return {
+    ...buildPostcard(row, tracking),
+    editionId: row.editionId,
+    editionCardId: row.editionCardId,
+    artistId: row.artistId,
+    createdAt: toEpochMs(row.createdAt),
+  };
 }
 
 /**
- * Write one card per subscription for a mailing.
+ * Write every card of a paid purchase, each on its day of the run.
  *
- * The unique index on (mailing, subscription) makes this idempotent: a sweep
- * that crashed halfway and ran again inserts what is missing and skips what
- * is there. Chunked so a large subscriber list does not build one enormous
- * statement.
+ * The unique index on (purchase, position) makes this idempotent: a webhook
+ * that crashed halfway and was redelivered inserts what is missing and skips
+ * what is there.
  */
-export async function materialisePostcards(
-  mailing: { id: string; artistId: string; designId: string; mailDate: string },
-  subscriptions: SubscriptionRecord[],
-): Promise<number> {
-  if (subscriptions.length === 0) return 0;
+export async function materialisePostcards(purchase: PurchaseRecord, cards: EditionCardRecord[]): Promise<number> {
   const { drizzle: db, schema } = await getDatabase();
-  let written = 0;
-
-  for (let start = 0; start < subscriptions.length; start += 200) {
-    const chunk = subscriptions.slice(start, start + 200);
-    const values = chunk.map((subscription) => ({
+  const dates = editionSchedule(purchase.startDate, purchase.cardCount, purchase.cadence);
+  const values = cards
+    .filter((card) => card.position <= dates.length)
+    .map((card) => ({
       id: randomUUID(),
-      mailingId: mailing.id,
-      subscriptionId: subscription.id,
-      artistId: mailing.artistId,
-      designId: mailing.designId,
-      recipientName: subscription.address.name,
-      recipientLine1: subscription.address.line1,
-      recipientLine2: subscription.address.line2,
-      recipientCity: subscription.address.city,
-      recipientState: subscription.address.state,
-      recipientPostalCode: subscription.address.postalCode,
-      recipientCountry: subscription.address.country,
-      mailDate: mailing.mailDate,
+      purchaseId: purchase.id,
+      editionId: purchase.editionId,
+      editionCardId: card.id,
+      position: card.position,
+      artistId: purchase.artistId,
+      designId: card.designId,
+      recipientName: purchase.address.name,
+      recipientLine1: purchase.address.line1,
+      recipientLine2: purchase.address.line2,
+      recipientCity: purchase.address.city,
+      recipientState: purchase.address.state,
+      recipientPostalCode: purchase.address.postalCode,
+      recipientCountry: purchase.address.country,
+      mailDate: dates[card.position - 1]!,
       status: "scheduled",
     }));
-    const result = await db.insert(schema.postcards).values(values).onConflictDoNothing();
-    written += affectedRows(result);
-  }
-  return written;
+  if (values.length === 0) return 0;
+  return affectedRows(await db.insert(schema.postcards).values(values).onConflictDoNothing());
+}
+
+/** A full refund: every card of the purchase that has not gone is withdrawn. Returns how many. */
+export async function cancelUnsentPostcards(purchaseId: string): Promise<number> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+  const result = await db
+    .update(schema.postcards)
+    .set({ status: "cancelled", updatedAt: nowFor(dialect) })
+    .where(and(eq(schema.postcards.purchaseId, purchaseId), inArray(schema.postcards.status, ["scheduled", "error"])));
+  return affectedRows(result);
+}
+
+/** A collector moved: the cards still to come on these purchases go to the new address. Sent ones are history. */
+export async function updateUnsentPostcardAddresses(purchaseIds: string[], address: Recipient): Promise<number> {
+  if (purchaseIds.length === 0) return 0;
+  const { drizzle: db, schema, dialect } = await getDatabase();
+  const result = await db
+    .update(schema.postcards)
+    .set({
+      recipientName: address.name,
+      recipientLine1: address.line1,
+      recipientLine2: address.line2,
+      recipientCity: address.city,
+      recipientState: address.state,
+      recipientPostalCode: address.postalCode,
+      recipientCountry: address.country,
+      updatedAt: nowFor(dialect),
+    })
+    .where(and(inArray(schema.postcards.purchaseId, purchaseIds), inArray(schema.postcards.status, ["scheduled", "error"])));
+  return affectedRows(result);
 }
 
 /* ----------------------------------------------------------------- reads */
@@ -165,27 +202,84 @@ export async function getPostcard(id: string): Promise<PostcardWithContext | nul
   return card ?? null;
 }
 
-/** Every card on a mailing, by recipient name. The scope an artist or admin acts within. */
-export async function listPostcardsForMailing(mailingId: string): Promise<PostcardWithContext[]> {
+/** Every card of one purchase, in the order of the run. */
+export async function listPostcardsForPurchase(purchaseId: string): Promise<PostcardWithContext[]> {
   const { drizzle: db, schema } = await getDatabase();
   const rows = (await db
     .select()
     .from(schema.postcards)
-    .where(eq(schema.postcards.mailingId, mailingId))
-    .orderBy(asc(schema.postcards.recipientName), asc(schema.postcards.id))) as unknown as PostcardRow[];
+    .where(eq(schema.postcards.purchaseId, purchaseId))
+    .orderBy(asc(schema.postcards.position))) as unknown as PostcardRow[];
   return withTracking(rows);
 }
 
-/** Every card mailed to this customer, newest first — across all their subscriptions. */
+/** Every card of every collector's copy of one edition, by day then name. The admin's view of an edition. */
+export async function listPostcardsForEdition(editionId: string, limit = 500): Promise<PostcardWithContext[]> {
+  const { drizzle: db, schema } = await getDatabase();
+  const rows = (await db
+    .select()
+    .from(schema.postcards)
+    .where(eq(schema.postcards.editionId, editionId))
+    .orderBy(asc(schema.postcards.mailDate), asc(schema.postcards.recipientName), asc(schema.postcards.id))
+    .limit(limit)) as unknown as PostcardRow[];
+  return withTracking(rows);
+}
+
+/** Every card that has gone to this customer, newest first — across all their purchases. Cards still to come are on the schedule instead. */
 export async function listPostcardsForCustomer(customerId: string): Promise<PostcardWithContext[]> {
   const { drizzle: db, schema } = await getDatabase();
   const rows = (await db
     .select({ postcard: schema.postcards })
     .from(schema.postcards)
-    .innerJoin(schema.subscriptions, eq(schema.subscriptions.id, schema.postcards.subscriptionId))
-    .where(eq(schema.subscriptions.customerId, customerId))
+    .innerJoin(schema.purchases, eq(schema.purchases.id, schema.postcards.purchaseId))
+    .where(and(eq(schema.purchases.customerId, customerId), eq(schema.postcards.status, "sent")))
     .orderBy(desc(schema.postcards.mailDate), desc(schema.postcards.id))) as unknown as { postcard: PostcardRow }[];
   return withTracking(rows.map((row) => row.postcard));
+}
+
+/** One card of a run, as the schedule shows it. */
+export interface ScheduleEntry {
+  position: number;
+  mailDate: string;
+  status: PostcardStatus;
+}
+
+/** The run of each of a set of purchases, card 1 first: a small query, not one per purchase. */
+export async function listSchedules(purchaseIds: string[]): Promise<Map<string, ScheduleEntry[]>> {
+  const map = new Map<string, ScheduleEntry[]>();
+  if (purchaseIds.length === 0) return map;
+  const { drizzle: db, schema } = await getDatabase();
+  const rows = (await db
+    .select({ purchaseId: schema.postcards.purchaseId, position: schema.postcards.position, mailDate: schema.postcards.mailDate, status: schema.postcards.status })
+    .from(schema.postcards)
+    .where(inArray(schema.postcards.purchaseId, [...new Set(purchaseIds)]))
+    .orderBy(asc(schema.postcards.purchaseId), asc(schema.postcards.position))) as unknown as { purchaseId: string; position: number; mailDate: string; status: PostcardStatus }[];
+  for (const row of rows) {
+    const entry = { position: row.position, mailDate: row.mailDate, status: row.status };
+    const list = map.get(row.purchaseId);
+    if (list) list.push(entry);
+    else map.set(row.purchaseId, [entry]);
+  }
+  return map;
+}
+
+/** How many of an edition's cards are sent, and how many still to come, across every collector. */
+export async function countPostcardsByEdition(editionIds: string[]): Promise<Map<string, { sent: number; scheduled: number }>> {
+  const map = new Map<string, { sent: number; scheduled: number }>();
+  if (editionIds.length === 0) return map;
+  const { drizzle: db, schema } = await getDatabase();
+  const rows = (await db
+    .select({ editionId: schema.postcards.editionId, status: schema.postcards.status, value: count() })
+    .from(schema.postcards)
+    .where(inArray(schema.postcards.editionId, [...new Set(editionIds)]))
+    .groupBy(schema.postcards.editionId, schema.postcards.status)) as unknown as { editionId: string; status: string; value: unknown }[];
+  for (const row of rows) {
+    const counts = map.get(row.editionId) ?? { sent: 0, scheduled: 0 };
+    if (row.status === "sent") counts.sent += toCount(row.value);
+    else if (row.status === "scheduled" || row.status === "sending" || row.status === "error") counts.scheduled += toCount(row.value);
+    map.set(row.editionId, counts);
+  }
+  return map;
 }
 
 /** Cards in a state, newest first — the admin's "needs attention" list. */

@@ -52,6 +52,11 @@
   opacity: 1;
 }
 
+/* A tile with no picture: just its words. */
+.tilePlain {
+  grid-template-rows: 1fr;
+}
+
 .tileImage {
   background: var(--beluga-page);
 }
@@ -152,6 +157,10 @@
   margin-bottom: 2rem;
 }
 
+.artistHeaderPlain {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
 .artistAvatar {
   width: 7rem;
   height: 7rem;
@@ -177,7 +186,7 @@
   color: var(--beluga-muted);
 }
 
-.subscribeBox {
+.collectBox {
   display: grid;
   gap: 0.5rem;
   justify-items: center;
@@ -189,13 +198,13 @@
   min-width: 14rem;
 }
 
-.subscribePrice {
+.collectPrice {
   margin: 0;
   font-size: 1.5rem;
   font-weight: 700;
 }
 
-.subscribeNote {
+.collectNote {
   margin: 0;
   font-size: 0.8125rem;
   color: var(--beluga-muted);
@@ -236,7 +245,7 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .subscribeBox {
+  .collectBox {
     grid-column: 1 / -1;
     justify-items: stretch;
   }
@@ -247,16 +256,16 @@
   }
 }
 
-/* ------------------------------------------------------------ subscribe */
+/* ---------------------------------------------------------------- collect */
 
-.subscribeLayout {
+.collectLayout {
   display: grid;
   grid-template-columns: minmax(0, 28rem) minmax(0, 1fr);
   gap: 3rem;
   align-items: start;
 }
 
-.subscribeSummary {
+.collectSummary {
   position: sticky;
   top: 1rem;
   display: grid;
@@ -266,7 +275,7 @@
   background: var(--beluga-surface);
 }
 
-.subscribeSummary p {
+.collectSummary p {
   margin: 0;
 }
 
@@ -287,11 +296,11 @@
 }
 
 @media (max-width: 800px) {
-  .subscribeLayout {
+  .collectLayout {
     grid-template-columns: 1fr;
   }
 
-  .subscribeSummary {
+  .collectSummary {
     position: static;
   }
 }
@@ -335,8 +344,89 @@
   border-color: var(--beluga-ink);
 }
 
-.subscribeTerm {
+.collectShape {
   margin: -0.25rem 0 0;
   font-size: 0.9375rem;
   color: var(--beluga-muted);
+}
+
+
+/* -------------------------------------------------------------- editions */
+
+.closedTag {
+  margin-inline: 0.25rem 0;
+  vertical-align: middle;
+  font-weight: 400;
+}
+
+.editionHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.5rem 2rem;
+  align-items: center;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--beluga-line);
+  margin-bottom: 2rem;
+}
+
+.editionBy {
+  margin: 0.25rem 0 0;
+  font-size: 1.125rem;
+  color: var(--beluga-muted);
+}
+
+/* The run's numbers in the collect form's schedule. */
+.editionCardNumber {
+  color: var(--beluga-muted);
+}
+
+/* -------------------------------------------------------------- schedule */
+
+.startDate {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  background: var(--beluga-surface);
+  border: 1px solid var(--beluga-line);
+}
+
+.startDate p {
+  margin: 0;
+}
+
+.startHeading {
+  margin-top: 2rem;
+}
+
+.schedulePreview {
+  display: grid;
+  gap: 0.5rem;
+}
+
+/* "Use the default", sitting in a sentence. */
+.inlineLink {
+  height: auto;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* Wide enough for a date and the browser's picker button, no wider. */
+.dateInput {
+  max-width: 14rem;
+}
+
+.schedule {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.schedule li {
+  white-space: nowrap;
 }

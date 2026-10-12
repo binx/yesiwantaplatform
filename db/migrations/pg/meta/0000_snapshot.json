@@ -1,5 +1,5 @@
 {
-  "id": "379ffb77-c170-40f6-bc3c-1cef494861f9",
+  "id": "c49d351d-f382-44c1-982f-338f790aff3b",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -140,18 +140,36 @@
           "primaryKey": false,
           "notNull": false
         },
-        "monthly_price_cents": {
-          "name": "monthly_price_cents",
+        "banner_path": {
+          "name": "banner_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "banner_width": {
+          "name": "banner_width",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "send_day": {
-          "name": "send_day",
+        "banner_height": {
+          "name": "banner_height",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "banner_alt": {
+          "name": "banner_alt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "links": {
+          "name": "links",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
-          "default": 15
+          "default": "'[]'::jsonb"
         },
         "status": {
           "name": "status",
@@ -159,6 +177,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'draft'"
+        },
+        "visibility": {
+          "name": "visibility",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'public'"
         },
         "stripe_account_id": {
           "name": "stripe_account_id",
@@ -363,8 +388,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.mailings": {
-      "name": "mailings",
+    "public.edition_cards": {
+      "name": "edition_cards",
       "schema": "",
       "columns": {
         "id": {
@@ -373,8 +398,8 @@
           "primaryKey": true,
           "notNull": true
         },
-        "artist_id": {
-          "name": "artist_id",
+        "edition_id": {
+          "name": "edition_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -385,47 +410,20 @@
           "primaryKey": false,
           "notNull": true
         },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "title": {
           "name": "title",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "mail_date": {
-          "name": "mail_date",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "period": {
-          "name": "period",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'queued'"
-        },
-        "in_gallery": {
-          "name": "in_gallery",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "subscriber_count": {
-          "name": "subscriber_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "mailed_at": {
-          "name": "mailed_at",
+        "first_mailed_at": {
+          "name": "first_mailed_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
@@ -446,17 +444,17 @@
         }
       },
       "indexes": {
-        "mailings_artist_period_idx": {
-          "name": "mailings_artist_period_idx",
+        "edition_cards_position_idx": {
+          "name": "edition_cards_position_idx",
           "columns": [
             {
-              "expression": "artist_id",
+              "expression": "edition_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "period",
+              "expression": "position",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -467,17 +465,11 @@
           "method": "btree",
           "with": {}
         },
-        "mailings_due_idx": {
-          "name": "mailings_due_idx",
+        "edition_cards_design_idx": {
+          "name": "edition_cards_design_idx",
           "columns": [
             {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "mail_date",
+              "expression": "design_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -488,17 +480,11 @@
           "method": "btree",
           "with": {}
         },
-        "mailings_artist_idx": {
-          "name": "mailings_artist_idx",
+        "edition_cards_mailed_idx": {
+          "name": "edition_cards_mailed_idx",
           "columns": [
             {
-              "expression": "artist_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "mail_date",
+              "expression": "first_mailed_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -511,12 +497,12 @@
         }
       },
       "foreignKeys": {
-        "mailings_artist_id_artists_id_fk": {
-          "name": "mailings_artist_id_artists_id_fk",
-          "tableFrom": "mailings",
-          "tableTo": "artists",
+        "edition_cards_edition_id_editions_id_fk": {
+          "name": "edition_cards_edition_id_editions_id_fk",
+          "tableFrom": "edition_cards",
+          "tableTo": "editions",
           "columnsFrom": [
-            "artist_id"
+            "edition_id"
           ],
           "columnsTo": [
             "id"
@@ -524,9 +510,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "mailings_design_id_postcard_designs_id_fk": {
-          "name": "mailings_design_id_postcard_designs_id_fk",
-          "tableFrom": "mailings",
+        "edition_cards_design_id_postcard_designs_id_fk": {
+          "name": "edition_cards_design_id_postcard_designs_id_fk",
+          "tableFrom": "edition_cards",
           "tableTo": "postcard_designs",
           "columnsFrom": [
             "design_id"
@@ -544,8 +530,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.orders": {
-      "name": "orders",
+    "public.editions": {
+      "name": "editions",
       "schema": "",
       "columns": {
         "id": {
@@ -554,73 +540,86 @@
           "primaryKey": true,
           "notNull": true
         },
-        "subscription_id": {
-          "name": "subscription_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "customer_id": {
-          "name": "customer_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "artist_id": {
           "name": "artist_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "stripe_invoice_id": {
-          "name": "stripe_invoice_id",
+        "slug": {
+          "name": "slug",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "stripe_payment_intent_id": {
-          "name": "stripe_payment_intent_id",
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "banner_path": {
+          "name": "banner_path",
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "banner_width": {
+          "name": "banner_width",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "banner_height": {
+          "name": "banner_height",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "banner_alt": {
+          "name": "banner_alt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "card_count": {
+          "name": "card_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cadence": {
+          "name": "cadence",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_cents": {
+          "name": "price_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
         },
         "status": {
           "name": "status",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'paid'"
+          "default": "'draft'"
         },
-        "amount_cents": {
-          "name": "amount_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "refunded_cents": {
-          "name": "refunded_cents",
-          "type": "integer",
+        "in_gallery": {
+          "name": "in_gallery",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
-          "default": 0
-        },
-        "currency": {
-          "name": "currency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "period_start": {
-          "name": "period_start",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "period_end": {
-          "name": "period_end",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
+          "default": true
         },
         "created_at": {
           "name": "created_at",
@@ -638,11 +637,17 @@
         }
       },
       "indexes": {
-        "orders_invoice_idx": {
-          "name": "orders_invoice_idx",
+        "editions_artist_slug_idx": {
+          "name": "editions_artist_slug_idx",
           "columns": [
             {
-              "expression": "stripe_invoice_id",
+              "expression": "artist_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "slug",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -653,56 +658,11 @@
           "method": "btree",
           "with": {}
         },
-        "orders_subscription_idx": {
-          "name": "orders_subscription_idx",
+        "editions_status_idx": {
+          "name": "editions_status_idx",
           "columns": [
             {
-              "expression": "subscription_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "orders_customer_idx": {
-          "name": "orders_customer_idx",
-          "columns": [
-            {
-              "expression": "customer_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "orders_artist_idx": {
-          "name": "orders_artist_idx",
-          "columns": [
-            {
-              "expression": "artist_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "orders_created_idx": {
-          "name": "orders_created_idx",
-          "columns": [
-            {
-              "expression": "created_at",
+              "expression": "status",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -715,35 +675,9 @@
         }
       },
       "foreignKeys": {
-        "orders_subscription_id_subscriptions_id_fk": {
-          "name": "orders_subscription_id_subscriptions_id_fk",
-          "tableFrom": "orders",
-          "tableTo": "subscriptions",
-          "columnsFrom": [
-            "subscription_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "orders_customer_id_customers_id_fk": {
-          "name": "orders_customer_id_customers_id_fk",
-          "tableFrom": "orders",
-          "tableTo": "customers",
-          "columnsFrom": [
-            "customer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "orders_artist_id_artists_id_fk": {
-          "name": "orders_artist_id_artists_id_fk",
-          "tableFrom": "orders",
+        "editions_artist_id_artists_id_fk": {
+          "name": "editions_artist_id_artists_id_fk",
+          "tableFrom": "editions",
           "tableTo": "artists",
           "columnsFrom": [
             "artist_id"
@@ -887,8 +821,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "mailing_id": {
-          "name": "mailing_id",
+        "purchase_id": {
+          "name": "purchase_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -1274,15 +1208,27 @@
           "primaryKey": true,
           "notNull": true
         },
-        "mailing_id": {
-          "name": "mailing_id",
+        "purchase_id": {
+          "name": "purchase_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "subscription_id": {
-          "name": "subscription_id",
+        "edition_id": {
+          "name": "edition_id",
           "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "edition_card_id": {
+          "name": "edition_card_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -1413,17 +1359,17 @@
         }
       },
       "indexes": {
-        "postcards_mailing_subscription_idx": {
-          "name": "postcards_mailing_subscription_idx",
+        "postcards_purchase_position_idx": {
+          "name": "postcards_purchase_position_idx",
           "columns": [
             {
-              "expression": "mailing_id",
+              "expression": "purchase_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "subscription_id",
+              "expression": "position",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1434,11 +1380,11 @@
           "method": "btree",
           "with": {}
         },
-        "postcards_subscription_idx": {
-          "name": "postcards_subscription_idx",
+        "postcards_edition_card_idx": {
+          "name": "postcards_edition_card_idx",
           "columns": [
             {
-              "expression": "subscription_id",
+              "expression": "edition_card_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1502,12 +1448,12 @@
         }
       },
       "foreignKeys": {
-        "postcards_mailing_id_mailings_id_fk": {
-          "name": "postcards_mailing_id_mailings_id_fk",
+        "postcards_purchase_id_purchases_id_fk": {
+          "name": "postcards_purchase_id_purchases_id_fk",
           "tableFrom": "postcards",
-          "tableTo": "mailings",
+          "tableTo": "purchases",
           "columnsFrom": [
-            "mailing_id"
+            "purchase_id"
           ],
           "columnsTo": [
             "id"
@@ -1515,17 +1461,30 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "postcards_subscription_id_subscriptions_id_fk": {
-          "name": "postcards_subscription_id_subscriptions_id_fk",
+        "postcards_edition_id_editions_id_fk": {
+          "name": "postcards_edition_id_editions_id_fk",
           "tableFrom": "postcards",
-          "tableTo": "subscriptions",
+          "tableTo": "editions",
           "columnsFrom": [
-            "subscription_id"
+            "edition_id"
           ],
           "columnsTo": [
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "postcards_edition_card_id_edition_cards_id_fk": {
+          "name": "postcards_edition_card_id_edition_cards_id_fk",
+          "tableFrom": "postcards",
+          "tableTo": "edition_cards",
+          "columnsFrom": [
+            "edition_card_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "postcards_artist_id_artists_id_fk": {
@@ -1552,6 +1511,254 @@
             "id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.purchases": {
+      "name": "purchases",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "edition_id": {
+          "name": "edition_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "artist_id": {
+          "name": "artist_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'incomplete'"
+        },
+        "stripe_checkout_session_id": {
+          "name": "stripe_checkout_session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stripe_payment_intent_id": {
+          "name": "stripe_payment_intent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "price_cents": {
+          "name": "price_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "refunded_cents": {
+          "name": "refunded_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'USD'"
+        },
+        "card_count": {
+          "name": "card_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cadence": {
+          "name": "cadence",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "address": {
+          "name": "address",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "paid_at": {
+          "name": "paid_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "purchases_checkout_session_idx": {
+          "name": "purchases_checkout_session_idx",
+          "columns": [
+            {
+              "expression": "stripe_checkout_session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "purchases_payment_intent_idx": {
+          "name": "purchases_payment_intent_idx",
+          "columns": [
+            {
+              "expression": "stripe_payment_intent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "purchases_customer_idx": {
+          "name": "purchases_customer_idx",
+          "columns": [
+            {
+              "expression": "customer_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "purchases_edition_status_idx": {
+          "name": "purchases_edition_status_idx",
+          "columns": [
+            {
+              "expression": "edition_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "purchases_artist_status_idx": {
+          "name": "purchases_artist_status_idx",
+          "columns": [
+            {
+              "expression": "artist_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "purchases_customer_id_customers_id_fk": {
+          "name": "purchases_customer_id_customers_id_fk",
+          "tableFrom": "purchases",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "purchases_edition_id_editions_id_fk": {
+          "name": "purchases_edition_id_editions_id_fk",
+          "tableFrom": "purchases",
+          "tableTo": "editions",
+          "columnsFrom": [
+            "edition_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "purchases_artist_id_artists_id_fk": {
+          "name": "purchases_artist_id_artists_id_fk",
+          "tableFrom": "purchases",
+          "tableTo": "artists",
+          "columnsFrom": [
+            "artist_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -1660,8 +1867,8 @@
           "notNull": true,
           "default": 60
         },
-        "min_monthly_price_cents": {
-          "name": "min_monthly_price_cents",
+        "min_card_price_cents": {
+          "name": "min_card_price_cents",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -1809,202 +2016,6 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.subscriptions": {
-      "name": "subscriptions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "customer_id": {
-          "name": "customer_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "artist_id": {
-          "name": "artist_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'incomplete'"
-        },
-        "stripe_checkout_session_id": {
-          "name": "stripe_checkout_session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "stripe_subscription_id": {
-          "name": "stripe_subscription_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "price_cents": {
-          "name": "price_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "currency": {
-          "name": "currency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'USD'"
-        },
-        "current_period_end": {
-          "name": "current_period_end",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cancel_at_period_end": {
-          "name": "cancel_at_period_end",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "address": {
-          "name": "address",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cancelled_at": {
-          "name": "cancelled_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "subscriptions_checkout_session_idx": {
-          "name": "subscriptions_checkout_session_idx",
-          "columns": [
-            {
-              "expression": "stripe_checkout_session_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "subscriptions_stripe_idx": {
-          "name": "subscriptions_stripe_idx",
-          "columns": [
-            {
-              "expression": "stripe_subscription_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "subscriptions_customer_idx": {
-          "name": "subscriptions_customer_idx",
-          "columns": [
-            {
-              "expression": "customer_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "subscriptions_artist_status_idx": {
-          "name": "subscriptions_artist_status_idx",
-          "columns": [
-            {
-              "expression": "artist_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "subscriptions_customer_id_customers_id_fk": {
-          "name": "subscriptions_customer_id_customers_id_fk",
-          "tableFrom": "subscriptions",
-          "tableTo": "customers",
-          "columnsFrom": [
-            "customer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "subscriptions_artist_id_artists_id_fk": {
-          "name": "subscriptions_artist_id_artists_id_fk",
-          "tableFrom": "subscriptions",
-          "tableTo": "artists",
-          "columnsFrom": [
-            "artist_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

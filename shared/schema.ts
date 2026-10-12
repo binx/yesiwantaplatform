@@ -5,7 +5,7 @@ import { z } from "zod";
  *
  * Both the client and the API validate against these schemas, so the data
  * source can change underneath without touching components. What the
- * platform sells is a subscription to an artist, so this file holds the
+ * platform sells is an artist's edition of postcards, so this file holds the
  * platform's own identity, its look, its pages and the two numbers every
  * payout is computed from: what a printed card costs, and what the platform
  * keeps. The artists themselves are in `shared/platform.ts`.
@@ -47,7 +47,7 @@ export const RESERVED_PAGE_SLUGS: Readonly<Record<string, string>> = {
   artists: "the artist directory",
   gallery: "the gallery",
   "for-artists": "the pitch to artists",
-  subscribe: "the subscription flow",
+  collect: "collecting an edition",
   studio: "the artist studio",
   admin: "the admin",
   setup: "the setup wizard",
@@ -164,16 +164,16 @@ export const defaultHero: z.infer<typeof heroSchema> = {
 /**
  * The money rules, as every visitor may know them.
  *
- * `printCostCents` and `platformFeeCents` are what come off a subscriber's
- * monthly payment before the rest is sent to the artist — read by the payout
- * ledger the moment a card is accepted by the printer, never recomputed
- * later. `minMonthlyPriceCents` is the floor an artist may charge: below it a
- * card would cost the platform money to send.
+ * `printCostCents` and `platformFeeCents` are what come off each card's share
+ * of an edition's price before the rest is sent to the artist — read by the
+ * payout ledger the moment a card is accepted by the printer, never
+ * recomputed later. `minCardPriceCents` is the floor per card an edition may
+ * charge: below it a card would cost the platform money to send.
  */
 export const pricingSchema = z.object({
   printCostCents: centsSchema,
   platformFeeCents: centsSchema,
-  minMonthlyPriceCents: centsSchema,
+  minCardPriceCents: centsSchema,
 });
 
 export const storeSchema = z.object({
@@ -214,7 +214,7 @@ export const defaultTheme: Theme = {
 export const defaultPricing: Pricing = {
   printCostCents: 120,
   platformFeeCents: 60,
-  minMonthlyPriceCents: 300,
+  minCardPriceCents: 300,
 };
 
 export type Cents = z.infer<typeof centsSchema>;
@@ -230,11 +230,21 @@ export type Store = z.infer<typeof storeSchema>;
 export type Hero = z.infer<typeof heroSchema>;
 
 /**
- * What one sent postcard earns its artist: the subscriber's monthly price
- * less the print cost and the platform's fee, and never below zero. Pure, so
- * the ledger, the studio's earnings page and the admin's settings preview all
- * do the same arithmetic.
+ * One card's part of an edition's price: the price split evenly across the
+ * set, with the cents that do not divide going on card 1, so the parts of a
+ * set always add up to exactly what the collector paid.
  */
-export function artistShareCents(monthlyPriceCents: number, pricing: Pick<Pricing, "printCostCents" | "platformFeeCents">): number {
-  return Math.max(0, monthlyPriceCents - pricing.printCostCents - pricing.platformFeeCents);
+export function cardGrossCents(priceCents: number, cardCount: number, position: number): number {
+  const each = Math.floor(priceCents / cardCount);
+  return position === 1 ? each + (priceCents - each * cardCount) : each;
+}
+
+/**
+ * What one sent postcard earns its artist: its part of the price less the
+ * print cost and the platform's fee, and never below zero. Pure, so the
+ * ledger, the studio's earnings page and the admin's settings preview all do
+ * the same arithmetic.
+ */
+export function artistShareCents(cardGrossCents: number, pricing: Pick<Pricing, "printCostCents" | "platformFeeCents">): number {
+  return Math.max(0, cardGrossCents - pricing.printCostCents - pricing.platformFeeCents);
 }

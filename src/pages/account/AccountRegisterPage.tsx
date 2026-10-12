@@ -27,8 +27,8 @@ export function AccountRegisterPage() {
   const customer = useCustomer();
   const register = useRegister();
 
-  // Same source and guard as AccountLoginPage's `from` — where the shopper
-  // was headed (the cart, the designer) before "Create an account" took
+  // Same source and guard as AccountLoginPage's `from` — where the visitor
+  // was headed (an edition they were collecting, the studio) before "Create an account" took
   // them here, so registering doesn't have to mean losing their place.
   const from = (location.state as LocationState | null)?.from;
   const destination = from && from.startsWith("/") ? from : null;
@@ -39,14 +39,20 @@ export function AccountRegisterPage() {
 
   if (register.isSuccess) {
     const backTo = destination ?? "/";
-    const backLabel = destination?.startsWith("/artist/") ? "Back to the artist" : destination === "/studio/new" ? "Open your studio" : "Back home";
+    const backLabel = destination?.startsWith("/collect/")
+      ? "Back to the edition"
+      : destination?.startsWith("/artist/")
+        ? "Back to the artist"
+        : destination === "/studio/new"
+          ? "Open your studio"
+          : "Back home";
 
     return (
       <PageWrapper width="prose">
         <Result
           status="success"
           title={<h1>Check your email</h1>}
-          subTitle="We've sent a link to verify your email. You don't have to wait for it — you can sign in now, and subscribing works before you have."
+          subTitle="We've sent a link to verify your email. You don't have to wait for it — you can sign in now, and collecting works before you have."
           extra={[
             <Link key="continue" to={backTo}>
               <Button type="primary">{backLabel}</Button>

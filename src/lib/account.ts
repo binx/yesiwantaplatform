@@ -9,7 +9,7 @@ import type {
   MailingAddressInput,
   ResetPasswordInput,
 } from "@shared/account";
-import type { Order, ReceivedPostcard, Subscription } from "@shared/platform";
+import type { Collection, ReceivedPostcard } from "@shared/platform";
 import type { Verification } from "@shared/postcards";
 import { apiGet, clearCsrfToken, csrfDelete, csrfPost, csrfPut, setCsrfToken } from "./api";
 
@@ -21,9 +21,8 @@ import { apiGet, clearCsrfToken, csrfDelete, csrfPost, csrfPut, setCsrfToken } f
  * answers 401, because there it is a refusal.
  */
 export const customerQueryKey = ["account"] as const;
-const subscriptionsQueryKey = ["account", "subscriptions"] as const;
+const collectionsQueryKey = ["account", "collections"] as const;
 const postcardsQueryKey = ["account", "postcards"] as const;
-const ordersQueryKey = ["account", "orders"] as const;
 
 async function fetchCustomer(signal?: AbortSignal): Promise<CustomerProfile | null> {
   const session = await apiGet<CustomerSession>("/account", signal);
@@ -109,34 +108,19 @@ export function useUpdateAddress() {
     mutationFn: (input: MailingAddressInput) => csrfPut<{ address: MailingAddressInput; verification: Verification }>("/account/address", input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: customerQueryKey });
-      void queryClient.invalidateQueries({ queryKey: subscriptionsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: collectionsQueryKey });
     },
   });
 }
 
-/* ----------------------------------------------------------- subscriptions */
+/* ------------------------------------------------------------- collections */
 
-export function useSubscriptions(enabled = true): UseQueryResult<Subscription[]> {
+/** What this person has collected: each edition, its schedule, and what they paid. Also their receipts. */
+export function useCollections(enabled = true): UseQueryResult<Collection[]> {
   return useQuery({
-    queryKey: subscriptionsQueryKey,
-    queryFn: ({ signal }) => apiGet<Subscription[]>("/account/subscriptions", signal),
+    queryKey: collectionsQueryKey,
+    queryFn: ({ signal }) => apiGet<Collection[]>("/account/collections", signal),
     enabled,
-  });
-}
-
-export function useCancelSubscription() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => csrfPost<void>(`/account/subscriptions/${id}/cancel`, {}),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: subscriptionsQueryKey }),
-  });
-}
-
-export function useResumeSubscription() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => csrfPost<void>(`/account/subscriptions/${id}/resume`, {}),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: subscriptionsQueryKey }),
   });
 }
 
@@ -146,16 +130,6 @@ export function useReceivedPostcards(enabled = true): UseQueryResult<ReceivedPos
   return useQuery({
     queryKey: postcardsQueryKey,
     queryFn: ({ signal }) => apiGet<ReceivedPostcard[]>("/account/postcards", signal),
-    enabled,
-  });
-}
-
-/* ------------------------------------------------------------------ orders */
-
-export function useCustomerOrders(enabled = true): UseQueryResult<Order[]> {
-  return useQuery({
-    queryKey: ordersQueryKey,
-    queryFn: ({ signal }) => apiGet<Order[]>("/account/orders", signal),
     enabled,
   });
 }

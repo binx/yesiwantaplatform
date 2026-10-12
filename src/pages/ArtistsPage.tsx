@@ -6,7 +6,7 @@ import { useArtists } from "@/lib/platform";
 import { useStore } from "@/lib/useStore";
 import platform from "@/components/platform/Platform.module.css";
 
-/** The directory: every live artist, and what a month of their mail costs. */
+/** The directory: every live artist, and what their editions start at. */
 export function ArtistsPage() {
   const store = useStore();
   const artists = useArtists();
@@ -14,7 +14,7 @@ export function ArtistsPage() {
   return (
     <PageWrapper width="wide">
       <h1>Artists</h1>
-      <p>Each one mails a postcard a month to everyone who said yes. Pick one, or a few.</p>
+      <p>Each one makes editions of postcards, mailed to you one by one. Pick one, or a few.</p>
 
       {artists.isPending ? (
         <Skeleton active paragraph={{ rows: 6 }} />

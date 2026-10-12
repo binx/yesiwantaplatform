@@ -6,13 +6,13 @@ import {
   artistProfileInputSchema,
   artistStatusSchema,
   earningsSchema,
-  mailingInputSchema,
-  mailingUpdateInputSchema,
-  nextMailDate,
+  editionCardsInputSchema,
+  editionInputSchema,
+  editionStatusSchema,
   type Earnings,
+  type EditionInput,
 } from "../../shared/platform.js";
-import { postcardBackSchema, todayIso } from "../../shared/postcards.js";
-import { artistShareCents } from "../../shared/schema.js";
+import { postcardBackSchema } from "../../shared/postcards.js";
 import { getSettings } from "../../db/repository.js";
 import { SlugTakenError } from "../../db/admin-repository.js";
 import {
@@ -28,6 +28,7 @@ import {
 import {
   createDesign,
   deleteDesign,
+  designIsLocked,
   designIsUsed,
   getDesignForArtist,
   findDesignsByIds,
@@ -36,25 +37,26 @@ import {
   updateDesignBack,
 } from "../../db/designs-repository.js";
 import {
-  PeriodTakenError,
-  cancelQueuedMailing,
-  countPostcardsByMailing,
-  createMailing,
-  getMailingForArtist,
-  listMailingsForArtist,
-  setMailingInGallery,
-  takenMailDates,
-  updateQueuedMailing,
-} from "../../db/mailings-repository.js";
-import { listPostcardsForMailing } from "../../db/postcards-repository.js";
-import { listSubscriptionsForArtist } from "../../db/subscriptions-repository.js";
+  EditionSlugTakenError,
+  createEdition,
+  deleteDraftEdition,
+  getEditionForArtist,
+  listCardsForEdition,
+  listEditionsForArtist,
+  replaceEditionCards,
+  setEditionStatus,
+  updateDraftEdition,
+  updateEditionWords,
+  type EditionRecord,
+} from "../../db/editions-repository.js";
+import { editionHasPurchases, listPurchasesForArtist } from "../../db/purchases-repository.js";
 import { listPayoutsForArtist, sumEarningsForArtist } from "../../db/payouts-repository.js";
 import { findCustomerById } from "../auth.js";
 import { createOnboardingLink, ensureConnectAccount, refreshConnectStatus } from "../connect.js";
 import { httpError, requireCustomer, uploadRateLimit, verifyCsrf, writeRateLimit } from "../middleware.js";
 import { classifyStripeError, StripeNotConfiguredError } from "../stripe.js";
 import { deleteDesignFile, mapUploadError, storeImage, storePostcardDesign, uploadMiddleware } from "../uploads.js";
-import { stripForCustomer, toArtistStudio, toMailing, toPayout, toSubscriber } from "../presenters.js";
+import { presentCollectors, presentStudioEditions, toArtistStudio, toPayout } from "../presenters.js";
 
 /**
  * The studio: everything an artist does with their own page.
@@ -63,7 +65,7 @@ import { stripForCustomer, toArtistStudio, toMailing, toPayout, toSubscriber } f
  * needs a customer session *and* an artist row owned by it, and loads that
  * row once for every handler below. Nothing here takes an artist id from
  * the request — the signed-in person's own row is the only one in scope,
- * which is what makes another artist's design or mailing a 404 rather than
+ * which is what makes another artist's design or edition a 404 rather than
  * a bug waiting for someone to remove a comparison.
  */
 export const studioRouter: Router = Router();
@@ -79,18 +81,22 @@ studioRouter.get("/slug/:slug", async (req, res) => {
 
 function toHttp(error: unknown): never {
   if (error instanceof SlugTakenError) throw httpError(409, error.message);
-  if (error instanceof PeriodTakenError) throw httpError(409, error.message);
+  if (error instanceof EditionSlugTakenError) throw httpError(409, error.message);
   if (error instanceof StripeNotConfiguredError) throw httpError(503, error.message);
   const stripeError = classifyStripeError(error);
   if (stripeError) throw httpError(stripeError.status, stripeError.message);
   throw error;
 }
 
-async function assertPriceAllowed(monthlyPriceCents: number): Promise<void> {
+/** The floor is per card, so a set of twelve has twice the floor of a set of six. */
+async function assertPriceAllowed(input: Pick<EditionInput, "priceCents" | "cardCount">): Promise<void> {
   const settings = await getSettings();
-  const floor = settings?.pricing.minMonthlyPriceCents ?? 0;
-  if (monthlyPriceCents < floor) {
-    throw httpError(400, `The monthly price has to be at least ${(floor / 100).toFixed(2)} ${settings?.currency ?? "USD"}: below that a printed card costs more than it brings in.`);
+  const floor = (settings?.pricing.minCardPriceCents ?? 0) * input.cardCount;
+  if (input.priceCents < floor) {
+    throw httpError(
+      400,
+      `A set of ${input.cardCount} has to cost at least ${(floor / 100).toFixed(2)} ${settings?.currency ?? "USD"}: below that a printed card costs more than it brings in.`,
+    );
   }
 }
 
@@ -101,7 +107,6 @@ studioRouter.post("/", async (req, res) => {
 
   const parsed = artistProfileInputSchema.safeParse(req.body);
   if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "That profile could not be used.");
-  await assertPriceAllowed(parsed.data.monthlyPriceCents);
 
   try {
     const artist = await createArtist(req.session.customerId!, parsed.data);
@@ -136,24 +141,23 @@ function artistOf(res: Response): ArtistRecord {
 }
 
 async function studioView(artist: ArtistRecord, customerId: string) {
-  const [settings, counts, customer, mailings, earnings] = await Promise.all([
+  const [settings, counts, customer, editions, earnings] = await Promise.all([
     getSettings(),
     countForArtists([artist.id]),
     findCustomerById(customerId),
-    listMailingsForArtist(artist.id),
+    listEditionsForArtist(artist.id),
     sumEarningsForArtist(artist.id),
   ]);
   const currency = settings?.currency ?? "USD";
-  const queued = mailings.filter((m) => m.status === "queued");
   return {
-    artist: toArtistStudio(artist, customer?.email ?? "", counts.get(artist.id) ?? { subscribers: 0, mailed: 0 }, currency),
-    queuedCount: queued.length,
-    nextQueued: queued.sort((a, b) => a.mailDate.localeCompare(b.mailDate))[0]?.mailDate ?? null,
-    nextMailDate: nextMailDate(artist.sendDay, mailings.map((m) => m.mailDate), todayIso()),
+    artist: toArtistStudio(artist, customer?.email ?? "", counts.get(artist.id) ?? { collectors: 0, mailed: 0 }, currency),
+    editionCounts: {
+      draft: editions.filter((edition) => edition.status === "draft").length,
+      onSale: editions.filter((edition) => edition.status === "on_sale").length,
+      closed: editions.filter((edition) => edition.status === "closed").length,
+    },
     earnings: { pendingCents: earnings.pendingCents, paidCents: earnings.paidCents, currency },
     pricing: settings?.pricing ?? null,
-    /** What one card earns at this artist's current price. */
-    shareCents: settings ? artistShareCents(artist.monthlyPriceCents, settings.pricing) : null,
   };
 }
 
@@ -166,7 +170,6 @@ artistRouter.get("/", async (req, res) => {
 artistRouter.put("/profile", async (req, res) => {
   const parsed = artistProfileInputSchema.safeParse(req.body);
   if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "That profile could not be used.");
-  await assertPriceAllowed(parsed.data.monthlyPriceCents);
 
   try {
     const artist = await updateArtistProfile(artistOf(res).id, parsed.data);
@@ -201,9 +204,8 @@ artistRouter.post("/avatar", uploadRateLimit, storeProfileImage);
 artistRouter.post("/banner", uploadRateLimit, storeProfileImage);
 
 /**
- * Go live, or pause. Going live needs a page worth visiting: a name, a
- * price the platform can print at, and at least one card in the queue so a
- * new subscriber is not paying for nothing.
+ * Go live, or pause. Going live needs a page worth visiting: at least one
+ * edition on sale, so a visitor has something to collect.
  */
 artistRouter.post("/status", async (req, res) => {
   const parsed = z.object({ status: artistStatusSchema.exclude(["draft"]) }).safeParse(req.body);
@@ -211,10 +213,9 @@ artistRouter.post("/status", async (req, res) => {
   const artist = artistOf(res);
 
   if (parsed.data.status === "live" && artist.status !== "live") {
-    await assertPriceAllowed(artist.monthlyPriceCents);
-    const mailings = await listMailingsForArtist(artist.id);
-    if (!mailings.some((m) => m.status === "queued")) {
-      throw httpError(409, "Queue at least one postcard before going live, so your first subscriber has something coming.");
+    const onSale = await listEditionsForArtist(artist.id, ["on_sale"]);
+    if (onSale.length === 0) {
+      throw httpError(409, "Put an edition on sale before going live, so your first visitor has something to collect.");
     }
   }
 
@@ -245,7 +246,7 @@ function parseJsonField(value: unknown, message: string): unknown {
  * Save a design: the front image as multipart `file`, plus `orientation`,
  * `back` and `crop` (JSON strings) as fields. The print file is made here,
  * at Lob's size and density, so an image that cannot be printed is refused
- * now rather than on the mailing day.
+ * now rather than on the day it is due to go.
  */
 artistRouter.post("/designs", uploadRateLimit, (req, res, next) => {
   uploadMiddleware(req, res, (uploadError: unknown) => {
@@ -284,7 +285,7 @@ artistRouter.post("/designs", uploadRateLimit, (req, res, next) => {
   });
 });
 
-/** Edit the message. Refused once the card has been mailed: what was printed is the record. */
+/** Edit the message. Refused once the card is in an edition on sale: collectors paid for it as it is. */
 artistRouter.put("/designs/:id", async (req, res) => {
   const artist = artistOf(res);
   const parsed = postcardBackSchema.safeParse(req.body);
@@ -295,8 +296,7 @@ artistRouter.put("/designs/:id", async (req, res) => {
 
   const design = await getDesignForArtist(req.params.id, artist.id);
   if (!design) throw httpError(404, "No design found.");
-  const { designIsMailed } = await import("../../db/designs-repository.js");
-  if (await designIsMailed(design.id)) throw httpError(409, "That postcard has been mailed and can't be changed.");
+  if (await designIsLocked(design.id)) throw httpError(409, "That postcard is in an edition on sale and can't be changed.");
 
   await updateDesignBack(design.id, artist.id, parsed.data);
   const updated = await getDesignForArtist(design.id, artist.id);
@@ -308,7 +308,7 @@ artistRouter.delete("/designs/:id", async (req, res) => {
   const artist = artistOf(res);
   const design = await getDesignForArtist(req.params.id, artist.id);
   if (!design) throw httpError(404, "No design found.");
-  if (await designIsUsed(design.id)) throw httpError(409, "That postcard is in your queue or has been mailed. Remove it from the queue first.");
+  if (await designIsUsed(design.id)) throw httpError(409, "That postcard is in one of your editions. Take it out of the edition first.");
 
   await deleteDesign(design.id);
   await deleteDesignFile(design.printPath).catch(() => undefined);
@@ -316,101 +316,153 @@ artistRouter.delete("/designs/:id", async (req, res) => {
   res.status(204).end();
 });
 
-/* --------------------------------------------------------------- mailings */
+/* --------------------------------------------------------------- editions */
 
-async function presentMailings(artist: ArtistRecord, ids?: string[]) {
-  const mailings = (await listMailingsForArtist(artist.id)).filter((m) => !ids || ids.includes(m.id));
-  const [designs, counts] = await Promise.all([findDesignsByIds(mailings.map((m) => m.designId)), countPostcardsByMailing(mailings.map((m) => m.id))]);
-  const designById = new Map(designs.map((d) => [d.id, d]));
-  return mailings.flatMap((mailing) => {
-    const design = designById.get(mailing.designId);
-    return design ? [toMailing(mailing, design, counts.get(mailing.id), artist.name)] : [];
-  });
+async function presentOne(artist: ArtistRecord, edition: EditionRecord) {
+  const settings = await getSettings();
+  const [presented] = await presentStudioEditions([edition], settings?.currency ?? "USD", artist.name);
+  return presented;
 }
 
-artistRouter.get("/mailings", async (_req, res) => {
+async function editionOf(res: Response, id: string): Promise<EditionRecord> {
+  const edition = await getEditionForArtist(id, artistOf(res).id);
+  if (!edition) throw httpError(404, "No edition found.");
+  return edition;
+}
+
+artistRouter.get("/editions", async (_req, res) => {
   const artist = artistOf(res);
-  res.json({ mailings: await presentMailings(artist), nextMailDate: nextMailDate(artist.sendDay, await takenMailDates(artist.id), todayIso()) });
+  const settings = await getSettings();
+  res.json(await presentStudioEditions(await listEditionsForArtist(artist.id), settings?.currency ?? "USD", artist.name));
 });
 
-/** How far out a card may be queued. */
-const MAX_DAYS_AHEAD = 366;
+artistRouter.get("/editions/:id", async (req, res) => {
+  const edition = await editionOf(res, req.params.id);
+  res.json(await presentOne(artistOf(res), edition));
+});
 
-function assertDateAllowed(mailDate: string): void {
-  const today = todayIso();
-  const horizon = new Date(Date.now() + MAX_DAYS_AHEAD * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  if (mailDate < today) throw httpError(400, "That day has passed. Pick today or later.");
-  if (mailDate > horizon) throw httpError(400, "Postcards can be queued up to a year ahead.");
-}
-
-/** Queue a card. One per calendar month; the repository refuses a second. */
-artistRouter.post("/mailings", async (req, res) => {
+/** Start an edition, as a draft. Its cards come next. */
+artistRouter.post("/editions", async (req, res) => {
   const artist = artistOf(res);
-  const parsed = mailingInputSchema.safeParse(req.body);
-  if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "That could not be queued.");
-  assertDateAllowed(parsed.data.mailDate);
-
-  const design = await getDesignForArtist(parsed.data.designId, artist.id);
-  if (!design) throw httpError(404, "No design found.");
+  const parsed = editionInputSchema.safeParse(req.body);
+  if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "That edition could not be used.");
+  await assertPriceAllowed(parsed.data);
 
   try {
-    const mailing = await createMailing({ artistId: artist.id, designId: design.id, mailDate: parsed.data.mailDate, title: parsed.data.title, inGallery: parsed.data.inGallery });
-    const [presented] = await presentMailings(artist, [mailing.id]);
-    res.status(201).json(presented);
+    const edition = await createEdition(artist.id, parsed.data);
+    res.status(201).json(await presentOne(artist, edition));
   } catch (error) {
     toHttp(error);
   }
 });
 
-/** Move a queued card, retitle it, or hide it from the gallery. */
-artistRouter.put("/mailings/:id", async (req, res) => {
+/**
+ * Change an edition. A draft can change anything; past that only its words
+ * can, because collectors paid for the cards, size, cadence and price as
+ * they are. A change to those on a sold edition is refused rather than
+ * quietly dropped.
+ */
+artistRouter.put("/editions/:id", async (req, res) => {
   const artist = artistOf(res);
-  const parsed = mailingUpdateInputSchema.safeParse(req.body);
-  if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "That could not be saved.");
-
-  const mailing = await getMailingForArtist(req.params.id, artist.id);
-  if (!mailing) throw httpError(404, "No mailing found.");
+  const edition = await editionOf(res, req.params.id);
+  const parsed = editionInputSchema.safeParse(req.body);
+  if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "That edition could not be used.");
 
   try {
-    if (mailing.status === "queued") {
-      assertDateAllowed(parsed.data.mailDate);
-      await updateQueuedMailing(mailing.id, artist.id, parsed.data);
+    if (edition.status === "draft") {
+      await assertPriceAllowed(parsed.data);
+      if (!(await updateDraftEdition(edition.id, artist.id, parsed.data))) throw httpError(409, "That edition has just gone on sale. Reload and try again.");
     } else {
-      // Gone already: only whether it shows in the gallery can change.
-      await setMailingInGallery(mailing.id, artist.id, parsed.data.inGallery);
+      const fixed =
+        parsed.data.slug !== edition.slug ||
+        parsed.data.cardCount !== edition.cardCount ||
+        parsed.data.cadence !== edition.cadence ||
+        parsed.data.priceCents !== edition.priceCents;
+      if (fixed) throw httpError(409, "This edition is on sale, so its address, size, cadence and price are fixed. Its title, description and banner can still change.");
+      if (!parsed.data.banner) throw httpError(409, "An edition on sale needs a banner: it's what visitors see in place of the cards. Choose a new one instead.");
+      await updateEditionWords(edition.id, artist.id, parsed.data);
     }
   } catch (error) {
     toHttp(error);
   }
 
-  const [presented] = await presentMailings(artist, [mailing.id]);
-  res.json(presented);
+  res.json(await presentOne(artist, (await getEditionForArtist(edition.id, artist.id)) ?? edition));
 });
 
-/** Withdraw a queued card. A mailed one is history and stays. */
-artistRouter.delete("/mailings/:id", async (req, res) => {
+/** Stores an edition's banner and hands the image back; it is saved with the edition. */
+artistRouter.post("/editions/banner", uploadRateLimit, storeProfileImage);
+
+/** Set a draft's cards, in order. Every design must be the artist's own. */
+artistRouter.put("/editions/:id/cards", async (req, res) => {
   const artist = artistOf(res);
-  if (!(await cancelQueuedMailing(req.params.id, artist.id))) {
-    throw httpError(409, "That mailing has already gone out, or does not exist.");
+  const edition = await editionOf(res, req.params.id);
+  const parsed = editionCardsInputSchema.safeParse(req.body);
+  if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "Those cards could not be used.");
+  if (edition.status !== "draft") throw httpError(409, "This edition is on sale, so its cards are fixed.");
+  if (parsed.data.cards.length > edition.cardCount) throw httpError(400, `This edition holds ${edition.cardCount} cards.`);
+
+  const designs = await findDesignsByIds(parsed.data.cards.map((card) => card.designId));
+  if (designs.length !== parsed.data.cards.length || designs.some((design) => design.artistId !== artist.id)) {
+    throw httpError(404, "No design found.");
   }
+
+  if (!(await replaceEditionCards(edition.id, parsed.data.cards))) throw httpError(409, "That edition has just gone on sale. Reload and try again.");
+  res.json(await presentOne(artist, edition));
+});
+
+/**
+ * Move an edition along.
+ *
+ *   on_sale  needs every card in place, a banner, and a price the platform can print at
+ *   draft    only while nobody has bought it, even an abandoned checkout
+ *   closed   from on sale; collectors who paid still get every card
+ */
+artistRouter.post("/editions/:id/status", async (req, res) => {
+  const artist = artistOf(res);
+  const edition = await editionOf(res, req.params.id);
+  const parsed = z.object({ status: editionStatusSchema }).safeParse(req.body);
+  if (!parsed.success) throw httpError(400, "Choose draft, on sale or closed.");
+  const to = parsed.data.status;
+  let moved: boolean;
+
+  if (to === "on_sale") {
+    const cards = await listCardsForEdition(edition.id);
+    if (cards.length !== edition.cardCount) {
+      throw httpError(409, `Add all ${edition.cardCount} cards before putting this edition on sale. It has ${cards.length}.`);
+    }
+    // The cards are a surprise, so the banner is what a visitor sees instead.
+    if (!edition.banner) throw httpError(409, "Add a banner before putting this edition on sale: it's what visitors see in place of the cards.");
+    await assertPriceAllowed(edition);
+    moved = await setEditionStatus(edition.id, ["draft", "closed"], "on_sale");
+  } else if (to === "draft") {
+    if (edition.status !== "draft" && (await editionHasPurchases(edition.id))) {
+      throw httpError(409, "Someone has bought this edition, or is checking out with it now, so it can't go back to being a draft. Close it instead, and start a new one.");
+    }
+    moved = await setEditionStatus(edition.id, ["on_sale", "closed"], "draft");
+  } else {
+    moved = await setEditionStatus(edition.id, ["on_sale"], "closed");
+  }
+  if (!moved) throw httpError(409, "That edition can't move there from where it is now. Reload and try again.");
+
+  res.json(await presentOne(artist, (await getEditionForArtist(edition.id, artist.id)) ?? edition));
+});
+
+/** Remove a draft nobody has bought. Its designs stay, to be used again. */
+artistRouter.delete("/editions/:id", async (req, res) => {
+  const artist = artistOf(res);
+  const edition = await editionOf(res, req.params.id);
+  if (edition.status !== "draft" || (await editionHasPurchases(edition.id))) {
+    throw httpError(409, "Only a draft nobody has bought can be deleted. Close it instead.");
+  }
+  if (!(await deleteDraftEdition(edition.id, artist.id))) throw httpError(409, "That edition has just gone on sale.");
   res.status(204).end();
 });
 
-/** Where each card of a mailing is. Lob's error text is stripped: the admin has it, the artist has "we're on it". */
-artistRouter.get("/mailings/:id/postcards", async (req, res) => {
-  const artist = artistOf(res);
-  const mailing = await getMailingForArtist(req.params.id, artist.id);
-  if (!mailing) throw httpError(404, "No mailing found.");
-  const cards = await listPostcardsForMailing(mailing.id);
-  res.json(cards.map((card) => ({ ...stripForCustomer(card), recipient: { ...card.recipient, line1: "", line2: null, postalCode: "" } })));
-});
+/* ------------------------------------------------------------- collectors */
 
-/* ------------------------------------------------------------ subscribers */
-
-/** Who gets the mail: a name and a town each. The street is the platform's business, not the artist's. */
-artistRouter.get("/subscribers", async (_req, res) => {
-  const subscriptions = await listSubscriptionsForArtist(artistOf(res).id);
-  res.json(subscriptions.map(toSubscriber));
+/** Who collects what: a name and a town each, and how far along. The street is the platform's business, not the artist's. */
+artistRouter.get("/collectors", async (_req, res) => {
+  res.json(await presentCollectors(await listPurchasesForArtist(artistOf(res).id)));
 });
 
 /* --------------------------------------------------------------- earnings */

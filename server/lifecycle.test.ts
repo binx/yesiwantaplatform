@@ -3,18 +3,21 @@ import request from "supertest";
 import type { Express } from "express";
 import type Stripe from "stripe";
 import sharp from "sharp";
-import { todayIso } from "../shared/postcards.js";
+import { addDaysIso, todayIso } from "../shared/postcards.js";
+import { editionSchedule } from "../shared/platform.js";
 
 /**
- * The whole life of a postcard, end to end, against a fake Lob and a stubbed
+ * The whole life of an edition, end to end, against a fake Lob and a stubbed
  * Stripe.
  *
- * An artist makes a page, queues a card and goes live; a subscriber pays
- * (Checkout is stubbed, the signed webhook is real); the mailing sweep
- * writes the card; the print sweep sends it and the ledger records the
- * artist's share; the payout sweep transfers it once the artist can be
- * paid. What is asserted is what each outside party is *sent* and what each
- * kind of answer does to the rows.
+ * An artist makes a page, builds an edition of six cards, puts it on sale
+ * and goes live; a collector pays once, picking the day it starts (Checkout
+ * is stubbed, the signed webhook is real) and every card of their run is
+ * written on its day; the print sweep sends each as its day comes and the
+ * ledger records the artist's share of it; the payout sweep transfers it
+ * once the artist can be paid; a refund withdraws the rest. What is
+ * asserted is what each outside party is *sent* and what each kind of
+ * answer does to the rows.
  */
 
 interface Sent {
@@ -81,9 +84,6 @@ beforeEach(() => {
   vi.spyOn(stripe.customers, "create").mockImplementation((() => Promise.resolve({ id: "cus_fan" })) as never);
   vi.spyOn(stripe.checkout.sessions, "create").mockImplementation((() =>
     Promise.resolve({ id: `cs_test_${Math.random().toString(36).slice(2)}`, url: "https://checkout.stripe.com/c/pay/cs_test_123" })) as never);
-  vi.spyOn(stripe.subscriptions, "retrieve").mockImplementation((() =>
-    Promise.resolve({ id: "sub_1", status: "active", items: { data: [{ current_period_end: 1_800_000_000 }] } })) as never);
-  vi.spyOn(stripe.subscriptions, "update").mockImplementation((() => Promise.resolve({ id: "sub_1" })) as never);
 });
 
 async function signIn(email: string) {
@@ -107,255 +107,295 @@ function webhook(event: object) {
 }
 
 let artistId = "";
-let designId = "";
-let mailingId = "";
-let subscriptionId = "";
+let editionId = "";
+let purchaseId = "";
 let checkoutSessionId = "";
 let postcardId = "";
+let schedule: string[] = [];
 
-describe("an artist opens a page", () => {
-  it("creates the page, uploads a card, queues it for today and goes live", async () => {
+/** The collector's chosen first day: a few days out, on a day every month has, and not the default 1st or 15th. */
+function chosenStartDate(): string {
+  for (let offset = 3; ; offset += 1) {
+    const candidate = addDaysIso(todayIso(), offset);
+    const day = Number(candidate.slice(8));
+    if (day <= 28 && day !== 1 && day !== 15) return candidate;
+  }
+}
+
+const EDITION: { slug: string; title: string; description: string; cardCount: number; cadence: string; priceCents: number; banner: { path: string; alt: string } | null } = {
+  slug: "birds",
+  title: "Birds of Marfa",
+  description: "Six *birds*.",
+  cardCount: 6,
+  cadence: "monthly",
+  priceCents: 3000,
+  banner: null,
+};
+
+describe("an artist makes an edition", () => {
+  it("creates the page, builds a set of six, puts it on sale and goes live", async () => {
     const { agent, csrf } = await signIn("artist@example.com");
 
-    const created = await agent.post("/api/studio").set("x-csrf-token", csrf).send({ slug: "rachel", name: "Rachel", tagline: "photos from the road", bio: "**Hi.**", monthlyPriceCents: 500, sendDay: 15 }).expect(201);
+    const created = await agent.post("/api/studio").set("x-csrf-token", csrf).send({ slug: "rachel", name: "Rachel", tagline: "photos from the road", bio: "**Hi.**" }).expect(201);
     artistId = created.body.artist.id;
-    expect(created.body.artist.status).toBe("draft");
-    expect(created.body.shareCents).toBe(320);
-    // Unsaid, a subscription runs six months; unsaid, there is nowhere else to find them.
-    expect(created.body.artist).toMatchObject({ termMonths: 6, links: [], banner: null });
+    expect(created.body.artist).toMatchObject({ status: "draft", links: [], banner: null });
 
     // Where else to find them, and a picture across the top. A link without a proper address is refused.
-    const badLink = await agent
-      .put("/api/studio/profile")
-      .set("x-csrf-token", csrf)
-      .send({ slug: "rachel", name: "Rachel", monthlyPriceCents: 500, links: [{ label: "Instagram", url: "instagram.com/rachel" }] });
+    const badLink = await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ slug: "rachel", name: "Rachel", links: [{ label: "Instagram", url: "instagram.com/rachel" }] });
     expect(badLink.status).toBe(400);
     const bannerPng = await sharp({ create: { width: 900, height: 300, channels: 3, background: "#ffcc00" } }).png().toBuffer();
     const banner = await agent.post("/api/studio/banner").set("x-csrf-token", csrf).attach("file", bannerPng, { filename: "banner.png", contentType: "image/png" }).expect(201);
     const profile = await agent
       .put("/api/studio/profile")
       .set("x-csrf-token", csrf)
-      .send({
-        slug: "rachel",
-        name: "Rachel",
-        tagline: "photos from the road",
-        bio: "**Hi.**",
-        monthlyPriceCents: 500,
-        sendDay: 15,
-        banner: banner.body,
-        links: [
-          { label: "", url: "https://www.rachel.example/" },
-          { label: "Instagram", url: "https://instagram.com/rachel" },
-        ],
-      })
+      .send({ slug: "rachel", name: "Rachel", tagline: "photos from the road", bio: "**Hi.**", banner: banner.body, links: [{ label: "Instagram", url: "https://instagram.com/rachel" }] })
       .expect(200);
     expect(profile.body.artist.banner).toMatchObject({ path: banner.body.path, width: 900, height: 300 });
-    expect(profile.body.artist.links).toEqual([
-      { label: "", url: "https://www.rachel.example/" },
-      { label: "Instagram", url: "https://instagram.com/rachel" },
-    ]);
 
-    const png = await sharp({ create: { width: 300, height: 200, channels: 3, background: "#00ffff" } }).png().toBuffer();
-    const uploaded = await agent
-      .post("/api/studio/designs")
+    // Nothing on sale, so nothing to go live with.
+    expect((await agent.post("/api/studio/status").set("x-csrf-token", csrf).send({ status: "live" })).status).toBe(409);
+
+    const designIds: string[] = [];
+    for (let i = 0; i < 6; i += 1) {
+      const png = await sharp({ create: { width: 300, height: 200, channels: 3, background: i === 0 ? "#00ffff" : "#ff00ff" } }).png().toBuffer();
+      const uploaded = await agent
+        .post("/api/studio/designs")
+        .set("x-csrf-token", csrf)
+        .field("orientation", "landscape")
+        .field("back", JSON.stringify({ text: `Wish you were here <3 (${i + 1})`, valediction: "Love, R" }))
+        .attach("file", png, { filename: "a.png", contentType: "image/png" })
+        .expect(201);
+      designIds.push(uploaded.body.id as string);
+    }
+
+    const edition = await agent.post("/api/studio/editions").set("x-csrf-token", csrf).send(EDITION).expect(201);
+    editionId = edition.body.id;
+    expect(edition.body).toMatchObject({ status: "draft", cards: [], cardCount: 6, cadence: "monthly", priceCents: 3000 });
+
+    // Five cards are not a set of six.
+    await agent.put(`/api/studio/editions/${editionId}/cards`).set("x-csrf-token", csrf).send({ cards: designIds.slice(0, 5).map((designId) => ({ designId })) }).expect(200);
+    const short = await agent.post(`/api/studio/editions/${editionId}/status`).set("x-csrf-token", csrf).send({ status: "on_sale" });
+    expect(short.status).toBe(409);
+    expect(short.body.error).toMatch(/all 6 cards/);
+
+    const full = await agent
+      .put(`/api/studio/editions/${editionId}/cards`)
       .set("x-csrf-token", csrf)
-      .field("orientation", "landscape")
-      .field("back", JSON.stringify({ text: "Wish you were here <3", valediction: "Love, R" }))
-      .attach("file", png, { filename: "a.png", contentType: "image/png" })
-      .expect(201);
-    designId = uploaded.body.id;
+      .send({ cards: designIds.map((designId, i) => ({ designId, title: i === 0 ? "The road" : null })) })
+      .expect(200);
+    expect((full.body.cards as { position: number }[]).map((c) => c.position)).toEqual([1, 2, 3, 4, 5, 6]);
 
-    // The suggestion is the send day in the first free month.
-    const queue = await agent.get("/api/studio/mailings").expect(200);
-    expect(queue.body.nextMailDate).toMatch(/-15$/);
+    // The cards are a surprise: the banner is what visitors see instead, so it is needed first.
+    const bare = await agent.post(`/api/studio/editions/${editionId}/status`).set("x-csrf-token", csrf).send({ status: "on_sale" });
+    expect(bare.status).toBe(409);
+    expect(bare.body.error).toMatch(/banner/);
+    const editionBanner = await agent.post("/api/studio/editions/banner").set("x-csrf-token", csrf).field("alt", "Birds on a wire").attach("file", bannerPng, { filename: "birds.png", contentType: "image/png" }).expect(201);
+    EDITION.banner = editionBanner.body as typeof EDITION.banner;
+    await agent.put(`/api/studio/editions/${editionId}`).set("x-csrf-token", csrf).send(EDITION).expect(200);
 
-    const queued = await agent.post("/api/studio/mailings").set("x-csrf-token", csrf).send({ designId, mailDate: todayIso(), title: "The road" }).expect(201);
-    mailingId = queued.body.id;
-    expect(queued.body.status).toBe("queued");
+    const onSale = await agent.post(`/api/studio/editions/${editionId}/status`).set("x-csrf-token", csrf).send({ status: "on_sale" }).expect(200);
+    expect(onSale.body.status).toBe("on_sale");
 
-    // One a month: the same month again is refused.
-    const twice = await agent.post("/api/studio/mailings").set("x-csrf-token", csrf).send({ designId, mailDate: todayIso() });
-    expect(twice.status).toBe(409);
-    expect(twice.body.error).toMatch(/already scheduled/);
+    // On sale: the price is fixed, the words are not; the cards' backs are fixed too.
+    const reprice = await agent.put(`/api/studio/editions/${editionId}`).set("x-csrf-token", csrf).send({ ...EDITION, priceCents: 100 });
+    expect(reprice.status).toBe(409);
+    const retitled = await agent.put(`/api/studio/editions/${editionId}`).set("x-csrf-token", csrf).send({ ...EDITION, title: "Birds" }).expect(200);
+    expect(retitled.body.title).toBe("Birds");
+    // The banner can change, but an edition on sale can't be left without one.
+    expect(retitled.body.banner).toMatchObject({ alt: "Birds on a wire" });
+    expect((await agent.put(`/api/studio/editions/${editionId}`).set("x-csrf-token", csrf).send({ ...EDITION, banner: null })).status).toBe(409);
+    await agent.put(`/api/studio/editions/${editionId}`).set("x-csrf-token", csrf).send(EDITION).expect(200);
+    expect((await agent.put(`/api/studio/designs/${designIds[0]}`).set("x-csrf-token", csrf).send({ text: "changed" })).status).toBe(409);
+    expect((await agent.delete(`/api/studio/designs/${designIds[0]}`).set("x-csrf-token", csrf)).status).toBe(409);
 
     const live = await agent.post("/api/studio/status").set("x-csrf-token", csrf).send({ status: "live" }).expect(200);
     expect(live.body.artist.status).toBe("live");
 
-    // Now public.
+    // Now public: the page lists the edition, the edition shows its cards.
     const page = await request(app).get("/api/artists/rachel").expect(200);
     expect(page.body.artist.bioHtml).toContain("<strong>Hi.</strong>");
-    expect(page.body.artist.subscriberCount).toBe(0);
-    const listed = (await request(app).get("/api/artists").expect(200)).body as { slug: string }[];
-    expect(listed.map((a) => a.slug)).toEqual(["rachel"]);
+    expect(page.body.artist.collectorCount).toBe(0);
+    expect(page.body.editions).toEqual([expect.objectContaining({ slug: "birds", title: "Birds of Marfa", priceCents: 3000, banner: expect.objectContaining({ alt: "Birds on a wire" }) })]);
+    const shown = await request(app).get("/api/artists/rachel/editions/birds").expect(200);
+    expect(shown.body.edition.descriptionHtml).toContain("<em>birds</em>");
+    expect(shown.body.edition.banner).toMatchObject({ alt: "Birds on a wire" });
+    // A surprise: no card, and no design, reaches a visitor before it is mailed.
+    expect(shown.body.edition.cards).toBeUndefined();
+    expect(JSON.stringify(shown.body)).not.toContain(designIds[1]!);
+    expect(JSON.stringify(page.body)).not.toContain(designIds[1]!);
+    await request(app).get("/api/artists/rachel/editions/nope").expect(404);
+    const listed = (await request(app).get("/api/artists").expect(200)).body as { slug: string; fromPriceCents: number; editionCount: number }[];
+    expect(listed).toEqual([expect.objectContaining({ slug: "rachel", fromPriceCents: 3000, editionCount: 1 })]);
   });
 });
 
-describe("a fan subscribes", () => {
-  it("starts a Checkout with the artist's price, never the client's", async () => {
+describe("a fan collects the edition", () => {
+  it("starts a one-time Checkout at the edition's price, on the day they chose", async () => {
     const { agent, csrf } = await signIn("fan@example.com");
+    const startDate = chosenStartDate();
 
-    const response = await agent.post("/api/checkout/subscribe").set("x-csrf-token", csrf).send({ artistId, address: ADDRESS, priceCents: 1 }).expect(200);
-    subscriptionId = response.body.subscriptionId;
+    // A day that has passed, or one some months lack, is refused before Stripe is asked.
+    const past = await agent.post("/api/checkout/collect").set("x-csrf-token", csrf).send({ editionId, address: ADDRESS, startDate: todayIso() });
+    expect(past.status).toBe(400);
+    expect(past.body.error).toMatch(/after today/);
+
+    const response = await agent.post("/api/checkout/collect").set("x-csrf-token", csrf).send({ editionId, address: ADDRESS, startDate, priceCents: 1 }).expect(200);
+    purchaseId = response.body.purchaseId;
     expect(response.body.url).toContain("checkout.stripe.com");
 
     const params = (stripe.checkout.sessions.create as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as Stripe.Checkout.SessionCreateParams;
-    expect(params.mode).toBe("subscription");
+    expect(params.mode).toBe("payment");
     expect(params.customer).toBe("cus_fan");
-    expect(params.line_items?.[0]?.price_data?.unit_amount).toBe(500);
-    expect(params.line_items?.[0]?.price_data?.recurring?.interval).toBe("month");
-    expect(params.metadata?.yiwap_subscription_id).toBe(subscriptionId);
-    const { findSubscriptionByCheckoutSession, getSubscription } = await import("../db/subscriptions-repository.js");
-    const row = (await getSubscription(subscriptionId))!;
+    expect(params.line_items?.[0]?.price_data?.unit_amount).toBe(3000);
+    expect(params.line_items?.[0]?.price_data?.recurring).toBeUndefined();
+    expect(params.metadata?.yiwap_purchase_id).toBe(purchaseId);
+    expect(params.payment_intent_data?.metadata?.yiwap_purchase_id).toBe(purchaseId);
+
+    const { getPurchase, findPurchaseByCheckoutSession } = await import("../db/purchases-repository.js");
+    const row = (await getPurchase(purchaseId))!;
     checkoutSessionId = row.stripeCheckoutSessionId;
-    expect(row.status).toBe("incomplete");
-    expect(await findSubscriptionByCheckoutSession(checkoutSessionId)).toMatchObject({ id: subscriptionId });
+    expect(row).toMatchObject({ status: "incomplete", priceCents: 3000, cardCount: 6, cadence: "monthly", startDate });
+    expect(await findPurchaseByCheckoutSession(checkoutSessionId)).toMatchObject({ id: purchaseId });
+    schedule = editionSchedule(startDate, 6, "monthly");
 
     // The address went through USPS and onto the account.
     expect(sent.some((s) => s.url.endsWith("/us_verifications"))).toBe(true);
     const me = await agent.get("/api/account").expect(200);
     expect(me.body.customer.address).toMatchObject({ line1: "1 Test Street" });
 
-    // The confirmation page sees it as still confirming.
+    // The confirmation page sees it as still confirming; nobody else sees it at all.
     const pending = await agent.get(`/api/checkout/${checkoutSessionId}`).expect(200);
-    expect(pending.body.status).toBe("incomplete");
-    // And nobody else sees it at all.
+    expect(pending.body).toMatchObject({ status: "incomplete", sentCount: 0, schedule: [] });
     const other = await signIn("artist@example.com");
     await other.agent.get(`/api/checkout/${checkoutSessionId}`).expect(404);
   });
 
-  it("refuses a second subscription to the same artist, and the artist's own", async () => {
+  it("starts on the next 1st or 15th when no day is given, and refuses the artist's own", async () => {
     const fan = await signIn("fan@example.com");
-    // Not yet active: the incomplete one does not block a retry.
-    await fan.agent.post("/api/checkout/subscribe").set("x-csrf-token", fan.csrf).send({ artistId, address: ADDRESS }).expect(200);
+    // Not paid yet: the incomplete one does not block a retry.
+    const retry = await fan.agent.post("/api/checkout/collect").set("x-csrf-token", fan.csrf).send({ editionId, address: ADDRESS }).expect(200);
+    const { getPurchase, deleteIncompletePurchase } = await import("../db/purchases-repository.js");
+    expect(["01", "15"]).toContain((await getPurchase(retry.body.purchaseId as string))!.startDate.slice(8));
+    await deleteIncompletePurchase(retry.body.purchaseId as string);
+
     const self = await signIn("artist@example.com");
-    const response = await self.agent.post("/api/checkout/subscribe").set("x-csrf-token", self.csrf).send({ artistId, address: ADDRESS });
+    const response = await self.agent.post("/api/checkout/collect").set("x-csrf-token", self.csrf).send({ editionId, address: ADDRESS });
     expect(response.status).toBe(409);
   });
 
-  it("becomes active only when the signed webhook says so, and records the first invoice", async () => {
+  it("is paid only when the signed webhook says so, and every card of the run is written on its day", async () => {
+    // Checkout completed but the money has not arrived: nothing yet.
     await webhook({
-      id: `evt_completed_${subscriptionId}`,
+      id: `evt_unpaid_${purchaseId}`,
       object: "event",
       type: "checkout.session.completed",
-      data: { object: { id: checkoutSessionId, object: "checkout.session", mode: "subscription", subscription: "sub_1", metadata: { yiwap_subscription_id: subscriptionId } } },
+      data: { object: { id: checkoutSessionId, object: "checkout.session", mode: "payment", payment_status: "unpaid", payment_intent: "pi_1", metadata: { yiwap_purchase_id: purchaseId } } },
     }).expect(200);
+    const { getPurchase } = await import("../db/purchases-repository.js");
+    expect((await getPurchase(purchaseId))!.status).toBe("incomplete");
 
-    const { getSubscription } = await import("../db/subscriptions-repository.js");
-    expect(await getSubscription(subscriptionId)).toMatchObject({ status: "active", stripeSubscriptionId: "sub_1", currentPeriodEnd: 1_800_000_000_000 });
+    const completed = { id: checkoutSessionId, object: "checkout.session", mode: "payment", payment_status: "paid", payment_intent: "pi_1", metadata: { yiwap_purchase_id: purchaseId } };
+    await webhook({ id: `evt_completed_${purchaseId}`, object: "event", type: "checkout.session.completed", data: { object: completed } }).expect(200);
+    expect(await getPurchase(purchaseId)).toMatchObject({ status: "paid", stripePaymentIntentId: "pi_1", paidAt: expect.any(Number) });
 
     // A replay is a no-op.
-    const replay = await webhook({ id: `evt_completed_${subscriptionId}`, object: "event", type: "checkout.session.completed", data: { object: { id: checkoutSessionId, mode: "subscription", subscription: "sub_1" } } }).expect(200);
+    const replay = await webhook({ id: `evt_completed_${purchaseId}`, object: "event", type: "checkout.session.completed", data: { object: completed } }).expect(200);
     expect(replay.body.duplicate).toBe(true);
 
-    await webhook({
-      id: `evt_invoice_${subscriptionId}`,
-      object: "event",
-      type: "invoice.paid",
-      data: {
-        object: {
-          id: "in_1",
-          object: "invoice",
-          amount_paid: 500,
-          currency: "usd",
-          parent: { subscription_details: { subscription: "sub_1" } },
-          payments: { data: [{ payment: { payment_intent: "pi_1" } }] },
-          lines: { data: [{ period: { start: 1_797_400_000, end: 1_800_000_000 } }] },
-        },
-      },
-    }).expect(200);
-
     const fan = await signIn("fan@example.com");
-    const orders = await fan.agent.get("/api/account/orders").expect(200);
-    expect(orders.body).toHaveLength(1);
-    expect(orders.body[0]).toMatchObject({ amountCents: 500, status: "paid", artist: { slug: "rachel" } });
+    const collections = await fan.agent.get("/api/account/collections").expect(200);
+    expect(collections.body).toHaveLength(1);
+    expect(collections.body[0]).toMatchObject({
+      status: "paid",
+      priceCents: 3000,
+      cardCount: 6,
+      sentCount: 0,
+      nextMailDate: schedule[0],
+      artist: { slug: "rachel" },
+      edition: { slug: "birds", title: "Birds of Marfa" },
+    });
+    expect((collections.body[0].schedule as { mailDate: string }[]).map((c) => c.mailDate)).toEqual(schedule);
 
-    const subscriptions = await fan.agent.get("/api/account/subscriptions").expect(200);
-    expect(subscriptions.body).toHaveLength(1);
-    // The artist's term was copied onto the row; one of its months is now paid for.
-    expect(subscriptions.body[0]).toMatchObject({ status: "active", priceCents: 500, artist: { slug: "rachel" }, postcardCount: 0, termMonths: 6, paidMonths: 1, cancelAtPeriodEnd: false });
+    // One run of an edition at a time.
+    const again = await fan.agent.post("/api/checkout/collect").set("x-csrf-token", fan.csrf).send({ editionId, address: ADDRESS });
+    expect(again.status).toBe(409);
+    expect(again.body.error).toMatch(/already collecting/);
 
-    // The artist sees a name and a town, not a street.
+    // The artist sees a name and a town, not a street, and how far along.
     const artist = await signIn("artist@example.com");
-    const subscribers = await artist.agent.get("/api/studio/subscribers").expect(200);
-    expect(subscribers.body).toEqual([expect.objectContaining({ name: "Grandma", city: "Marfa", status: "active" })]);
-    expect(JSON.stringify(subscribers.body)).not.toContain("Test Street");
-    expect((await request(app).get("/api/artists/rachel").expect(200)).body.artist.subscriberCount).toBe(1);
+    const collectors = await artist.agent.get("/api/studio/collectors").expect(200);
+    expect(collectors.body).toEqual([expect.objectContaining({ name: "Grandma", city: "Marfa", status: "paid", sentCount: 0, cardCount: 6, nextMailDate: schedule[0] })]);
+    expect(JSON.stringify(collectors.body)).not.toContain("Test Street");
+    expect((await request(app).get("/api/artists/rachel").expect(200)).body.artist.collectorCount).toBe(1);
+
+    // Bought once: the edition can no longer go back to being a draft.
+    const back = await artist.agent.post(`/api/studio/editions/${editionId}/status`).set("x-csrf-token", artist.csrf).send({ status: "draft" });
+    expect(back.status).toBe(409);
   });
 });
 
-describe("the mailing day", () => {
-  it("writes one card per active subscriber and sends it to Lob with the artist's footer", async () => {
-    const { sendDueMailings, sendDuePostcards } = await import("./fulfilment.js");
-
-    const mailed = await sendDueMailings();
-    expect(mailed).toEqual({ mailed: 1, postcards: 1 });
-    // Idempotent.
-    expect(await sendDueMailings()).toEqual({ mailed: 0, postcards: 0 });
-
-    const artist = await signIn("artist@example.com");
-    const cards = await artist.agent.get(`/api/studio/mailings/${mailingId}/postcards`).expect(200);
-    expect(cards.body).toHaveLength(1);
-    expect(cards.body[0].status).toBe("scheduled");
-    // Stripped for the artist: no street, no Lob text.
-    expect(cards.body[0].recipient.line1).toBe("");
-    postcardId = cards.body[0].id;
+describe("the first card's day", () => {
+  it("sends nothing early, then sends card 1 to Lob with the artist's footer", async () => {
+    const { sendDuePostcards } = await import("./fulfilment.js");
 
     sent.length = 0;
-    const result = await sendDuePostcards();
+    expect(await sendDuePostcards(addDaysIso(schedule[0]!, -1))).toMatchObject({ sent: 0 });
+    expect(sent.filter((s) => s.url.endsWith("/v1/postcards"))).toHaveLength(0);
+
+    const result = await sendDuePostcards(schedule[0]);
     expect(result).toMatchObject({ sent: 1, failed: 0, parked: 0 });
 
     const call = sent.find((s) => s.url.endsWith("/v1/postcards"))!;
-    expect(call.headers.get("idempotency-key")).toBe(postcardId);
+    postcardId = call.headers.get("idempotency-key")!;
     expect(call.form!.get("to[name]")).toBe("Grandma");
     expect(call.form!.get("to[address_line1]")).toBe("1 Test Street");
-    expect(call.form!.get("to[address_zip]")).toBe("79843");
     expect(call.form!.get("size")).toBe("4x6");
     const back = call.form!.get("back") as string;
-    expect(back).toContain("Wish you were here &lt;3");
-    expect(back).toContain("Rachel");
-    expect(back).toContain("a monthly postcard via");
+    expect(back).toContain("Wish you were here &lt;3 (1)");
+    expect(back).toContain("a postcard edition via");
     const front = call.form!.get("front") as Blob;
     const meta = await sharp(Buffer.from(await front.arrayBuffer())).metadata();
     expect([meta.width, meta.height]).toEqual([1875, 1275]);
 
-    // The subscriber sees it as sent, with the proof, and no error text.
+    // Only card 1 was due.
+    expect(await sendDuePostcards(schedule[0])).toMatchObject({ sent: 0 });
+
+    // The collector sees it as sent, with the proof, and no error text; the rest are on the schedule.
     const fan = await signIn("fan@example.com");
     const received = await fan.agent.get("/api/account/postcards").expect(200);
     expect(received.body).toHaveLength(1);
-    expect(received.body[0]).toMatchObject({ status: "sent", lobUrl: "https://lob.test/proof.pdf", title: "The road", artist: { slug: "rachel" } });
+    expect(received.body[0]).toMatchObject({ status: "sent", position: 1, cardCount: 6, lobUrl: "https://lob.test/proof.pdf", title: "The road", artist: { slug: "rachel" }, edition: { slug: "birds" } });
     expect(received.body[0].lastError).toBeNull();
+    const collections = await fan.agent.get("/api/account/collections").expect(200);
+    expect(collections.body[0]).toMatchObject({ sentCount: 1, nextMailDate: schedule[1] });
 
-    // The gallery shows the mailing.
+    // The gallery shows the card that went, and only that one.
     const gallery = await request(app).get("/api/gallery").expect(200);
-    expect(gallery.body.cards).toEqual([expect.objectContaining({ mailingId, title: "The road", artist: expect.objectContaining({ slug: "rachel" }) })]);
-    expect((await request(app).get("/api/artists").expect(200)).body[0].latest.id).toBe(designId);
+    expect(gallery.body.cards).toEqual([expect.objectContaining({ title: "The road", artist: expect.objectContaining({ slug: "rachel" }), edition: { slug: "birds", title: "Birds of Marfa" } })]);
   });
 
   it("keeps a private artist's cards out of the gallery, but not off their own page", async () => {
     const { agent, csrf } = await signIn("artist@example.com");
-    const profile = { slug: "rachel", name: "Rachel", tagline: "photos from the road", bio: "**Hi.**", monthlyPriceCents: 500, sendDay: 15 };
+    const profile = { slug: "rachel", name: "Rachel", tagline: "photos from the road", bio: "**Hi.**" };
 
     const hidden = await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ ...profile, visibility: "private" }).expect(200);
     expect(hidden.body.artist.visibility).toBe("private");
 
-    // The shared feed is empty; the artist is still listed, still subscribable, and their page still shows the card.
     expect((await request(app).get("/api/gallery").expect(200)).body.cards).toEqual([]);
-    const listed = (await request(app).get("/api/artists").expect(200)).body as { slug: string }[];
-    expect(listed.map((a) => a.slug)).toEqual(["rachel"]);
     const page = await request(app).get("/api/artists/rachel").expect(200);
     expect(page.body.artist.status).toBe("live");
-    expect(page.body.recent).toEqual([expect.objectContaining({ mailingId })]);
+    expect(page.body.recent).toHaveLength(1);
 
-    // Back to public: the card is in the feed again. Nothing about the mailing itself changed.
     await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ ...profile, visibility: "public" }).expect(200);
-    expect((await request(app).get("/api/gallery").expect(200)).body.cards).toEqual([expect.objectContaining({ mailingId })]);
+    expect((await request(app).get("/api/gallery").expect(200)).body.cards).toHaveLength(1);
   });
 
-  it("records the artist's share in the ledger the moment Lob accepts the card", async () => {
+  it("records the card's share of the price in the ledger the moment Lob accepts it", async () => {
     const artist = await signIn("artist@example.com");
     const earnings = await artist.agent.get("/api/studio/earnings").expect(200);
+    // $30 over six cards is $5 a card; less $1.20 to print and $0.60 to the platform.
     expect(earnings.body).toMatchObject({ pendingCents: 320, paidCents: 0, sentCount: 1, currency: "USD" });
-    expect(earnings.body.payouts).toEqual([expect.objectContaining({ postcardId, grossCents: 500, printCostCents: 120, platformFeeCents: 60, amountCents: 320, status: "pending" })]);
+    expect(earnings.body.payouts).toEqual([expect.objectContaining({ postcardId, purchaseId, grossCents: 500, printCostCents: 120, platformFeeCents: 60, amountCents: 320, status: "pending" })]);
   });
 });
 
@@ -376,22 +416,19 @@ describe("paying the artist", () => {
     expect(await sendPendingPayouts()).toMatchObject({ paid: 1, failed: 0, deferred: 0 });
     expect(transfers).toHaveBeenCalledTimes(1);
     const [params, options] = transfers.mock.calls[0] as unknown as [Stripe.TransferCreateParams, { idempotencyKey: string }];
-    expect(params).toMatchObject({ amount: 320, currency: "usd", destination: "acct_rachel", transfer_group: mailingId });
+    expect(params).toMatchObject({ amount: 320, currency: "usd", destination: "acct_rachel", transfer_group: purchaseId });
     expect(options.idempotencyKey).toMatch(/^payout-/);
 
     // Paid once: a second sweep finds nothing.
     expect(await sendPendingPayouts()).toMatchObject({ paid: 0 });
     expect(transfers).toHaveBeenCalledTimes(1);
 
-    const artist = await signIn("artist@example.com");
-    const earnings = await artist.agent.get("/api/studio/earnings").expect(200);
-    expect(earnings.body).toMatchObject({ pendingCents: 0, paidCents: 320 });
-    expect(earnings.body.payouts[0]).toMatchObject({ status: "paid", stripeTransferId: "tr_1" });
-
     const admin = await signInAdmin();
     const overview = await admin.agent.get("/api/admin/overview").expect(200);
     expect(overview.body.payouts.paid).toBe(320);
-    expect(overview.body.revenueCents).toBe(500);
+    expect(overview.body.revenueCents).toBe(3000);
+    expect(overview.body.purchases.paid).toBe(1);
+    expect(overview.body.editions.on_sale).toBe(1);
   });
 
   it("defers a transfer while the platform balance is still settling, and parks a real refusal", async () => {
@@ -401,18 +438,14 @@ describe("paying the artist", () => {
     const { eq } = await import("drizzle-orm");
     const StripeLib = (await import("stripe")).default;
 
-    // Put the one ledger row back to pending, as if never transferred.
     const { drizzle: db, schema } = await getDatabase();
     await db.update(schema.payouts).set({ status: "pending", stripeTransferId: null, attempts: 0 }).where(eq(schema.payouts.artistId, artistId));
 
     const refusal = new StripeLib.errors.StripeInvalidRequestError({ type: "invalid_request_error", message: "Insufficient funds", code: "balance_insufficient" } as never);
     vi.spyOn(stripe.transfers, "create").mockRejectedValueOnce(refusal);
     expect(await sendPendingPayouts()).toMatchObject({ paid: 0, failed: 0, deferred: 1 });
-    const deferred = (await listPayoutsForArtist(artistId))[0]!;
-    expect(deferred.status).toBe("pending");
-    expect(deferred.lastError).toContain("Insufficient funds");
+    expect((await listPayoutsForArtist(artistId))[0]).toMatchObject({ status: "pending", lastError: expect.stringContaining("Insufficient funds") });
 
-    // A refusal that will not change parks it for the admin, who can retry.
     const permanent = new StripeLib.errors.StripeInvalidRequestError({ type: "invalid_request_error", message: "No such destination", code: "resource_missing" } as never);
     vi.spyOn(stripe.transfers, "create").mockRejectedValueOnce(permanent);
     expect(await sendPendingPayouts()).toMatchObject({ paid: 0, failed: 1, deferred: 0 });
@@ -437,110 +470,68 @@ describe("Lob refuses a card", () => {
 
     lobAnswer = () => new Response(JSON.stringify({ error: { message: "to[address_zip] is not a valid zip code", status_code: 422 } }), { status: 422, headers: { "content-type": "application/json" } });
     const { sendDuePostcards } = await import("./fulfilment.js");
-    expect(await sendDuePostcards()).toMatchObject({ sent: 0, parked: 1 });
+    expect(await sendDuePostcards(schedule[0])).toMatchObject({ sent: 0, parked: 1 });
 
     const admin = await signInAdmin();
     const errors = await admin.agent.get("/api/admin/postcards/errors").expect(200);
     expect(errors.body[0]).toMatchObject({ id: postcardId, status: "error" });
     expect(errors.body[0].lastError).toContain("to[address_zip] is not a valid zip code");
 
-    // The subscriber is told nothing of Lob's; the artist neither.
-    const fan = await signIn("fan@example.com");
-    const received = await fan.agent.get("/api/account/postcards").expect(200);
-    expect(received.body[0].status).toBe("error");
-    expect(received.body[0].lastError).toBeNull();
+    // The admin's view of the edition has every card of every collector.
+    const detail = await admin.agent.get(`/api/admin/editions/${editionId}`).expect(200);
+    expect(detail.body.postcards).toHaveLength(6);
+    expect(detail.body.purchases).toEqual([expect.objectContaining({ id: purchaseId, stripePaymentIntentId: "pi_1" })]);
 
     await admin.agent.post(`/api/admin/postcards/${postcardId}/retry`).set("x-csrf-token", admin.csrf).expect(200);
     lobAnswer = () => new Response(JSON.stringify({ id: "psc_test_2", url: null, expected_delivery_date: null }), { status: 200, headers: { "content-type": "application/json" } });
-    expect(await sendDuePostcards()).toMatchObject({ sent: 1 });
+    expect(await sendDuePostcards(schedule[0])).toMatchObject({ sent: 1 });
     // The ledger already had this card: no second share.
     const { listPayoutsForArtist } = await import("../db/payouts-repository.js");
     expect((await listPayoutsForArtist(artistId)).filter((p) => p.postcardId === postcardId)).toHaveLength(1);
   });
 });
 
-describe("the term", () => {
-  it("tells Stripe to stop after the last paid month, and will not resume past it", async () => {
-    const { getDatabase } = await import("../db/client.js");
-    const { eq } = await import("drizzle-orm");
-    const { drizzle: db, schema } = await getDatabase();
-    // As if the artist had set two months when this fan subscribed.
-    await db.update(schema.subscriptions).set({ termMonths: 2 }).where(eq(schema.subscriptions.id, subscriptionId));
-
-    const update = vi.spyOn(stripe.subscriptions, "update");
-    update.mockClear();
-
-    // The second month is paid for: that is the last of the two, so Stripe is told to end it there.
-    await webhook({
-      id: `evt_invoice_2_${subscriptionId}`,
-      object: "event",
-      type: "invoice.paid",
-      data: {
-        object: {
-          id: "in_2",
-          object: "invoice",
-          amount_paid: 500,
-          currency: "usd",
-          parent: { subscription_details: { subscription: "sub_1" } },
-          payments: { data: [{ payment: { payment_intent: "pi_2" } }] },
-          lines: { data: [{ period: { start: 1_800_000_000, end: 1_802_600_000 } }] },
-        },
-      },
-    }).expect(200);
-    expect(update.mock.calls).toEqual([["sub_1", { cancel_at_period_end: true }]]);
-
+describe("the collector moves, then asks for their money back", () => {
+  it("sends the cards still to come to the new address, and leaves the sent one alone", async () => {
     const fan = await signIn("fan@example.com");
-    const listed = await fan.agent.get("/api/account/subscriptions").expect(200);
-    expect(listed.body[0]).toMatchObject({ status: "active", termMonths: 2, paidMonths: 2, cancelAtPeriodEnd: true, currentPeriodEnd: 1_802_600_000_000 });
+    await fan.agent.put("/api/account/address").set("x-csrf-token", fan.csrf).send({ ...ADDRESS, line1: "9 New Road" }).expect(200);
 
-    // Over is over: the fan can subscribe again, not undo the end.
-    const resume = await fan.agent.post(`/api/account/subscriptions/${subscriptionId}/resume`).set("x-csrf-token", fan.csrf);
-    expect(resume.status).toBe(409);
-    expect(resume.body.error).toMatch(/2 months/);
-
-    // A redelivery asks Stripe for the same thing once more and changes nothing else.
-    update.mockClear();
-    await webhook({
-      id: `evt_invoice_2_again_${subscriptionId}`,
-      object: "event",
-      type: "invoice.paid",
-      data: { object: { id: "in_2", object: "invoice", amount_paid: 500, currency: "usd", parent: { subscription_details: { subscription: "sub_1" } }, lines: { data: [] } } },
-    }).expect(200);
-    expect(update.mock.calls).toEqual([]);
-    expect((await fan.agent.get("/api/account/orders").expect(200)).body).toHaveLength(2);
-
-    // Put the term back the way it was so the cancelling story below reads as before.
-    const { setCancelAtPeriodEnd } = await import("../db/subscriptions-repository.js");
-    await db.update(schema.subscriptions).set({ termMonths: 6 }).where(eq(schema.subscriptions.id, subscriptionId));
-    await setCancelAtPeriodEnd(subscriptionId, false);
+    const { listPostcardsForPurchase } = await import("../db/postcards-repository.js");
+    const cards = await listPostcardsForPurchase(purchaseId);
+    expect(cards[0]!.recipient.line1).toBe("1 Test Street");
+    expect(cards.slice(1).every((card) => card.recipient.line1 === "9 New Road")).toBe(true);
   });
-});
 
-describe("cancelling", () => {
-  it("winds down at the period end, and Stripe's final word ends it", async () => {
+  it("keeps the cards coming after a partial refund, and withdraws the rest after a full one", async () => {
+    const charge = { id: "ch_1", object: "charge", payment_intent: "pi_1", amount: 3000 };
+    await webhook({ id: "evt_refund_partial", object: "event", type: "charge.refunded", data: { object: { ...charge, amount_refunded: 500 } } }).expect(200);
     const fan = await signIn("fan@example.com");
-    await fan.agent.post(`/api/account/subscriptions/${subscriptionId}/cancel`).set("x-csrf-token", fan.csrf).expect(204);
-    const update = vi.spyOn(stripe.subscriptions, "update");
-    expect(update.mock.calls.at(-1)).toEqual(["sub_1", { cancel_at_period_end: true }]);
-    let listed = await fan.agent.get("/api/account/subscriptions").expect(200);
-    expect(listed.body[0]).toMatchObject({ status: "active", cancelAtPeriodEnd: true, postcardCount: 1 });
+    let collections = await fan.agent.get("/api/account/collections").expect(200);
+    expect(collections.body[0]).toMatchObject({ status: "paid", refundedCents: 500, nextMailDate: schedule[1] });
 
-    await fan.agent.post(`/api/account/subscriptions/${subscriptionId}/resume`).set("x-csrf-token", fan.csrf).expect(204);
-    listed = await fan.agent.get("/api/account/subscriptions").expect(200);
-    expect(listed.body[0].cancelAtPeriodEnd).toBe(false);
+    await webhook({ id: "evt_refund_full", object: "event", type: "charge.refunded", data: { object: { ...charge, amount_refunded: 3000 } } }).expect(200);
+    collections = await fan.agent.get("/api/account/collections").expect(200);
+    expect(collections.body[0]).toMatchObject({ status: "refunded", refundedCents: 3000, sentCount: 1, nextMailDate: null });
+    expect((collections.body[0].schedule as { status: string }[]).map((c) => c.status)).toEqual(["sent", "cancelled", "cancelled", "cancelled", "cancelled", "cancelled"]);
 
-    await webhook({ id: "evt_deleted_1", object: "event", type: "customer.subscription.deleted", data: { object: { id: "sub_1", object: "subscription", status: "canceled", cancel_at_period_end: false } } }).expect(200);
-    listed = await fan.agent.get("/api/account/subscriptions").expect(200);
-    expect(listed.body[0]).toMatchObject({ status: "cancelled" });
-    expect(listed.body[0].cancelledAt).toBeTypeOf("number");
+    // Nothing more goes, and nothing more is earned.
+    const { sendDuePostcards } = await import("./fulfilment.js");
+    expect(await sendDuePostcards(schedule[5])).toMatchObject({ sent: 0 });
+    expect((await request(app).get("/api/artists/rachel").expect(200)).body.artist.collectorCount).toBe(0);
 
-    // Cancelled: the next mailing writes no card for them.
-    const { listActiveSubscriptionsForArtist } = await import("../db/subscriptions-repository.js");
-    expect(await listActiveSubscriptionsForArtist(artistId)).toHaveLength(0);
-    expect((await request(app).get("/api/artists/rachel").expect(200)).body.artist.subscriberCount).toBe(0);
+    // With nothing still to come, the edition can be collected again.
+    await fan.agent.post("/api/checkout/collect").set("x-csrf-token", fan.csrf).send({ editionId, address: ADDRESS }).expect(200);
+  });
 
-    // Someone else's subscription is a 404 to them.
-    const other = await signIn("artist@example.com");
-    await other.agent.post(`/api/account/subscriptions/${subscriptionId}/cancel`).set("x-csrf-token", other.csrf).expect(404);
+  it("closes the edition to new collectors", async () => {
+    const artist = await signIn("artist@example.com");
+    const closed = await artist.agent.post(`/api/studio/editions/${editionId}/status`).set("x-csrf-token", artist.csrf).send({ status: "closed" }).expect(200);
+    expect(closed.body.status).toBe("closed");
+
+    const fan = await signIn("fan@example.com");
+    const response = await fan.agent.post("/api/checkout/collect").set("x-csrf-token", fan.csrf).send({ editionId, address: ADDRESS });
+    expect(response.status).toBe(409);
+    // Its page still renders, for the people collecting it.
+    await request(app).get("/api/artists/rachel/editions/birds").expect(200);
   });
 });

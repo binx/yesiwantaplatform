@@ -3,6 +3,7 @@ import { App, ShellFallback } from "./App";
 import { LandingPage } from "./pages/LandingPage";
 import { ArtistsPage } from "./pages/ArtistsPage";
 import { ArtistPage } from "./pages/ArtistPage";
+import { EditionPage } from "./pages/EditionPage";
 import { GalleryPage } from "./pages/GalleryPage";
 import { ForArtistsPage } from "./pages/ForArtistsPage";
 import { PagePage } from "./pages/PagePage";
@@ -38,8 +39,8 @@ export const router = createBrowserRouter([
           { index: true, lazy: async () => ({ Component: (await import("./admin/DashboardPage")).DashboardPage }) },
           { path: "artists", lazy: async () => ({ Component: (await import("./admin/ArtistsPage")).ArtistsPage }) },
           { path: "artists/:id", lazy: async () => ({ Component: (await import("./admin/ArtistDetailPage")).ArtistDetailPage }) },
-          { path: "mailings", lazy: async () => ({ Component: (await import("./admin/MailingsPage")).MailingsPage }) },
-          { path: "mailings/:id", lazy: async () => ({ Component: (await import("./admin/MailingDetailPage")).MailingDetailPage }) },
+          { path: "editions", lazy: async () => ({ Component: (await import("./admin/EditionsPage")).EditionsPage }) },
+          { path: "editions/:id", lazy: async () => ({ Component: (await import("./admin/EditionDetailPage")).EditionDetailPage }) },
           { path: "payouts", lazy: async () => ({ Component: (await import("./admin/PayoutsPage")).PayoutsPage }) },
           { path: "customers", lazy: async () => ({ Component: (await import("./admin/CustomersPage")).CustomersPage }) },
           { path: "pages", lazy: async () => ({ Component: (await import("./admin/PagesPage")).PagesPage }) },
@@ -59,16 +60,17 @@ export const router = createBrowserRouter([
       { index: true, element: <LandingPage /> },
       { path: "artists", element: <ArtistsPage /> },
       { path: "artist/:slug", element: <ArtistPage /> },
+      { path: "artist/:slug/:edition", element: <EditionPage /> },
       { path: "gallery", element: <GalleryPage /> },
       { path: "for-artists", element: <ForArtistsPage /> },
       {
-        // The subscribe flow needs a sign-in; its own chunk.
-        path: "subscribe/:slug",
-        lazy: async () => ({ Component: (await import("./pages/SubscribePage")).SubscribePage }),
+        // The collect flow needs a sign-in; its own chunk.
+        path: "collect/:slug/:edition",
+        lazy: async () => ({ Component: (await import("./pages/CollectPage")).CollectPage }),
       },
       {
-        path: "subscribe/confirm",
-        lazy: async () => ({ Component: (await import("./pages/SubscribeConfirmPage")).SubscribeConfirmPage }),
+        path: "collect/confirm",
+        lazy: async () => ({ Component: (await import("./pages/CollectConfirmPage")).CollectConfirmPage }),
       },
       {
         // Customer accounts, loaded on demand like /admin.
@@ -85,7 +87,7 @@ export const router = createBrowserRouter([
               { index: true, lazy: async () => ({ Component: (await import("./pages/account/AccountOverviewPage")).AccountOverviewPage }) },
               { path: "postcards", lazy: async () => ({ Component: (await import("./pages/account/AccountPostcardsPage")).AccountPostcardsPage }) },
               { path: "address", lazy: async () => ({ Component: (await import("./pages/account/AccountAddressPage")).AccountAddressPage }) },
-              { path: "receipts", lazy: async () => ({ Component: (await import("./pages/account/AccountOrdersPage")).AccountOrdersPage }) },
+              { path: "collections", lazy: async () => ({ Component: (await import("./pages/account/AccountCollectionsPage")).AccountCollectionsPage }) },
             ],
           },
         ],
@@ -98,8 +100,10 @@ export const router = createBrowserRouter([
           { index: true, lazy: async () => ({ Component: (await import("./pages/studio/StudioOverviewPage")).StudioOverviewPage }) },
           { path: "new", lazy: async () => ({ Component: (await import("./pages/studio/StudioProfilePage")).StudioNewPage }) },
           { path: "profile", lazy: async () => ({ Component: (await import("./pages/studio/StudioProfilePage")).StudioProfilePage }) },
-          { path: "queue", lazy: async () => ({ Component: (await import("./pages/studio/StudioQueuePage")).StudioQueuePage }) },
-          { path: "subscribers", lazy: async () => ({ Component: (await import("./pages/studio/StudioSubscribersPage")).StudioSubscribersPage }) },
+          { path: "editions", lazy: async () => ({ Component: (await import("./pages/studio/StudioEditionsPage")).StudioEditionsPage }) },
+          { path: "editions/new", lazy: async () => ({ Component: (await import("./pages/studio/StudioEditionPage")).StudioNewEditionPage }) },
+          { path: "editions/:id", lazy: async () => ({ Component: (await import("./pages/studio/StudioEditionPage")).StudioEditionPage }) },
+          { path: "collectors", lazy: async () => ({ Component: (await import("./pages/studio/StudioCollectorsPage")).StudioCollectorsPage }) },
           { path: "earnings", lazy: async () => ({ Component: (await import("./pages/studio/StudioEarningsPage")).StudioEarningsPage }) },
         ],
       },

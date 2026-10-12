@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import type { ArtistSummary, GalleryCard } from "@shared/platform";
+import { artistPath, editionPath, type ArtistSummary, type GalleryCard } from "@shared/platform";
 import { formatMoney } from "@shared/money";
 import { ProductImage } from "@/components/ui/ProductImage";
 import { formatShortDate } from "@/lib/postcards";
@@ -7,15 +7,16 @@ import { cx } from "@/lib/cx";
 import styles from "./Platform.module.css";
 
 /**
- * One artist in a grid: their latest card, their face, their price.
+ * One artist in a grid: their latest card, their face, what their editions
+ * start at.
  *
  * The whole tile is one link, so a screen reader hears the name once; the
  * picture is decorative because the name beside it is the name.
  */
 export function ArtistTile({ artist, locale }: { artist: ArtistSummary; locale: string }) {
-  const price = formatMoney(artist.monthlyPriceCents, artist.currency, locale);
+  const from = artist.fromPriceCents === null ? null : formatMoney(artist.fromPriceCents, artist.currency, locale);
   return (
-    <Link to={`/artist/${artist.slug}`} className={cx(styles.tile)}>
+    <Link to={artistPath(artist.slug)} className={cx(styles.tile)}>
       <div className={styles.tileImage}>
         <ProductImage image={artist.latest?.thumbnail ?? artist.avatar} {...(artist.latest ? {} : { ratio: 3 / 2 })} sizes="(max-width: 800px) 100vw, 33vw" decorative />
       </div>
@@ -28,14 +29,19 @@ export function ArtistTile({ artist, locale }: { artist: ArtistSummary; locale: 
           </div>
         </div>
         <p className={styles.tileMeta}>
-          <strong>{price}</strong> a month · {artist.subscriberCount} {artist.subscriberCount === 1 ? "subscriber" : "subscribers"}
+          {from ? (
+            <>
+              from <strong>{from}</strong> ·{" "}
+            </>
+          ) : null}
+          {artist.collectorCount} {artist.collectorCount === 1 ? "collector" : "collectors"}
         </p>
       </div>
     </Link>
   );
 }
 
-/** One mailed card in the gallery: the front, who, when. */
+/** One mailed card in the gallery: the front, which edition, who, when. */
 export function GalleryTile({ card, locale, showArtist = true }: { card: GalleryCard; locale: string; showArtist?: boolean }) {
   return (
     <figure className={cx(styles.galleryTile)}>
@@ -45,12 +51,14 @@ export function GalleryTile({ card, locale, showArtist = true }: { card: Gallery
       <figcaption className={styles.galleryCaption}>
         {card.title ? <span className={styles.galleryTitle}>{card.title}</span> : null}
         <span className={styles.galleryMeta}>
+          <Link to={editionPath(card.artist.slug, card.edition.slug)}>{card.edition.title}</Link>
           {showArtist ? (
             <>
-              <Link to={`/artist/${card.artist.slug}`}>{card.artist.name}</Link> ·{" "}
+              {" "}
+              by <Link to={artistPath(card.artist.slug)}>{card.artist.name}</Link>
             </>
-          ) : null}
-          mailed {formatShortDate(card.mailDate, locale)}
+          ) : null}{" "}
+          · mailed {formatShortDate(card.mailDate, locale)}
         </span>
       </figcaption>
     </figure>

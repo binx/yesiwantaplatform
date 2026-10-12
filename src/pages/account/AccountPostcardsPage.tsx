@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Alert, Skeleton } from "antd";
-import type { ReceivedPostcard } from "@shared/platform";
+import { artistPath, editionPath, type ReceivedPostcard } from "@shared/platform";
 import { useReceivedPostcards } from "@/lib/account";
 import { useStore } from "@/lib/useStore";
 import { ProductImage } from "@/components/ui/ProductImage";
@@ -11,7 +11,7 @@ import styles from "./Account.module.css";
 /**
  * Every card mailed to this person, newest first, with where each one is.
  *
- * Tracking is shown here and nowhere else: a subscriber opted into a
+ * Tracking is shown here and nowhere else: a collector opted into a
  * postcard, not a feed of USPS scans, so the timeline sits under the card
  * for whoever comes looking and is never emailed.
  */
@@ -26,7 +26,7 @@ export function AccountPostcardsPage() {
   if (postcards.data.length === 0) {
     return (
       <p className={cx(styles.empty)}>
-        Nothing has been mailed to you yet. When an artist you subscribe to sends their monthly card, it shows up here. <Link to="/artists">Find an artist</Link>.
+        Nothing has been mailed to you yet. When a card from an edition you collect goes out, it shows up here. <Link to="/artists">Find an artist</Link>.
       </p>
     );
   }
@@ -49,7 +49,10 @@ function PostcardRow({ card, locale }: { card: ReceivedPostcard; locale: string 
       </div>
       <div className={styles.postcardBody}>
         <p className={styles.postcardTitle}>
-          {card.title ? <strong>{card.title}</strong> : <strong>A postcard</strong>} from <Link to={`/artist/${card.artist.slug}`}>{card.artist.name}</Link>
+          {card.title ? <strong>{card.title}</strong> : <strong>A postcard</strong>} from <Link to={artistPath(card.artist.slug)}>{card.artist.name}</Link>
+        </p>
+        <p className={cx(styles.meta)}>
+          Card {card.position} of {card.cardCount} · <Link to={editionPath(card.artist.slug, card.edition.slug)}>{card.edition.title}</Link>
         </p>
         <p className={cx(styles.meta)}>
           {formatMailDate(card.mailDate, locale)} · {customerStatusLabel(card.status)}

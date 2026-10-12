@@ -49,7 +49,7 @@ Disallow: /admin
 Disallow: /setup
 Disallow: /account
 Disallow: /studio
-Disallow: /subscribe
+Disallow: /collect
 
 Sitemap: ${sitemap}
 `,

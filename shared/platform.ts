@@ -1,15 +1,15 @@
 import { z } from "zod";
 import { centsSchema, imageSchema, slugSchema, RESERVED_PAGE_SLUGS } from "./schema.js";
-import { mailDateSchema, postcardDesignSchema, postcardSchema, recipientSchema } from "./postcards.js";
+import { addDaysIso, mailDateSchema, postcardDesignSchema, postcardSchema, recipientSchema } from "./postcards.js";
 
 /**
- * The platform's own nouns: artists, the subscriptions people take out with
- * them, the mailings an artist queues, and the payouts each sent card earns.
+ * The platform's own nouns: artists, the editions they make, the purchases
+ * collectors pay for once, and the payouts each sent card earns.
  *
  * Everything here is validated on both sides of the wire, and nothing here
- * carries a price the server would trust: an artist's monthly price is read
- * from their row at checkout, and every payout amount is computed on the
- * server from the subscription's own snapshot.
+ * carries a price the server would trust: an edition's price is read from
+ * its row at checkout, and every payout amount is computed on the server
+ * from the purchase's own snapshot.
  */
 
 /* ---------------------------------------------------------------- artists */
@@ -23,6 +23,11 @@ export const artistSlugSchema = slugSchema.min(3, "Use at least 3 characters.").
 /** The site path of an artist's page. The one place the word is spelled out. */
 export function artistPath(slug: string): string {
   return `/artist/${slug}`;
+}
+
+/** The site path of one of their editions. */
+export function editionPath(artistSlug: string, editionSlug: string): string {
+  return `${artistPath(artistSlug)}/${editionSlug}`;
 }
 
 /**
@@ -47,14 +52,6 @@ export const MAX_ARTIST_LINKS = 8;
 
 export const artistLinksSchema = z.array(artistLinkSchema).max(MAX_ARTIST_LINKS, `${MAX_ARTIST_LINKS} links at most.`).default([]);
 
-/**
- * How long a subscription runs, in monthly payments. Every subscription has
- * an end: the subscriber is billed month by month and stops after this many,
- * rather than being charged until they remember to cancel.
- */
-export const DEFAULT_TERM_MONTHS = 6;
-export const termMonthsSchema = z.number().int().min(1, "At least one month.").max(24, "Two years at most.");
-
 /** The words for a link with no label: the hostname, without a leading "www.". */
 export function artistLinkLabel(link: { label: string; url: string }): string {
   if (link.label) return link.label;
@@ -69,9 +66,9 @@ export function artistLinkLabel(link: { label: string; url: string }): string {
  * Where an artist is in the world, as the visitor sees it.
  *
  *   draft   the page is being written; only its owner can see it
- *   live    listed, subscribable
- *   paused  the artist stopped: no new subscribers, existing ones keep
- *           receiving queued cards until they cancel
+ *   live    listed; its editions on sale can be collected
+ *   paused  the artist stopped: no new collectors on any edition, while
+ *           everyone who already paid keeps receiving their cards
  */
 export const artistStatusSchema = z.enum(["draft", "live", "paused"]);
 export type ArtistStatus = z.infer<typeof artistStatusSchema>;
@@ -81,17 +78,14 @@ export type ArtistStatus = z.infer<typeof artistStatusSchema>;
  *
  *   public   each card they mail can appear in "recently in the post"
  *   private  their cards are only ever on their own page and in their
- *            subscribers' letterboxes
+ *            collectors' letterboxes
  *
- * Independent of `status`: a private artist is still listed and subscribable.
+ * Independent of `status`: a private artist is still listed and collectable.
  */
 export const artistVisibilitySchema = z.enum(["public", "private"]);
 export type ArtistVisibility = z.infer<typeof artistVisibilitySchema>;
 
-/** The day of the month an artist's queue advances. 28 at most: every month has one. */
-export const sendDaySchema = z.number().int().min(1).max(28);
-
-/** An artist as any visitor may see them. Nothing about money beyond the price. */
+/** An artist as any visitor may see them. Nothing about money: prices are on their editions. */
 export const artistPublicSchema = z.object({
   id: z.string(),
   slug: artistSlugSchema,
@@ -105,15 +99,12 @@ export const artistPublicSchema = z.object({
   banner: imageSchema.nullable().default(null),
   /** Where else to find them: a website, a shop, social accounts. */
   links: artistLinksSchema,
-  monthlyPriceCents: centsSchema,
   currency: z.string().length(3),
-  /** How many monthly cards a subscription runs for before it ends on its own. */
-  termMonths: termMonthsSchema,
   status: artistStatusSchema,
   visibility: artistVisibilitySchema,
-  sendDay: sendDaySchema,
-  subscriberCount: z.number().int().min(0),
-  /** How many cards this artist has mailed to subscribers, all time. */
+  /** People who have paid for one of their editions, all time. */
+  collectorCount: z.number().int().min(0),
+  /** How many cards this artist has mailed to collectors, all time. */
   mailedCount: z.number().int().min(0),
   createdAt: z.number().int(),
 });
@@ -125,13 +116,16 @@ export const artistSummarySchema = artistPublicSchema.pick({
   name: true,
   tagline: true,
   avatar: true,
-  monthlyPriceCents: true,
   currency: true,
-  subscriberCount: true,
+  collectorCount: true,
   mailedCount: true,
 }).extend({
   /** The most recently mailed card, for the tile's picture. */
   latest: postcardDesignSchema.nullable().default(null),
+  /** The cheapest edition on sale, for "from $30". Null when nothing is. */
+  fromPriceCents: centsSchema.nullable().default(null),
+  /** How many editions are on sale. */
+  editionCount: z.number().int().min(0).default(0),
 });
 
 export const artistProfileInputSchema = z.object({
@@ -140,9 +134,6 @@ export const artistProfileInputSchema = z.object({
   tagline: z.string().trim().max(140, "140 characters at most.").nullable().default(null),
   /** Markdown. Rendered and sanitised on the way out, like a page. */
   bio: z.string().max(10_000).default(""),
-  monthlyPriceCents: centsSchema.min(50, "Stripe cannot charge less than 50 cents."),
-  termMonths: termMonthsSchema.default(DEFAULT_TERM_MONTHS),
-  sendDay: sendDaySchema.default(15),
   visibility: artistVisibilitySchema.default("public"),
   avatar: imageSchema.nullable().default(null),
   banner: imageSchema.nullable().default(null),
@@ -166,153 +157,267 @@ export type ArtistSummary = z.infer<typeof artistSummarySchema>;
 export type ArtistProfileInput = z.infer<typeof artistProfileInputSchema>;
 export type ArtistStudio = z.infer<typeof artistStudioSchema>;
 
-/* ---------------------------------------------------------- subscriptions */
+/* --------------------------------------------------------------- editions */
+
+/** How many cards an edition holds. Round numbers, and never fewer than six. */
+export const EDITION_SIZES = [6, 12] as const;
+export const editionSizeSchema = z.union([z.literal(6), z.literal(12)], { message: "An edition is 6 or 12 cards." });
+export type EditionSize = z.infer<typeof editionSizeSchema>;
 
 /**
- * A subscription's state, from Stripe's point of view and ours.
+ * How often a collector's cards arrive.
+ *
+ *   monthly        on one day of every month
+ *   twice_monthly  on two days of every month, fourteen days apart
+ */
+export const cadenceSchema = z.enum(["monthly", "twice_monthly"]);
+export type Cadence = z.infer<typeof cadenceSchema>;
+
+/**
+ * Where an edition is in its life.
+ *
+ *   draft    being made; only its artist sees it, and everything can change
+ *   on_sale  listed and collectable. Its cards, size, cadence and price are
+ *            fixed — collectors paid for exactly these — and only its words
+ *            and banner can change. Back to draft only while nobody has
+ *            bought it
+ *   closed   no new collectors; everyone who paid still gets every card
+ */
+export const editionStatusSchema = z.enum(["draft", "on_sale", "closed"]);
+export type EditionStatus = z.infer<typeof editionStatusSchema>;
+
+/** One card of an edition, in its place. Position 1 goes first. */
+export const editionCardSchema = z.object({
+  id: z.string(),
+  position: z.number().int().min(1),
+  title: z.string().nullable(),
+  design: postcardDesignSchema,
+});
+
+/**
+ * An edition as any visitor may see it. The cards are not here: they are a
+ * surprise, and a visitor sees the banner and the artist's writeup of what
+ * will arrive. A collector sees each card once it has been mailed to them.
+ */
+export const editionSchema = z.object({
+  id: z.string(),
+  artistId: z.string(),
+  slug: slugSchema,
+  title: z.string().min(1),
+  /** Sanitised HTML rendered from the artist's Markdown: what collectors will get. */
+  descriptionHtml: z.string().default(""),
+  /** A wide picture across the top of the edition's page, standing in for the cards. */
+  banner: imageSchema.nullable().default(null),
+  cardCount: editionSizeSchema,
+  cadence: cadenceSchema,
+  /** For the whole set. */
+  priceCents: centsSchema,
+  currency: z.string().length(3),
+  status: editionStatusSchema,
+  inGallery: z.boolean(),
+  /** Paid purchases, all time. */
+  collectorCount: z.number().int().min(0),
+  createdAt: z.number().int(),
+});
+
+/** One edition in a list. */
+export const editionSummarySchema = editionSchema.pick({
+  id: true,
+  slug: true,
+  title: true,
+  banner: true,
+  cardCount: true,
+  cadence: true,
+  priceCents: true,
+  currency: true,
+  status: true,
+  collectorCount: true,
+});
+
+/** What the artist's studio shows: the public edition, plus its cards, its Markdown and how its cards are moving. */
+export const editionStudioSchema = editionSchema.extend({
+  cards: z.array(editionCardSchema),
+  description: z.string(),
+  /** Cards accepted by Lob across every collector. */
+  sentCount: z.number().int().min(0),
+  /** Cards still to come across every collector. */
+  scheduledCount: z.number().int().min(0),
+});
+
+export const editionInputSchema = z.object({
+  slug: slugSchema.max(60, "60 characters at most."),
+  title: z.string().trim().min(1, "A title is required.").max(80, "80 characters at most."),
+  /** Markdown: what collectors will get. Rendered and sanitised on the way out. */
+  description: z.string().max(10_000).default(""),
+  banner: imageSchema.nullable().default(null),
+  cardCount: editionSizeSchema,
+  cadence: cadenceSchema,
+  priceCents: centsSchema.min(50, "Stripe cannot charge less than 50 cents."),
+  inGallery: z.boolean().default(true),
+});
+
+/** The cards of a draft edition, in order. Replaces the whole set. */
+export const editionCardsInputSchema = z.object({
+  cards: z
+    .array(z.object({ designId: z.string().min(1), title: z.string().trim().max(120).nullable().default(null) }))
+    .max(12, "12 cards at most.")
+    .refine((cards) => new Set(cards.map((card) => card.designId)).size === cards.length, "Each design can be in an edition once."),
+});
+
+export type EditionCard = z.infer<typeof editionCardSchema>;
+export type Edition = z.infer<typeof editionSchema>;
+export type EditionSummary = z.infer<typeof editionSummarySchema>;
+export type EditionStudio = z.infer<typeof editionStudioSchema>;
+export type EditionInput = z.infer<typeof editionInputSchema>;
+export type EditionCardsInput = z.infer<typeof editionCardsInputSchema>;
+
+/* --------------------------------------------------------------- schedule */
+
+/** Where a collector's run starts if they do not pick a day: the next 1st or 15th. */
+export const DEFAULT_MAIL_DAYS = [1, 15] as const;
+
+/** How far ahead a collector may start a run. */
+export const START_DATE_MAX_DAYS = 90;
+
+/**
+ * The days of the month a run lands on, from the day it starts. Monthly is
+ * that one day; twice a month is that day and the one fourteen days from it,
+ * both within the 1st to the 28th, so the default start of the 1st gives the
+ * 1st and the 15th.
+ */
+export function mailDaysFor(cadence: Cadence, startDay: number): number[] {
+  if (cadence === "monthly") return [startDay];
+  return startDay <= 14 ? [startDay, startDay + 14] : [startDay - 14, startDay];
+}
+
+/**
+ * Every mail date of a run, card 1 first. Pure calendar arithmetic on
+ * YYYY-MM-DD strings: the start date itself, then each later mail day in
+ * turn until the set is done.
+ */
+export function editionSchedule(startDate: string, cardCount: number, cadence: Cadence): string[] {
+  const [year, month, day] = startDate.split("-").map(Number) as [number, number, number];
+  const days = mailDaysFor(cadence, day);
+  const dates: string[] = [];
+  for (let offset = 0; dates.length < cardCount; offset += 1) {
+    const period = new Date(Date.UTC(year, month - 1 + offset, 1)).toISOString().slice(0, 7);
+    for (const mailDay of days) {
+      const candidate = `${period}-${String(mailDay).padStart(2, "0")}`;
+      if (candidate >= startDate && dates.length < cardCount) dates.push(candidate);
+    }
+  }
+  return dates;
+}
+
+/** The next 1st or 15th after `today`. */
+export function defaultStartDate(today: string): string {
+  for (let offset = 1; offset <= 31; offset += 1) {
+    const candidate = addDaysIso(today, offset);
+    if ((DEFAULT_MAIL_DAYS as readonly number[]).includes(Number(candidate.slice(8)))) return candidate;
+  }
+  return addDaysIso(today, 1);
+}
+
+/** The earliest and latest start date a collector may pick today. */
+export function startDateRange(today: string): { min: string; max: string } {
+  return { min: addDaysIso(today, 1), max: addDaysIso(today, START_DATE_MAX_DAYS) };
+}
+
+/** Why a start date cannot be used, in words for the form; null when it can. */
+export function startDateProblem(startDate: string, today: string): string | null {
+  const { min, max } = startDateRange(today);
+  if (startDate < min) return "Pick a day after today.";
+  if (startDate > max) return `Pick a day within the next ${START_DATE_MAX_DAYS} days.`;
+  if (Number(startDate.slice(8)) > 28) return "Pick a day from the 1st to the 28th, so every month has it.";
+  return null;
+}
+
+/* -------------------------------------------------------------- purchases */
+
+/**
+ * A purchase's state.
  *
  *   incomplete  Checkout was started; the webhook has not confirmed payment
- *   active      paid for the current period; gets every mailing that falls in it
- *   past_due    a renewal failed; Stripe is retrying. No cards go out
- *   cancelled   over, by the subscriber or by Stripe giving up
+ *   paid        confirmed; every card of the run is scheduled
+ *   refunded    refunded in full; the cards not yet sent were cancelled
  */
-export const subscriptionStatusSchema = z.enum(["incomplete", "active", "past_due", "cancelled"]);
-export type SubscriptionStatus = z.infer<typeof subscriptionStatusSchema>;
+export const purchaseStatusSchema = z.enum(["incomplete", "paid", "refunded"]);
+export type PurchaseStatus = z.infer<typeof purchaseStatusSchema>;
 
-/** A subscription as its holder sees it. */
-export const subscriptionSchema = z.object({
+/** One card of a run, as its collector sees the schedule. */
+export const scheduledCardSchema = z.object({
+  position: z.number().int().min(1),
+  mailDate: mailDateSchema,
+  status: postcardSchema.shape.status,
+});
+
+/** A purchase as its collector sees it: what they bought, where it goes, and how far along it is. */
+export const collectionSchema = z.object({
   id: z.string(),
   artist: artistSummarySchema.pick({ id: true, slug: true, name: true, avatar: true }),
-  status: subscriptionStatusSchema,
-  /** What this subscriber pays a month — a snapshot; the artist may change theirs later. */
+  edition: z.object({ id: z.string(), slug: z.string(), title: z.string(), banner: imageSchema.nullable() }),
+  status: purchaseStatusSchema,
+  /** What they paid for the whole set — a snapshot of the edition's price. */
   priceCents: centsSchema,
+  refundedCents: centsSchema,
   currency: z.string(),
-  /** End of the paid period, epoch milliseconds. Null until the first invoice lands. */
-  currentPeriodEnd: z.number().int().nullable(),
-  /** Set when the subscriber asked to stop: cards keep coming until the period ends. */
-  cancelAtPeriodEnd: z.boolean(),
-  /** How many monthly payments this subscription runs for — a snapshot of the artist's term at the time. */
-  termMonths: termMonthsSchema,
-  /** How many of those have been paid. Reaching `termMonths` is what ends the subscription. */
-  paidMonths: z.number().int().min(0),
-  /** Where the cards are mailed. */
+  cardCount: editionSizeSchema,
+  cadence: cadenceSchema,
+  startDate: mailDateSchema,
+  /** Where the cards go. */
   address: recipientSchema,
-  /** Cards mailed under this subscription, all time. */
-  postcardCount: z.number().int().min(0),
+  /** Cards accepted by Lob so far. */
+  sentCount: z.number().int().min(0),
+  /** The next card's day, or null when none is still to come. */
+  nextMailDate: mailDateSchema.nullable(),
+  schedule: z.array(scheduledCardSchema),
   createdAt: z.number().int(),
-  cancelledAt: z.number().int().nullable(),
+  paidAt: z.number().int().nullable(),
 });
 
-/** Start a subscription: which artist, and where to mail. The price is never sent. */
-export const subscribeInputSchema = z.object({
-  artistId: z.string().min(1),
+/** Collect an edition: which one, where to mail it, and optionally when to start. The price is never sent. */
+export const collectInputSchema = z.object({
+  editionId: z.string().min(1),
   address: recipientSchema,
+  /** The first card's day. Left out, it is the next 1st or 15th. */
+  startDate: mailDateSchema.optional(),
 });
 
-export const subscribeResponseSchema = z.object({
+export const collectResponseSchema = z.object({
   url: z.string().url(),
-  subscriptionId: z.string(),
+  purchaseId: z.string(),
 });
 
-/** What the artist is told about a subscriber: a first name and a town, not an address. */
-export const subscriberSchema = z.object({
+/** What the artist is told about a collector: the name on their cards and a town, not an address. */
+export const collectorSchema = z.object({
   id: z.string(),
   name: z.string(),
   city: z.string(),
   country: z.string(),
-  status: subscriptionStatusSchema,
+  edition: z.object({ id: z.string(), title: z.string() }),
+  status: purchaseStatusSchema,
+  cardCount: editionSizeSchema,
+  sentCount: z.number().int().min(0),
+  nextMailDate: mailDateSchema.nullable(),
   since: z.number().int(),
 });
 
-export type Subscription = z.infer<typeof subscriptionSchema>;
-export type SubscribeInput = z.infer<typeof subscribeInputSchema>;
-export type SubscribeResponse = z.infer<typeof subscribeResponseSchema>;
-export type Subscriber = z.infer<typeof subscriberSchema>;
-
-/* --------------------------------------------------------------- mailings */
-
-/**
- * One card going to every subscriber on one day.
- *
- *   queued     waiting for its date
- *   mailed     its date came; one postcard row per subscriber was written
- *              and each is on its own way through the print sweep
- *   cancelled  withdrawn by the artist before the date
- */
-export const mailingStatusSchema = z.enum(["queued", "mailed", "cancelled"]);
-export type MailingStatus = z.infer<typeof mailingStatusSchema>;
-
-export const mailingSchema = z.object({
-  id: z.string(),
-  artistId: z.string(),
-  design: postcardDesignSchema,
-  /** A line the gallery shows under the card. */
-  title: z.string().nullable(),
-  mailDate: mailDateSchema,
-  /** `YYYY-MM`: one mailing per artist per month, enforced by the database. */
-  period: z.string().regex(/^\d{4}-\d{2}$/),
-  status: mailingStatusSchema,
-  /** Whether the front appears in the public gallery once mailed. */
-  inGallery: z.boolean(),
-  /** How many subscribers were written cards when it went. */
-  subscriberCount: z.number().int().min(0),
-  /** Where those cards are, in one row. */
-  postcards: z.object({
-    scheduled: z.number().int(),
-    sent: z.number().int(),
-    error: z.number().int(),
-    cancelled: z.number().int(),
-  }),
-  mailedAt: z.number().int().nullable(),
-  createdAt: z.number().int(),
-});
-
-export const mailingInputSchema = z.object({
-  designId: z.string().min(1),
-  mailDate: mailDateSchema,
-  title: z.string().trim().max(120).nullable().default(null),
-  inGallery: z.boolean().default(true),
-});
-
-export const mailingUpdateInputSchema = mailingInputSchema.omit({ designId: true });
-
-export type Mailing = z.infer<typeof mailingSchema>;
-export type MailingInput = z.infer<typeof mailingInputSchema>;
-export type MailingUpdateInput = z.infer<typeof mailingUpdateInputSchema>;
-
-/** `"2026-09-14"` → `"2026-09"`. */
-export function periodOf(mailDate: string): string {
-  return mailDate.slice(0, 7);
-}
-
-/**
- * The next date this artist's queue would naturally advance on: their send
- * day, in the first month not already taken. Pure calendar arithmetic.
- */
-export function nextMailDate(sendDay: number, taken: readonly string[], today: string): string {
-  const takenPeriods = new Set(taken.map(periodOf));
-  const [year, month] = today.split("-").map(Number) as [number, number];
-  const day = String(sendDay).padStart(2, "0");
-  for (let offset = 0; offset < 36; offset += 1) {
-    const date = new Date(Date.UTC(year, month - 1 + offset, 1));
-    const period = date.toISOString().slice(0, 7);
-    const candidate = `${period}-${day}`;
-    if (candidate < today || takenPeriods.has(period)) continue;
-    return candidate;
-  }
-  // Three years of taken months is not a state the studio can reach.
-  return `${today.slice(0, 7)}-${day}`;
-}
+export type ScheduledCard = z.infer<typeof scheduledCardSchema>;
+export type Collection = z.infer<typeof collectionSchema>;
+export type CollectInput = z.infer<typeof collectInputSchema>;
+export type CollectResponse = z.infer<typeof collectResponseSchema>;
+export type Collector = z.infer<typeof collectorSchema>;
 
 /* ---------------------------------------------------------------- gallery */
 
-/** One card in the public gallery: what was mailed, by whom, when. */
+/** One card in the public gallery: what was mailed, from which edition, by whom, when it first went. */
 export const galleryCardSchema = z.object({
-  mailingId: z.string(),
+  editionCardId: z.string(),
   design: postcardDesignSchema,
   title: z.string().nullable(),
   mailDate: mailDateSchema,
   artist: artistSummarySchema.pick({ id: true, slug: true, name: true }),
+  edition: z.object({ slug: z.string(), title: z.string() }),
 });
 
 export const galleryPageSchema = z.object({
@@ -339,8 +444,8 @@ export const payoutSchema = z.object({
   id: z.string(),
   artistId: z.string(),
   postcardId: z.string(),
-  mailingId: z.string(),
-  /** The subscriber's monthly price at the time. */
+  purchaseId: z.string(),
+  /** This card's part of what the collector paid. */
   grossCents: centsSchema,
   printCostCents: centsSchema,
   platformFeeCents: centsSchema,
@@ -357,7 +462,7 @@ export const earningsSchema = z.object({
   currency: z.string(),
   pendingCents: centsSchema,
   paidCents: centsSchema,
-  /** Cards sent to subscribers, all time. */
+  /** Cards sent to collectors, all time. */
   sentCount: z.number().int(),
   payouts: z.array(payoutSchema),
 });
@@ -365,44 +470,14 @@ export const earningsSchema = z.object({
 export type Payout = z.infer<typeof payoutSchema>;
 export type Earnings = z.infer<typeof earningsSchema>;
 
-/* ------------------------------------------------------------- receipts */
-
-/**
- * A "postcard order": one paid Stripe invoice under a subscription — the
- * thing a subscriber's receipts page lists and the admin reconciles against.
- */
-export const orderStatusSchema = z.enum(["paid", "refunded"]);
-
-export const orderSchema = z.object({
-  id: z.string(),
-  reference: z.string(),
-  subscriptionId: z.string(),
-  artist: artistSummarySchema.pick({ id: true, slug: true, name: true }),
-  status: orderStatusSchema,
-  amountCents: centsSchema,
-  refundedCents: centsSchema,
-  currency: z.string(),
-  /** The month this payment covers, as epoch milliseconds. */
-  periodStart: z.number().int().nullable(),
-  periodEnd: z.number().int().nullable(),
-  createdAt: z.number().int(),
-});
-
-export type Order = z.infer<typeof orderSchema>;
-export type OrderStatus = z.infer<typeof orderStatusSchema>;
-
-/** A short reference derived from the row id, so a Stripe id is never shown. */
-export function orderReference(id: string): string {
-  return id.replace(/-/g, "").slice(0, 8).toUpperCase();
-}
-
 /* ---------------------------------------------------- a card, as received */
 
-/** A card as the person it was mailed to sees it: which artist, which mailing, where it is. */
+/** A card as the person it was mailed to sees it: which artist, which edition, which card of it, where it is. */
 export const receivedPostcardSchema = postcardSchema.extend({
-  mailingId: z.string(),
   title: z.string().nullable(),
+  cardCount: editionSizeSchema,
   artist: artistSummarySchema.pick({ id: true, slug: true, name: true }),
+  edition: z.object({ id: z.string(), slug: z.string(), title: z.string() }),
   design: postcardDesignSchema,
 });
 

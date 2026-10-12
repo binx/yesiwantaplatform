@@ -4,28 +4,31 @@ import type {
   ArtistPublic,
   ArtistStudio,
   ArtistSummary,
+  CollectInput,
+  CollectResponse,
+  Collection,
+  Collector,
   Earnings,
+  Edition,
+  EditionCardsInput,
+  EditionInput,
+  EditionStatus,
+  EditionStudio,
+  EditionSummary,
   GalleryCard,
   GalleryPage,
-  Mailing,
-  MailingInput,
-  MailingUpdateInput,
-  SubscribeInput,
-  SubscribeResponse,
-  Subscriber,
-  Subscription,
 } from "@shared/platform";
-import type { Postcard, PostcardBack, PostcardDesign, Recipient } from "@shared/postcards";
+import type { PostcardBack, PostcardDesign, Recipient } from "@shared/postcards";
 import type { Image, Pricing } from "@shared/schema";
 import { apiGet, csrfDelete, csrfPost, csrfPut, csrfUpload } from "./api";
 
 /**
- * The platform's public reads, the subscribe flow, and the studio.
+ * The platform's public reads, the collect flow, and the studio.
  *
  * Studio queries share a `["studio"]` prefix so signing out drops them all
  * in one call, and every studio mutation invalidates the prefix rather than
- * one key: the overview counts, the queue and the design list all move
- * together when a card is queued.
+ * one key: the overview counts, the editions and the design list all move
+ * together when a card goes into an edition.
  */
 
 /* ----------------------------------------------------------------- public */
@@ -40,6 +43,8 @@ export function useArtists(): UseQueryResult<ArtistSummary[]> {
 
 export interface ArtistPage {
   artist: ArtistPublic;
+  /** On sale and closed; drafts never leave the studio. */
+  editions: EditionSummary[];
   recent: GalleryCard[];
 }
 
@@ -48,6 +53,20 @@ export function useArtist(slug: string | undefined): UseQueryResult<ArtistPage> 
     queryKey: ["artist", slug],
     queryFn: ({ signal }) => apiGet<ArtistPage>(`/artists/${slug ?? ""}`, signal),
     enabled: Boolean(slug),
+    staleTime: 60_000,
+  });
+}
+
+export interface EditionPage {
+  artist: ArtistPublic;
+  edition: Edition;
+}
+
+export function useEdition(artistSlug: string | undefined, editionSlug: string | undefined): UseQueryResult<EditionPage> {
+  return useQuery({
+    queryKey: ["artist", artistSlug, "edition", editionSlug],
+    queryFn: ({ signal }) => apiGet<EditionPage>(`/artists/${artistSlug ?? ""}/editions/${editionSlug ?? ""}`, signal),
+    enabled: Boolean(artistSlug && editionSlug),
     staleTime: 60_000,
   });
 }
@@ -66,21 +85,21 @@ export function useGallery(limit = 24) {
   });
 }
 
-/* -------------------------------------------------------------- subscribe */
+/* ---------------------------------------------------------------- collect */
 
-export function useSubscribe() {
+export function useCollect() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: SubscribeInput) => csrfPost<SubscribeResponse>("/checkout/subscribe", input),
+    mutationFn: (input: CollectInput) => csrfPost<CollectResponse>("/checkout/collect", input),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["account"] }),
   });
 }
 
 /** The confirmation page's read: still `incomplete` until the webhook lands, so it polls. */
-export function useCheckoutSubscription(sessionId: string | null): UseQueryResult<Subscription> {
+export function useCheckoutCollection(sessionId: string | null): UseQueryResult<Collection> {
   return useQuery({
     queryKey: ["checkout", sessionId],
-    queryFn: ({ signal }) => apiGet<Subscription>(`/checkout/${sessionId ?? ""}`, signal),
+    queryFn: ({ signal }) => apiGet<Collection>(`/checkout/${sessionId ?? ""}`, signal),
     enabled: Boolean(sessionId),
     refetchInterval: (query) => (query.state.data?.status === "incomplete" || !query.state.data ? 2000 : false),
   });
@@ -90,12 +109,10 @@ export function useCheckoutSubscription(sessionId: string | null): UseQueryResul
 
 export interface StudioView {
   artist: ArtistStudio;
-  queuedCount: number;
-  nextQueued: string | null;
-  nextMailDate: string;
+  editionCounts: { draft: number; onSale: number; closed: number };
   earnings: { pendingCents: number; paidCents: number; currency: string };
+  /** The platform's numbers, for the edition form's "each card earns you" line. */
   pricing: Pricing | null;
-  shareCents: number | null;
 }
 
 export const studioQueryKey = ["studio"] as const;
@@ -196,59 +213,78 @@ export function useDeleteDesign() {
   });
 }
 
-/* --------------------------------------------------------------- mailings */
+/* --------------------------------------------------------------- editions */
 
-export interface QueueView {
-  mailings: Mailing[];
-  nextMailDate: string;
-}
-
-export function useStudioMailings(): UseQueryResult<QueueView> {
+export function useStudioEditions(): UseQueryResult<EditionStudio[]> {
   return useQuery({
-    queryKey: ["studio", "mailings"],
-    queryFn: ({ signal }) => apiGet<QueueView>("/studio/mailings", signal),
+    queryKey: ["studio", "editions"],
+    queryFn: ({ signal }) => apiGet<EditionStudio[]>("/studio/editions", signal),
   });
 }
 
-export function useQueueMailing() {
+export function useStudioEdition(id: string | undefined): UseQueryResult<EditionStudio> {
+  return useQuery({
+    queryKey: ["studio", "editions", id],
+    queryFn: ({ signal }) => apiGet<EditionStudio>(`/studio/editions/${id ?? ""}`, signal),
+    enabled: Boolean(id),
+  });
+}
+
+export function useCreateEdition() {
   const invalidate = useInvalidateStudio();
   return useMutation({
-    mutationFn: (input: MailingInput) => csrfPost<Mailing>("/studio/mailings", input),
+    mutationFn: (input: EditionInput) => csrfPost<EditionStudio>("/studio/editions", input),
     onSuccess: invalidate,
   });
 }
 
-export function useUpdateMailing() {
+/** A draft can change anything; one on sale only its title, description, banner and gallery flag. */
+export function useUpdateEdition() {
   const invalidate = useInvalidateStudio();
   return useMutation({
-    mutationFn: ({ id, input }: { id: string; input: MailingUpdateInput }) => csrfPut<Mailing>(`/studio/mailings/${id}`, input),
+    mutationFn: ({ id, input }: { id: string; input: EditionInput }) => csrfPut<EditionStudio>(`/studio/editions/${id}`, input),
     onSuccess: invalidate,
   });
 }
 
-export function useCancelMailing() {
+/** An edition's banner: stored now, saved with the edition. What visitors see in place of the cards. */
+export function useUploadEditionBanner() {
+  return useMutation({
+    mutationFn: ({ file, alt }: { file: File; alt: string }) => csrfUpload<Image>("/studio/editions/banner", file, { alt }),
+  });
+}
+
+/** A draft's cards, in order. Replaces the whole set. */
+export function useSetEditionCards() {
   const invalidate = useInvalidateStudio();
   return useMutation({
-    mutationFn: (id: string) => csrfDelete<void>(`/studio/mailings/${id}`),
+    mutationFn: ({ id, input }: { id: string; input: EditionCardsInput }) => csrfPut<EditionStudio>(`/studio/editions/${id}/cards`, input),
     onSuccess: invalidate,
   });
 }
 
-/** The cards of one mailing, as the artist may see them: a name and a town each. */
-export function useMailingPostcards(mailingId: string | null): UseQueryResult<Postcard[]> {
-  return useQuery({
-    queryKey: ["studio", "mailing-postcards", mailingId],
-    queryFn: ({ signal }) => apiGet<Postcard[]>(`/studio/mailings/${mailingId ?? ""}/postcards`, signal),
-    enabled: Boolean(mailingId),
+export function useSetEditionStatus() {
+  const invalidate = useInvalidateStudio();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: EditionStatus }) => csrfPost<EditionStudio>(`/studio/editions/${id}/status`, { status }),
+    onSuccess: invalidate,
   });
 }
 
-/* ------------------------------------------------------------ subscribers */
+export function useDeleteEdition() {
+  const invalidate = useInvalidateStudio();
+  return useMutation({
+    mutationFn: (id: string) => csrfDelete<void>(`/studio/editions/${id}`),
+    onSuccess: invalidate,
+  });
+}
 
-export function useSubscribers(): UseQueryResult<Subscriber[]> {
+/* ------------------------------------------------------------- collectors */
+
+export function useCollectors(): UseQueryResult<Collector[]> {
   return useQuery({
-    queryKey: ["studio", "subscribers"],
-    queryFn: ({ signal }) => apiGet<Subscriber[]>("/studio/subscribers", signal),
+    queryKey: ["studio", "collectors"],
+    queryFn: ({ signal }) => apiGet<Collector[]>("/studio/collectors", signal),
   });
 }
 

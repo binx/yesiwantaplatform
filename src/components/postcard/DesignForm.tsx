@@ -475,10 +475,10 @@ export function DesignForm({ onSaved, artistName = "You", editing = null, onEdit
             : savedFlash
               ? editing
                 ? "Updated."
-                : "Saved. Queue it for a month below, or save another."
+                : "Saved. Put it in an edition, or make another."
               : editing
                 ? "Change the note, style, size or ink, then save."
-                : "Save it, then queue it for a month below."}
+                : "Save it, then put it in an edition."}
         </span>
       </div>
     </div>

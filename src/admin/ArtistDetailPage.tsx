@@ -1,15 +1,16 @@
 import { Link, useParams } from "react-router-dom";
 import { App, Button, Card, Descriptions, Empty, Popconfirm, Skeleton, Table, Tag } from "antd";
-import { artistLinkLabel, type ArtistStatus, type Mailing, type Subscription } from "@shared/platform";
+import { artistLinkLabel, type ArtistStatus, type EditionStatus, type EditionStudio, type PurchaseStatus } from "@shared/platform";
 import { formatMoney } from "@shared/money";
 import { formatRecipient } from "@shared/postcards";
-import { useAdminArtist, useSetAdminArtistStatus, useStoreLocale } from "./queries";
+import { useAdminArtist, useSetAdminArtistStatus, useStoreLocale, type AdminPurchase } from "./queries";
 import { PageHeader } from "./RequireAdmin";
-import { formatDay, formatMailDate, subscriptionStatusLabel } from "@/lib/postcards";
+import { editionShape, formatDay, purchaseStatusLabel } from "@/lib/postcards";
 
 const statusColor = (status: ArtistStatus): string => (status === "live" ? "green" : status === "paused" ? "gold" : "default");
+const editionStatusColor = (status: EditionStatus): string => (status === "on_sale" ? "green" : status === "closed" ? "default" : "blue");
 
-/** One artist: their page, their queue, their subscribers, and the pause switch. */
+/** One artist: their page, their editions, who collected them, and the pause switch. */
 export function ArtistDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { message } = App.useApp();
@@ -29,7 +30,7 @@ export function ArtistDetailPage() {
     );
   }
 
-  const { artist, mailings, subscriptions } = detail.data;
+  const { artist, editions, purchases } = detail.data;
   const change = (status: ArtistStatus) => setStatus.mutate({ id: artist.id, status }, { onError: (error: unknown) => void message.error(error instanceof Error ? error.message : "Could not change that.") });
 
   return (
@@ -47,7 +48,7 @@ export function ArtistDetailPage() {
         actions={
           <>
             {artist.status === "live" ? (
-              <Popconfirm title="Pause this artist?" description="No new subscriptions. Existing subscribers still get queued cards." onConfirm={() => change("paused")}>
+              <Popconfirm title="Pause this artist?" description="No new collectors on any edition. Everyone who already paid still gets every card." onConfirm={() => change("paused")}>
                 <Button danger loading={setStatus.isPending}>
                   Pause
                 </Button>
@@ -67,9 +68,6 @@ export function ArtistDetailPage() {
       <Card title="Page" style={{ marginBottom: "1.25rem" }}>
         <Descriptions column={1} size="small" bordered>
           <Descriptions.Item label="Tagline">{artist.tagline ?? "—"}</Descriptions.Item>
-          <Descriptions.Item label="Price">{formatMoney(artist.monthlyPriceCents, artist.currency, locale)} a month</Descriptions.Item>
-          <Descriptions.Item label="Term">{artist.termMonths} {artist.termMonths === 1 ? "month" : "months"}</Descriptions.Item>
-          <Descriptions.Item label="Send day">{artist.sendDay}th</Descriptions.Item>
           <Descriptions.Item label="Links">
             {artist.links.length === 0
               ? "—"
@@ -82,7 +80,7 @@ export function ArtistDetailPage() {
                   </div>
                 ))}
           </Descriptions.Item>
-          <Descriptions.Item label="Subscribers">{artist.subscriberCount} active</Descriptions.Item>
+          <Descriptions.Item label="Collectors">{artist.collectorCount}</Descriptions.Item>
           <Descriptions.Item label="Cards mailed">{artist.mailedCount}</Descriptions.Item>
           <Descriptions.Item label="Payouts">{artist.payoutsEnabled ? <Tag color="green">ready</Tag> : artist.stripeAccountId ? <Tag color="gold">onboarding {artist.stripeAccountId}</Tag> : <Tag>no Stripe account</Tag>}</Descriptions.Item>
           <Descriptions.Item label="Since">{formatDay(artist.createdAt, locale)}</Descriptions.Item>
@@ -90,43 +88,47 @@ export function ArtistDetailPage() {
         {artist.bio ? <pre style={{ whiteSpace: "pre-wrap", marginTop: "1rem", fontFamily: "inherit" }}>{artist.bio}</pre> : null}
       </Card>
 
-      <Card title="Mailings" style={{ marginBottom: "1.25rem" }}>
-        {mailings.length === 0 ? (
-          <Empty description="Nothing queued or mailed." image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      <Card title="Editions" style={{ marginBottom: "1.25rem" }}>
+        {editions.length === 0 ? (
+          <Empty description="No editions yet." image={Empty.PRESENTED_IMAGE_SIMPLE} />
         ) : (
-          <Table<Mailing>
-            dataSource={mailings}
+          <Table<EditionStudio>
+            dataSource={editions}
             rowKey="id"
             pagination={false}
             size="small"
             scroll={{ x: "max-content" }}
             columns={[
-              { title: "Date", dataIndex: "mailDate", render: (date: string, mailing) => <Link to={`/admin/mailings/${mailing.id}`}>{formatMailDate(date, locale)}</Link> },
-              { title: "Title", dataIndex: "title", render: (title: string | null) => title ?? "—" },
-              { title: "Status", dataIndex: "status", render: (status: string) => <Tag>{status}</Tag> },
-              { title: "Subscribers", dataIndex: "subscriberCount", align: "right" },
-              { title: "Sent", dataIndex: ["postcards", "sent"], align: "right" },
-              { title: "Failed", dataIndex: ["postcards", "error"], align: "right", render: (n: number) => (n > 0 ? <Tag color="red">{n}</Tag> : n) },
+              { title: "Title", dataIndex: "title", render: (title: string, edition) => <Link to={`/admin/editions/${edition.id}`}>{title}</Link> },
+              { title: "Shape", key: "shape", render: (_value, edition) => editionShape(edition.cardCount, edition.cadence) },
+              { title: "Price", dataIndex: "priceCents", align: "right", render: (cents: number, edition) => formatMoney(cents, edition.currency, locale) },
+              { title: "Status", dataIndex: "status", render: (status: EditionStatus) => <Tag color={editionStatusColor(status)}>{status === "on_sale" ? "on sale" : status}</Tag> },
+              { title: "Collectors", dataIndex: "collectorCount", align: "right" },
+              { title: "Sent", dataIndex: "sentCount", align: "right" },
+              { title: "Still to come", dataIndex: "scheduledCount", align: "right" },
             ]}
           />
         )}
       </Card>
 
-      <Card title="Subscribers">
-        {subscriptions.length === 0 ? (
+      <Card title="Purchases">
+        {purchases.length === 0 ? (
           <Empty description="Nobody yet." image={Empty.PRESENTED_IMAGE_SIMPLE} />
         ) : (
-          <Table<Subscription>
-            dataSource={subscriptions}
+          <Table<AdminPurchase>
+            dataSource={purchases}
             rowKey="id"
             pagination={false}
             size="small"
             scroll={{ x: "max-content" }}
             columns={[
-              { title: "Name", dataIndex: ["address", "name"] },
-              { title: "Address", dataIndex: "address", render: (address: Subscription["address"]) => formatRecipient(address, locale) },
-              { title: "Status", dataIndex: "status", render: (_status: string, s) => <Tag>{subscriptionStatusLabel(s.status, s.cancelAtPeriodEnd)}</Tag> },
-              { title: "Pays", dataIndex: "priceCents", align: "right", render: (cents: number, s) => formatMoney(cents, s.currency, locale) },
+              { title: "Collector", dataIndex: ["address", "name"] },
+              { title: "Address", dataIndex: "address", render: (address: AdminPurchase["address"]) => formatRecipient(address, locale) },
+              { title: "Edition", dataIndex: "edition", render: (edition: AdminPurchase["edition"]) => <Link to={`/admin/editions/${edition.id}`}>{edition.title}</Link> },
+              { title: "Progress", key: "progress", render: (_value, p) => `${p.sentCount} of ${p.cardCount} sent` },
+              { title: "Status", dataIndex: "status", render: (status: PurchaseStatus) => <Tag color={status === "paid" ? "green" : status === "refunded" ? "default" : "gold"}>{purchaseStatusLabel(status)}</Tag> },
+              { title: "Paid", dataIndex: "priceCents", align: "right", render: (cents: number, p) => formatMoney(cents, p.currency, locale) },
+              { title: "Refunded", dataIndex: "refundedCents", align: "right", render: (cents: number, p) => (cents > 0 ? formatMoney(cents, p.currency, locale) : "—") },
               { title: "Since", dataIndex: "createdAt", render: (value: number) => formatDay(value, locale) },
             ]}
           />

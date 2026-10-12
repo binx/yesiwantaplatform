@@ -7,7 +7,7 @@ import { setArtistStripeAccount, type ArtistRecord } from "../db/artists-reposit
  * Stripe Connect — how an artist gets paid.
  *
  * Each artist has an Express account. The platform charges every
- * subscription on its own account, and the payout sweep transfers each
+ * purchase on its own account, and the payout sweep transfers each
  * card's share to the artist's account after the printer accepts the card
  * (see server/fulfilment.ts). Onboarding is Stripe's hosted flow: an Account
  * Link that expires in minutes, minted fresh each time the artist asks.
@@ -30,7 +30,7 @@ export async function ensureConnectAccount(artist: ArtistRecord, email: string):
       email,
       capabilities: { transfers: { requested: true } },
       business_type: "individual",
-      business_profile: { name: artist.name, product_description: "A monthly postcard subscription for an artist's work." },
+      business_profile: { name: artist.name, product_description: "Editions of postcards by an artist, printed and mailed to collectors." },
       metadata: { yiwap_artist_id: artist.id },
     },
     // One account per artist however many times the button is pressed.

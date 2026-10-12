@@ -32,7 +32,7 @@ export const storeSettings = pgTable("store_settings", {
   stripePublishableKey: text("stripe_publishable_key"),
   printCostCents: integer("print_cost_cents").notNull().default(120),
   platformFeeCents: integer("platform_fee_cents").notNull().default(60),
-  minMonthlyPriceCents: integer("min_monthly_price_cents").notNull().default(300),
+  minCardPriceCents: integer("min_card_price_cents").notNull().default(300),
   returnAddress: jsonb("return_address"),
   themeColorPrimary: text("theme_color_primary").notNull().default("#1c1917"),
   themeColorAccent: text("theme_color_accent").notNull().default("#f5c542"),
@@ -103,10 +103,6 @@ export const artists = pgTable(
     bannerAlt: text("banner_alt"),
     /** ArtistLink[] — a website, a shop, social accounts. */
     links: jsonb("links").notNull().default(sql`'[]'::jsonb`),
-    monthlyPriceCents: integer("monthly_price_cents").notNull(),
-    /** How many monthly payments a subscription runs for before it ends. */
-    termMonths: integer("term_months").notNull().default(6),
-    sendDay: integer("send_day").notNull().default(15),
     status: text("status").notNull().default("draft"),
     visibility: text("visibility").notNull().default("public"),
     stripeAccountId: text("stripe_account_id"),
@@ -163,60 +159,84 @@ export const postcardDesigns = pgTable(
   (t) => [index("postcard_designs_artist_idx").on(t.artistId), index("postcard_designs_created_idx").on(t.createdAt)],
 );
 
-export const subscriptions = pgTable(
-  "subscriptions",
+export const editions = pgTable(
+  "editions",
+  {
+    id: text("id").primaryKey(),
+    artistId: text("artist_id")
+      .notNull()
+      .references(() => artists.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull(),
+    title: text("title").notNull(),
+    description: text("description").notNull().default(""),
+    bannerPath: text("banner_path"),
+    bannerWidth: integer("banner_width"),
+    bannerHeight: integer("banner_height"),
+    bannerAlt: text("banner_alt"),
+    cardCount: integer("card_count").notNull(),
+    cadence: text("cadence").notNull(),
+    priceCents: integer("price_cents").notNull(),
+    status: text("status").notNull().default("draft"),
+    inGallery: boolean("in_gallery").notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("editions_artist_slug_idx").on(t.artistId, t.slug), index("editions_status_idx").on(t.status)],
+);
+
+export const editionCards = pgTable(
+  "edition_cards",
+  {
+    id: text("id").primaryKey(),
+    editionId: text("edition_id")
+      .notNull()
+      .references(() => editions.id, { onDelete: "cascade" }),
+    designId: text("design_id")
+      .notNull()
+      .references(() => postcardDesigns.id),
+    position: integer("position").notNull(),
+    title: text("title"),
+    firstMailedAt: timestamp("first_mailed_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("edition_cards_position_idx").on(t.editionId, t.position),
+    index("edition_cards_design_idx").on(t.designId),
+    index("edition_cards_mailed_idx").on(t.firstMailedAt),
+  ],
+);
+
+export const purchases = pgTable(
+  "purchases",
   {
     id: text("id").primaryKey(),
     customerId: text("customer_id")
       .notNull()
       .references(() => customers.id, { onDelete: "cascade" }),
+    editionId: text("edition_id")
+      .notNull()
+      .references(() => editions.id, { onDelete: "cascade" }),
     artistId: text("artist_id")
       .notNull()
       .references(() => artists.id, { onDelete: "cascade" }),
     status: text("status").notNull().default("incomplete"),
     stripeCheckoutSessionId: text("stripe_checkout_session_id").notNull(),
-    stripeSubscriptionId: text("stripe_subscription_id"),
+    stripePaymentIntentId: text("stripe_payment_intent_id"),
     priceCents: integer("price_cents").notNull(),
+    refundedCents: integer("refunded_cents").notNull().default(0),
     currency: text("currency").notNull().default("USD"),
-    /** How many monthly payments it runs for — the artist's term when it was taken out. */
-    termMonths: integer("term_months").notNull().default(6),
-    currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
-    cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+    cardCount: integer("card_count").notNull(),
+    cadence: text("cadence").notNull(),
+    startDate: text("start_date").notNull(),
     address: jsonb("address").notNull(),
-    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [
-    uniqueIndex("subscriptions_checkout_session_idx").on(t.stripeCheckoutSessionId),
-    uniqueIndex("subscriptions_stripe_idx").on(t.stripeSubscriptionId),
-    index("subscriptions_customer_idx").on(t.customerId),
-    index("subscriptions_artist_status_idx").on(t.artistId, t.status),
-  ],
-);
-
-export const mailings = pgTable(
-  "mailings",
-  {
-    id: text("id").primaryKey(),
-    artistId: text("artist_id")
-      .notNull()
-      .references(() => artists.id, { onDelete: "cascade" }),
-    designId: text("design_id")
-      .notNull()
-      .references(() => postcardDesigns.id),
-    title: text("title"),
-    mailDate: text("mail_date").notNull(),
-    period: text("period").notNull(),
-    status: text("status").notNull().default("queued"),
-    inGallery: boolean("in_gallery").notNull().default(true),
-    subscriberCount: integer("subscriber_count").notNull().default(0),
-    mailedAt: timestamp("mailed_at", { withTimezone: true }),
-    ...timestamps,
-  },
-  (t) => [
-    uniqueIndex("mailings_artist_period_idx").on(t.artistId, t.period),
-    index("mailings_due_idx").on(t.status, t.mailDate),
-    index("mailings_artist_idx").on(t.artistId, t.mailDate),
+    uniqueIndex("purchases_checkout_session_idx").on(t.stripeCheckoutSessionId),
+    index("purchases_payment_intent_idx").on(t.stripePaymentIntentId),
+    index("purchases_customer_idx").on(t.customerId),
+    index("purchases_edition_status_idx").on(t.editionId, t.status),
+    index("purchases_artist_status_idx").on(t.artistId, t.status),
   ],
 );
 
@@ -224,12 +244,16 @@ export const postcards = pgTable(
   "postcards",
   {
     id: text("id").primaryKey(),
-    mailingId: text("mailing_id")
+    purchaseId: text("purchase_id")
       .notNull()
-      .references(() => mailings.id, { onDelete: "cascade" }),
-    subscriptionId: text("subscription_id")
+      .references(() => purchases.id, { onDelete: "cascade" }),
+    editionId: text("edition_id")
       .notNull()
-      .references(() => subscriptions.id, { onDelete: "cascade" }),
+      .references(() => editions.id, { onDelete: "cascade" }),
+    editionCardId: text("edition_card_id")
+      .notNull()
+      .references(() => editionCards.id),
+    position: integer("position").notNull(),
     artistId: text("artist_id")
       .notNull()
       .references(() => artists.id, { onDelete: "cascade" }),
@@ -255,8 +279,8 @@ export const postcards = pgTable(
     ...timestamps,
   },
   (t) => [
-    uniqueIndex("postcards_mailing_subscription_idx").on(t.mailingId, t.subscriptionId),
-    index("postcards_subscription_idx").on(t.subscriptionId),
+    uniqueIndex("postcards_purchase_position_idx").on(t.purchaseId, t.position),
+    index("postcards_edition_card_idx").on(t.editionCardId),
     index("postcards_artist_idx").on(t.artistId),
     index("postcards_due_idx").on(t.status, t.mailDate),
     index("postcards_lob_idx").on(t.lobId),
@@ -278,38 +302,6 @@ export const postcardTrackingEvents = pgTable(
   (t) => [index("postcard_tracking_postcard_idx").on(t.postcardId, t.occurredAt)],
 );
 
-export const orders = pgTable(
-  "orders",
-  {
-    id: text("id").primaryKey(),
-    subscriptionId: text("subscription_id")
-      .notNull()
-      .references(() => subscriptions.id, { onDelete: "cascade" }),
-    customerId: text("customer_id")
-      .notNull()
-      .references(() => customers.id, { onDelete: "cascade" }),
-    artistId: text("artist_id")
-      .notNull()
-      .references(() => artists.id, { onDelete: "cascade" }),
-    stripeInvoiceId: text("stripe_invoice_id").notNull(),
-    stripePaymentIntentId: text("stripe_payment_intent_id"),
-    status: text("status").notNull().default("paid"),
-    amountCents: integer("amount_cents").notNull(),
-    refundedCents: integer("refunded_cents").notNull().default(0),
-    currency: text("currency").notNull(),
-    periodStart: timestamp("period_start", { withTimezone: true }),
-    periodEnd: timestamp("period_end", { withTimezone: true }),
-    ...timestamps,
-  },
-  (t) => [
-    uniqueIndex("orders_invoice_idx").on(t.stripeInvoiceId),
-    index("orders_subscription_idx").on(t.subscriptionId),
-    index("orders_customer_idx").on(t.customerId),
-    index("orders_artist_idx").on(t.artistId),
-    index("orders_created_idx").on(t.createdAt),
-  ],
-);
-
 export const payouts = pgTable(
   "payouts",
   {
@@ -320,7 +312,7 @@ export const payouts = pgTable(
     postcardId: text("postcard_id")
       .notNull()
       .references(() => postcards.id, { onDelete: "cascade" }),
-    mailingId: text("mailing_id").notNull(),
+    purchaseId: text("purchase_id").notNull(),
     grossCents: integer("gross_cents").notNull(),
     printCostCents: integer("print_cost_cents").notNull(),
     platformFeeCents: integer("platform_fee_cents").notNull(),

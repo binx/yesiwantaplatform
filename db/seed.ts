@@ -22,7 +22,7 @@ export async function seedStore(store: Store = demoStore): Promise<void> {
     stripePublishableKey: store.stripePublishableKey,
     printCostCents: store.pricing.printCostCents,
     platformFeeCents: store.pricing.platformFeeCents,
-    minMonthlyPriceCents: store.pricing.minMonthlyPriceCents,
+    minCardPriceCents: store.pricing.minCardPriceCents,
     themeColorPrimary: store.theme.colorPrimary,
     themeColorAccent: store.theme.colorAccent,
     themeFontFamily: store.theme.fontFamily,

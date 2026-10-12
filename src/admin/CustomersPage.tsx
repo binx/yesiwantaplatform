@@ -1,6 +1,17 @@
 import { type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Card, Empty, Skeleton, Table, Tag } from "antd";
+import type { PurchaseStatus } from "@shared/platform";
+import { formatMoney } from "@shared/money";
+import {
+  useAdminCustomers,
+  useAdminPurchases,
+  useStoreLocale,
+  type AdminCustomer,
+  type AdminPurchase,
+} from "./queries";
+import { PageHeader } from "./RequireAdmin";
+import { editionShape, formatDay, purchaseStatusLabel } from "@/lib/postcards";
 
 /**
  * A table that may overflow sideways on a phone, in a region a keyboard can
@@ -25,31 +36,18 @@ function Scrollable({
     </div>
   );
 }
-import type { Order, Subscription } from "@shared/platform";
-import { formatMoney } from "@shared/money";
-import {
-  useAdminCustomers,
-  useAdminOrders,
-  useAdminSubscriptions,
-  useStoreLocale,
-  type AdminCustomer,
-} from "./queries";
-import { PageHeader } from "./RequireAdmin";
-import { formatDay, subscriptionStatusLabel } from "@/lib/postcards";
 
-/** Everyone with an account, every subscription, every invoice. */
+/** Everyone with an account, and every edition they bought. */
 export function CustomersPage() {
   const locale = useStoreLocale();
   const customers = useAdminCustomers();
-  const subscriptions = useAdminSubscriptions();
-  const orders = useAdminOrders();
-
+  const purchases = useAdminPurchases();
 
   return (
     <>
       <PageHeader
         title="People"
-        description="Accounts, subscriptions and the invoices Stripe has paid. Addresses live on the subscription."
+        description="Accounts, and the editions they paid for. Addresses live on the purchase."
       />
 
       <Card title="Accounts" style={{ marginBottom: "1.25rem" }}>
@@ -86,8 +84,8 @@ export function CustomersPage() {
                   render: (slug: string | null) => (slug ? `/artist/${slug}` : "—"),
                 },
                 {
-                  title: "Active subscriptions",
-                  dataIndex: "activeSubscriptions",
+                  title: "Purchases",
+                  dataIndex: "purchases",
                   align: "right",
                 },
                 {
@@ -101,118 +99,86 @@ export function CustomersPage() {
         )}
       </Card>
 
-      <Card title="Subscriptions" style={{ marginBottom: "1.25rem" }}>
-        {subscriptions.isPending ? (
+      <Card title="Purchases">
+        {purchases.isPending ? (
           <Skeleton active paragraph={{ rows: 4 }} />
-        ) : (subscriptions.data?.subscriptions.length ?? 0) === 0 ? (
-          <Empty description="None yet." image={Empty.PRESENTED_IMAGE_SIMPLE} />
-        ) : (
-          <Scrollable label="Subscriptions">
-            <Table<Subscription>
-              dataSource={subscriptions.data?.subscriptions}
-              rowKey="id"
-              pagination={{ pageSize: 25 }}
-              size="small"
-              columns={[
-                { title: "Subscriber", dataIndex: ["address", "name"] },
-                {
-                  title: "Artist",
-                  dataIndex: "artist",
-                  render: (artist: Subscription["artist"]) => (
-                    <Link to={`/admin/artists/${artist.id}`}>
-                      {artist.name}
-                    </Link>
-                  ),
-                },
-                {
-                  title: "Status",
-                  dataIndex: "status",
-                  render: (_s: string, sub) => (
-                    <Tag>
-                      {subscriptionStatusLabel(
-                        sub.status,
-                        sub.cancelAtPeriodEnd,
-                      )}
-                    </Tag>
-                  ),
-                },
-                {
-                  title: "Pays",
-                  dataIndex: "priceCents",
-                  align: "right",
-                  render: (cents: number, sub) =>
-                    formatMoney(cents, sub.currency, locale),
-                },
-                {
-                  title: "Renews",
-                  dataIndex: "currentPeriodEnd",
-                  render: (value: number | null) =>
-                    value ? formatDay(value, locale) : "—",
-                },
-                {
-                  title: "Since",
-                  dataIndex: "createdAt",
-                  render: (value: number) => formatDay(value, locale),
-                },
-              ]}
-            />
-          </Scrollable>
-        )}
-      </Card>
-
-      <Card title="Invoices">
-        {orders.isPending ? (
-          <Skeleton active paragraph={{ rows: 4 }} />
-        ) : (orders.data?.orders.length ?? 0) === 0 ? (
+        ) : (purchases.data?.purchases.length ?? 0) === 0 ? (
           <Empty
-            description="Nothing paid yet."
+            description="Nothing bought yet."
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           />
         ) : (
-          <Scrollable label="Invoices">
-            <Table<Order>
-              dataSource={orders.data?.orders}
+          <Scrollable label="Purchases">
+            <Table<AdminPurchase>
+              dataSource={purchases.data?.purchases}
               rowKey="id"
               pagination={{ pageSize: 25 }}
               size="small"
               columns={[
-                { title: "Reference", dataIndex: "reference" },
+                { title: "Collector", dataIndex: ["address", "name"] },
+                {
+                  title: "Edition",
+                  dataIndex: "edition",
+                  render: (edition: AdminPurchase["edition"], p) => (
+                    <>
+                      <Link to={`/admin/editions/${edition.id}`}>
+                        {edition.title}
+                      </Link>
+                      <span style={{ display: "block", color: "#71717a" }}>
+                        {editionShape(p.cardCount, p.cadence)}
+                      </span>
+                    </>
+                  ),
+                },
                 {
                   title: "Artist",
                   dataIndex: "artist",
-                  render: (artist: Order["artist"]) => (
+                  render: (artist: AdminPurchase["artist"]) => (
                     <Link to={`/admin/artists/${artist.id}`}>
                       {artist.name}
                     </Link>
                   ),
                 },
                 {
-                  title: "Paid",
-                  dataIndex: "createdAt",
-                  render: (value: number) => formatDay(value, locale),
+                  title: "Progress",
+                  key: "progress",
+                  render: (_value, p) => `${p.sentCount} of ${p.cardCount} sent`,
                 },
                 {
-                  title: "Amount",
-                  dataIndex: "amountCents",
+                  title: "Paid",
+                  dataIndex: "priceCents",
                   align: "right",
-                  render: (cents: number, o) =>
-                    formatMoney(cents, o.currency, locale),
+                  render: (cents: number, p) =>
+                    formatMoney(cents, p.currency, locale),
                 },
                 {
                   title: "Refunded",
                   dataIndex: "refundedCents",
                   align: "right",
-                  render: (cents: number, o) =>
-                    cents > 0 ? formatMoney(cents, o.currency, locale) : "—",
+                  render: (cents: number, p) =>
+                    cents > 0 ? formatMoney(cents, p.currency, locale) : "—",
                 },
                 {
                   title: "Status",
                   dataIndex: "status",
-                  render: (status: string) => (
-                    <Tag color={status === "paid" ? "green" : "default"}>
-                      {status}
+                  render: (status: PurchaseStatus) => (
+                    <Tag
+                      color={
+                        status === "paid"
+                          ? "green"
+                          : status === "refunded"
+                            ? "default"
+                            : "gold"
+                      }
+                    >
+                      {purchaseStatusLabel(status)}
                     </Tag>
                   ),
+                },
+                {
+                  title: "Bought",
+                  dataIndex: "createdAt",
+                  render: (value: number) => formatDay(value, locale),
                 },
               ]}
             />

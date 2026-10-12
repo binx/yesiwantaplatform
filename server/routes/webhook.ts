@@ -1,210 +1,115 @@
 import { Router, raw } from "express";
 import type Stripe from "stripe";
-import type { SubscriptionStatus } from "../../shared/platform.js";
+import { editionSchedule } from "../../shared/platform.js";
 import { getArtist, findArtistByStripeAccount } from "../../db/artists-repository.js";
 import { findCustomerByStripeId } from "../../db/customers-repository.js";
-import { countPaidMonthsForSubscriptions, findOrderByPaymentIntent, recordPaidInvoice, recordRefund } from "../../db/orders-repository.js";
+import { getEdition, listCardsForEdition } from "../../db/editions-repository.js";
 import {
-  activateSubscription,
-  deleteIncompleteSubscription,
-  findSubscriptionByCheckoutSession,
-  findSubscriptionByStripeId,
-  getSubscription,
-  syncSubscription,
-} from "../../db/subscriptions-repository.js";
-import { countForArtists } from "../../db/artists-repository.js";
+  countCollectorsForEditions,
+  deleteIncompletePurchase,
+  findPurchaseByCheckoutSession,
+  findPurchaseByPaymentIntent,
+  getPurchase,
+  markPurchasePaid,
+  recordPurchaseRefund,
+} from "../../db/purchases-repository.js";
+import { cancelUnsentPostcards, materialisePostcards } from "../../db/postcards-repository.js";
 import { forgetWebhookEvent, recordWebhookEvent } from "../../db/webhooks-repository.js";
 import { findCustomerById } from "../auth.js";
 import { recordConnectStatus } from "../connect.js";
 import { env } from "../env.js";
+import { kickSweep } from "../fulfilment.js";
 import { getStripe } from "../stripe.js";
-import { sendNewSubscriberEmail, sendSubscriptionStartedEmail } from "../email.js";
+import { sendCollectionStartedEmail, sendNewCollectorEmail } from "../email.js";
 
 /**
  * Stripe webhooks — the authority on whether anyone has paid.
  *
- * The success redirect is not proof of payment. Subscriptions only ever
- * become active here, after the signature has been verified; renewals are
- * only ever recorded here; and an artist's Connect account only ever becomes
- * payable here or from the studio's own refresh. Mounted before the JSON body
- * parser because signature verification needs the exact raw bytes.
+ * The success redirect is not proof of payment. A purchase only ever becomes
+ * paid here, after the signature has been verified, and only here are its
+ * cards written; refunds are only ever recorded here; and an artist's
+ * Connect account only ever becomes payable here or from the studio's own
+ * refresh. Mounted before the JSON body parser because signature
+ * verification needs the exact raw bytes.
  */
 export const webhookRouter: Router = Router();
 
+function paymentIntentIdOf(session: Stripe.Checkout.Session): string | null {
+  const value = session.payment_intent;
+  return typeof value === "string" ? value : (value?.id ?? null);
+}
+
+async function findPurchaseForSession(session: Stripe.Checkout.Session) {
+  const ours = session.metadata?.yiwap_purchase_id;
+  return ours ? await getPurchase(ours) : await findPurchaseByCheckoutSession(session.id);
+}
+
 /**
- * Stripe moved `current_period_end` from the Subscription to its items in
- * the 2025 API versions. Read wherever it is; null when nowhere.
+ * Paid: the purchase is marked, and every card of the run is written on its
+ * day.
+ *
+ * The mark comes first, so a card is never scheduled for a purchase that is
+ * not paid. The cards are written whenever the purchase is paid, not only by
+ * the request whose mark won: if writing them fails, the event is forgotten,
+ * Stripe redelivers, the mark is already done, and the idempotent write
+ * fills in what is missing. Only the winning mark sends the emails.
  */
-export function periodEndOf(subscription: Stripe.Subscription): number | null {
-  const loose = subscription as unknown as { current_period_end?: number; items?: { data?: { current_period_end?: number }[] } };
-  const seconds = loose.items?.data?.[0]?.current_period_end ?? loose.current_period_end;
-  return typeof seconds === "number" ? seconds * 1000 : null;
-}
-
-/** The same move for an invoice's subscription: `invoice.subscription` became `invoice.parent.subscription_details.subscription`. */
-export function subscriptionIdOf(invoice: Stripe.Invoice): string | null {
-  const loose = invoice as unknown as {
-    subscription?: string | { id: string } | null;
-    parent?: { subscription_details?: { subscription?: string | { id: string } | null } | null } | null;
-  };
-  const value = loose.parent?.subscription_details?.subscription ?? loose.subscription ?? null;
-  return typeof value === "string" ? value : (value?.id ?? null);
-}
-
-/** Likewise the invoice's payment intent, for refunds to find their order later. */
-function paymentIntentIdOf(invoice: Stripe.Invoice): string | null {
-  const loose = invoice as unknown as { payment_intent?: string | { id: string } | null; payments?: { data?: { payment?: { payment_intent?: string | { id: string } | null } }[] } };
-  const value = loose.payments?.data?.[0]?.payment?.payment_intent ?? loose.payment_intent ?? null;
-  return typeof value === "string" ? value : (value?.id ?? null);
-}
-
-/** Stripe's subscription statuses, folded into ours. Null means "leave it alone". */
-export function toOurStatus(status: Stripe.Subscription.Status): SubscriptionStatus | null {
-  switch (status) {
-    case "active":
-    case "trialing":
-      return "active";
-    case "past_due":
-    case "unpaid":
-      return "past_due";
-    case "canceled":
-    case "incomplete_expired":
-      return "cancelled";
-    default:
-      return null;
-  }
-}
-
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
-  if (session.mode !== "subscription") return;
-  const ours = session.metadata?.yiwap_subscription_id;
-  const subscription = ours ? await getSubscription(ours) : await findSubscriptionByCheckoutSession(session.id);
-  if (!subscription) {
-    console.error(`Webhook for unknown subscription (session ${session.id}).`);
+  if (session.mode !== "payment") return;
+  // An asynchronous payment method completes Checkout before the money
+  // arrives; `checkout.session.async_payment_succeeded` is that moment.
+  if (session.payment_status !== "paid") return;
+
+  const purchase = await findPurchaseForSession(session);
+  if (!purchase) {
+    console.error(`Webhook for unknown purchase (session ${session.id}).`);
     return;
   }
-  // Already processed — a replay, or a second event for the same session.
-  if (subscription.status !== "incomplete") return;
+  if (purchase.status === "refunded") return;
 
-  const stripeSubscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
-  if (!stripeSubscriptionId) {
-    console.error(`Checkout ${session.id} completed with no subscription on it.`);
-    return;
-  }
+  const won = purchase.status === "incomplete" && (await markPurchasePaid(purchase.id, paymentIntentIdOf(session)));
+  const paid = await getPurchase(purchase.id);
+  if (!paid || paid.status !== "paid") return;
 
-  // The period end is not on the session; it is on the subscription.
-  const stripe = getStripe();
-  let currentPeriodEnd: number | null = null;
-  if (stripe) {
-    try {
-      currentPeriodEnd = periodEndOf(await stripe.subscriptions.retrieve(stripeSubscriptionId));
-    } catch (error) {
-      // Not fatal: `invoice.paid` carries the period too and lands right after.
-      console.warn(`Could not read the period of ${stripeSubscriptionId}:`, (error as Error).message);
-    }
-  }
+  const cards = await listCardsForEdition(paid.editionId);
+  const written = await materialisePostcards(paid, cards);
+  // A run that starts tomorrow does nothing today; one whose first day has
+  // already come (a slow webhook) goes now rather than at the next tick.
+  if (written > 0) kickSweep();
+  if (!won) return;
 
-  if (!(await activateSubscription(subscription.id, { stripeSubscriptionId, currentPeriodEnd }))) return;
-
-  const [artist, customer] = await Promise.all([getArtist(subscription.artistId), findCustomerById(subscription.customerId)]);
-  if (!artist) return;
+  const [edition, artist, customer] = await Promise.all([getEdition(paid.editionId), getArtist(paid.artistId), findCustomerById(paid.customerId)]);
+  if (!edition || !artist) return;
 
   if (customer) {
-    await sendSubscriptionStartedEmail(customer.email, {
+    await sendCollectionStartedEmail(customer.email, {
       artistName: artist.name,
       artistSlug: artist.slug,
-      priceCents: subscription.priceCents,
-      currency: subscription.currency,
-      sendDay: artist.sendDay,
-      termMonths: subscription.termMonths,
+      editionTitle: edition.title,
+      priceCents: paid.priceCents,
+      currency: paid.currency,
+      cardCount: paid.cardCount,
+      twiceMonthly: paid.cadence === "twice_monthly",
+      schedule: editionSchedule(paid.startDate, paid.cardCount, paid.cadence),
     });
   }
 
   const owner = await findCustomerById(artist.customerId);
   if (owner) {
-    const counts = await countForArtists([artist.id]);
-    await sendNewSubscriberEmail(owner.email, {
-      artistName: artist.name,
-      subscriberName: subscription.address.name,
-      subscriberCity: subscription.address.city,
-      subscriberCount: counts.get(artist.id)?.subscribers ?? 1,
+    const counts = await countCollectorsForEditions([edition.id]);
+    await sendNewCollectorEmail(owner.email, {
+      editionTitle: edition.title,
+      collectorName: paid.address.name,
+      collectorCity: paid.address.city,
+      collectorCount: counts.get(edition.id) ?? 1,
     });
   }
 }
 
 async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<void> {
-  const ours = session.metadata?.yiwap_subscription_id;
-  const subscription = ours ? await getSubscription(ours) : await findSubscriptionByCheckoutSession(session.id);
+  const purchase = await findPurchaseForSession(session);
   // Nothing was charged, so this is just tidying up.
-  if (subscription && subscription.status === "incomplete") await deleteIncompleteSubscription(subscription.id);
-}
-
-/** A month paid for: the receipt row, and the subscription stays (or becomes) active. */
-async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
-  const stripeSubscriptionId = subscriptionIdOf(invoice);
-  if (!stripeSubscriptionId) return;
-
-  const subscription = await findSubscriptionByStripeId(stripeSubscriptionId);
-  if (!subscription) {
-    // The first invoice can land before `checkout.session.completed` has
-    // written the Stripe id onto the row. Stripe retries; the second attempt finds it.
-    throw new Error(`invoice.paid for ${stripeSubscriptionId} before its subscription was activated.`);
-  }
-
-  const line = invoice.lines?.data?.[0];
-  const periodStart = line?.period?.start ? line.period.start * 1000 : null;
-  const periodEnd = line?.period?.end ? line.period.end * 1000 : null;
-
-  await recordPaidInvoice({
-    subscriptionId: subscription.id,
-    customerId: subscription.customerId,
-    artistId: subscription.artistId,
-    stripeInvoiceId: invoice.id ?? `invoice-${subscription.id}-${periodStart ?? Date.now()}`,
-    stripePaymentIntentId: paymentIntentIdOf(invoice),
-    amountCents: invoice.amount_paid ?? 0,
-    currency: (invoice.currency ?? subscription.currency).toUpperCase(),
-    periodStart,
-    periodEnd,
-  });
-
-  if (subscription.status === "cancelled") return;
-
-  // The term: once the last of the agreed months is paid for, Stripe is told
-  // to stop at the end of it. Nothing is cancelled outright — this month's
-  // card was paid for and still goes — and a redelivered event asks Stripe
-  // for the same thing again, which is a no-op there.
-  const paidMonths = (await countPaidMonthsForSubscriptions([subscription.id])).get(subscription.id) ?? 0;
-  const termComplete = paidMonths >= subscription.termMonths;
-  let cancelAtPeriodEnd = subscription.cancelAtPeriodEnd;
-  if (termComplete && !cancelAtPeriodEnd) {
-    const stripe = getStripe();
-    if (stripe) await stripe.subscriptions.update(stripeSubscriptionId, { cancel_at_period_end: true });
-    cancelAtPeriodEnd = true;
-  }
-
-  await syncSubscription(subscription.id, { status: "active", currentPeriodEnd: periodEnd ?? subscription.currentPeriodEnd, cancelAtPeriodEnd });
-}
-
-/** A renewal failed. Stripe retries on its own schedule; until it clears, no cards. */
-async function handleInvoiceFailed(invoice: Stripe.Invoice): Promise<void> {
-  const stripeSubscriptionId = subscriptionIdOf(invoice);
-  if (!stripeSubscriptionId) return;
-  const subscription = await findSubscriptionByStripeId(stripeSubscriptionId);
-  if (!subscription || subscription.status === "cancelled") return;
-  await syncSubscription(subscription.id, { status: "past_due", currentPeriodEnd: subscription.currentPeriodEnd, cancelAtPeriodEnd: subscription.cancelAtPeriodEnd });
-}
-
-/** Mirror whatever Stripe now says: status, period, and whether it is winding down. */
-async function handleSubscriptionChanged(stripeSubscription: Stripe.Subscription): Promise<void> {
-  const subscription = await findSubscriptionByStripeId(stripeSubscription.id);
-  if (!subscription) return;
-  const status = toOurStatus(stripeSubscription.status);
-  if (!status) return;
-  await syncSubscription(subscription.id, {
-    status,
-    currentPeriodEnd: periodEndOf(stripeSubscription) ?? subscription.currentPeriodEnd,
-    cancelAtPeriodEnd: status === "cancelled" ? false : Boolean(stripeSubscription.cancel_at_period_end),
-  });
+  if (purchase && purchase.status === "incomplete") await deleteIncompletePurchase(purchase.id);
 }
 
 /** An artist's Connect account changed: the one flag the ledger checks is mirrored. */
@@ -214,16 +119,21 @@ async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
   await recordConnectStatus(artist, account);
 }
 
+/**
+ * Money given back. `amount_refunded` is the running total on the charge, so
+ * it is stored as it is. A full refund withdraws every card not yet sent —
+ * nobody is paying for them now — and those cards earn the artist nothing.
+ * A partial refund is a gesture, and the cards keep coming.
+ */
 async function handleRefund(charge: Stripe.Charge): Promise<void> {
   const paymentIntentId = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
   if (!paymentIntentId) return;
-  const order = await findOrderByPaymentIntent(paymentIntentId);
-  if (!order) return;
+  const purchase = await findPurchaseByPaymentIntent(paymentIntentId);
+  if (!purchase) return;
 
-  // `amount_refunded` is the running total on the charge, not the delta for
-  // this event, so record the difference against what we already knew.
-  const delta = charge.amount_refunded - order.refundedCents;
-  await recordRefund(order.id, delta, charge.amount_refunded >= charge.amount);
+  const full = charge.amount_refunded >= charge.amount;
+  await recordPurchaseRefund(purchase.id, charge.amount_refunded, full);
+  if (full) await cancelUnsentPostcards(purchase.id);
 }
 
 webhookRouter.post("/webhooks/stripe", raw({ type: "application/json", limit: "1mb" }), async (req, res) => {
@@ -259,20 +169,12 @@ webhookRouter.post("/webhooks/stripe", raw({ type: "application/json", limit: "1
   try {
     switch (event.type) {
       case "checkout.session.completed":
+      case "checkout.session.async_payment_succeeded":
         await handleCheckoutCompleted(event.data.object);
         break;
       case "checkout.session.expired":
+      case "checkout.session.async_payment_failed":
         await handleCheckoutExpired(event.data.object);
-        break;
-      case "invoice.paid":
-        await handleInvoicePaid(event.data.object);
-        break;
-      case "invoice.payment_failed":
-        await handleInvoiceFailed(event.data.object);
-        break;
-      case "customer.subscription.updated":
-      case "customer.subscription.deleted":
-        await handleSubscriptionChanged(event.data.object);
         break;
       case "account.updated":
         await handleAccountUpdated(event.data.object);

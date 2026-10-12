@@ -1,4 +1,4 @@
-import type { SubscriptionStatus } from "@shared/platform";
+import type { Cadence, PurchaseStatus } from "@shared/platform";
 import type { PostcardStatus as CardStatus } from "@shared/postcards";
 
 /**
@@ -21,7 +21,7 @@ export function formatDay(epochMs: number, locale: string): string {
   return new Date(epochMs).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" });
 }
 
-/** What a subscriber or artist is told about a card. Lob's own words never reach them. */
+/** What a collector or artist is told about a card. Lob's own words never reach them. */
 export function customerStatusLabel(status: CardStatus): string {
   switch (status) {
     case "scheduled":
@@ -73,16 +73,23 @@ export function trackingLabel(type: string): string {
   }
 }
 
-export function subscriptionStatusLabel(status: SubscriptionStatus, cancelAtPeriodEnd = false): string {
-  if (status === "active" && cancelAtPeriodEnd) return "Ending soon";
+export function purchaseStatusLabel(status: PurchaseStatus): string {
   switch (status) {
     case "incomplete":
       return "Confirming";
-    case "active":
-      return "Active";
-    case "past_due":
-      return "Payment failed";
-    case "cancelled":
-      return "Cancelled";
+    case "paid":
+      return "Paid";
+    case "refunded":
+      return "Refunded";
   }
+}
+
+/** "one a month" / "two a month". */
+export function cadenceWords(cadence: Cadence): string {
+  return cadence === "twice_monthly" ? "two a month" : "one a month";
+}
+
+/** "6 postcards, one a month". */
+export function editionShape(cardCount: number, cadence: Cadence): string {
+  return `${cardCount} postcards, ${cadenceWords(cadence)}`;
 }

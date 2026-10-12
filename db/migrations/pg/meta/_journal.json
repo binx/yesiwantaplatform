@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1789834609067,
-      "tag": "0000_pretty_frightful_four",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1790108013281,
-      "tag": "0001_woozy_vermin",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1790110230577,
-      "tag": "0002_luxuriant_reptil",
+      "when": 1791778807773,
+      "tag": "0000_curly_mongoose",
       "breakpoints": true
     }
   ]

@@ -8,10 +8,10 @@ import styles from "./Studio.module.css";
 
 const LINKS = [
   { to: "/studio", label: "Overview", end: true },
-  { to: "/studio/queue", label: "Queue", end: false },
-  { to: "/studio/subscribers", label: "Subscribers", end: false },
+  { to: "/studio/editions", label: "Editions", end: false },
+  { to: "/studio/collectors", label: "Collectors", end: false },
   { to: "/studio/earnings", label: "Earnings", end: false },
-  { to: "/studio/profile", label: "Your page", end: false },
+  { to: "/studio/profile", label: "Profile", end: false },
 ] as const;
 
 /**

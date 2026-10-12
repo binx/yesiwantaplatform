@@ -108,7 +108,7 @@ export function LandingPage() {
   const gallery = useGallery(8);
   const customer = useCustomer();
   const { links, accountHref, accountLabel } = useSiteLinks();
-  const floor = formatMoney(store.pricing.minMonthlyPriceCents, store.currency, store.locale);
+  const floor = formatMoney(store.pricing.minCardPriceCents, store.currency, store.locale);
   const recent = gallery.data?.pages[0]?.cards ?? [];
   const featured = (artists.data ?? []).slice(0, 6);
 
@@ -137,7 +137,7 @@ export function LandingPage() {
               {PITCH_LINES.map((line) => (
                 <li key={line}>{line}</li>
               ))}
-              <li>from {floor} a month, once a month, straight to your letterbox</li>
+              <li>from {floor} a card, in sets of 6 or 12, straight to your letterbox</li>
             </ul>
             <div className={styles.heroActions}>
               <HeroButton href={hero.buttonHref ?? "/artists"}>{hero.buttonLabel ?? "YES I WANT A POSTCARD"}</HeroButton>
@@ -172,22 +172,22 @@ export function LandingPage() {
         <section id="how" className={styles.how}>
           <div className={styles.paths}>
             <div className={styles.path}>
-              <p className={styles.pathKicker}>For subscribers</p>
+              <p className={styles.pathKicker}>For collectors</p>
               <h2 className={styles.pathHeading}>Add a little mail magic to your life</h2>
               <p>
-                An artist you like takes photos, makes pictures, goes places. Instead of posting them, once a month they mail one
-                to everyone who said yes: a real postcard, with a photo they took on the front and a short note on the back.
+                An artist you like takes photos, makes pictures, goes places. Instead of posting them, they make an edition: a set of
+                real postcards, each with a picture on the front and a short note on the back, mailed to you one at a time.
               </p>
               <ol className={styles.steps}>
                 <li>
-                  <strong>Pick an artist.</strong> Each sets their own monthly price.
+                  <strong>Pick an edition.</strong> 6 or 12 cards, paid for once, at the price the artist sets.
                 </li>
                 <li>
-                  <strong>Give us your address.</strong> Once. Change it anytime.
+                  <strong>Give us your address.</strong> And, if you like, the day the first card goes. Change the address anytime.
                 </li>
                 <li>
-                  <strong>Check your letterbox.</strong> Around the same day each month, a card arrives. Cancel whenever; you won't
-                  hurt anyone's feelings.
+                  <strong>Check your letterbox.</strong> A card arrives once or twice a month until the set is done. Nothing renews,
+                  so there's nothing to cancel.
                 </li>
               </ol>
               <Link to="/artists" className={styles.pathAction}>
@@ -198,19 +198,19 @@ export function LandingPage() {
               <p className={styles.pathKicker}>For artists</p>
               <h2 className={styles.pathHeading}>Share your art, build an audience</h2>
               <p>
-                Your best work deserves better than a feed. Once a month, put one picture and a few words in the hands of the people
-                who want to hear from you — no algorithm, nothing online, just a card that arrives.
+                Your best work deserves better than a feed. Put a set of pictures and a few words in the hands of the people who
+                want to hear from you, one card at a time — no algorithm, nothing online, just a card that arrives.
               </p>
               <ol className={styles.steps}>
                 <li>
-                  <strong>Open a studio.</strong> Make your page and set your own monthly price.
+                  <strong>Open a studio.</strong> Make your page, at your own address.
                 </li>
                 <li>
-                  <strong>Queue a card a month.</strong> A photo on the front, your note on the back.
+                  <strong>Make an edition.</strong> 6 or 12 cards, a photo on the front and your note on the back, at a price you set.
                 </li>
                 <li>
-                  <strong>We do the rest.</strong> We print it, mail it to every subscriber, and pay you the difference after
-                  printing and a small fee.
+                  <strong>We do the rest.</strong> We print and mail every card on each collector's schedule, and pay you for each one
+                  sent, after printing and a small fee.
                 </li>
               </ol>
               <Link to="/studio/new" className={styles.pathAction}>
@@ -228,7 +228,7 @@ export function LandingPage() {
             </div>
             <div className={platform.galleryGrid}>
               {recent.map((card) => (
-                <GalleryTile key={card.mailingId} card={card} locale={store.locale} />
+                <GalleryTile key={card.editionCardId} card={card} locale={store.locale} />
               ))}
             </div>
           </>

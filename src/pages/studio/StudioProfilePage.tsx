@@ -1,13 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate, useOutletContext } from "react-router-dom";
-import { Alert, App, Button, Input, InputNumber, Radio, Upload } from "antd";
+import { Alert, App, Button, Input, Radio, Upload } from "antd";
 import { DeleteOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
-import { artistProfileInputSchema, DEFAULT_TERM_MONTHS, MAX_ARTIST_LINKS, type ArtistLink, type ArtistProfileInput, type ArtistVisibility } from "@shared/platform";
-import { formatMoney, parseCents } from "@shared/money";
+import { artistProfileInputSchema, MAX_ARTIST_LINKS, type ArtistLink, type ArtistProfileInput, type ArtistVisibility } from "@shared/platform";
 import type { Image } from "@shared/schema";
-import { artistShareCents } from "@shared/schema";
 import { useCreateArtist, useSlugAvailable, useUpdateProfile, useUploadAvatar, useUploadBanner, type StudioView } from "@/lib/platform";
-import { useStore } from "@/lib/useStore";
 import { useCustomer } from "@/lib/account";
 import { assetUrl } from "@/lib/store-source";
 import { cx } from "@/lib/cx";
@@ -18,9 +15,6 @@ interface Draft {
   name: string;
   tagline: string;
   bio: string;
-  price: string;
-  termMonths: number;
-  sendDay: number;
   visibility: ArtistVisibility;
   avatar: Image | null;
   banner: Image | null;
@@ -37,16 +31,13 @@ function slugify(value: string): string {
 }
 
 /**
- * The page's own form: address, name, a line, the story, the price, the
- * term, the day, and where else to find them.
+ * The page's own form: address, name, a line, the story, the pictures,
+ * and where else to find them. Prices live on editions, not here.
  *
- * Shared by "open a studio" (create) and "your page" (edit): the fields are
- * the same, the only difference is which route gets the result. The price
- * floor and the resulting share are read from the platform's pricing so the
- * artist sees what a card earns before they set anything.
+ * Shared by "open a studio" (create) and "your profile" (edit): the fields
+ * are the same, the only difference is which route gets the result.
  */
 function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit" }) {
-  const store = useStore();
   const navigate = useNavigate();
   const { message } = App.useApp();
   const create = useCreateArtist();
@@ -59,11 +50,6 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
   const pending = mode === "create" ? create : update;
 
   const slugCheck = useSlugAvailable(draft.slug, draft.slug !== initial.slug || mode === "create");
-  const priceCents = parseCents(draft.price);
-  const floor = store.pricing.minMonthlyPriceCents;
-  const priceWrong = priceCents === null || priceCents < floor;
-  const share = priceCents === null ? null : artistShareCents(priceCents, store.pricing);
-  const money = (cents: number) => formatMoney(cents, store.currency, store.locale);
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }));
   const setLink = (index: number, patch: Partial<ArtistLink>) =>
@@ -72,15 +58,11 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
   const addLink = () => setDraft((current) => ({ ...current, links: [...current.links, { label: "", url: "" }] }));
 
   const submit = () => {
-    if (priceCents === null) return;
     const parsed = artistProfileInputSchema.safeParse({
       slug: draft.slug,
       name: draft.name,
       tagline: draft.tagline.trim() || null,
       bio: draft.bio,
-      monthlyPriceCents: priceCents,
-      termMonths: draft.termMonths,
-      sendDay: draft.sendDay,
       visibility: draft.visibility,
       avatar: draft.avatar,
       banner: draft.banner,
@@ -149,36 +131,8 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
         <label className={styles.label} htmlFor="artist-bio">
           Your page
         </label>
-        <Input.TextArea id="artist-bio" value={draft.bio} autoSize={{ minRows: 6 }} maxLength={10_000} placeholder="Who you are, what the postcards will be, why. Markdown works." onChange={(e) => set("bio", e.target.value)} />
+        <Input.TextArea id="artist-bio" value={draft.bio} autoSize={{ minRows: 6 }} maxLength={10_000} placeholder="Who you are, what you make, why postcards. Markdown works." onChange={(e) => set("bio", e.target.value)} />
         <span className={styles.help}>Markdown: **bold**, _italics_, links, headings. Rendered on your page under your name.</span>
-      </div>
-
-      <div className={styles.inline}>
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="artist-price">
-            Monthly price
-          </label>
-          <Input id="artist-price" style={{ width: "10rem" }} prefix={store.currency === "USD" ? "$" : store.currency} inputMode="decimal" value={draft.price} status={priceWrong ? "error" : ""} onChange={(e) => set("price", e.target.value)} />
-          <span className={priceWrong ? styles.error : styles.help}>
-            {priceWrong ? `At least ${money(floor)}: below that a card costs more to send than it brings in.` : share !== null ? `Each card mailed earns you ${money(share)} per subscriber, after ${money(store.pricing.printCostCents)} printing and a ${money(store.pricing.platformFeeCents)} fee.` : ""}
-          </span>
-        </div>
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="artist-term">
-            Subscription length, in months
-          </label>
-          <InputNumber id="artist-term" min={1} max={24} value={draft.termMonths} onChange={(value) => set("termMonths", value ?? DEFAULT_TERM_MONTHS)} />
-          <span className={styles.help}>
-            Subscribers pay month by month and stop after {draft.termMonths} {draft.termMonths === 1 ? "card" : "cards"}. Nobody is billed forever; they can subscribe again.
-          </span>
-        </div>
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="artist-day">
-            Day of the month cards go out
-          </label>
-          <InputNumber id="artist-day" min={1} max={28} value={draft.sendDay} onChange={(value) => set("sendDay", value ?? 15)} />
-          <span className={styles.help}>The default for each card you queue. 28 at most, so February works.</span>
-        </div>
       </div>
 
       <div className={styles.field}>
@@ -197,7 +151,7 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
         <span className={styles.help}>
           {draft.visibility === "public"
             ? "Cards you mail can appear in the site's gallery of recent postcards, with your name on them."
-            : "Your cards stay between you and your subscribers: they show on your own page, but never in the site's gallery."}
+            : "Your cards stay between you and your collectors: they show on your own page, but never in the site's gallery."}
         </span>
       </div>
 
@@ -274,7 +228,7 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
       {error ? <Alert type="error" showIcon title={error} /> : null}
 
       <div className={styles.actions}>
-        <Button type="primary" size="large" loading={pending.isPending} disabled={priceWrong || draft.name.trim() === "" || draft.slug.length < 3} onClick={submit}>
+        <Button type="primary" size="large" loading={pending.isPending} disabled={draft.name.trim() === "" || draft.slug.length < 3} onClick={submit}>
           {mode === "create" ? "Open your studio" : "Save"}
         </Button>
         {mode === "edit" ? (
@@ -289,17 +243,16 @@ function ProfileForm({ initial, mode }: { initial: Draft; mode: "create" | "edit
 
 /** "Open a studio": the form, with a word about what it means first. */
 export function StudioNewPage() {
-  const store = useStore();
   const customer = useCustomer();
 
   return (
     <div>
       <h1>Open a studio</h1>
       <p style={{ maxWidth: "40rem" }}>
-        You get a page at your own address. People subscribe for a monthly price you set, for a fixed number of months. Once a month you queue a postcard — a photo
-        you took and a note — and we print it and mail it to every one of them. After printing and a small fee, the rest is yours.
+        You get a page at your own address. On it you sell editions: sets of 6 or 12 postcards — photos you took, each with a note — that collectors buy once
+        and receive one by one, once or twice a month. We print and mail every card. After printing and a small fee, the rest is yours.
       </p>
-      <p style={{ maxWidth: "40rem" }}>Your page starts as a draft. Nobody sees it until you go live.</p>
+      <p style={{ maxWidth: "40rem" }}>Your page starts as a draft. Nobody sees it until you put an edition on sale and go live.</p>
       <ProfileForm
         mode="create"
         initial={{
@@ -307,9 +260,6 @@ export function StudioNewPage() {
           name: customer.data?.name ?? "",
           tagline: "",
           bio: "",
-          price: (Math.max(store.pricing.minMonthlyPriceCents, 500) / 100).toFixed(2),
-          termMonths: DEFAULT_TERM_MONTHS,
-          sendDay: 15,
           visibility: "public",
           avatar: null,
           banner: null,
@@ -320,14 +270,14 @@ export function StudioNewPage() {
   );
 }
 
-/** "Your page": the same form, filled in. */
+/** "Your profile": the same form, filled in. */
 export function StudioProfilePage() {
   const view = useOutletContext<StudioView>();
   const { artist } = view;
 
   return (
     <div>
-      <h2>Your page</h2>
+      <h2>Your profile</h2>
       <ProfileForm
         mode="edit"
         initial={{
@@ -335,9 +285,6 @@ export function StudioProfilePage() {
           name: artist.name,
           tagline: artist.tagline ?? "",
           bio: artist.bio,
-          price: (artist.monthlyPriceCents / 100).toFixed(2),
-          termMonths: artist.termMonths,
-          sendDay: artist.sendDay,
           visibility: artist.visibility,
           avatar: artist.avatar,
           banner: artist.banner,
@@ -345,7 +292,7 @@ export function StudioProfilePage() {
         }}
       />
       <p className={cx(styles.note)} style={{ marginTop: "1.5rem" }}>
-        Changing your price or subscription length affects new subscribers only. Everyone already subscribed keeps the price and the number of months they signed up for.
+        Prices, sizes and schedules belong to each edition. <Link to="/studio/editions">Your editions</Link>.
       </p>
     </div>
   );

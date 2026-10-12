@@ -12,6 +12,7 @@ const routes: [name: string, path: string][] = [
   ["artists", "/artists"],
   ["gallery", "/gallery"],
   ["unknown artist", "/artist/nobody-by-this-name"],
+  ["unknown edition", "/artist/nobody-by-this-name/nothing"],
   ["404", "/no-such-page-here"],
   ["customer sign-in", "/account/login"],
   ["customer registration", "/account/register"],
@@ -35,7 +36,7 @@ test.describe("admin, signed in", () => {
   const adminRoutes: [name: string, path: string][] = [
     ["overview", "/admin"],
     ["artists", "/admin/artists"],
-    ["mailings", "/admin/mailings"],
+    ["editions", "/admin/editions"],
     ["payouts", "/admin/payouts"],
     ["people", "/admin/customers"],
     ["pages", "/admin/pages"],

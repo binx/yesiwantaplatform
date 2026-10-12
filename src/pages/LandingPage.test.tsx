@@ -15,8 +15,8 @@ vi.mock("@/lib/platform", async (importOriginal) => {
 
 vi.mock("@/lib/account", () => ({ useCustomer: () => ({ data: null }) }));
 
-const withHero = (hero: Partial<typeof defaultHero>, minMonthlyPriceCents = 300) =>
-  storeSchema.parse({ ...demoStore, pricing: { ...demoStore.pricing, minMonthlyPriceCents }, hero: { ...defaultHero, ...hero } });
+const withHero = (hero: Partial<typeof defaultHero>, minCardPriceCents = 300) =>
+  storeSchema.parse({ ...demoStore, pricing: { ...demoStore.pricing, minCardPriceCents }, hero: { ...defaultHero, ...hero } });
 
 describe("the landing page", () => {
   it("titles the page with the wordmark and a button to the artists", () => {
@@ -27,7 +27,7 @@ describe("the landing page", () => {
 
   it("prints the price floor from settings, never from prose", () => {
     renderWithProviders(<LandingPage />, { store: withHero({}, 475) });
-    expect(screen.getAllByText(/\$4\.75/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/from \$4\.75 a card/)).toBeInTheDocument();
   });
 
   it("renders every field the operator has set", () => {

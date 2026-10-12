@@ -36,7 +36,7 @@ export function AccountCollectionPage() {
   if (!collection) {
     return (
       <p className={cx(styles.empty)}>
-        That isn't one of your collections. <Link to="/account">Back to your collections</Link>.
+        That isn't one of your collections. <Link to="/account/collections">Back to your collections</Link>.
       </p>
     );
   }
@@ -44,7 +44,7 @@ export function AccountCollectionPage() {
   return (
     <div>
       <p className={cx(styles.meta)}>
-        <Link to="/account">← Collections</Link>
+        <Link to="/account/collections">← Collections</Link>
       </p>
       <CollectionDetail collection={collection} locale={store.locale} />
       <p className={cx(styles.meta)}>Need to stop this collection early? Get in touch and we'll refund the cards still to come.</p>

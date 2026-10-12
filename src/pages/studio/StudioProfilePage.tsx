@@ -324,9 +324,6 @@ export function StudioProfilePage() {
     <div>
       <div className={styles.sectionHeader}>
         <h2>Your profile</h2>
-        <p className={styles.note}>
-          Prices, sizes and schedules belong to each edition. <Link to="/studio/editions">Your editions</Link>.
-        </p>
       </div>
       <ProfileForm
         mode="edit"

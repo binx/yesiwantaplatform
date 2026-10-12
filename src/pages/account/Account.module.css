@@ -221,6 +221,27 @@
   margin: 0 0 0.5rem;
 }
 
+/* The studio is the artist's half of the platform, so it leads, in ink. */
+.studioCard {
+  border-color: var(--beluga-ink);
+}
+
+/* A word about the email, in the text's own ink rather than a pale tint. */
+.badge {
+  display: inline-block;
+  margin-left: 0.25rem;
+  padding: 0 0.4rem;
+  border: 1px solid currentcolor;
+  border-radius: 2px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--beluga-ink);
+}
+
+.badgeWarn {
+  color: var(--beluga-accent);
+}
+
 .actions {
   display: flex;
   align-items: center;

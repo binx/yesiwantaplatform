@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Alert, App, Button, Form, Input, Tag } from "antd";
+import { Alert, App, Button, Form, Input } from "antd";
 import type { Recipient } from "@shared/postcards";
 import { formatRecipient } from "@shared/postcards";
 import { RecipientFields } from "@/components/postcard/RecipientFields";
@@ -11,8 +11,8 @@ import { cx } from "@/lib/cx";
 import styles from "./Account.module.css";
 
 /**
- * The rest of the account, on one page: who you are, where your cards go,
- * and the way out.
+ * The account's front page: your studio if you have one, who you are,
+ * where your cards go, and the way out.
  *
  * The address is one per account. Checkout starts from it and, when the set
  * is the collector's own, saves what was typed back to it. Changing it here
@@ -30,20 +30,32 @@ export function AccountSettingsPage() {
 
   return (
     <div>
+      {profile.artistSlug ? (
+        <section className={cx(styles.card, styles.studioCard)} aria-labelledby="settings-studio">
+          <h2 id="settings-studio" className={styles.settingsTitle}>
+            Your studio
+          </h2>
+          <p className={styles.settingsRow}>
+            <span>
+              Editions and payouts are in your studio. Your artist page is{" "}
+              <Link to={`/artist/${profile.artistSlug}`}>/artist/{profile.artistSlug}</Link>.
+            </span>
+            <Link to="/studio">
+              <Button type="primary">Open your studio</Button>
+            </Link>
+          </p>
+        </section>
+      ) : null}
+
       <section className={cx(styles.card)} aria-labelledby="settings-you">
         <h2 id="settings-you" className={styles.settingsTitle}>
           You
         </h2>
         <NameRow name={profile.name} />
         <p className={cx(styles.meta)}>
-          {profile.email} {profile.emailVerified ? <Tag color="green">Verified</Tag> : <Tag color="gold">Not verified</Tag>}
+          {profile.email}{" "}
+          {profile.emailVerified ? <span className={styles.badge}>Verified</span> : <span className={cx(styles.badge, styles.badgeWarn)}>Not verified</span>}
         </p>
-        {profile.artistSlug ? (
-          <p className={cx(styles.meta)}>
-            You also have a studio. Your artist page is at <Link to={`/artist/${profile.artistSlug}`}>/artist/{profile.artistSlug}</Link>; editions and payouts are in{" "}
-            <Link to="/studio">your studio</Link>.
-          </p>
-        ) : null}
       </section>
 
       <section className={cx(styles.card)} aria-labelledby="settings-address">
@@ -123,23 +135,18 @@ function AddressSection({ address, fallbackName }: { address: Recipient | null; 
 
   if (!editing) {
     return (
-      <>
-        <p className={styles.settingsRow}>
-          {address ? (
-            <span>
-              <strong>{address.name}</strong>, {formatRecipient(address, store.locale)}
-            </span>
-          ) : (
-            <span className={cx(styles.meta)}>No address yet. Collecting an edition asks for one.</span>
-          )}
-          <Button size="small" onClick={() => setEditing(true)}>
-            {address ? "Change address" : "Add an address"}
-          </Button>
-        </p>
-        <p className={cx(styles.meta)}>
-          Collecting an edition starts from this address. A set sent to someone else keeps its own; where each one goes is on its page under <Link to="/account">Collections</Link>.
-        </p>
-      </>
+      <p className={styles.settingsRow}>
+        {address ? (
+          <span>
+            <strong>{address.name}</strong>, {formatRecipient(address, store.locale)}
+          </span>
+        ) : (
+          <span className={cx(styles.meta)}>No address yet.</span>
+        )}
+        <Button size="small" onClick={() => setEditing(true)}>
+          {address ? "Change address" : "Add an address"}
+        </Button>
+      </p>
     );
   }
 

@@ -88,7 +88,7 @@ export function StudioOverviewPage() {
         <h2>{artist.status === "live" ? "You're live" : artist.status === "paused" ? "You're paused" : "Ready to go live?"}</h2>
         <p className={styles.note}>
           {artist.status === "live"
-            ? `Pausing takes you out of the directory and stops new collectors. Your page stays up at its address. ${KEEPS_EVERY_CARD} You're paid for each one as it's mailed, and you can go live again whenever you like.`
+            ? `Pausing takes you out of the directory and stops new collectors. ${KEEPS_EVERY_CARD}`
             : artist.status === "paused"
               ? `You're out of the directory and nobody new can collect. ${KEEPS_EVERY_CARD} You're paid for each one as it's mailed.`
               : onSale === 0

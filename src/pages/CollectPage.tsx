@@ -242,7 +242,7 @@ export function CollectPage() {
               type="error"
               showIcon
               title={collect.error instanceof Error ? collect.error.message : "Something went wrong."}
-              description={collect.error instanceof ApiError && collect.error.status === 409 ? <Link to="/account">Your collections</Link> : null}
+              description={collect.error instanceof ApiError && collect.error.status === 409 ? <Link to="/account/collections">Your collections</Link> : null}
             />
           ) : null}
 

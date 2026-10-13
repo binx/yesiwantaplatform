@@ -148,7 +148,7 @@ export async function sendPostcardSentEmail(
     cardCount: locals.cardCount,
     recipientName: locals.recipientName,
     expectedDelivery: locals.expectedDeliveryDate ? formatDay(locals.expectedDeliveryDate, store.locale) : null,
-    postcardsUrl: url("/account/postcards"),
+    accountUrl: url("/account/collections"),
   });
 }
 

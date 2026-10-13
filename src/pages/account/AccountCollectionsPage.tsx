@@ -9,10 +9,11 @@ import { cx } from "@/lib/cx";
 import styles from "./Account.module.css";
 
 /**
- * The account's front page: each edition this person collects, as one line
- * of progress — how many cards have gone, when the next one does, and who
- * it is mailed to, since a set can be a gift. The whole schedule and the
- * receipt are on the collection's own page.
+ * Each edition this person collects, as one line of progress — a bar of
+ * how many cards have gone, when the next one does, and who it is mailed
+ * to, since a set can be a gift. The cards themselves are not shown: they
+ * arrive in the mail. The whole schedule and the receipt are on the
+ * collection's own page.
  *
  * There is nothing to cancel: an edition is paid for once and ends on its
  * own, and a refund is something the platform does.
@@ -40,9 +41,9 @@ export function AccountCollectionsPage() {
   );
 }
 
-/** How far along a run is: "2 of 6 sent · next on 15 Nov". */
+/** How far along a run is: "2 of 6 mailed · next on 15 Nov". */
 function progress(collection: Collection, locale: string): string {
-  const sent = `${collection.sentCount} of ${collection.cardCount} sent`;
+  const sent = `${collection.sentCount} of ${collection.cardCount} mailed`;
   if (collection.status === "refunded") return `${sent} · refunded`;
   if (collection.nextMailDate) return `${sent} · next on ${formatShortDate(collection.nextMailDate, locale)}`;
   return sent;
@@ -61,12 +62,24 @@ function CollectionCard({ collection, locale }: { collection: Collection; locale
             </Link>{" "}
             by <Link to={artistPath(collection.artist.slug)}>{collection.artist.name}</Link> <Tag color={color}>{purchaseStatusLabel(collection.status)}</Tag>
           </p>
+          <ProgressBar sent={collection.sentCount} total={collection.cardCount} />
           <p className={cx(styles.meta)}>
             {editionShape(collection.cardCount, collection.cadence)} · {progress(collection, locale)}
           </p>
           <p className={cx(styles.meta)}>Mailed to {collection.address.name}</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** One segment per card, filled for each one mailed. */
+function ProgressBar({ sent, total }: { sent: number; total: number }) {
+  return (
+    <div className={styles.progress} role="progressbar" aria-label="Cards mailed" aria-valuemin={0} aria-valuemax={total} aria-valuenow={sent} aria-valuetext={`${sent} of ${total} mailed`}>
+      {Array.from({ length: total }, (_, index) => (
+        <span key={index} className={cx(styles.progressStep, index < sent && styles.progressStepDone)} />
+      ))}
     </div>
   );
 }

@@ -125,6 +125,24 @@
   margin: 0;
 }
 
+/* One segment per card in the set, filled as each is mailed. */
+.progress {
+  display: flex;
+  gap: 3px;
+  max-width: 18rem;
+  margin: 0.5rem 0 0.375rem;
+}
+
+.progressStep {
+  flex: 1 1 0;
+  height: 6px;
+  background: var(--beluga-line);
+}
+
+.progressStepDone {
+  background: var(--beluga-ink);
+}
+
 .scheduleTable {
   composes: table;
   font-size: 0.875rem;
@@ -132,77 +150,6 @@
 
 .scheduleTable td {
   padding: 0.5rem 0.25rem;
-}
-
-/* --------------------------------------------------------------- postcards */
-
-.postcardList {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 1.5rem;
-}
-
-.postcardRow {
-  display: grid;
-  grid-template-columns: minmax(6rem, 10rem) minmax(0, 1fr);
-  gap: 1.25rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--beluga-line);
-}
-
-.postcardThumb img,
-.postcardThumb [role="img"] {
-  border: 1px solid var(--beluga-line);
-  box-shadow: 3px 3px 8px rgb(0 0 0 / 12%);
-}
-
-.postcardBody p {
-  margin: 0 0 0.35rem;
-}
-
-.postcardTitle {
-  font-size: 1.0625rem;
-}
-
-.postcardNote {
-  margin-top: 0.5rem !important;
-  white-space: pre-wrap;
-  font-size: 1.125rem;
-  line-height: 1.4;
-}
-
-.postcardValediction {
-  display: block;
-  text-align: right;
-}
-
-.timeline {
-  margin: 0.5rem 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 0.8125rem;
-}
-
-.timelineStep {
-  display: flex;
-  gap: 0.5rem;
-  align-items: baseline;
-  color: var(--beluga-muted);
-}
-
-.timelineStep:last-child {
-  color: var(--beluga-ink);
-}
-
-.timelineBad {
-  color: #b45309;
-}
-
-.timelineDay {
-  flex: 0 0 3.5rem;
-  font-variant-numeric: tabular-nums;
 }
 
 /* ---------------------------------------------------------------- settings */
@@ -258,10 +205,6 @@
 }
 
 @media (max-width: 480px) {
-  .postcardRow {
-    grid-template-columns: 1fr;
-  }
-
   .collectionHead {
     flex-direction: column;
   }

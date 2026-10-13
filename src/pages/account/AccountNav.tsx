@@ -5,12 +5,10 @@ import styles from "./Account.module.css";
 const LINKS = [
   { to: "/account", label: "Settings" },
   { to: "/account/collections", label: "Collections" },
-  { to: "/account/postcards", label: "Mailed" },
 ] as const;
 
 /**
- * The account's tabs: who you are, what you collect, and what has been
- * mailed. An artist's studio is its own section, reached from the site's
+ * The account's tabs: who you are and what you collect. An artist's studio is its own section, reached from the site's
  * header and from Settings, so it is not a tab here.
  *
  * Settings is the index, so it is active only on /account itself; a

@@ -9,7 +9,7 @@ import type {
   MailingAddressInput,
   ResetPasswordInput,
 } from "@shared/account";
-import type { Collection, ReceivedPostcard } from "@shared/platform";
+import type { Collection } from "@shared/platform";
 import type { Verification } from "@shared/postcards";
 import { apiGet, clearCsrfToken, csrfDelete, csrfPost, csrfPut, setCsrfToken } from "./api";
 
@@ -22,7 +22,6 @@ import { apiGet, clearCsrfToken, csrfDelete, csrfPost, csrfPut, setCsrfToken } f
  */
 export const customerQueryKey = ["account"] as const;
 const collectionsQueryKey = ["account", "collections"] as const;
-const postcardsQueryKey = ["account", "postcards"] as const;
 
 async function fetchCustomer(signal?: AbortSignal): Promise<CustomerProfile | null> {
   const session = await apiGet<CustomerSession>("/account", signal);
@@ -130,16 +129,6 @@ export function useCollections(enabled = true): UseQueryResult<Collection[]> {
   return useQuery({
     queryKey: collectionsQueryKey,
     queryFn: ({ signal }) => apiGet<Collection[]>("/account/collections", signal),
-    enabled,
-  });
-}
-
-/* --------------------------------------------------------------- postcards */
-
-export function useReceivedPostcards(enabled = true): UseQueryResult<ReceivedPostcard[]> {
-  return useQuery({
-    queryKey: postcardsQueryKey,
-    queryFn: ({ signal }) => apiGet<ReceivedPostcard[]>("/account/postcards", signal),
     enabled,
   });
 }

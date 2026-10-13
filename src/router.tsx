@@ -87,8 +87,8 @@ export const router = createBrowserRouter([
               { index: true, lazy: async () => ({ Component: (await import("./pages/account/AccountSettingsPage")).AccountSettingsPage }) },
               { path: "collections", lazy: async () => ({ Component: (await import("./pages/account/AccountCollectionsPage")).AccountCollectionsPage }) },
               { path: "collections/:id", lazy: async () => ({ Component: (await import("./pages/account/AccountCollectionPage")).AccountCollectionPage }) },
-              { path: "postcards", lazy: async () => ({ Component: (await import("./pages/account/AccountPostcardsPage")).AccountPostcardsPage }) },
               // Where these used to be, for old links and bookmarks.
+              { path: "postcards", element: <Navigate to="/account/collections" replace /> },
               { path: "settings", element: <Navigate to="/account" replace /> },
               { path: "address", element: <Navigate to="/account" replace /> },
             ],

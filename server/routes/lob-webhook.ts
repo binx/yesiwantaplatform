@@ -16,8 +16,7 @@ import { env, hasLobWebhook } from "../env.js";
  * reads the exact bytes. Events are deduplicated in the same table as
  * Stripe's, prefixed, because both providers' ids begin `evt_`.
  *
- * Nothing here sends an email. The timeline lives on the postcards page the
- * collector already has; a day-by-day feed of USPS scans is noise.
+ * Nothing here sends an email: a day-by-day feed of USPS scans is noise.
  */
 export const lobWebhookRouter: Router = Router();
 

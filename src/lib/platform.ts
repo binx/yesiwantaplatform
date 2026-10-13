@@ -108,7 +108,7 @@ export function useCheckoutCollection(sessionId: string | null): UseQueryResult<
 
 export interface StudioView {
   artist: ArtistStudio;
-  editionCounts: { draft: number; onSale: number; closed: number };
+  editionCounts: { draft: number; inReview: number; onSale: number; closed: number };
   earnings: { pendingCents: number; paidCents: number; currency: string };
   /** The platform's numbers, for the edition form's "each card earns you" line. */
   pricing: Pricing | null;
@@ -161,6 +161,15 @@ export function useSetArtistStatus() {
   const invalidate = useInvalidateStudio();
   return useMutation({
     mutationFn: (status: "live" | "paused") => csrfPost<StudioView>("/studio/status", { status }),
+    onSuccess: invalidate,
+  });
+}
+
+/** After a decline: ask the admin to look at the page again. */
+export function useRequestArtistReview() {
+  const invalidate = useInvalidateStudio();
+  return useMutation({
+    mutationFn: () => csrfPost<StudioView>("/studio/review", {}),
     onSuccess: invalidate,
   });
 }

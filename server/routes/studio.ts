@@ -19,6 +19,7 @@ import {
   createArtist,
   findArtistByCustomer,
   getArtist,
+  requestArtistReview,
   setArtistStatus,
   slugIsTaken,
   updateArtistProfile,
@@ -44,13 +45,15 @@ import {
   listEditionsForArtist,
   replaceEditionCards,
   setEditionStatus,
+  submitEditionForReview,
   updateDraftEdition,
   updateEditionWords,
   type EditionRecord,
 } from "../../db/editions-repository.js";
 import { editionHasPurchases } from "../../db/purchases-repository.js";
 import { sumEarningsForArtist } from "../../db/payouts-repository.js";
-import { findCustomerById } from "../auth.js";
+import { findCustomerById, listAdminEmails } from "../auth.js";
+import { sendReviewRequestedEmail, type ReviewSubject } from "../email.js";
 import { createOnboardingLink, ensureConnectAccount, refreshConnectStatus } from "../connect.js";
 import { httpError, requireCustomer, uploadRateLimit, verifyCsrf, writeRateLimit } from "../middleware.js";
 import { classifyStripeError, StripeNotConfiguredError } from "../stripe.js";
@@ -99,7 +102,18 @@ async function assertPriceAllowed(input: Pick<EditionInput, "priceCents" | "card
   }
 }
 
-/** Become an artist: one page per account. */
+/**
+ * Tell every administrator something is waiting. Never awaited by a
+ * handler: the artist's request has already succeeded, and a mail server's
+ * hiccup is logged by the mailer, not answered to them.
+ */
+function notifyAdmins(subject: ReviewSubject): void {
+  void listAdminEmails()
+    .then((emails) => sendReviewRequestedEmail(emails, subject))
+    .catch((error: unknown) => console.error("Could not tell the admin about a review:", error));
+}
+
+/** Become an artist: one page per account. It opens pending review, and the admin hears about it. */
 studioRouter.post("/", async (req, res) => {
   const existing = await findArtistByCustomer(req.session.customerId!);
   if (existing) throw httpError(409, "You already have an artist page.");
@@ -109,6 +123,7 @@ studioRouter.post("/", async (req, res) => {
 
   try {
     const artist = await createArtist(req.session.customerId!, parsed.data);
+    notifyAdmins({ kind: "artist", artistName: artist.name, artistSlug: artist.slug });
     res.status(201).json(await studioView(artist, req.session.customerId!));
   } catch (error) {
     toHttp(error);
@@ -152,6 +167,7 @@ async function studioView(artist: ArtistRecord, customerId: string) {
     artist: toArtistStudio(artist, customer?.email ?? "", counts.get(artist.id) ?? { collectors: 0, mailed: 0 }, currency),
     editionCounts: {
       draft: editions.filter((edition) => edition.status === "draft").length,
+      inReview: editions.filter((edition) => edition.status === "in_review").length,
       onSale: editions.filter((edition) => edition.status === "on_sale").length,
       closed: editions.filter((edition) => edition.status === "closed").length,
     },
@@ -207,9 +223,21 @@ function storeProfileImage(req: Request, res: Response, next: NextFunction): voi
 studioRouter.post("/avatar", uploadRateLimit, storeProfileImage);
 studioRouter.post("/banner", uploadRateLimit, storeProfileImage);
 
+/** After a decline: the page is changed, ask the admin to look again. */
+artistRouter.post("/review", async (req, res) => {
+  const artist = artistOf(res);
+  if (artist.reviewStatus === "pending") throw httpError(409, "Your page is already waiting for review.");
+  if (artist.reviewStatus === "approved") throw httpError(409, "Your page is approved.");
+  if (!(await requestArtistReview(artist.id))) throw httpError(409, "Your page has just been reviewed. Reload and try again.");
+  notifyAdmins({ kind: "artist", artistName: artist.name, artistSlug: artist.slug });
+  const updated = await getArtist(artist.id);
+  res.json(await studioView(updated ?? artist, req.session.customerId!));
+});
+
 /**
- * Go live, or pause. Going live needs a page worth visiting: at least one
- * edition on sale, so a visitor has something to collect.
+ * Go live, or pause. Going live needs the admin's yes to the page and a
+ * page worth visiting: at least one edition on sale, so a visitor has
+ * something to collect.
  */
 artistRouter.post("/status", async (req, res) => {
   const parsed = z.object({ status: artistStatusSchema.exclude(["draft"]) }).safeParse(req.body);
@@ -217,6 +245,7 @@ artistRouter.post("/status", async (req, res) => {
   const artist = artistOf(res);
 
   if (parsed.data.status === "live" && artist.status !== "live") {
+    if (artist.reviewStatus !== "approved") throw httpError(409, "Your page is waiting for review. You can go live once it's approved.");
     const onSale = await listEditionsForArtist(artist.id, ["on_sale"]);
     if (onSale.length === 0) {
       throw httpError(409, "Put an edition on sale before going live, so your first visitor has something to collect.");
@@ -364,13 +393,15 @@ artistRouter.post("/editions", async (req, res) => {
  * Change an edition. A draft can change anything; past that only its words
  * can, because collectors paid for the cards, size and price as
  * they are. A change to those on a sold edition is refused rather than
- * quietly dropped.
+ * quietly dropped. One in review changes nothing: the admin is looking at
+ * it as it is, and the artist takes it back to a draft to change it.
  */
 artistRouter.put("/editions/:id", async (req, res) => {
   const artist = artistOf(res);
   const edition = await editionOf(res, req.params.id);
   const parsed = editionInputSchema.safeParse(req.body);
   if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "That edition could not be used.");
+  if (edition.status === "in_review") throw httpError(409, "This edition is being reviewed. Take it back to a draft to change it.");
 
   try {
     if (edition.status === "draft") {
@@ -401,6 +432,7 @@ artistRouter.put("/editions/:id/cards", async (req, res) => {
   const edition = await editionOf(res, req.params.id);
   const parsed = editionCardsInputSchema.safeParse(req.body);
   if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "Those cards could not be used.");
+  if (edition.status === "in_review") throw httpError(409, "This edition is being reviewed. Take it back to a draft to change its cards.");
   if (edition.status !== "draft") throw httpError(409, "This edition is on sale, so its cards are fixed.");
   if (parsed.data.cards.length > edition.cardCount) throw httpError(400, `This edition holds ${edition.cardCount} cards.`);
 
@@ -416,32 +448,40 @@ artistRouter.put("/editions/:id/cards", async (req, res) => {
 /**
  * Move an edition along.
  *
- *   on_sale  needs every card in place, a banner, and a price the platform can print at
- *   draft    only while nobody has bought it, even an abandoned checkout
- *   closed   from on sale; collectors who paid still get every card
+ *   in_review  from draft, with every card in place, a banner, and a price
+ *              the platform can print at. The admin takes it from here
+ *   on_sale    only to reopen a closed one: the first time is the admin's
+ *   draft      from review any time; from on sale or closed only while
+ *              nobody has bought it, even an abandoned checkout
+ *   closed     from on sale; collectors who paid still get every card
  */
 artistRouter.post("/editions/:id/status", async (req, res) => {
   const artist = artistOf(res);
   const edition = await editionOf(res, req.params.id);
   const parsed = z.object({ status: editionStatusSchema }).safeParse(req.body);
-  if (!parsed.success) throw httpError(400, "Choose draft, on sale or closed.");
+  if (!parsed.success) throw httpError(400, "Choose draft, in review, on sale or closed.");
   const to = parsed.data.status;
   let moved: boolean;
 
-  if (to === "on_sale") {
+  if (to === "in_review") {
     const cards = await listCardsForEdition(edition.id);
     if (cards.length !== edition.cardCount) {
-      throw httpError(409, `Add all ${edition.cardCount} cards before putting this edition on sale. It has ${cards.length}.`);
+      throw httpError(409, `Add all ${edition.cardCount} cards before sending this edition for review. It has ${cards.length}.`);
     }
     // The cards are a surprise, so the banner is what a visitor sees instead.
-    if (!edition.banner) throw httpError(409, "Add a banner before putting this edition on sale: it's what visitors see in place of the cards.");
+    if (!edition.banner) throw httpError(409, "Add a banner before sending this edition for review: it's what visitors see in place of the cards.");
     await assertPriceAllowed(edition);
-    moved = await setEditionStatus(edition.id, ["draft", "closed"], "on_sale");
+    moved = await submitEditionForReview(edition.id, artist.id);
+    if (moved) notifyAdmins({ kind: "edition", artistName: artist.name, artistSlug: artist.slug, title: edition.title, shape: `${edition.cardCount} cards` });
+  } else if (to === "on_sale") {
+    if (edition.status === "draft") throw httpError(409, "Send this edition for review first. It goes on sale once it's approved.");
+    if (edition.status === "in_review") throw httpError(409, "This edition is being reviewed. It goes on sale once it's approved.");
+    moved = await setEditionStatus(edition.id, ["closed"], "on_sale");
   } else if (to === "draft") {
-    if (edition.status !== "draft" && (await editionHasPurchases(edition.id))) {
+    if (edition.status !== "draft" && edition.status !== "in_review" && (await editionHasPurchases(edition.id))) {
       throw httpError(409, "Someone has bought this edition, or is checking out with it now, so it can't go back to being a draft. Close it instead, and start a new one.");
     }
-    moved = await setEditionStatus(edition.id, ["on_sale", "closed"], "draft");
+    moved = await setEditionStatus(edition.id, ["in_review", "on_sale", "closed"], "draft");
   } else {
     moved = await setEditionStatus(edition.id, ["on_sale"], "closed");
   }

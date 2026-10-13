@@ -44,6 +44,20 @@ export function AccountSettingsPage() {
               <Button type="primary">View your studio</Button>
             </Link>
           </p>
+          {profile.artistReviewStatus === "pending" || profile.artistReviewStatus === "declined" || profile.editionsInReview > 0 ? (
+            <p className={cx(styles.meta)} role="status">
+              {profile.artistReviewStatus === "pending" ? (
+                <span className={cx(styles.badge, styles.badgeWarn)}>Your page is waiting for review</span>
+              ) : profile.artistReviewStatus === "declined" ? (
+                <span className={cx(styles.badge, styles.badgeWarn)}>Your page wasn't approved</span>
+              ) : null}
+              {profile.editionsInReview > 0 ? (
+                <span className={cx(styles.badge, styles.badgeWarn)}>
+                  {profile.editionsInReview === 1 ? "An edition is" : `${profile.editionsInReview} editions are`} waiting for review
+                </span>
+              ) : null}
+            </p>
+          ) : null}
         </section>
       ) : null}
 

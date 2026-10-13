@@ -12,7 +12,7 @@ import styles from "./Studio.module.css";
 
 /** "on sale", in a tag the colour of the state. */
 export function EditionStatusTag({ status }: { status: EditionStatus }) {
-  const [color, label] = status === "on_sale" ? ["green", "On sale"] : status === "closed" ? ["gold", "Closed"] : ["default", "Draft"];
+  const [color, label] = status === "on_sale" ? ["green", "On sale"] : status === "closed" ? ["gold", "Closed"] : status === "in_review" ? ["blue", "In review"] : ["default", "Draft"];
   return <Tag color={color}>{label}</Tag>;
 }
 
@@ -74,12 +74,16 @@ function EditionRow({ edition }: { edition: EditionStudio }) {
         </p>
         <p className={styles.note}>
           {edition.status === "draft"
-            ? missing > 0
-              ? `${edition.cards.length} of ${edition.cardCount} cards chosen.`
-              : edition.banner
-                ? "Every card chosen. Ready to put on sale."
-                : "Every card chosen. Add a banner to put it on sale."
-            : `${edition.collectorCount} ${edition.collectorCount === 1 ? "collector" : "collectors"} · ${edition.sentCount} sent · ${edition.scheduledCount} to come`}
+            ? edition.reviewNote
+              ? "Not approved. See the note on it."
+              : missing > 0
+                ? `${edition.cards.length} of ${edition.cardCount} cards chosen.`
+                : edition.banner
+                  ? "Every card chosen. Ready to send for review."
+                  : "Every card chosen. Add a banner to send it for review."
+            : edition.status === "in_review"
+              ? "Being reviewed."
+              : `${edition.collectorCount} ${edition.collectorCount === 1 ? "collector" : "collectors"} · ${edition.sentCount} sent · ${edition.scheduledCount} to come`}
         </p>
       </div>
     </li>

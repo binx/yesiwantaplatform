@@ -1,0 +1,24 @@
+<h1 style="margin:0 0 12px;font-size:24px;font-weight:600;">
+  {{#if approved}}{{#if (eq kind "artist")}}Your studio is approved{{else}}{{title}} is on sale{{/if}}{{else}}{{#if (eq kind "artist")}}Your studio wasn't approved{{else}}{{title}} wasn't approved{{/if}}{{/if}}
+</h1>
+<p style="margin:0 0 8px;color:#52525b;line-height:1.6;">
+  {{#if approved}}
+    {{#if (eq kind "artist")}}
+      {{store.name}} looked at your page and it's good to go. Send an edition for review, and once one is on sale you can go live.
+    {{else}}
+      {{store.name}} looked at <strong style="color:#18181b;">{{title}}</strong> and it's on sale now. If your page isn't live yet, go live from your studio and people can start collecting it.
+    {{/if}}
+  {{else}}
+    {{#if (eq kind "artist")}}
+      {{store.name}} looked at your page and can't list it as it is. Change what's needed, then ask for another look from your studio.
+    {{else}}
+      {{store.name}} looked at <strong style="color:#18181b;">{{title}}</strong> and can't put it on sale as it is. It's back to a draft: change what's needed and send it again.
+    {{/if}}
+  {{/if}}
+</p>
+{{#if note}}
+<blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid {{store.colorAccent}};color:#18181b;white-space:pre-wrap;">{{note}}</blockquote>
+{{/if}}
+<p style="margin:16px 0 0;">
+  <a href="{{studioUrl}}" style="color:#18181b;">Open your studio</a>
+</p>

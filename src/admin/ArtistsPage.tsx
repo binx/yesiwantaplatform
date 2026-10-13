@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Empty, Segmented, Skeleton, Table, Tag } from "antd";
-import type { ArtistStatus } from "@shared/platform";
+import type { ArtistReviewStatus, ArtistStatus } from "@shared/platform";
 import { useAdminArtists, useStoreLocale, type AdminArtist } from "./queries";
 import { PageHeader } from "./RequireAdmin";
 import { formatDay } from "@/lib/postcards";
@@ -10,6 +10,10 @@ type Filter = ArtistStatus | "all";
 
 function statusColor(status: ArtistStatus): string {
   return status === "live" ? "green" : status === "paused" ? "gold" : "default";
+}
+
+function reviewColor(status: ArtistReviewStatus): string {
+  return status === "approved" ? "green" : status === "declined" ? "red" : "gold";
 }
 
 /** Every artist on the platform, whatever state their page is in. */
@@ -37,6 +41,7 @@ export function ArtistsPage() {
             { title: "Name", dataIndex: "name", render: (name: string, artist) => <Link to={`/admin/artists/${artist.id}`}>{name}</Link> },
             { title: "Address", dataIndex: "slug", render: (slug: string) => `/artist/${slug}` },
             { title: "Status", dataIndex: "status", render: (status: ArtistStatus) => <Tag color={statusColor(status)}>{status}</Tag> },
+            { title: "Review", dataIndex: "reviewStatus", render: (status: ArtistReviewStatus) => <Tag color={reviewColor(status)}>{status}</Tag> },
             { title: "Collectors", dataIndex: "collectorCount", align: "right" },
             { title: "Mailed", dataIndex: "mailedCount", align: "right" },
             { title: "Payouts", dataIndex: "payoutsEnabled", render: (enabled: boolean, artist) => (enabled ? <Tag color="green">ready</Tag> : artist.hasStripeAccount ? <Tag color="gold">onboarding</Tag> : <Tag>not set up</Tag>) },

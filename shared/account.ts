@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { recipientSchema } from "./postcards.js";
+import { artistReviewStatusSchema } from "./platform.js";
 
 /**
  * Customer accounts.
@@ -75,6 +76,10 @@ export const customerProfileSchema = z.object({
   address: recipientSchema.nullable().default(null),
   /** Set once this person has an artist page — the studio is theirs. */
   artistSlug: z.string().nullable().default(null),
+  /** Where their page stands with the platform; null without a studio. */
+  artistReviewStatus: artistReviewStatusSchema.nullable().default(null),
+  /** Their editions waiting on the admin. */
+  editionsInReview: z.number().int().min(0).default(0),
 });
 
 /** Who is signed in, if anyone. Answers 200 either way. */

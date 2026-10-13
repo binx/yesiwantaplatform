@@ -48,10 +48,15 @@ publicRouter.get("/pages/:slug", async (req, res) => {
 
 /* ---------------------------------------------------------------- artists */
 
-/** The directory: every live artist, with how many people collect them and what their editions start at. */
+/**
+ * The directory: every live artist with an edition on sale, with how many
+ * people collect them and what their editions start at. Live with nothing
+ * on sale is a page with nothing to collect, so it is left out.
+ */
 publicRouter.get("/artists", async (_req, res) => {
   const [settings, { artists }] = await Promise.all([getSettings(), listArtists({ status: "live" })]);
-  res.json(await summariseArtists(artists, settings?.currency ?? "USD"));
+  const summaries = await summariseArtists(artists, settings?.currency ?? "USD");
+  res.json(summaries.filter((artist) => artist.editionCount > 0));
 });
 
 /**
@@ -75,14 +80,14 @@ publicRouter.get("/artists/:slug", async (req, res) => {
 });
 
 /**
- * One edition, every card of it. A draft is a 404, like a draft artist; a
+ * One edition. A draft, or one in review, is a 404, like a draft artist; a
  * closed edition still renders, for the people collecting it.
  */
 publicRouter.get("/artists/:slug/editions/:edition", async (req, res) => {
   const artist = await findArtistBySlug(req.params.slug);
   if (!artist || artist.status === "draft") throw httpError(404, "No artist at this address.");
   const edition = await findEditionBySlug(artist.id, req.params.edition);
-  if (!edition || edition.status === "draft") throw httpError(404, "No edition at this address.");
+  if (!edition || (edition.status !== "on_sale" && edition.status !== "closed")) throw httpError(404, "No edition at this address.");
 
   const [settings, counts] = await Promise.all([getSettings(), countForArtists([artist.id])]);
   const currency = settings?.currency ?? "USD";

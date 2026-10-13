@@ -62,6 +62,8 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
   const [error, setError] = useState<string | null>(null);
   const pending = edition ? update : create;
   const fixed = edition !== null && edition.status !== "draft";
+  /** Under review, nothing changes: the admin is looking at it as it is. */
+  const locked = edition !== null && edition.status === "in_review";
 
   const pricing = view.pricing ?? store.pricing;
   const currency = edition?.currency ?? store.currency;
@@ -115,6 +117,7 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
           value={draft.title}
           maxLength={80}
           placeholder="Flowers"
+          disabled={locked}
           onChange={(e) => {
             set("title", e.target.value);
             if (!slugTouched) set("slug", slugify(e.target.value));
@@ -139,7 +142,7 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
           }}
         />
         <span className={styles.help} id="edition-slug-help">
-          {fixed ? "Fixed while it's on sale, so links people have shared keep working." : "Lowercase letters, numbers and hyphens."}
+          {locked ? "Fixed while it's being reviewed." : fixed ? "Fixed while it's on sale, so links people have shared keep working." : "Lowercase letters, numbers and hyphens."}
         </span>
       </div>
 
@@ -153,6 +156,7 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
           autoSize={{ minRows: 5 }}
           maxLength={10_000}
           placeholder="What the cards are of, where they come from, why these. Markdown works."
+          disabled={locked}
           onChange={(e) => set("description", e.target.value)}
         />
         <span className={styles.help}>
@@ -172,11 +176,11 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
               return Upload.LIST_IGNORE;
             }}
           >
-            <Button icon={<UploadOutlined />} loading={uploadBanner.isPending}>
+            <Button icon={<UploadOutlined />} loading={uploadBanner.isPending} disabled={locked}>
               {draft.banner ? "Replace banner" : "Upload a banner"}
             </Button>
           </Upload>
-          {draft.banner ? (
+          {draft.banner && !locked ? (
             <Button type="link" size="small" onClick={() => set("banner", null)}>
               Remove
             </Button>
@@ -200,9 +204,11 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
         </div>
       </div>
       <span className={styles.help}>
-        {fixed
-          ? "Size and price are fixed while it's on sale: collectors paid for exactly this."
-          : `Each collector gets ${draft.cardCount} postcards, at the pace they choose, starting on a day they pick.`}
+        {locked
+          ? "Fixed while it's being reviewed."
+          : fixed
+            ? "Size and price are fixed while it's on sale: collectors paid for exactly this."
+            : `Each collector gets ${draft.cardCount} postcards, at the pace they choose, starting on a day they pick.`}
       </span>
       {dropped > 0 ? <Alert type="warning" showIcon title={`Saving drops the last ${dropped} ${dropped === 1 ? "card" : "cards"} you chose: an edition of ${draft.cardCount} holds ${draft.cardCount}.`} /> : null}
 
@@ -230,7 +236,7 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
         </span>
       </div>
 
-      <Checkbox checked={draft.inGallery} onChange={(e) => set("inGallery", e.target.checked)}>
+      <Checkbox checked={draft.inGallery} disabled={locked} onChange={(e) => set("inGallery", e.target.checked)}>
         Show this edition in the gallery while it's on sale
       </Checkbox>
       {view.artist.visibility === "private" ? <span className={styles.help}>Your page is private, so none of your editions go in the gallery whatever this says.</span> : null}
@@ -239,7 +245,7 @@ function EditionForm({ initial, edition }: { initial: Draft; edition: EditionStu
       {error ? <Alert type="error" showIcon title={error} /> : null}
 
       <div className={styles.actions}>
-        <Button type="primary" size="large" loading={pending.isPending} disabled={(!fixed && priceWrong) || draft.title.trim() === "" || draft.slug === ""} onClick={submit}>
+        <Button type="primary" size="large" loading={pending.isPending} disabled={locked || (!fixed && priceWrong) || draft.title.trim() === "" || draft.slug === ""} onClick={submit}>
           {edition ? "Save" : "Start this edition"}
         </Button>
         <Link to="/studio/editions">
@@ -261,7 +267,7 @@ export function StudioNewEditionPage() {
       <h2>New edition</h2>
       <p className={styles.note} style={{ maxWidth: "40rem", marginBottom: "1.5rem" }}>
         An edition is a set of postcards collectors buy once, for one price, and receive one by one. It starts as a draft only you can see: give it a name, a price
-        and a banner, choose its cards, then put it on sale. Collectors see the banner and what you write, not the cards: those arrive as a surprise.
+        and a banner, choose its cards, then send it for review. Once it's approved it's on sale. Collectors see the banner and what you write, not the cards: those arrive as a surprise.
       </p>
       <EditionForm
         edition={null}
@@ -344,9 +350,9 @@ function cardsKey(edition: EditionStudio): string {
 /**
  * Where the edition is in its life, and the one or two ways it can move.
  *
- * Putting it on sale needs every card saved in place and a banner; going back to draft
- * is refused by the server once anyone has bought it, and that refusal is
- * shown as it comes.
+ * Sending it for review needs every card saved in place and a banner; the
+ * admin is who puts it on sale. Going back to draft is refused by the
+ * server once anyone has bought it, and that refusal is shown as it comes.
  */
 function StatusPanel({ edition, artist, cardsDirty }: { edition: EditionStudio; artist: ArtistStudio; cardsDirty: boolean }) {
   const navigate = useNavigate();
@@ -371,14 +377,15 @@ function StatusPanel({ edition, artist, cardsDirty }: { edition: EditionStudio; 
     <div className={cx(styles.panel, styles.panelAccent)}>
       {edition.status === "draft" ? (
         <>
+          {edition.reviewNote ? <Alert type="warning" showIcon title="Not approved" description={<span style={{ whiteSpace: "pre-wrap" }}>{edition.reviewNote}</span>} style={{ marginBottom: "1rem" }} /> : null}
           <p className={styles.note}>
             {needs.length > 0
-              ? `A draft: only you can see it. To put it on sale, ${needs.length === 1 ? needs[0] : `${needs.slice(0, -1).join(", ")} and ${needs.at(-1)}`}.`
-              : "Ready. Once it's on sale its cards, size and price are fixed."}
+              ? `A draft: only you can see it. To send it for review, ${needs.length === 1 ? needs[0] : `${needs.slice(0, -1).join(", ")} and ${needs.at(-1)}`}.`
+              : "Ready to send for review. Once it's approved it's on sale, and its cards, size and price are fixed."}
           </p>
           <div className={styles.actions}>
-            <Button type="primary" loading={setStatus.isPending} disabled={needs.length > 0} onClick={() => move("on_sale", "On sale.")}>
-              Put on sale
+            <Button type="primary" loading={setStatus.isPending} disabled={needs.length > 0} onClick={() => move("in_review", "Sent for review.")}>
+              {edition.reviewNote ? "Send for review again" : "Send for review"}
             </Button>
             <Popconfirm
               title="Delete this draft?"
@@ -398,6 +405,15 @@ function StatusPanel({ edition, artist, cardsDirty }: { edition: EditionStudio; 
                 Delete draft
               </Button>
             </Popconfirm>
+          </div>
+        </>
+      ) : edition.status === "in_review" ? (
+        <>
+          <p className={styles.note}>Being reviewed. It goes on sale once it's approved, and you'll get an email either way.</p>
+          <div className={styles.actions}>
+            <Button loading={setStatus.isPending} onClick={() => move("draft", "Back to a draft.")}>
+              Back to draft
+            </Button>
           </div>
         </>
       ) : (
@@ -513,7 +529,7 @@ function EditionCards({ edition, artistName, onDirtyChange }: { edition: Edition
     <div>
       <p className={styles.note} style={{ marginBottom: "1rem" }}>
         In the order they're mailed. Collectors won't see them before they arrive.
-        {editable ? "" : " Fixed while it's on sale."}
+        {editable ? "" : edition.status === "in_review" ? " Fixed while it's being reviewed." : " Fixed while it's on sale."}
       </p>
       <ol className={styles.slotList}>
         {cards.map((card, index) => {

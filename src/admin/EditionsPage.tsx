@@ -12,11 +12,11 @@ import { editionShape, formatMailDate } from "@/lib/postcards";
 type Filter = EditionStatus | "all";
 
 function editionStatusColor(status: EditionStatus): string {
-  return status === "on_sale" ? "green" : status === "closed" ? "default" : "blue";
+  return status === "on_sale" ? "green" : status === "closed" ? "default" : status === "in_review" ? "purple" : "blue";
 }
 
 function editionStatusWords(status: EditionStatus): string {
-  return status === "on_sale" ? "on sale" : status;
+  return status === "on_sale" ? "on sale" : status === "in_review" ? "in review" : status;
 }
 
 /**
@@ -68,6 +68,7 @@ export function EditionsPage() {
         options={[
           { label: "All", value: "all" },
           { label: "On sale", value: "on_sale" },
+          { label: "In review", value: "in_review" },
           { label: "Draft", value: "draft" },
           { label: "Closed", value: "closed" },
         ]}

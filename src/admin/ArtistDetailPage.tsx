@@ -3,12 +3,14 @@ import { App, Button, Card, Descriptions, Empty, Popconfirm, Skeleton, Table, Ta
 import { artistLinkLabel, type ArtistStatus, type EditionStatus, type EditionStudio, type PurchaseStatus } from "@shared/platform";
 import { formatMoney } from "@shared/money";
 import { formatRecipient } from "@shared/postcards";
-import { useAdminArtist, useSetAdminArtistStatus, useStoreLocale, type AdminPurchase } from "./queries";
+import { useAdminArtist, useSetAdminArtistStatus, useStoreLocale, type AdminArtistDetail, type AdminPurchase } from "./queries";
 import { PageHeader } from "./RequireAdmin";
+import { ReviewDecision } from "./ReviewDecision";
 import { editionShape, formatDay, purchaseStatusLabel } from "@/lib/postcards";
 
 const statusColor = (status: ArtistStatus): string => (status === "live" ? "green" : status === "paused" ? "gold" : "default");
-const editionStatusColor = (status: EditionStatus): string => (status === "on_sale" ? "green" : status === "closed" ? "default" : "blue");
+const editionStatusColor = (status: EditionStatus): string => (status === "on_sale" ? "green" : status === "closed" ? "default" : status === "in_review" ? "purple" : "blue");
+const reviewColor = (status: AdminArtistDetail["artist"]["reviewStatus"]): string => (status === "approved" ? "green" : status === "declined" ? "red" : "gold");
 
 /** One artist: their page, their editions, who collected them, and the pause switch. */
 export function ArtistDetailPage() {
@@ -42,7 +44,7 @@ export function ArtistDetailPage() {
             <a href={`/artist/${artist.slug}`} target="_blank" rel="noreferrer">
               /artist/{artist.slug}
             </a>{" "}
-            · <Tag color={statusColor(artist.status)}>{artist.status}</Tag>
+            · <Tag color={statusColor(artist.status)}>{artist.status}</Tag> <Tag color={reviewColor(artist.reviewStatus)}>{artist.reviewStatus}</Tag>
           </>
         }
         actions={
@@ -64,6 +66,14 @@ export function ArtistDetailPage() {
           </>
         }
       />
+
+      <Card title="Review" style={{ marginBottom: "1.25rem" }}>
+        <p style={{ marginTop: 0 }}>
+          {artist.reviewStatus === "pending" ? "Waiting for a look." : artist.reviewStatus === "approved" ? "Approved: the page may go live." : "Declined: the artist can ask again once the page has changed."}
+        </p>
+        {artist.reviewNote ? <blockquote style={{ margin: "0 0 1rem", paddingLeft: "1rem", borderLeft: "3px solid #e4e4e7", whiteSpace: "pre-wrap" }}>{artist.reviewNote}</blockquote> : null}
+        <ReviewDecision kind="artist" id={artist.id} name={artist.name} />
+      </Card>
 
       <Card title="Page" style={{ marginBottom: "1.25rem" }}>
         <Descriptions column={1} size="small" bordered>
@@ -101,7 +111,7 @@ export function ArtistDetailPage() {
               { title: "Title", dataIndex: "title", render: (title: string, edition) => <Link to={`/admin/editions/${edition.id}`}>{title}</Link> },
               { title: "Shape", key: "shape", render: (_value, edition) => editionShape(edition.cardCount) },
               { title: "Price", dataIndex: "priceCents", align: "right", render: (cents: number, edition) => formatMoney(cents, edition.currency, locale) },
-              { title: "Status", dataIndex: "status", render: (status: EditionStatus) => <Tag color={editionStatusColor(status)}>{status === "on_sale" ? "on sale" : status}</Tag> },
+              { title: "Status", dataIndex: "status", render: (status: EditionStatus) => <Tag color={editionStatusColor(status)}>{status === "on_sale" ? "on sale" : status === "in_review" ? "in review" : status}</Tag> },
               { title: "Collectors", dataIndex: "collectorCount", align: "right" },
               { title: "Sent", dataIndex: "sentCount", align: "right" },
               { title: "Still to come", dataIndex: "scheduledCount", align: "right" },

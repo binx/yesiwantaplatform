@@ -262,6 +262,51 @@ for (const { name, context } of dialects) {
       expect(await db.editions.deleteDraftEdition(other.edition.id, a.id)).toBe(true);
     });
 
+    it("sends an edition through review, and the admin alone puts it on sale, on either engine", async () => {
+      const a = await artist();
+      expect(a).toMatchObject({ reviewStatus: "pending", reviewNote: null, reviewedAt: null });
+      expect((await db.artists.listArtists({ reviewStatus: "pending" })).artists.map((row) => row.id)).toContain(a.id);
+      // Asking again is for a declined page only.
+      expect(await db.artists.requestArtistReview(a.id)).toBe(false);
+      expect(await db.artists.reviewArtist(a.id, { decision: "declined", note: "Not yet." })).toBe(true);
+      expect(await db.artists.getArtist(a.id)).toMatchObject({ reviewStatus: "declined", reviewNote: "Not yet." });
+      expect(await db.artists.requestArtistReview(a.id)).toBe(true);
+      expect(await db.artists.requestArtistReview(a.id)).toBe(false);
+      expect(await db.artists.reviewArtist(a.id, { decision: "approved", note: "" })).toBe(true);
+      const approved = await db.artists.getArtist(a.id);
+      expect(approved).toMatchObject({ reviewStatus: "approved", reviewNote: null });
+      expect(approved?.reviewedAt).toBeTypeOf("number");
+      expect((await db.artists.listArtists({ reviewStatus: "pending" })).artists.map((row) => row.id)).not.toContain(a.id);
+
+      const set = await edition(a.id);
+      expect(set.edition).toMatchObject({ status: "draft", reviewNote: null, submittedAt: null, reviewedAt: null });
+      // Nothing to decide on a draft.
+      expect(await db.editions.reviewEdition(set.edition.id, { decision: "approved", note: "" })).toBe(false);
+      expect(await db.editions.submitEditionForReview(set.edition.id, randomUUID())).toBe(false);
+      expect(await db.editions.submitEditionForReview(set.edition.id, a.id)).toBe(true);
+      expect(await db.editions.submitEditionForReview(set.edition.id, a.id)).toBe(false);
+      const inReview = await db.editions.getEdition(set.edition.id);
+      expect(inReview?.status).toBe("in_review");
+      expect(inReview?.submittedAt).toBeTypeOf("number");
+      // Fixed while the admin looks, like one on sale.
+      expect(await db.editions.replaceEditionCards(set.edition.id, [])).toBe(false);
+      expect(await db.editions.updateDraftEdition(set.edition.id, a.id, { slug: set.edition.slug, title: "Nope", description: "", banner: null, cardCount: 6, priceCents: 3000, inGallery: true })).toBe(false);
+      expect(await db.editions.deleteDraftEdition(set.edition.id, a.id)).toBe(false);
+      // The artist can take it back, then send it again.
+      expect(await db.editions.setEditionStatus(set.edition.id, ["in_review"], "draft")).toBe(true);
+      expect(await db.editions.submitEditionForReview(set.edition.id, a.id)).toBe(true);
+
+      expect(await db.editions.reviewEdition(set.edition.id, { decision: "declined", note: "Card 3 is blurry." })).toBe(true);
+      expect(await db.editions.getEdition(set.edition.id)).toMatchObject({ status: "draft", reviewNote: "Card 3 is blurry." });
+      expect(await db.editions.submitEditionForReview(set.edition.id, a.id)).toBe(true);
+      expect(await db.editions.getEdition(set.edition.id)).toMatchObject({ status: "in_review", reviewNote: null });
+      expect(await db.editions.reviewEdition(set.edition.id, { decision: "approved", note: "" })).toBe(true);
+      expect(await db.editions.reviewEdition(set.edition.id, { decision: "declined", note: "" })).toBe(false);
+      expect(await db.editions.getEdition(set.edition.id)).toMatchObject({ status: "on_sale", reviewNote: null });
+      expect((await db.editions.listEditions({ status: "in_review" })).total).toBe(0);
+      expect(await db.editions.countEditionsByStatus()).toMatchObject({ on_sale: expect.any(Number) });
+    });
+
     it("pays a purchase once, writes every card of its run on its day, and moves the cards still to come", async () => {
       const a = await artist();
       const set = await edition(a.id);

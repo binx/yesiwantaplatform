@@ -35,6 +35,7 @@ test.describe("admin, signed in", () => {
 
   const adminRoutes: [name: string, path: string][] = [
     ["overview", "/admin"],
+    ["review", "/admin/review"],
     ["artists", "/admin/artists"],
     ["editions", "/admin/editions"],
     ["payouts", "/admin/payouts"],

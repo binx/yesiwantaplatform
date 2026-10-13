@@ -60,6 +60,13 @@ describe.each(schemes)("the %s palette", (colorScheme) => {
     }
   });
 
+  it("gives a default button an edge that reads on the surface it sits on", () => {
+    const button = toAntdTheme({ ...defaultTheme, colorScheme, colorPage: null }).components?.Button;
+
+    // WCAG's bar for a control's boundary, not for text: the label is ink.
+    expect(contrastRatio(button?.defaultBorderColor as string, surface)).toBeGreaterThanOrEqual(3);
+  });
+
   it("pins antd's secondary text to the palette rather than a derived grey", () => {
     const { token } = toAntdTheme({ ...defaultTheme, colorScheme, colorPage: null });
 

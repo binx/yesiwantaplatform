@@ -99,6 +99,7 @@ export function StudioProfilePage() {
         <section className={styles.section}>
           <div className={styles.sectionIntro}>
             <h3 id="profile-visibility">In the gallery</h3>
+            <p>Listed lets each edition you put on sale appear in the gallery. Not listed keeps them all to your own page, which anyone with the link can still visit.</p>
           </div>
           <div className={styles.sectionFields}>
             <div className={styles.field}>

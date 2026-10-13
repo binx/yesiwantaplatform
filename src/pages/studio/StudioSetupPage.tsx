@@ -141,6 +141,7 @@ export function StudioSetupPage() {
               In the gallery
             </span>
             <VisibilityField value={draft.visibility} onChange={(visibility) => set("visibility", visibility)} labelledBy="setup-visibility" />
+            <span className={styles.help}>Listed lets each edition you put on sale appear in the gallery. Not listed keeps them all to your own page, which anyone with the link can still visit.</span>
           </div>
         </div>
       )}

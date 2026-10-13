@@ -121,6 +121,12 @@ export function LinksFields({ links, onChange }: { links: ArtistLink[]; onChange
   );
 }
 
+/** What each choice means to the artist, told as what happens to their work. One line per option, in option order. */
+export const GALLERY_STORIES = [
+  "Listed: your editions appear in the gallery, where anyone browsing the site can find them. Show your work to the world.",
+  "Not listed: your editions stay out of the gallery, but anyone you send the link can still collect. Made for a series just for friends and family.",
+] as const;
+
 /** Listed in the site's gallery, or found by URL only. */
 export function VisibilityField({ value, onChange, labelledBy }: { value: ArtistVisibility; onChange: (value: ArtistVisibility) => void; labelledBy: string }) {
   return (

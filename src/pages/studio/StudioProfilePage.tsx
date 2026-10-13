@@ -4,7 +4,7 @@ import { Alert, App, Button, Input } from "antd";
 import { artistProfileUpdateSchema, type ArtistProfileUpdate } from "@shared/platform";
 import { useUpdateProfile, type StudioView } from "@/lib/platform";
 import { typedLinks, type ProfileDraft } from "./profileDraft";
-import { BioField, LinksFields, ProfileHero, VisibilityField } from "./profileFields";
+import { BioField, GALLERY_STORIES, LinksFields, ProfileHero, VisibilityField } from "./profileFields";
 import styles from "./Studio.module.css";
 
 /**
@@ -99,7 +99,9 @@ export function StudioProfilePage() {
         <section className={styles.section}>
           <div className={styles.sectionIntro}>
             <h3 id="profile-visibility">In the gallery</h3>
-            <p>Listed lets each edition you put on sale appear in the gallery. Not listed keeps them all to your own page, which anyone with the link can still visit.</p>
+            {GALLERY_STORIES.map((story) => (
+              <p key={story}>{story}</p>
+            ))}
           </div>
           <div className={styles.sectionFields}>
             <div className={styles.field}>

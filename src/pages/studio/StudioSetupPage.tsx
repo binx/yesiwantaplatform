@@ -6,7 +6,7 @@ import { useCreateArtist, useSlugAvailable } from "@/lib/platform";
 import { useCustomer } from "@/lib/account";
 import { cx } from "@/lib/cx";
 import { slugify, typedLinks, type ProfileDraft } from "./profileDraft";
-import { BioField, LinksFields, ProfileHero, VisibilityField } from "./profileFields";
+import { BioField, GALLERY_STORIES, LinksFields, ProfileHero, VisibilityField } from "./profileFields";
 import styles from "./Studio.module.css";
 
 const STEPS = ["Name and URL", "Your page", "Open"];
@@ -141,7 +141,11 @@ export function StudioSetupPage() {
               In the gallery
             </span>
             <VisibilityField value={draft.visibility} onChange={(visibility) => set("visibility", visibility)} labelledBy="setup-visibility" />
-            <span className={styles.help}>Listed lets each edition you put on sale appear in the gallery. Not listed keeps them all to your own page, which anyone with the link can still visit.</span>
+            {GALLERY_STORIES.map((story) => (
+              <span key={story} className={styles.help}>
+                {story}
+              </span>
+            ))}
           </div>
         </div>
       )}

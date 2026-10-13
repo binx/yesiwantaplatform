@@ -113,7 +113,6 @@ for (const { name, context } of dialects) {
         thumbnailPath: "designs/x/thumb.webp",
         thumbnailWidth: 400,
         thumbnailHeight: 588,
-        back: { text: "Hi", valediction: "Love", fontName: "Sacramento", fontSize: 16, fontColor: "#112233" },
       });
     }
 
@@ -215,11 +214,10 @@ for (const { name, context } of dialects) {
       expect((await db.artists.listArtists({ status: "live" })).artists.map((x) => x.id)).toContain(a.id);
     });
 
-    it("round-trips a design's JSON back on either engine", async () => {
+    it("round-trips a design on either engine", async () => {
       const a = await artist();
       const created = await design(a.id);
       const found = await db.designs.getDesign(created.id);
-      expect(found?.back).toEqual({ text: "Hi", valediction: "Love", fontName: "Sacramento", fontSize: 16, fontColor: "#112233" });
       expect(found?.orientation).toBe("portrait");
       expect(db.designs.toPublicDesign(found!).thumbnail.path).toBe("designs/x/thumb.webp");
       expect(await db.designs.getDesignForArtist(created.id, randomUUID())).toBeNull();
@@ -234,7 +232,6 @@ for (const { name, context } of dialects) {
       expect(set.cards.map((c) => c.designId)).toEqual(set.designs.map((d) => d.id));
       await expect(db.editions.createEdition(a.id, { slug: "birds", title: "Again", description: "", banner: null, cardCount: 6, priceCents: 3000, inGallery: true })).rejects.toThrow(/already have an edition/);
       expect(await db.designs.designIsUsed(set.designs[0]!.id)).toBe(true);
-      expect(await db.designs.designIsLocked(set.designs[0]!.id)).toBe(false);
 
       // Reordered: the last first.
       const reordered = [set.designs[5]!, ...set.designs.slice(0, 5)];
@@ -243,7 +240,6 @@ for (const { name, context } of dialects) {
 
       expect(await db.editions.setEditionStatus(set.edition.id, ["draft"], "on_sale")).toBe(true);
       expect(await db.editions.setEditionStatus(set.edition.id, ["draft"], "on_sale")).toBe(false);
-      expect(await db.designs.designIsLocked(set.designs[0]!.id)).toBe(true);
       // On sale: the cards and the numbers hold; the words still change.
       expect(await db.editions.replaceEditionCards(set.edition.id, [])).toBe(false);
       expect(await db.editions.updateDraftEdition(set.edition.id, a.id, { slug: "birds", title: "Birds", description: "", banner: null, cardCount: 12, priceCents: 1, inGallery: true })).toBe(false);

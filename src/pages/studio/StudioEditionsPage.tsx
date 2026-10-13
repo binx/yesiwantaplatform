@@ -1,13 +1,12 @@
-import { Link, useOutletContext } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Alert, Button, Skeleton, Tag } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import type { EditionStatus, EditionStudio } from "@shared/platform";
 import { formatMoney } from "@shared/money";
 import { ProductImage } from "@/components/ui/ProductImage";
-import { useStudioEditions, type StudioView } from "@/lib/platform";
+import { useStudioEditions } from "@/lib/platform";
 import { useStore } from "@/lib/useStore";
 import { editionShape } from "@/lib/postcards";
-import { DesignLibrary } from "./StudioDesigns";
 import styles from "./Studio.module.css";
 
 /** "on sale", in a tag the colour of the state. */
@@ -16,20 +15,13 @@ export function EditionStatusTag({ status }: { status: EditionStatus }) {
   return <Tag color={color}>{label}</Tag>;
 }
 
-/**
- * Editions, and the postcards they are made of.
- *
- * Two lists. Editions are the sets collectors buy, each with how far along
- * its cards are. Postcards are the drawer: everything the artist has made,
- * ready to be put into an edition's cards.
- */
+/** The editions: the sets collectors buy, each with how far along it is. */
 export function StudioEditionsPage() {
-  const view = useOutletContext<StudioView>();
   const editions = useStudioEditions();
 
   return (
     <div>
-      <section aria-labelledby="editions-heading" style={{ marginBottom: "2rem" }}>
+      <section aria-labelledby="editions-heading">
         <div className={styles.sectionHeader}>
           <h2 id="editions-heading">Editions</h2>
           <Link to="/studio/editions/new">
@@ -43,7 +35,7 @@ export function StudioEditionsPage() {
         ) : editions.isError ? (
           <Alert type="error" showIcon title="Your editions could not be loaded." />
         ) : editions.data.length === 0 ? (
-          <p className={styles.empty}>No editions yet. Start one, then fill its cards.</p>
+          <p className={styles.empty}>No editions yet.</p>
         ) : (
           <ul className={styles.editionList}>
             {editions.data.map((edition) => (
@@ -52,8 +44,6 @@ export function StudioEditionsPage() {
           </ul>
         )}
       </section>
-
-      <DesignLibrary artistName={view.artist.name} />
     </div>
   );
 }
@@ -77,10 +67,10 @@ function EditionRow({ edition }: { edition: EditionStudio }) {
             ? edition.reviewNote
               ? "Not approved. See the note on it."
               : missing > 0
-                ? `${edition.cards.length} of ${edition.cardCount} cards chosen.`
+                ? `${edition.cards.length} of ${edition.cardCount} cards added.`
                 : edition.banner
-                  ? "Every card chosen. Ready to send for review."
-                  : "Every card chosen. Add a banner to send it for review."
+                  ? "Every card added. Ready to send for review."
+                  : "Every card added. Add a banner to send it for review."
             : edition.status === "in_review"
               ? "Being reviewed."
               : `${edition.collectorCount} ${edition.collectorCount === 1 ? "collector" : "collectors"} · ${edition.sentCount} sent · ${edition.scheduledCount} to come`}

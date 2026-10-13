@@ -1,19 +1,20 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { Alert, App, Button, Checkbox, Input, Popconfirm, Radio, Skeleton, Upload } from "antd";
-import { ArrowDownOutlined, ArrowUpOutlined, UploadOutlined } from "@ant-design/icons";
-import { EDITION_SIZES, editionInputSchema, editionPath, type ArtistStudio, type EditionInput, type EditionSize, type EditionStudio } from "@shared/platform";
+import { ArrowLeftOutlined, ArrowRightOutlined, DeleteOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
+import { EDITION_SIZES, editionInputSchema, editionPath, type ArtistStudio, type EditionCard, type EditionInput, type EditionSize, type EditionStudio } from "@shared/platform";
 import type { PostcardDesign } from "@shared/postcards";
 import { formatMoney, parseCents } from "@shared/money";
 import { KEEPS_EVERY_CARD } from "@shared/copy";
 import { artistShareCents, cardGrossCents, type Image } from "@shared/schema";
 import { ApiError } from "@/lib/api";
 import { ProductImage } from "@/components/ui/ProductImage";
-import { useCreateEdition, useDeleteEdition, useSetEditionCards, useSetEditionStatus, useStudioEdition, useUpdateEdition, useUploadEditionBanner, type StudioView } from "@/lib/platform";
+import { useCreateEdition, useDeleteDesign, useDeleteEdition, useSetEditionCards, useSetEditionStatus, useStudioEdition, useUpdateEdition, useUploadEditionBanner, type StudioView } from "@/lib/platform";
+import { useSaveDesign } from "@/lib/designs";
 import { useStore } from "@/lib/useStore";
 import { assetUrl } from "@/lib/store-source";
 import { cx } from "@/lib/cx";
-import { DesignPicker } from "./StudioDesigns";
+import { StudioCardEditor, type CardInput } from "./StudioCardEditor";
 import { EditionStatusTag } from "./StudioEditionsPage";
 import styles from "./Studio.module.css";
 
@@ -290,7 +291,6 @@ export function StudioEditionPage() {
   const { id } = useParams();
   const view = useOutletContext<StudioView>();
   const edition = useStudioEdition(id);
-  const [cardsDirty, setCardsDirty] = useState(false);
 
   if (edition.isPending) return <Skeleton active paragraph={{ rows: 8 }} />;
   if (edition.isError) {
@@ -315,11 +315,11 @@ export function StudioEditionPage() {
         {data.title} <EditionStatusTag status={data.status} />
       </h2>
 
-      <StatusPanel edition={data} artist={view.artist} cardsDirty={cardsDirty} />
+      <StatusPanel edition={data} artist={view.artist} />
 
       <section aria-labelledby="cards-heading" style={{ marginBottom: "2rem" }}>
         <h2 id="cards-heading">The cards</h2>
-        <EditionCards key={`${data.id}:${data.status}:${cardsKey(data)}`} edition={data} artistName={view.artist.name} onDirtyChange={setCardsDirty} />
+        <EditionCards key={`${data.id}:${data.status}`} edition={data} artistName={view.artist.name} />
       </section>
 
       <section aria-labelledby="details-heading">
@@ -342,30 +342,23 @@ export function StudioEditionPage() {
   );
 }
 
-/** What the server has, as a string: when it changes, the card editor starts again from it. */
-function cardsKey(edition: EditionStudio): string {
-  return edition.cards.map((card) => `${card.design.id}=${card.title ?? ""}`).join("|");
-}
-
 /**
  * Where the edition is in its life, and the one or two ways it can move.
  *
- * Sending it for review needs every card saved in place and a banner; the
- * admin is who puts it on sale. Going back to draft is refused by the
- * server once anyone has bought it, and that refusal is shown as it comes.
+ * Sending it for review needs every card in place and a banner; the admin
+ * is who puts it on sale. Going back to draft is refused by the server
+ * once anyone has bought it, and that refusal is shown as it comes.
  */
-function StatusPanel({ edition, artist, cardsDirty }: { edition: EditionStudio; artist: ArtistStudio; cardsDirty: boolean }) {
+function StatusPanel({ edition, artist }: { edition: EditionStudio; artist: ArtistStudio }) {
   const navigate = useNavigate();
   const { message } = App.useApp();
   const setStatus = useSetEditionStatus();
   const remove = useDeleteEdition();
   const [error, setError] = useState<string | null>(null);
   const missing = edition.cardCount - edition.cards.length;
-  const needs = [
-    missing > 0 ? `choose ${missing} more ${missing === 1 ? "card" : "cards"}` : null,
-    edition.banner ? null : "add a banner",
-    cardsDirty ? "save your cards" : null,
-  ].filter((need): need is string => need !== null);
+  const needs = [missing > 0 ? `add ${missing} more ${missing === 1 ? "card" : "cards"}` : null, edition.banner ? null : "add a banner"].filter(
+    (need): need is string => need !== null,
+  );
   const publicPath = editionPath(artist.slug, edition.slug);
 
   const move = (status: EditionStudio["status"], done: string) => {
@@ -458,168 +451,148 @@ function StatusPanel({ edition, artist, cardsDirty }: { edition: EditionStudio; 
   );
 }
 
-interface CardDraft {
-  design: PostcardDesign;
-  title: string;
-}
-
 /**
- * The cards, in the order they are mailed. Only the artist sees them here:
- * collectors meet each one when it arrives.
+ * The cards, in the order they are mailed: a shelf of numbered prints, each
+ * with its title under it like a label in a shop. Only the artist sees them
+ * here; collectors meet each one when it arrives.
  *
- * Changes are kept here until Save, which sends the whole list — the
- * server replaces the set rather than patching it. Positions are always
- * 1 to n with no gaps, so an empty slot is filled from the first one.
+ * Every change is saved as it is made — a card added, retitled, moved or
+ * taken out — by sending the whole list, since the server replaces the set
+ * rather than patching it. Positions are always 1 to n with no gaps, so
+ * only the first empty slot takes a new card. A picture is uploaded first
+ * and the card written second; if the second step is refused, the upload
+ * is taken back rather than left as a stray.
  */
-function EditionCards({ edition, artistName, onDirtyChange }: { edition: EditionStudio; artistName: string; onDirtyChange: (dirty: boolean) => void }) {
+function EditionCards({ edition, artistName }: { edition: EditionStudio; artistName: string }) {
+  const store = useStore();
   const { message } = App.useApp();
   const save = useSetEditionCards();
-  const initial = edition.cards.map((card) => ({ design: card.design, title: card.title ?? "" }));
-  const [cards, setCards] = useState<CardDraft[]>(initial);
-  /** The index being chosen for: an existing card's to replace it, or `cards.length` to add one. */
-  const [picking, setPicking] = useState<number | null>(null);
-  const [focus, setFocus] = useState<{ designId: string; direction: "earlier" | "later" } | null>(null);
+  const upload = useSaveDesign();
+  const discard = useDeleteDesign();
+  /** The slot being edited: an existing card's index, or `cards.length` for the next empty one. */
+  const [editing, setEditing] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const editable = edition.status === "draft";
-  const dirty = JSON.stringify(cards.map((card) => [card.design.id, card.title.trim()])) !== JSON.stringify(initial.map((card) => [card.design.id, card.title.trim()]));
+  const cards = [...edition.cards].sort((a, b) => a.position - b.position);
+  const busy = save.isPending || upload.isPending;
 
-  useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
-  useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
+  const toInput = (card: EditionCard) => ({ designId: card.design.id, title: card.title });
+  const put = (next: { designId: string; title: string | null }[]) => save.mutateAsync({ id: edition.id, input: { cards: next } });
+  const report = (err: unknown, fallback: string) => void message.error(fail(err, fallback));
 
-  // After a move, keep focus on the card that moved; at an end, on its other button.
-  useEffect(() => {
-    if (!focus) return;
-    const other = focus.direction === "earlier" ? "later" : "earlier";
-    const button = document.getElementById(`move-${focus.direction}-${focus.designId}`) as HTMLButtonElement | null;
-    const fallback = document.getElementById(`move-${other}-${focus.designId}`) as HTMLButtonElement | null;
-    (button && !button.disabled ? button : fallback)?.focus();
-    setFocus(null);
-  }, [focus]);
-
-  const moveCard = (index: number, by: -1 | 1) => {
-    const target = index + by;
-    setCards((current) => {
-      const next = [...current];
-      const [card] = next.splice(index, 1);
-      if (card) next.splice(target, 0, card);
-      return next;
-    });
-    const designId = cards[index]?.design.id;
-    if (designId) setFocus({ designId, direction: by < 0 ? "earlier" : "later" });
-  };
-  const removeCard = (index: number) => setCards((current) => current.filter((_, i) => i !== index));
-  const setTitle = (index: number, title: string) => setCards((current) => current.map((card, i) => (i === index ? { ...card, title } : card)));
-  const pick = (design: PostcardDesign) => {
-    setCards((current) => (picking !== null && picking < current.length ? current.map((card, i) => (i === picking ? { design, title: card.title } : card)) : [...current, { design, title: "" }]));
-    setPicking(null);
+  const move = (index: number, by: -1 | 1) => {
+    const next = cards.map(toInput);
+    const [card] = next.splice(index, 1);
+    if (card) next.splice(index + by, 0, card);
+    put(next).catch((err: unknown) => report(err, "Could not move the card."));
   };
 
-  const submit = () => {
+  const remove = (index: number) => {
+    put(cards.filter((_, i) => i !== index).map(toInput))
+      .then(() => void message.success(`Card ${index + 1} removed.`))
+      .catch((err: unknown) => report(err, "Could not remove the card."));
+  };
+
+  const commit = async (slot: number, input: CardInput) => {
     setError(null);
-    save.mutate(
-      { id: edition.id, input: { cards: cards.map((card) => ({ designId: card.design.id, title: card.title.trim() || null })) } },
-      { onSuccess: () => void message.success("Cards saved."), onError: (err: unknown) => setError(fail(err, "Could not save the cards.")) },
-    );
+    let design: PostcardDesign | null = cards[slot]?.design ?? null;
+    let fresh: PostcardDesign | null = null;
+    try {
+      if (input.file) {
+        fresh = await upload.mutateAsync({ file: input.file, orientation: input.orientation, crop: input.crop });
+        design = fresh;
+      }
+      if (!design) return;
+      const card = { designId: design.id, title: input.title || null };
+      const next = cards.map(toInput);
+      if (slot < next.length) next[slot] = card;
+      else next.push(card);
+      try {
+        await put(next);
+      } catch (err) {
+        if (fresh) discard.mutate(fresh.id);
+        throw err;
+      }
+      setEditing(null);
+      message.success(slot < cards.length ? `Card ${slot + 1} saved.` : `Card ${slot + 1} added.`);
+    } catch (err) {
+      setError(fail(err, "Could not save the card."));
+    }
   };
 
-  const exclude = new Set(cards.filter((_, i) => i !== picking).map((card) => card.design.id));
-  const empties = Array.from({ length: Math.max(0, edition.cardCount - cards.length) }, (_, i) => cards.length + i);
+  const close = () => {
+    setEditing(null);
+    setError(null);
+  };
 
   return (
     <div>
-      <p className={styles.note} style={{ marginBottom: "1rem" }}>
-        In the order they're mailed. Collectors won't see them before they arrive.
-        {editable ? "" : edition.status === "in_review" ? " Fixed while it's being reviewed." : " Fixed while it's on sale."}
-      </p>
-      <ol className={styles.slotList}>
-        {cards.map((card, index) => {
+      <ol className={styles.cardGrid}>
+        {Array.from({ length: edition.cardCount }, (_, index) => {
+          const card = cards[index];
           const n = index + 1;
-          return (
-            <li key={card.design.id} className={cx(styles.slot, picking === index && styles.slotPicking)}>
-              <span className={styles.slotNumber} aria-hidden>
-                {n}
-              </span>
-              <ProductImage image={card.design.thumbnail} sizes="144px" decorative />
-              <div className={styles.slotBody}>
-                <p className={styles.slotLabel}>Card {n}</p>
-                {editable ? (
-                  <label className={styles.field}>
-                    <span className={styles.label}>Title (optional)</span>
-                    <Input size="small" value={card.title} maxLength={120} onChange={(e) => setTitle(index, e.target.value)} aria-label={`Card ${n} title (optional)`} />
-                  </label>
-                ) : card.title ? (
-                  <p className={styles.note}>{card.title}</p>
-                ) : null}
-              </div>
-              {editable ? (
-                <div className={styles.slotActions}>
-                  <Button id={`move-earlier-${card.design.id}`} size="small" icon={<ArrowUpOutlined />} disabled={index === 0} onClick={() => moveCard(index, -1)} aria-label={`Move card ${n} earlier`} />
-                  <Button
-                    id={`move-later-${card.design.id}`}
-                    size="small"
-                    icon={<ArrowDownOutlined />}
-                    disabled={index === cards.length - 1}
-                    onClick={() => moveCard(index, 1)}
-                    aria-label={`Move card ${n} later`}
-                  />
-                  <Button size="small" onClick={() => setPicking(index)} aria-label={`Replace card ${n}`}>
-                    Replace
-                  </Button>
-                  <Button size="small" type="text" danger onClick={() => removeCard(index)} aria-label={`Remove card ${n}`}>
-                    Remove
-                  </Button>
+          if (card) {
+            return (
+              <li key={card.design.id} className={cx(styles.cardSlot, editing === index && styles.cardSlotEditing)}>
+                <div className={styles.cardPicture}>
+                  <ProductImage image={card.design.thumbnail} sizes="220px" decorative />
                 </div>
-              ) : null}
+                <p className={styles.cardLabel}>
+                  <span className={styles.cardNumber}>{n}</span>
+                  {card.title ? <span>{card.title}</span> : <span className={styles.cardUntitled}>Untitled</span>}
+                </p>
+                {editable ? (
+                  <div className={styles.cardActions}>
+                    <Button size="small" icon={<ArrowLeftOutlined />} disabled={index === 0 || busy} onClick={() => move(index, -1)} aria-label={`Move card ${n} earlier`} />
+                    <Button
+                      size="small"
+                      icon={<ArrowRightOutlined />}
+                      disabled={index === cards.length - 1 || busy}
+                      onClick={() => move(index, 1)}
+                      aria-label={`Move card ${n} later`}
+                    />
+                    <Button size="small" disabled={busy} onClick={() => setEditing(index)} aria-label={`Edit card ${n}`}>
+                      Edit
+                    </Button>
+                    <Popconfirm title={`Remove card ${n}?`} okText="Remove" onConfirm={() => remove(index)}>
+                      <Button size="small" type="text" danger icon={<DeleteOutlined />} disabled={busy} aria-label={`Remove card ${n}`} />
+                    </Popconfirm>
+                  </div>
+                ) : null}
+              </li>
+            );
+          }
+          const next = index === cards.length;
+          return (
+            <li key={`empty-${index}`} className={cx(styles.cardSlot, editing === index && styles.cardSlotEditing)}>
+              {editable && next ? (
+                <button type="button" className={styles.cardAdd} disabled={busy} onClick={() => setEditing(index)}>
+                  <PlusOutlined aria-hidden />
+                  <span>Add card {n}</span>
+                </button>
+              ) : (
+                <div className={styles.cardBlank} aria-hidden />
+              )}
+              <p className={styles.cardLabel}>
+                <span className={styles.cardNumber}>{n}</span>
+              </p>
             </li>
           );
         })}
-        {editable
-          ? empties.map((index) => (
-              <li key={`empty-${index}`} className={cx(styles.slot, styles.slotEmpty, picking === index && styles.slotPicking)}>
-                <span className={styles.slotNumber} aria-hidden>
-                  {index + 1}
-                </span>
-                <div className={styles.slotImageEmpty} aria-hidden />
-                <div className={styles.slotBody}>
-                  <p className={styles.slotLabel}>Card {index + 1}</p>
-                  {index === cards.length ? (
-                    <Button size="small" type="primary" onClick={() => setPicking(index)}>
-                      Choose card {index + 1}
-                    </Button>
-                  ) : (
-                    <p className={styles.help}>Empty</p>
-                  )}
-                </div>
-              </li>
-            ))
-          : null}
       </ol>
 
-      {picking !== null ? (
-        <DesignPicker
-          heading={picking < cards.length ? `Replace card ${picking + 1}` : `Choose card ${picking + 1}`}
+      {editing !== null ? (
+        <StudioCardEditor
+          key={editing}
+          number={editing + 1}
           artistName={artistName}
-          exclude={exclude}
-          onPick={pick}
-          onCancel={() => setPicking(null)}
+          siteName={store.name}
+          existing={cards[editing] ? { design: cards[editing].design, title: cards[editing].title } : null}
+          pending={busy}
+          error={error}
+          onSave={(input) => void commit(editing, input)}
+          onCancel={close}
         />
-      ) : null}
-
-      {editable ? (
-        <>
-          {error ? <Alert type="error" showIcon title={error} style={{ marginTop: "1rem" }} /> : null}
-          <div className={styles.actions}>
-            <Button type="primary" disabled={!dirty} loading={save.isPending} onClick={submit}>
-              Save cards
-            </Button>
-            {dirty ? (
-              <Button onClick={() => setCards(initial)}>Undo changes</Button>
-            ) : null}
-            <span className={styles.note} role="status">
-              {dirty ? "Unsaved changes." : `${cards.length} of ${edition.cardCount} chosen.`}
-            </span>
-          </div>
-        </>
       ) : null}
     </div>
   );

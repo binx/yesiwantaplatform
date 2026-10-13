@@ -85,20 +85,16 @@ export function cropRect(
   };
 }
 
-/** The faces the back of a card can be set in. All three load from Google Fonts. */
-export const BACK_FONTS = [
-  { name: "Patrick Hand", label: "Handwriting" },
-  { name: "Sacramento", label: "Script" },
-  { name: "Quicksand", label: "Modern" },
-] as const;
-
 /**
- * Where `BACK_FONTS` load from — always, regardless of the platform's own
- * theme font. `print/back.hbs` and the site shell both build their `<link>`
- * from this constant rather than duplicating the string.
+ * The face the back of a card is set in: a caption, as on a postcard from a
+ * museum shop, so one serif with an italic is all it needs. It loads from
+ * Google Fonts on the print side and the site; `print/back.hbs` and the
+ * site shell both build their `<link>` from `CARD_FONTS_URL` rather than
+ * duplicating the string.
  */
-export const CARD_FONTS_URL =
-  "https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Sacramento&family=Quicksand:wght@400;600&display=swap";
+export const CARD_FONT = "EB Garamond";
+
+export const CARD_FONTS_URL = "https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap";
 
 /** The origins `CARD_FONTS_URL` needs: the stylesheet host and the one its `@font-face`s point at. */
 export const CARD_FONTS_ORIGINS = ["https://fonts.googleapis.com", "https://fonts.gstatic.com"] as const;
@@ -106,33 +102,16 @@ export const CARD_FONTS_ORIGINS = ["https://fonts.googleapis.com", "https://font
 /** The id on the card fonts' `<link>`, so a server-rendered shell and a static one can recognise each other's copy. */
 export const CARD_FONTS_LINK_ID = "yiwap-card-fonts";
 
-export const backFontSchema = z.enum(
-  BACK_FONTS.map((font) => font.name) as [string, ...string[]],
-);
-
-/** What is printed on the back, beside the address. */
-export const postcardBackSchema = z.object({
-  /** The message. Emoji are stripped at render time — the print fonts have none. */
-  text: z.string().max(600).default(""),
-  /** A closing line, set flush right: "Love, Rachel". */
-  valediction: z.string().max(80).default(""),
-  fontName: backFontSchema.default("Patrick Hand"),
-  fontSize: z.number().int().min(12).max(32).default(24),
-  fontColor: z
-    .string()
-    .regex(/^#[0-9a-fA-F]{6}$/, "must be a hex colour like #000000")
-    .default("#000000"),
-});
-
-export type PostcardBack = z.infer<typeof postcardBackSchema>;
-
-export const defaultPostcardBack: PostcardBack = {
-  text: "",
-  valediction: "",
-  fontName: "Patrick Hand",
-  fontSize: 24,
-  fontColor: "#000000",
-};
+/**
+ * What is printed on the back, beside the address: the card's title, the
+ * artist's name, and the platform's. The title is the edition card's; the
+ * artist's name is read from their profile when the card is sent.
+ */
+export interface BackCaption {
+  title: string | null;
+  artistName: string;
+  siteName: string;
+}
 
 /**
  * Who a postcard goes to.
@@ -230,12 +209,11 @@ export function addDaysIso(date: string, days: number): string {
   return next.toISOString().slice(0, 10);
 }
 
-/** A design as the site receives it — no file paths, just what it can show. */
+/** A design as the site receives it — no file paths, just the picture it can show. */
 export const postcardDesignSchema = z.object({
   id: z.string().min(1),
   orientation: orientationSchema,
   thumbnail: imageSchema,
-  back: postcardBackSchema,
   createdAt: z.number().int(),
 });
 

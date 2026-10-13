@@ -65,7 +65,7 @@ async function fillAndSell(page: Page, browser: Browser, editionId: string, edit
   for (let i = 0; i < 6; i += 1) {
     const design = await page.request.post("/api/studio/designs", {
       headers,
-      multipart: { file: { name: "front.png", mimeType: "image/png", buffer: png }, orientation: "landscape", back: JSON.stringify({ text: `card ${i + 1}` }) },
+      multipart: { file: { name: "front.png", mimeType: "image/png", buffer: png }, orientation: "landscape" },
     });
     expect(design.ok()).toBeTruthy();
     cards.push({ designId: ((await design.json()) as { id: string }).id });

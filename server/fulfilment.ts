@@ -8,7 +8,7 @@ import { artistShareCents, cardGrossCents, platformFeeCentsFor } from "../shared
 import { getSettings } from "../db/repository.js";
 import { findArtistsByIds, getArtist } from "../db/artists-repository.js";
 import { findDesignsByIds } from "../db/designs-repository.js";
-import { findEditionsByIds, markEditionCardMailed } from "../db/editions-repository.js";
+import { findEditionCardsByIds, findEditionsByIds, markEditionCardMailed } from "../db/editions-repository.js";
 import {
   buildPostcard,
   claimPostcard,
@@ -165,6 +165,9 @@ export async function sendDuePostcards(today = todayIso(), options: SweepOptions
   const artistById = new Map(artists.map((artist) => [artist.id, artist]));
   const editions = await findEditionsByIds(due.map((row) => row.editionId));
   const editionById = new Map(editions.map((edition) => [edition.id, edition]));
+  // The title on the back is the edition card's, not the design's.
+  const cards = await findEditionCardsByIds(due.map((row) => row.editionCardId));
+  const cardById = new Map(cards.map((card) => [card.id, card]));
   let pausedOnce = false;
   // Read once per sweep: the return address goes on every card, and the
   // pricing on every ledger row.
@@ -195,9 +198,8 @@ export async function sendDuePostcards(today = todayIso(), options: SweepOptions
         to: postcard.recipient,
         from: returnAddress,
         front,
-        back: design.back,
+        back: { title: cardById.get(row.editionCardId)?.title ?? null, artistName: artist.name, siteName },
         description: `${artist.name} → ${postcard.recipient.name} (card ${row.position}, ${row.mailDate})`,
-        footer: { artistName: artist.name, siteName },
       };
 
       let lob;

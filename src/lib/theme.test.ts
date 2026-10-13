@@ -60,6 +60,13 @@ describe.each(schemes)("the %s palette", (colorScheme) => {
     }
   });
 
+  it("draws a default button's border in the store's primary at rest, as on hover", () => {
+    const button = toAntdTheme({ ...defaultTheme, colorScheme, colorPage: null }).components?.Button;
+
+    expect(button?.defaultBorderColor).toBe(defaultTheme.colorPrimary);
+    expect(button?.defaultBorderColor).toBe(button?.defaultHoverBorderColor);
+  });
+
   it("pins antd's secondary text to the palette rather than a derived grey", () => {
     const { token } = toAntdTheme({ ...defaultTheme, colorScheme, colorPage: null });
 

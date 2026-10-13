@@ -232,6 +232,10 @@ export function toAntdTheme(theme: Theme): ThemeConfig {
         colorPrimaryHover: ACTION_BUTTON.hover,
         colorPrimaryActive: ACTION_BUTTON.active,
         primaryColor: ACTION_BUTTON.label,
+        // A default button's border is the store's primary at rest, not only
+        // on hover: antd's resting `colorBorder` is the hairline the palette
+        // draws between sections, too faint to make a button read as one.
+        defaultBorderColor: theme.colorPrimary,
         // antd colours a default button's hover and active states from the
         // same primary, which would put pale yellow text on a white button.
         // Those stay on the store's primary, as they were.

@@ -47,7 +47,6 @@ export function StudioOverviewPage() {
   }, [params.get("onboarding")]);
   const money = (cents: number) => formatMoney(cents, earnings.currency, store.locale);
   const onSale = editionCounts.onSale;
-  const pricing = view.pricing ?? store.pricing;
 
   const fail = (error: unknown) => void message.error(error instanceof Error ? error.message : "Could not change that.");
 
@@ -143,18 +142,6 @@ export function StudioOverviewPage() {
             </Button>
           ) : null}
         </div>
-      </div>
-
-      <div className={styles.panel}>
-        <h2>How an edition goes</h2>
-        <ol style={{ margin: 0, paddingLeft: "1.25rem", lineHeight: 1.6 }}>
-          <li>You make an edition: 6 or 12 postcards, for one price. Put it on sale when every card is in place.</li>
-          <li>A collector pays once, picks whether their cards come once or twice a month, and the day the first one goes. From then on we print and mail their cards one by one, on schedule.</li>
-          <li>
-            As each card is mailed, its part of the price is added to your earnings
-            {` (less ${money(pricing.printCostCents)} to print and mail it and a ${pricing.platformFeePercent}% fee)`}. Payouts go to your Stripe account.
-          </li>
-        </ol>
       </div>
     </div>
   );

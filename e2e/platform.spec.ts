@@ -1,11 +1,12 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "@playwright/test";
+import { ADMIN_STORAGE_STATE } from "./fixtures/admin";
 
 /**
  * The platform, end to end in a browser, without Stripe or Lob: a visitor
- * reads the pitch, an artist opens a studio, starts an edition and goes live,
- * the directory, their page and the edition show them, and a second person
- * gets as far as the collect form before Stripe's absence stops them with a
- * sentence.
+ * reads the pitch, an artist opens a studio, starts an edition and sends it
+ * for review, the admin approves both, the artist goes live, the directory,
+ * their page and the edition show them, and a second person gets as far as
+ * the collect form before Stripe's absence stops them with a sentence.
  *
  * Each run makes its own accounts, so the suite is safe to rerun against a
  * reused e2e database.
@@ -48,8 +49,17 @@ async function csrfOf(page: Page): Promise<string> {
   return ((await page.request.get("/api/session").then((r) => r.json())) as { csrfToken: string }).csrfToken;
 }
 
-/** Six postcards, a banner, and the edition put on sale — through the API. */
-async function fillAndSell(page: Page, editionId: string, edition: Record<string, unknown>) {
+/** The admin's yes to the page and the edition, through the API with the fixture's cookies. */
+async function approve(browser: Browser, artistId: string, editionId: string) {
+  const admin = await browser.newContext({ storageState: ADMIN_STORAGE_STATE });
+  const headers = { "x-csrf-token": ((await admin.request.get("/api/session").then((r) => r.json())) as { csrfToken: string }).csrfToken };
+  expect((await admin.request.post(`/api/admin/artists/${artistId}/review`, { headers, data: { decision: "approved" } })).ok()).toBeTruthy();
+  expect((await admin.request.post(`/api/admin/editions/${editionId}/review`, { headers, data: { decision: "approved" } })).ok()).toBeTruthy();
+  await admin.close();
+}
+
+/** Six postcards, a banner, the edition sent for review, and the admin's yes — through the API. */
+async function fillAndSell(page: Page, browser: Browser, editionId: string, edition: Record<string, unknown>) {
   const headers = { "x-csrf-token": await csrfOf(page) };
   const cards: { designId: string }[] = [];
   for (let i = 0; i < 6; i += 1) {
@@ -64,11 +74,13 @@ async function fillAndSell(page: Page, editionId: string, edition: Record<string
   const banner = await page.request.post("/api/studio/editions/banner", { headers, multipart: { file: { name: "banner.png", mimeType: "image/png", buffer: png }, alt: "A row of birds" } });
   expect(banner.ok()).toBeTruthy();
   expect((await page.request.put(`/api/studio/editions/${editionId}`, { headers, data: { ...edition, banner: (await banner.json()) as unknown } })).ok()).toBeTruthy();
-  expect((await page.request.post(`/api/studio/editions/${editionId}/status`, { headers, data: { status: "on_sale" } })).ok()).toBeTruthy();
+  expect((await page.request.post(`/api/studio/editions/${editionId}/status`, { headers, data: { status: "in_review" } })).ok()).toBeTruthy();
+  const studio = (await page.request.get("/api/studio").then((r) => r.json())) as { artist: { id: string } };
+  await approve(browser, studio.artist.id, editionId);
   return cards;
 }
 
-test("the studio needs a sign-in, then opens a page that goes live once an edition is on sale", async ({ page }) => {
+test("the studio needs a sign-in, then opens a page that goes live once an edition is approved", async ({ page, browser }) => {
   const email = `artist-${run}@example.com`;
   await page.goto("/studio/new");
   await expect(page).toHaveURL(/\/account\/login$/);
@@ -94,9 +106,12 @@ test("the studio needs a sign-in, then opens a page that goes live once an editi
   await page.getByRole("button", { name: "View your studio" }).click();
 
   await expect(page).toHaveURL(/\/studio\/?$/);
-  await expect(page.getByText("Your page is a draft")).toBeVisible();
-  // Nothing on sale: going live is refused before it is even offered.
+  await expect(page.getByText("Your page is waiting for review")).toBeVisible();
+  // Not approved, nothing on sale: going live is refused before it is even offered.
   await expect(page.getByRole("button", { name: "Go live" })).toBeDisabled();
+  // The account page says so too.
+  await page.goto("/account");
+  await expect(page.getByText("Your page is waiting for review")).toBeVisible();
 
   // The page is not public yet.
   await page.goto(`/artist/${slug}`);
@@ -106,17 +121,17 @@ test("the studio needs a sign-in, then opens a page that goes live once an editi
   await page.goto("/studio/editions/new");
   await page.getByLabel("Title").fill("Birds");
   await expect(page.getByLabel("Edition URL")).toHaveValue("birds");
-  await page.getByLabel("Price for the whole set").fill("30.00");
+  await page.getByLabel("Price for the whole edition").fill("30.00");
   await expect(page.getByText(/Each card earns you/)).toBeVisible();
   await page.getByRole("button", { name: "Start this edition" }).click();
   await expect(page).toHaveURL(/\/studio\/editions\/[^/]+$/);
   await expect(page.getByRole("heading", { name: "The cards", level: 2 })).toBeVisible();
-  // Six empty slots: not yet sellable.
-  await expect(page.getByRole("button", { name: "Put on sale" })).toBeDisabled();
+  // Six empty slots: not yet sendable.
+  await expect(page.getByRole("button", { name: "Send for review" })).toBeDisabled();
 
-  // Its cards and banner through the API; the designer is covered by the server suite.
+  // Its cards and banner through the API, and the admin's yes; the designer is covered by the server suite.
   const editionId = page.url().split("/").pop()!;
-  await fillAndSell(page, editionId, { slug: "birds", title: "Birds", description: "Six birds from the **road**.", cardCount: 6, priceCents: 3000 });
+  await fillAndSell(page, browser, editionId, { slug: "birds", title: "Birds", description: "Six birds from the **road**.", cardCount: 6, priceCents: 3000 });
 
   await page.goto("/studio");
   await page.getByRole("button", { name: "Go live" }).click();
@@ -144,11 +159,14 @@ test("collecting asks for an address and a day, shows the schedule, and stops at
   await register(apiPage, artistEmail, "Live Artist");
   await signIn(apiPage, artistEmail);
   const headers = { "x-csrf-token": await csrfOf(apiPage) };
-  expect((await apiPage.request.post("/api/studio", { headers, data: { slug, name: "Live Artist" } })).ok()).toBeTruthy();
+  // A page always has a banner, uploaded before the page exists.
+  const banner = await apiPage.request.post("/api/studio/banner", { headers, multipart: { file: { name: "banner.png", mimeType: "image/png", buffer: png } } });
+  expect(banner.ok()).toBeTruthy();
+  expect((await apiPage.request.post("/api/studio", { headers, data: { slug, name: "Live Artist", banner: (await banner.json()) as unknown } })).ok()).toBeTruthy();
   const edition = { slug: "flowers", title: "Flowers", description: "Six flowers from the garden.", cardCount: 6, priceCents: 3000 };
   const created = await apiPage.request.post("/api/studio/editions", { headers, data: edition });
   expect(created.ok()).toBeTruthy();
-  const cards = await fillAndSell(apiPage, ((await created.json()) as { id: string }).id, edition);
+  const cards = await fillAndSell(apiPage, browser, ((await created.json()) as { id: string }).id, edition);
   expect((await apiPage.request.post("/api/studio/status", { headers, data: { status: "live" } })).ok()).toBeTruthy();
   await api.close();
 

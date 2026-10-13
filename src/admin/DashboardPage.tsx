@@ -58,6 +58,16 @@ export function DashboardPage() {
 
       {environment.data ? <Wiring environment={environment.data} /> : null}
 
+      {(o?.review.artists ?? 0) + (o?.review.editions ?? 0) > 0 ? (
+        <Alert
+          className={cx(styles.wiring)}
+          type="info"
+          showIcon
+          title={`${reviewWords(o?.review.artists ?? 0, o?.review.editions ?? 0)} waiting for review`}
+          description={<Link to="/admin/review">Open the queue</Link>}
+        />
+      ) : null}
+
       {o?.lastSweep?.result.skipped ? (
         <Alert className={cx(styles.wiring)} type="warning" showIcon title="The last mail sweep stopped early" description={`${o.lastSweep.result.skipped} (${new Date(o.lastSweep.at).toLocaleTimeString(locale)})`} />
       ) : null}
@@ -90,7 +100,7 @@ export function DashboardPage() {
         <Card>
           <Statistic title="Editions on sale" value={o?.editions.on_sale ?? 0} loading={overview.isPending} />
           <p className={cx(styles.statNote)}>
-            {o?.editions.draft ?? 0} drafting · {o?.editions.closed ?? 0} closed
+            {o?.editions.draft ?? 0} drafting · {o?.editions.in_review ?? 0} in review · {o?.editions.closed ?? 0} closed
           </p>
         </Card>
         <Card>
@@ -126,6 +136,15 @@ export function DashboardPage() {
       </Card>
     </>
   );
+}
+
+/** "2 artists and an edition", for the review notice. */
+function reviewWords(artists: number, editions: number): string {
+  const parts = [
+    artists > 0 ? (artists === 1 ? "An artist" : `${artists} artists`) : null,
+    editions > 0 ? (editions === 1 ? (artists > 0 ? "an edition" : "An edition") : `${editions} editions`) : null,
+  ].filter((part): part is string => part !== null);
+  return parts.join(" and ");
 }
 
 interface WiringProps {

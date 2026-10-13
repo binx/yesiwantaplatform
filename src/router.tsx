@@ -37,6 +37,7 @@ export const router = createBrowserRouter([
         lazy: async () => ({ Component: (await import("./admin/RequireAdmin")).RequireAdmin }),
         children: [
           { index: true, lazy: async () => ({ Component: (await import("./admin/DashboardPage")).DashboardPage }) },
+          { path: "review", lazy: async () => ({ Component: (await import("./admin/ReviewPage")).ReviewPage }) },
           { path: "artists", lazy: async () => ({ Component: (await import("./admin/ArtistsPage")).ArtistsPage }) },
           { path: "artists/:id", lazy: async () => ({ Component: (await import("./admin/ArtistDetailPage")).ArtistDetailPage }) },
           { path: "editions", lazy: async () => ({ Component: (await import("./admin/EditionsPage")).EditionsPage }) },

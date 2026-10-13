@@ -5,7 +5,7 @@ import { artistProfileInputSchema, editionInputSchema, type ArtistProfileInput, 
 import { PRINT_SIZES, postcardBackSchema, type Orientation, type PostcardBack } from "../shared/postcards.js";
 import { EmailTakenError, countAdmins, createAdmin, createCustomer } from "../server/auth.js";
 import { storeImage, storePostcardDesign } from "../server/uploads.js";
-import { createArtist, findArtistBySlug, setArtistStatus } from "./artists-repository.js";
+import { createArtist, findArtistBySlug, reviewArtist, setArtistStatus } from "./artists-repository.js";
 import { getDatabase } from "./client.js";
 import { createDesign } from "./designs-repository.js";
 import { createEdition, replaceEditionCards, setEditionStatus, updateDraftEdition } from "./editions-repository.js";
@@ -327,6 +327,8 @@ async function seedArtist(demo: DemoArtist): Promise<boolean> {
     console.log(`  ${edition.input.title}: ${cards.length} cards, on sale.`);
   }
 
+  // The demo stands in for the admin's review: approved, so the page can be live.
+  await reviewArtist(artist.id, { decision: "approved", note: "" });
   await setArtistStatus(artist.id, "live");
   console.log(`${demo.profile.name} is live at /artist/${demo.profile.slug} (sign in as ${demo.email}).`);
   return true;

@@ -72,6 +72,8 @@ const MUTATIONS = [
   { method: "post", path: "/api/admin/payouts/run" },
   { method: "post", path: "/api/admin/payouts/some-payout/retry" },
   { method: "post", path: "/api/admin/artists/some-artist/status" },
+  { method: "post", path: "/api/admin/artists/some-artist/review" },
+  { method: "post", path: "/api/admin/editions/some-edition/review" },
   { method: "post", path: "/api/admin/postcards/some-card/retry" },
   { method: "post", path: "/api/admin/postcards/some-card/cancel" },
   { method: "put", path: "/api/admin/users/me/password" },
@@ -80,6 +82,7 @@ const MUTATIONS = [
 const READS = [
   "/api/admin/environment",
   "/api/admin/overview",
+  "/api/admin/review",
   "/api/admin/fulfilment",
   "/api/admin/pages",
   "/api/admin/settings",
@@ -115,6 +118,7 @@ const CUSTOMER_READS = [
 
 const STUDIO_MUTATIONS = [
   { method: "put", path: "/api/studio/profile" },
+  { method: "post", path: "/api/studio/review" },
   { method: "post", path: "/api/studio/status" },
   { method: "post", path: "/api/studio/designs" },
   { method: "put", path: "/api/studio/designs/some-design" },
@@ -340,11 +344,36 @@ describe("studio routes", () => {
     await agent.get("/api/studio/editions/not-mine").expect(404);
   });
 
-  it("refuses to go live with nothing on sale", async () => {
+  it("refuses to go live before the page is approved, and then with nothing on sale", async () => {
     const { agent, csrf } = await signInCustomer("artist@example.com");
+    const pending = await agent.post("/api/studio/status").set("x-csrf-token", csrf).send({ status: "live" });
+    expect(pending.status).toBe(409);
+    expect(pending.body.error).toMatch(/waiting for review/i);
+
+    const admin = await signIn();
+    const studio = await agent.get("/api/studio").expect(200);
+    await admin.agent.post(`/api/admin/artists/${studio.body.artist.id}/review`).set("x-csrf-token", admin.csrf).send({ decision: "approved" }).expect(204);
     const response = await agent.post("/api/studio/status").set("x-csrf-token", csrf).send({ status: "live" });
     expect(response.status).toBe(409);
     expect(response.body.error).toMatch(/edition on sale/i);
+    // Back to where the other tests expect the page: waiting.
+    await admin.agent.post(`/api/admin/artists/${studio.body.artist.id}/review`).set("x-csrf-token", admin.csrf).send({ decision: "declined", note: "Not yet." }).expect(204);
+    expect((await agent.get("/api/studio").expect(200)).body.artist).toMatchObject({ reviewStatus: "declined", reviewNote: "Not yet." });
+    await agent.post("/api/studio/review").set("x-csrf-token", csrf).send({}).expect(200);
+    expect((await agent.get("/api/studio").expect(200)).body.artist.reviewStatus).toBe("pending");
+  });
+
+  it("never puts an edition on sale itself: that is the admin's, from review", async () => {
+    const { agent, csrf } = await signInCustomer("artist@example.com");
+    const created = await agent
+      .post("/api/studio/editions")
+      .set("x-csrf-token", csrf)
+      .send({ slug: "unreviewed", title: "Unreviewed", cardCount: 6, priceCents: 3000 })
+      .expect(201);
+    const response = await agent.post(`/api/studio/editions/${created.body.id}/status`).set("x-csrf-token", csrf).send({ status: "on_sale" });
+    expect(response.status).toBe(409);
+    expect(response.body.error).toMatch(/review/i);
+    await agent.delete(`/api/studio/editions/${created.body.id}`).set("x-csrf-token", csrf).expect(204);
   });
 
   it("refuses a second artist page for the same account", async () => {

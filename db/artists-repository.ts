@@ -1,10 +1,19 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, countDistinct, eq, inArray } from "drizzle-orm";
-import { artistLinkSchema, type ArtistLink, type ArtistProfileInput, type ArtistProfileUpdate, type ArtistStatus, type ArtistVisibility } from "../shared/platform.js";
+import {
+  artistLinkSchema,
+  type ArtistLink,
+  type ArtistProfileInput,
+  type ArtistProfileUpdate,
+  type ArtistReviewStatus,
+  type ArtistStatus,
+  type ArtistVisibility,
+  type ReviewInput,
+} from "../shared/platform.js";
 import type { Image } from "../shared/schema.js";
 import { SlugTakenError } from "./admin-repository.js";
 import { getDatabase } from "./client.js";
-import { affectedRows, isUniqueViolation, jsonFor, nowFor, parseJson, toBool, toCount, toEpochMs } from "./repository.js";
+import { affectedRows, epochOrNull, isUniqueViolation, jsonFor, nowFor, parseJson, toBool, toCount, toEpochMs } from "./repository.js";
 
 /**
  * Artists — the people with a page and the editions on it.
@@ -31,6 +40,9 @@ export interface ArtistRow {
   links: unknown;
   status: string;
   visibility: string;
+  reviewStatus: string;
+  reviewNote: string | null;
+  reviewedAt: unknown;
   stripeAccountId: string | null;
   payoutsEnabled: unknown;
   createdAt: unknown;
@@ -47,6 +59,9 @@ export interface ArtistRecord {
   links: ArtistLink[];
   status: ArtistStatus;
   visibility: ArtistVisibility;
+  reviewStatus: ArtistReviewStatus;
+  reviewNote: string | null;
+  reviewedAt: number | null;
   stripeAccountId: string | null;
   payoutsEnabled: boolean;
   createdAt: number;
@@ -54,6 +69,11 @@ export interface ArtistRecord {
 
 function toStatus(value: string): ArtistStatus {
   return value === "live" || value === "paused" ? value : "draft";
+}
+
+/** Anything unknown is pending: a row the admin has not said yes to must not go live by accident. */
+function toReviewStatus(value: string): ArtistReviewStatus {
+  return value === "approved" || value === "declined" ? value : "pending";
 }
 
 /** Anything but an explicit "private" shows: an unknown value must not hide cards by accident. */
@@ -88,6 +108,9 @@ export function buildArtist(row: ArtistRow): ArtistRecord {
     links: toLinks(row.links),
     status: toStatus(row.status),
     visibility: toVisibility(row.visibility),
+    reviewStatus: toReviewStatus(row.reviewStatus),
+    reviewNote: row.reviewNote,
+    reviewedAt: epochOrNull(row.reviewedAt),
     stripeAccountId: row.stripeAccountId,
     payoutsEnabled: toBool(row.payoutsEnabled),
     createdAt: toEpochMs(row.createdAt),
@@ -170,6 +193,30 @@ export async function setArtistStatus(id: string, status: ArtistStatus): Promise
   return affectedRows(result) === 1;
 }
 
+/**
+ * The admin's decision on a page. Any time: a page approved once can be
+ * declined later, and a declined one approved. The note is the admin's
+ * words to the artist; blank is stored as nothing to say.
+ */
+export async function reviewArtist(id: string, input: ReviewInput): Promise<boolean> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+  const result = await db
+    .update(schema.artists)
+    .set({ reviewStatus: input.decision, reviewNote: input.note || null, reviewedAt: nowFor(dialect), updatedAt: nowFor(dialect) })
+    .where(eq(schema.artists.id, id));
+  return affectedRows(result) === 1;
+}
+
+/** Ask again after a decline: back to pending, the old note kept until the next decision. False unless the page was declined. */
+export async function requestArtistReview(id: string): Promise<boolean> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+  const result = await db
+    .update(schema.artists)
+    .set({ reviewStatus: "pending", updatedAt: nowFor(dialect) })
+    .where(and(eq(schema.artists.id, id), eq(schema.artists.reviewStatus, "declined")));
+  return affectedRows(result) === 1;
+}
+
 /** Stripe Connect wiring, written by onboarding and by the `account.updated` webhook. */
 export async function setArtistStripeAccount(id: string, stripeAccountId: string, payoutsEnabled: boolean): Promise<void> {
   const { drizzle: db, schema, dialect } = await getDatabase();
@@ -220,6 +267,8 @@ export async function findArtistsByIds(ids: string[]): Promise<ArtistRecord[]> {
 export interface ArtistListOptions {
   /** Visitors see live artists only; the admin lists everyone. */
   status?: ArtistStatus;
+  /** The admin's queue is the pending ones. */
+  reviewStatus?: ArtistReviewStatus;
   limit?: number;
   offset?: number;
 }
@@ -228,10 +277,15 @@ export async function listArtists(options: ArtistListOptions = {}): Promise<{ ar
   const { drizzle: db, schema } = await getDatabase();
   const limit = Math.min(Math.max(options.limit ?? 100, 1), 500);
   const offset = Math.max(options.offset ?? 0, 0);
-  const where = options.status ? eq(schema.artists.status, options.status) : undefined;
+  const where = and(
+    options.status ? eq(schema.artists.status, options.status) : undefined,
+    options.reviewStatus ? eq(schema.artists.reviewStatus, options.reviewStatus) : undefined,
+  );
+  // The queue is first come, first looked at; everyone else by name.
+  const order = options.reviewStatus === "pending" ? [asc(schema.artists.createdAt), asc(schema.artists.id)] : [asc(schema.artists.name), asc(schema.artists.id)];
 
   const [rows, totals] = await Promise.all([
-    db.select().from(schema.artists).where(where).orderBy(asc(schema.artists.name), asc(schema.artists.id)).limit(limit).offset(offset) as unknown as Promise<ArtistRow[]>,
+    db.select().from(schema.artists).where(where).orderBy(...order).limit(limit).offset(offset) as unknown as Promise<ArtistRow[]>,
     db.select({ value: count() }).from(schema.artists).where(where) as unknown as Promise<{ value: unknown }[]>,
   ]);
 

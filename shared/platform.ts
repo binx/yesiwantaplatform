@@ -120,6 +120,26 @@ export const artistStatusSchema = z.enum(["draft", "live", "paused"]);
 export type ArtistStatus = z.infer<typeof artistStatusSchema>;
 
 /**
+ * Whether the platform has looked at the artist's page.
+ *
+ *   pending   opened, not yet looked at: the admin's queue has it
+ *   approved  may go live, and its editions may be approved
+ *   declined  not as it is; the note says why, and the artist may ask again
+ *
+ * Nothing goes on sale, and no page goes live, before the admin has said
+ * yes to the artist and to the edition.
+ */
+export const artistReviewStatusSchema = z.enum(["pending", "approved", "declined"]);
+export type ArtistReviewStatus = z.infer<typeof artistReviewStatusSchema>;
+
+/** What the admin says about a page or an edition: yes or no, with a word to the artist. */
+export const reviewInputSchema = z.object({
+  decision: z.enum(["approved", "declined"]),
+  note: z.string().trim().max(2000, "2000 characters at most.").default(""),
+});
+export type ReviewInput = z.infer<typeof reviewInputSchema>;
+
+/**
  * Whether the artist's editions join the shared gallery.
  *
  *   public   each edition they put on sale can appear in the gallery
@@ -193,6 +213,9 @@ export const artistStudioSchema = artistPublicSchema.extend({
   hasStripeAccount: z.boolean(),
   /** The customer account this artist signs in with. */
   email: z.string(),
+  reviewStatus: artistReviewStatusSchema,
+  /** The admin's words on the last decision; null until there is one, or when there was nothing to say. */
+  reviewNote: z.string().nullable(),
 });
 
 export type ArtistLink = z.infer<typeof artistLinkSchema>;
@@ -223,14 +246,16 @@ export type Cadence = z.infer<typeof cadenceSchema>;
 /**
  * Where an edition is in its life.
  *
- *   draft    being made; only its artist sees it, and everything can change
- *   on_sale  listed and collectable. Its cards, size and price are
- *            fixed — collectors paid for exactly these — and only its words
- *            and banner can change. Back to draft only while nobody has
- *            bought it
- *   closed   no new collectors; everyone who paid still gets every card
+ *   draft      being made; only its artist sees it, and everything can change
+ *   in_review  sent to the admin, who alone can put it on sale. Fixed, like
+ *              one on sale; the artist can take it back to a draft
+ *   on_sale    listed and collectable. Its cards, size and price are
+ *              fixed — collectors paid for exactly these — and only its words
+ *              and banner can change. Back to draft only while nobody has
+ *              bought it
+ *   closed     no new collectors; everyone who paid still gets every card
  */
-export const editionStatusSchema = z.enum(["draft", "on_sale", "closed"]);
+export const editionStatusSchema = z.enum(["draft", "in_review", "on_sale", "closed"]);
 export type EditionStatus = z.infer<typeof editionStatusSchema>;
 
 /** One card of an edition, in its place. Position 1 goes first. */
@@ -290,6 +315,8 @@ export const editionStudioSchema = editionSchema.extend({
   sentCount: z.number().int().min(0),
   /** Cards still to come across every collector. */
   scheduledCount: z.number().int().min(0),
+  /** The admin's words when the edition was declined; cleared when it is sent again. */
+  reviewNote: z.string().nullable(),
 });
 
 export const editionInputSchema = z.object({

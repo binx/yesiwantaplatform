@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 
-import type { EditionInput, EditionSize, EditionStatus } from "../shared/platform.js";
+import type { EditionInput, EditionSize, EditionStatus, ReviewInput } from "../shared/platform.js";
 import type { Image } from "../shared/schema.js";
 import { getDatabase } from "./client.js";
 import { affectedRows, epochOrNull, isUniqueViolation, nowFor, timeFor, toBool, toCount, toEpochMs } from "./repository.js";
@@ -12,6 +12,8 @@ import { affectedRows, epochOrNull, isUniqueViolation, nowFor, timeFor, toBool, 
  * An edition's cards, size and price can change only while it is a
  * `draft`; the conditional updates here are what hold that, so a route that
  * forgot to check could still not rewrite something a collector paid for.
+ * Only `reviewEdition` moves one from review to `on_sale`: the admin's
+ * decision is the one way an edition gets there the first time.
  */
 
 export interface EditionRow {
@@ -28,6 +30,9 @@ export interface EditionRow {
   priceCents: number;
   status: string;
   inGallery: unknown;
+  reviewNote: string | null;
+  submittedAt: unknown;
+  reviewedAt: unknown;
   createdAt: unknown;
 }
 
@@ -42,6 +47,9 @@ export interface EditionRecord {
   priceCents: number;
   status: EditionStatus;
   inGallery: boolean;
+  reviewNote: string | null;
+  submittedAt: number | null;
+  reviewedAt: number | null;
   createdAt: number;
 }
 
@@ -71,7 +79,7 @@ export class EditionSlugTakenError extends Error {
 }
 
 function toStatus(value: string): EditionStatus {
-  return value === "on_sale" || value === "closed" ? value : "draft";
+  return value === "on_sale" || value === "closed" || value === "in_review" ? value : "draft";
 }
 
 export function buildEdition(row: EditionRow): EditionRecord {
@@ -89,6 +97,9 @@ export function buildEdition(row: EditionRow): EditionRecord {
     priceCents: row.priceCents,
     status: toStatus(row.status),
     inGallery: toBool(row.inGallery),
+    reviewNote: row.reviewNote,
+    submittedAt: epochOrNull(row.submittedAt),
+    reviewedAt: epochOrNull(row.reviewedAt),
     createdAt: toEpochMs(row.createdAt),
   };
 }
@@ -191,6 +202,35 @@ export async function setEditionStatus(id: string, from: EditionStatus[], to: Ed
     .update(schema.editions)
     .set({ status: to, updatedAt: nowFor(dialect) })
     .where(and(eq(schema.editions.id, id), inArray(schema.editions.status, from)));
+  return affectedRows(result) === 1;
+}
+
+/** The artist sends a draft to the admin. The last decline's note goes with it. False unless it was a draft. */
+export async function submitEditionForReview(id: string, artistId: string): Promise<boolean> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+  const result = await db
+    .update(schema.editions)
+    .set({ status: "in_review", reviewNote: null, submittedAt: nowFor(dialect), updatedAt: nowFor(dialect) })
+    .where(and(eq(schema.editions.id, id), eq(schema.editions.artistId, artistId), eq(schema.editions.status, "draft")));
+  return affectedRows(result) === 1;
+}
+
+/**
+ * The admin's decision on an edition in review: approved puts it on sale,
+ * declined sends it back to a draft with the note on it. False unless it
+ * was in review, so two decisions cannot both land.
+ */
+export async function reviewEdition(id: string, input: ReviewInput): Promise<boolean> {
+  const { drizzle: db, schema, dialect } = await getDatabase();
+  const result = await db
+    .update(schema.editions)
+    .set({
+      status: input.decision === "approved" ? "on_sale" : "draft",
+      reviewNote: input.note || null,
+      reviewedAt: nowFor(dialect),
+      updatedAt: nowFor(dialect),
+    })
+    .where(and(eq(schema.editions.id, id), eq(schema.editions.status, "in_review")));
   return affectedRows(result) === 1;
 }
 

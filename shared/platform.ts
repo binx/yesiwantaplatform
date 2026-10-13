@@ -31,30 +31,76 @@ export function editionPath(artistSlug: string, editionSlug: string): string {
 }
 
 /**
+ * What kind of place a link points at. The studio asks this first and
+ * shapes the rest of the row by it: a website wants an address, Instagram
+ * a username, and only "custom" asks for a label of its own.
+ */
+export const ARTIST_LINK_KINDS = ["website", "instagram", "custom"] as const;
+export const artistLinkKindSchema = z.enum(ARTIST_LINK_KINDS);
+export type ArtistLinkKind = z.infer<typeof artistLinkKindSchema>;
+
+/** An Instagram username: letters, numbers, periods and underscores, thirty at most. */
+export const INSTAGRAM_HANDLE = /^[A-Za-z0-9._]{1,30}$/;
+
+/** The address of an Instagram profile. */
+export function instagramUrl(handle: string): string {
+  return `https://instagram.com/${handle}`;
+}
+
+/**
+ * The username in whatever someone typed for Instagram: a bare name, an
+ * "@name", or the address of the profile, pasted from the browser. Not
+ * checked here: `INSTAGRAM_HANDLE` says whether it is one.
+ */
+export function instagramHandle(value: string): string {
+  const trimmed = value.trim();
+  const path = trimmed.replace(/^(https?:\/\/)?(www\.)?instagram\.com\//i, "");
+  const [first = ""] = path.split(/[/?#]/);
+  return first.replace(/^@/, "");
+}
+
+/** "rachel.com", typed without a scheme, means https://rachel.com. */
+export function withScheme(url: string): string {
+  const trimmed = url.trim();
+  if (trimmed === "" || /^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+/**
  * Somewhere else the artist is: a website, a shop, a social account.
  *
  * The address must be a full `https://` (or `http://`) URL, because it ends
- * up in an `href` on a public page. The label is optional; a blank one is
- * shown as the site's hostname.
+ * up in an `href` on a public page. An Instagram link's address is the
+ * profile's, so its username can be read back out of it. The label is
+ * optional; a blank one is shown as the username or the site's hostname.
+ * Links stored before kinds existed have none and are read as custom.
  */
-export const artistLinkSchema = z.object({
-  label: z.string().trim().max(40, "40 characters at most.").default(""),
-  url: z
-    .string()
-    .trim()
-    .max(500, "500 characters at most.")
-    .url("Use a full link, starting with https://.")
-    .refine((value) => value.startsWith("https://") || value.startsWith("http://"), "Use a full link, starting with https://."),
-});
+export const artistLinkSchema = z
+  .object({
+    kind: artistLinkKindSchema.default("custom"),
+    label: z.string().trim().max(40, "40 characters at most.").default(""),
+    url: z
+      .string()
+      .trim()
+      .max(500, "500 characters at most.")
+      .url("Use a full link, starting with https://.")
+      .refine((value) => value.startsWith("https://") || value.startsWith("http://"), "Use a full link, starting with https://."),
+  })
+  .superRefine((link, ctx) => {
+    if (link.kind === "instagram" && (!/^https?:\/\/(www\.)?instagram\.com\//i.test(link.url) || !INSTAGRAM_HANDLE.test(instagramHandle(link.url)))) {
+      ctx.addIssue({ code: "custom", path: ["url"], message: "Use an Instagram username: letters, numbers, periods and underscores." });
+    }
+  });
 
 /** How many links an artist may list. Enough for a website and the usual accounts. */
 export const MAX_ARTIST_LINKS = 8;
 
 export const artistLinksSchema = z.array(artistLinkSchema).max(MAX_ARTIST_LINKS, `${MAX_ARTIST_LINKS} links at most.`).default([]);
 
-/** The words for a link with no label: the hostname, without a leading "www.". */
-export function artistLinkLabel(link: { label: string; url: string }): string {
+/** The words for a link with no label: "@name" for Instagram, otherwise the hostname without a leading "www.". */
+export function artistLinkLabel(link: { kind?: ArtistLinkKind; label: string; url: string }): string {
   if (link.label) return link.label;
+  if (link.kind === "instagram") return `@${instagramHandle(link.url)}`;
   try {
     return new URL(link.url).hostname.replace(/^www\./, "");
   } catch {

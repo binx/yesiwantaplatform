@@ -60,11 +60,18 @@ describe.each(schemes)("the %s palette", (colorScheme) => {
     }
   });
 
-  it("draws a default button's border in the store's primary at rest, as on hover", () => {
+  it("draws a default button's border at rest as on hover, in the store's primary where that reads on the surface", () => {
     const button = toAntdTheme({ ...defaultTheme, colorScheme, colorPage: null }).components?.Button;
+    const edge = button?.defaultBorderColor as string;
 
-    expect(button?.defaultBorderColor).toBe(defaultTheme.colorPrimary);
-    expect(button?.defaultBorderColor).toBe(button?.defaultHoverBorderColor);
+    expect(button?.defaultHoverBorderColor).toBe(edge);
+    expect(button?.defaultActiveBorderColor).toBe(edge);
+    // WCAG's bar for a control's boundary, not for text: the label is ink.
+    expect(contrastRatio(edge, surface)).toBeGreaterThanOrEqual(3);
+    // The primary itself when it clears that bar (the dark surface); otherwise
+    // the primary deepened toward ink, never a grey from outside the theme.
+    if (contrastRatio(defaultTheme.colorPrimary, surface) >= 3) expect(edge).toBe(defaultTheme.colorPrimary);
+    else expect(contrastRatio(edge, surface)).toBeLessThan(contrastRatio(ink, surface));
   });
 
   it("pins antd's secondary text to the palette rather than a derived grey", () => {

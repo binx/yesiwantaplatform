@@ -117,6 +117,21 @@
   color: var(--beluga-muted);
 }
 
+/* The gallery stories: ink rather than muted, a paragraph per option, under the control. */
+.stories {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 48ch;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--beluga-ink);
+}
+
+.stories p {
+  margin: 0;
+}
+
 .error {
   font-size: 0.8125rem;
   color: #b91c1c;
@@ -572,20 +587,47 @@
   gap: 0.5rem;
 }
 
+/* The kind first, then what that kind asks for, then the bin. A problem takes the row below. */
 .linkRow {
   display: grid;
-  grid-template-columns: minmax(6rem, 12rem) minmax(0, 1fr) auto;
+  grid-template-columns: 8.5rem minmax(0, 1fr) auto;
   gap: 0.5rem;
   align-items: center;
 }
 
+.linkKind {
+  width: 100%;
+}
+
+/* Custom asks for two things: the label, then the address beside it. */
+.linkCustom {
+  display: grid;
+  grid-template-columns: minmax(6rem, 11rem) minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.linkProblem {
+  grid-column: 2 / -1;
+}
+
 @media (max-width: 640px) {
+  /* Stacked, each row is three lines tall, so the rows need more air between them to read as rows. */
+  .linkList {
+    gap: 1rem;
+  }
+
   .linkRow {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .linkLabel {
+  .linkKind,
+  .linkProblem {
     grid-column: 1 / -1;
+  }
+
+  .linkCustom {
+    grid-column: 1;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

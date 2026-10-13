@@ -81,6 +81,9 @@ what the setting means, no example, no "optional". Section headings stand
 alone, with no intro paragraph under them. The one thing that may appear
 under a control is an error, in one sentence, only while the input is
 invalid. If a control needs a sentence to be understood, rename the control.
+The one standing exception is the studio's "In the gallery" choice: Listed
+and Not listed cannot say on their own what happens to the editions, so the
+sentence under it stays.
 
 ## Branching
 

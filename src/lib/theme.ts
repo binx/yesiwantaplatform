@@ -98,6 +98,24 @@ function readableOn(background: string): string {
     : "#ffffff";
 }
 
+/**
+ * `color`, pulled toward `ink` only as far as it must be to clear WCAG's 3:1
+ * for a control's boundary on `surface`.
+ *
+ * A default button's edge is the store's primary, so it reads as the same
+ * colour the button turns on hover. The default cyan clears 3:1 on the dark
+ * surface untouched; on a white one it sits at 1.6:1, and a shop can pick any
+ * primary at all, so the edge is darkened in tenths until it reads rather
+ * than falling back to a grey that has nothing to do with the store.
+ */
+function edgeOn(color: string, surface: string, ink: string): string {
+  for (let step = 0; step <= 10; step += 1) {
+    const edge = mix(ink, color, step / 10);
+    if (contrastRatio(edge, surface) >= 3) return edge;
+  }
+  return ink;
+}
+
 /** WCAG contrast ratio between two colours, 1 (identical) to 21 (black/white). */
 export function contrastRatio(a: string, b: string): number {
   const [lumA, lumB] = [relativeLuminance(a), relativeLuminance(b)];
@@ -145,12 +163,16 @@ export function themeCssVars(theme: Theme): Record<string, string> {
  * rings and selected rows, and the near-black it defaults to made "Save this
  * design" and "Add to cart" read as chrome rather than as the thing to press.
  * The label is always ink, whatever the scheme — dark text is what stays
- * legible on the magenta (5.1:1 against `#18181b`; white would only get 3.5:1).
+ * legible on the pink (7.9:1 against `#18181b`; white would only get 2.3:1).
+ *
+ * A paler pink than the chroma's magenta (`--chroma-2`): at full saturation
+ * the ink label passed on paper but vibrated on screen, and was hard to read
+ * on the night page in particular. This one is the same hue, let up.
  */
 export const ACTION_BUTTON = {
-  fill: "#ff2d8a",
-  hover: "#ff4d9c",
-  active: "#ff1f80",
+  fill: "#ff85bd",
+  hover: "#ff9bca",
+  active: "#ff70b1",
   label: "#18181b",
 } as const;
 
@@ -175,6 +197,7 @@ const linksAreThePrimary: MappingAlgorithm = (seed, map) => {
 export function toAntdTheme(theme: Theme): ThemeConfig {
   const palette = schemePalette[theme.colorScheme];
   const isDark = theme.colorScheme === "dark";
+  const buttonEdge = edgeOn(theme.colorPrimary, palette.surface, palette.ink);
 
   return {
     algorithm: [isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm, linksAreThePrimary],
@@ -222,27 +245,30 @@ export function toAntdTheme(theme: Theme): ThemeConfig {
     components: {
       Button: {
         // Uppercase, letterspaced labels read as retail rather than dashboard.
-        // Semibold, because the ink label sits on a fully saturated magenta
+        // Semibold, because the ink label sits on a saturated pink
         // (ACTION_BUTTON) and at 500 it had too little stroke to hold its own.
         fontWeight: 600,
         primaryShadow: "none",
         defaultShadow: "none",
-        // Primary buttons are the chroma magenta, not the theme's primary — see ACTION_BUTTON.
+        // Primary buttons are the action pink, not the theme's primary — see ACTION_BUTTON.
         colorPrimary: ACTION_BUTTON.fill,
         colorPrimaryHover: ACTION_BUTTON.hover,
         colorPrimaryActive: ACTION_BUTTON.active,
         primaryColor: ACTION_BUTTON.label,
-        // A default button's border is the store's primary at rest, not only
-        // on hover: antd's resting `colorBorder` is the hairline the palette
-        // draws between sections, too faint to make a button read as one.
-        defaultBorderColor: theme.colorPrimary,
         // antd colours a default button's hover and active states from the
         // same primary, which would put pale yellow text on a white button.
         // Those stay on the store's primary, as they were.
         defaultHoverColor: theme.colorPrimary,
-        defaultHoverBorderColor: theme.colorPrimary,
         defaultActiveColor: theme.colorPrimary,
-        defaultActiveBorderColor: theme.colorPrimary,
+        // antd draws a default button's edge in `colorBorder`, the hairline
+        // the palette uses between sections: 1.3:1 on the surface in both
+        // schemes, so "Pause" and "Cancel" vanished beside the pink. A grey
+        // halfway from surface to ink cleared 3:1 and still read as faint, so
+        // the edge is the store's primary at rest, hover and press alike —
+        // see `edgeOn` for the one case where it has to be deepened to read.
+        defaultBorderColor: buttonEdge,
+        defaultHoverBorderColor: buttonEdge,
+        defaultActiveBorderColor: buttonEdge,
       },
       Card: {
         paddingLG: 28,

@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { Alert, Button, Skeleton, Tag } from "antd";
+import { InstagramOutlined } from "@ant-design/icons";
 import { formatMoney } from "@shared/money";
 import { KEEPS_EVERY_CARD } from "@shared/copy";
 import { artistLinkLabel, editionPath, type ArtistPublic, type EditionSummary } from "@shared/platform";
@@ -121,6 +122,7 @@ export function ArtistPage() {
             <nav className={styles.actions} aria-label={`Where else to find ${artist.name}`}>
               {artist.links.map((link) => (
                 <a key={link.url} className={styles.chip} href={link.url} target="_blank" rel="noopener noreferrer nofollow">
+                  {link.kind === "instagram" ? <InstagramOutlined aria-hidden /> : null}
                   {artistLinkLabel(link)}
                   <span aria-hidden>↗</span>
                 </a>

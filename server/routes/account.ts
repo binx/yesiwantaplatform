@@ -12,6 +12,7 @@ import {
 } from "../../shared/account.js";
 import { getMailingAddress, setMailingAddress } from "../../db/customers-repository.js";
 import { findArtistByCustomer } from "../../db/artists-repository.js";
+import { listEditionsForArtist } from "../../db/editions-repository.js";
 import { listPurchasesForCustomer, updatePurchaseAddress, updatePurchaseAddresses } from "../../db/purchases-repository.js";
 import { listPostcardsForCustomer, updateUnsentPostcardAddresses } from "../../db/postcards-repository.js";
 import {
@@ -173,6 +174,7 @@ accountRouter.get("/", async (req, res) => {
   const customer = id ? await findCustomerById(id) : null;
 
   const [address, artist] = customer ? await Promise.all([getMailingAddress(customer.id), findArtistByCustomer(customer.id)]) : [null, null];
+  const inReview = artist ? await listEditionsForArtist(artist.id, ["in_review"]) : [];
   const profile: CustomerProfile | null = customer
     ? {
         id: customer.id,
@@ -182,6 +184,8 @@ accountRouter.get("/", async (req, res) => {
         createdAt: toEpochMs(customer.createdAt),
         address,
         artistSlug: artist?.slug ?? null,
+        artistReviewStatus: artist?.reviewStatus ?? null,
+        editionsInReview: inReview.length,
       }
     : null;
 

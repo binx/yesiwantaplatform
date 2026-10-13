@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button, Grid, Menu, Skeleton, Typography } from "antd";
-import { AppstoreOutlined, DollarOutlined, FileTextOutlined, LogoutOutlined, MailOutlined, SettingOutlined, TeamOutlined, UserOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, AuditOutlined, DollarOutlined, FileTextOutlined, LogoutOutlined, MailOutlined, SettingOutlined, TeamOutlined, UserOutlined } from "@ant-design/icons";
 import { useLogout, useSession } from "@/lib/session";
 import { useSettings } from "./queries";
 import { cx } from "@/lib/cx";
@@ -17,6 +17,7 @@ import styles from "./AdminLayout.module.css";
 
 const NAV = [
   { key: "", icon: <AppstoreOutlined />, label: "Overview" },
+  { key: "review", icon: <AuditOutlined />, label: "Review" },
   { key: "artists", icon: <TeamOutlined />, label: "Artists" },
   { key: "editions", icon: <MailOutlined />, label: "Editions" },
   { key: "payouts", icon: <DollarOutlined />, label: "Payouts" },

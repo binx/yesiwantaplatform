@@ -10,8 +10,9 @@ import { editionSchedule } from "../shared/platform.js";
  * The whole life of an edition, end to end, against a fake Lob and a stubbed
  * Stripe.
  *
- * An artist makes a page, builds an edition of six cards, puts it on sale
- * and goes live; a collector pays once, picking the day it starts (Checkout
+ * An artist makes a page, builds an edition of six cards and sends it for
+ * review; the admin approves the page and the edition, which puts it on
+ * sale, and the artist goes live; a collector pays once, picking the day it starts (Checkout
  * is stubbed, the signed webhook is real) and every card of their run is
  * written on its day; the print sweep sends each as its day comes and the
  * ledger records the artist's share of it; the payout sweep transfers it
@@ -133,8 +134,11 @@ const EDITION: { slug: string; title: string; description: string; cardCount: nu
 };
 
 describe("an artist makes an edition", () => {
-  it("creates the page, builds a set of six, puts it on sale and goes live", async () => {
+  it("creates the page, builds a set of six, sends it for review, is approved, and goes live", async () => {
     const { agent, csrf } = await signIn("artist@example.com");
+    // Without SMTP every email is logged instead; the log is what says who was told what.
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const emailed = (subject: string, to: string) => vi.waitFor(() => expect(log.mock.calls.map((call) => String(call[0]))).toContainEqual(expect.stringContaining(`would have sent "${subject}" to ${to}`)));
 
     // A page always has a picture across the top, so it is uploaded before the page exists.
     const withoutBanner = await agent.post("/api/studio").set("x-csrf-token", csrf).send({ slug: "rachel", name: "Rachel", bio: "**Hi.**" });
@@ -144,7 +148,10 @@ describe("an artist makes an edition", () => {
     artistBanner = banner.body as Record<string, unknown>;
     const created = await agent.post("/api/studio").set("x-csrf-token", csrf).send({ slug: "rachel", name: "Rachel", bio: "**Hi.**", banner: artistBanner }).expect(201);
     artistId = created.body.artist.id;
-    expect(created.body.artist).toMatchObject({ status: "draft", links: [], banner: { path: banner.body.path, width: 900, height: 300 } });
+    expect(created.body.artist).toMatchObject({ status: "draft", reviewStatus: "pending", reviewNote: null, links: [], banner: { path: banner.body.path, width: 900, height: 300 } });
+    // Opening a studio is the first thing the admin hears about.
+    await emailed("Rachel opened a studio", "admin@example.com");
+    expect((await agent.get("/api/account").expect(200)).body.customer).toMatchObject({ artistSlug: "rachel", artistReviewStatus: "pending", editionsInReview: 0 });
 
     // Where else to find them. A link without a proper address is refused.
     const badLink = await agent.put("/api/studio/profile").set("x-csrf-token", csrf).send({ slug: "rachel", name: "Rachel", banner: artistBanner, links: [{ label: "Instagram", url: "instagram.com/rachel" }] });
@@ -156,7 +163,7 @@ describe("an artist makes an edition", () => {
       .expect(200);
     expect(profile.body.artist.banner).toMatchObject({ path: banner.body.path, width: 900, height: 300 });
 
-    // Nothing on sale, so nothing to go live with.
+    // Not approved, and nothing on sale: nothing to go live with.
     expect((await agent.post("/api/studio/status").set("x-csrf-token", csrf).send({ status: "live" })).status).toBe(409);
 
     const designIds: string[] = [];
@@ -178,7 +185,7 @@ describe("an artist makes an edition", () => {
 
     // Five cards are not a set of six.
     await agent.put(`/api/studio/editions/${editionId}/cards`).set("x-csrf-token", csrf).send({ cards: designIds.slice(0, 5).map((designId) => ({ designId })) }).expect(200);
-    const short = await agent.post(`/api/studio/editions/${editionId}/status`).set("x-csrf-token", csrf).send({ status: "on_sale" });
+    const short = await agent.post(`/api/studio/editions/${editionId}/status`).set("x-csrf-token", csrf).send({ status: "in_review" });
     expect(short.status).toBe(409);
     expect(short.body.error).toMatch(/all 6 cards/);
 
@@ -190,15 +197,54 @@ describe("an artist makes an edition", () => {
     expect((full.body.cards as { position: number }[]).map((c) => c.position)).toEqual([1, 2, 3, 4, 5, 6]);
 
     // The cards are a surprise: the banner is what visitors see instead, so it is needed first.
-    const bare = await agent.post(`/api/studio/editions/${editionId}/status`).set("x-csrf-token", csrf).send({ status: "on_sale" });
+    const bare = await agent.post(`/api/studio/editions/${editionId}/status`).set("x-csrf-token", csrf).send({ status: "in_review" });
     expect(bare.status).toBe(409);
     expect(bare.body.error).toMatch(/banner/);
     const editionBanner = await agent.post("/api/studio/editions/banner").set("x-csrf-token", csrf).field("alt", "Birds on a wire").attach("file", bannerPng, { filename: "birds.png", contentType: "image/png" }).expect(201);
     EDITION.banner = editionBanner.body as typeof EDITION.banner;
     await agent.put(`/api/studio/editions/${editionId}`).set("x-csrf-token", csrf).send(EDITION).expect(200);
 
-    const onSale = await agent.post(`/api/studio/editions/${editionId}/status`).set("x-csrf-token", csrf).send({ status: "on_sale" }).expect(200);
+    // The artist cannot put it on sale; only the admin can, from review.
+    expect((await agent.post(`/api/studio/editions/${editionId}/status`).set("x-csrf-token", csrf).send({ status: "on_sale" })).status).toBe(409);
+    const sent = await agent.post(`/api/studio/editions/${editionId}/status`).set("x-csrf-token", csrf).send({ status: "in_review" }).expect(200);
+    expect(sent.body.status).toBe("in_review");
+    await emailed("Rachel sent Birds of Marfa for review", "admin@example.com");
+    expect((await agent.get("/api/account").expect(200)).body.customer.editionsInReview).toBe(1);
+    // In review nothing changes, and nobody sees it.
+    expect((await agent.put(`/api/studio/editions/${editionId}`).set("x-csrf-token", csrf).send({ ...EDITION, title: "Changed" })).status).toBe(409);
+    expect((await agent.put(`/api/studio/editions/${editionId}/cards`).set("x-csrf-token", csrf).send({ cards: [] })).status).toBe(409);
+    expect((await request(app).get("/api/gallery").expect(200)).body).toEqual({ editions: [], nextCursor: null });
+
+    // The admin's queue has the page and the edition, with every card to look at.
+    const admin = await signInAdmin();
+    const queue = await admin.agent.get("/api/admin/review").expect(200);
+    expect(queue.body.artists).toEqual([expect.objectContaining({ id: artistId, slug: "rachel", bio: "**Hi.**", reviewStatus: "pending" })]);
+    expect(queue.body.editions).toEqual([expect.objectContaining({ id: editionId, title: "Birds of Marfa", artist: expect.objectContaining({ id: artistId, reviewStatus: "pending" }) })]);
+    expect((queue.body.editions[0].cards as unknown[]).length).toBe(6);
+    expect((await admin.agent.get("/api/admin/overview").expect(200)).body.review).toEqual({ artists: 1, editions: 1 });
+
+    // The page comes first: an edition is not approved before its artist is.
+    const early = await admin.agent.post(`/api/admin/editions/${editionId}/review`).set("x-csrf-token", admin.csrf).send({ decision: "approved" });
+    expect(early.status).toBe(409);
+    // A no comes with a word to the artist, and sends the edition back to a draft with it.
+    await admin.agent.post(`/api/admin/editions/${editionId}/review`).set("x-csrf-token", admin.csrf).send({ decision: "declined", note: "Card 3 is blurry." }).expect(204);
+    await emailed("About Birds of Marfa", "artist@example.com");
+    const declined = await agent.get(`/api/studio/editions/${editionId}`).expect(200);
+    expect(declined.body).toMatchObject({ status: "draft", reviewNote: "Card 3 is blurry." });
+    // Sent again, the note goes with it.
+    expect((await agent.post(`/api/studio/editions/${editionId}/status`).set("x-csrf-token", csrf).send({ status: "in_review" }).expect(200)).body.reviewNote).toBeNull();
+
+    await admin.agent.post(`/api/admin/artists/${artistId}/review`).set("x-csrf-token", admin.csrf).send({ decision: "approved" }).expect(204);
+    await emailed("Your studio is approved", "artist@example.com");
+    expect((await agent.get("/api/studio").expect(200)).body.artist).toMatchObject({ reviewStatus: "approved", status: "draft" });
+    await admin.agent.post(`/api/admin/editions/${editionId}/review`).set("x-csrf-token", admin.csrf).send({ decision: "approved" }).expect(204);
+    await emailed("Birds of Marfa is on sale", "artist@example.com");
+    // Decided once: a second decision finds nothing in review.
+    expect((await admin.agent.post(`/api/admin/editions/${editionId}/review`).set("x-csrf-token", admin.csrf).send({ decision: "declined" })).status).toBe(409);
+    expect((await admin.agent.get("/api/admin/review").expect(200)).body).toEqual({ artists: [], editions: [] });
+    const onSale = await agent.get(`/api/studio/editions/${editionId}`).expect(200);
     expect(onSale.body.status).toBe("on_sale");
+    log.mockRestore();
 
     // On sale: the price is fixed, the words are not; the cards' backs are fixed too.
     const reprice = await agent.put(`/api/studio/editions/${editionId}`).set("x-csrf-token", csrf).send({ ...EDITION, priceCents: 100 });

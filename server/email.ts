@@ -148,7 +148,7 @@ export async function sendPostcardSentEmail(
     cardCount: locals.cardCount,
     recipientName: locals.recipientName,
     expectedDelivery: locals.expectedDeliveryDate ? formatDay(locals.expectedDeliveryDate, store.locale) : null,
-    postcardsUrl: url("/account/postcards"),
+    accountUrl: url("/account/collections"),
   });
 }
 
@@ -157,6 +157,48 @@ export async function sendPostcardSentEmail(
 /** "Someone collected Birds": to the artist, on each new purchase. */
 export async function sendNewCollectorEmail(to: string, locals: { editionTitle: string; collectorName: string; collectorCity: string; collectorCount: number }): Promise<boolean> {
   return sendTemplate("NewCollector", to, { ...locals, studioUrl: url("/studio/collectors") });
+}
+
+/* ----------------------------------------------------------------- review */
+
+/** What is being reviewed: a page, or an edition. Shapes the words of both emails below. */
+export interface ReviewSubject {
+  kind: "artist" | "edition";
+  artistName: string;
+  artistSlug: string;
+  /** The edition's title; unused for a page. */
+  title?: string;
+  /** "6 cards"; unused for a page. */
+  shape?: string;
+}
+
+/** "Rachel sent Birds for review": to every administrator, when a studio opens or an edition is sent. */
+export async function sendReviewRequestedEmail(to: string[], subject: ReviewSubject): Promise<boolean> {
+  const results = await Promise.all(
+    to.map((address) =>
+      sendTemplate("ReviewRequested", address, {
+        kind: subject.kind,
+        artistName: subject.artistName,
+        artistPath: artistPath(subject.artistSlug),
+        title: subject.title ?? "",
+        shape: subject.shape ?? "",
+        reviewUrl: url("/admin/review"),
+      }),
+    ),
+  );
+  return results.some(Boolean);
+}
+
+/** The admin's yes or no, with their note, to the artist. */
+export async function sendReviewDecisionEmail(to: string, subject: ReviewSubject, decision: { approved: boolean; note: string | null }): Promise<boolean> {
+  return sendTemplate("ReviewDecision", to, {
+    kind: subject.kind,
+    artistName: subject.artistName,
+    title: subject.title ?? "",
+    approved: decision.approved,
+    note: decision.note,
+    studioUrl: url("/studio"),
+  });
 }
 
 /* ---------------------------------------------------------------- account */

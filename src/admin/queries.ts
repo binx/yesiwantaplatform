@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { EnvironmentStatus, PageInput, EmailTestResult, LobTestResult, SettingsInput, PasswordChangeInput } from "@shared/api";
 import type { Image, PageDraft } from "@shared/schema";
-import type { ArtistPublic, ArtistStatus, Collection, EditionStudio, Payout, PayoutStatus } from "@shared/platform";
+import type { ArtistPublic, ArtistReviewStatus, ArtistStatus, Collection, EditionStudio, Payout, PayoutStatus, ReviewInput } from "@shared/platform";
 import type { Postcard, PostcardBack } from "@shared/postcards";
 import { apiGet, csrfDelete, csrfPost, csrfPut, csrfUpload } from "@/lib/api";
 
@@ -25,6 +25,7 @@ export const adminKeys = {
   payouts: ["admin", "payouts"] as const,
   customers: ["admin", "customers"] as const,
   purchases: ["admin", "purchases"] as const,
+  review: ["admin", "review"] as const,
 };
 
 /** Anything the site renders is derived from these. */
@@ -150,8 +151,10 @@ export interface Overview {
   artists: Record<string, number>;
   /** Purchases by status: incomplete, paid, refunded. */
   purchases: Record<string, number>;
-  /** Editions by status: draft, on_sale, closed. */
+  /** Editions by status: draft, in_review, on_sale, closed. */
   editions: Record<string, number>;
+  /** Waiting on the admin: pages not yet looked at, editions sent for review. */
+  review: { artists: number; editions: number };
   postcards: Record<string, number>;
   /** Cents, by payout status. */
   payouts: Record<string, number>;
@@ -200,6 +203,8 @@ export interface AdminArtist extends ArtistPublic {
   payoutsEnabled: boolean;
   hasStripeAccount: boolean;
   customerId: string;
+  reviewStatus: ArtistReviewStatus;
+  reviewNote: string | null;
 }
 
 export function useAdminArtists(status?: ArtistStatus) {
@@ -234,6 +239,52 @@ export function useSetAdminArtistStatus() {
   const invalidatePublic = useInvalidate();
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: ArtistStatus }) => csrfPost<void>(`/admin/artists/${id}/status`, { status }),
+    onSuccess: async () => {
+      await invalidate();
+      await invalidatePublic();
+    },
+  });
+}
+
+/* ------------------------------------------------------------------ review */
+
+/** A page in the queue: the public view plus the Markdown, so the admin reads what the artist wrote. */
+export interface ReviewArtist extends ArtistPublic {
+  bio: string;
+  customerId: string;
+  reviewStatus: ArtistReviewStatus;
+  reviewNote: string | null;
+}
+
+export interface ReviewEdition extends EditionStudio {
+  submittedAt: number | null;
+  artist: ReviewArtist | null;
+}
+
+export function useAdminReviewQueue() {
+  return useQuery({
+    queryKey: adminKeys.review,
+    queryFn: ({ signal }) => apiGet<{ artists: ReviewArtist[]; editions: ReviewEdition[] }>("/admin/review", signal),
+  });
+}
+
+export function useReviewArtist() {
+  const invalidate = useInvalidateOperations();
+  const invalidatePublic = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: ReviewInput }) => csrfPost<void>(`/admin/artists/${id}/review`, input),
+    onSuccess: async () => {
+      await invalidate();
+      await invalidatePublic();
+    },
+  });
+}
+
+export function useReviewEdition() {
+  const invalidate = useInvalidateOperations();
+  const invalidatePublic = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: ReviewInput }) => csrfPost<void>(`/admin/editions/${id}/review`, input),
     onSuccess: async () => {
       await invalidate();
       await invalidatePublic();

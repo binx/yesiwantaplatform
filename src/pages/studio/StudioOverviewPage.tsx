@@ -3,7 +3,7 @@ import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import { Alert, App, Button, Popconfirm, Tag } from "antd";
 import { formatMoney } from "@shared/money";
 import { KEEPS_EVERY_CARD } from "@shared/copy";
-import { useRefreshPayoutStatus, useSetArtistStatus, useStartOnboarding, type StudioView } from "@/lib/platform";
+import { useRefreshPayoutStatus, useRequestArtistReview, useSetArtistStatus, useStartOnboarding, type StudioView } from "@/lib/platform";
 import { useStore } from "@/lib/useStore";
 import { cx } from "@/lib/cx";
 import styles from "./Studio.module.css";
@@ -27,6 +27,7 @@ export function StudioOverviewPage() {
   const setStatus = useSetArtistStatus();
   const onboard = useStartOnboarding();
   const refresh = useRefreshPayoutStatus();
+  const askAgain = useRequestArtistReview();
   const [params, setParams] = useSearchParams();
   const { message } = App.useApp();
   const { artist, earnings, editionCounts } = view;
@@ -47,12 +48,33 @@ export function StudioOverviewPage() {
   }, [params.get("onboarding")]);
   const money = (cents: number) => formatMoney(cents, earnings.currency, store.locale);
   const onSale = editionCounts.onSale;
+  const approved = artist.reviewStatus === "approved";
 
   const fail = (error: unknown) => void message.error(error instanceof Error ? error.message : "Could not change that.");
 
   return (
     <div>
-      {artist.status === "draft" ? (
+      {artist.reviewStatus === "pending" ? (
+        <Alert type="info" showIcon style={{ marginBottom: "1.5rem" }} title="Your page is waiting for review" description="We'll email you once we've looked at it. You can make editions and send them for review in the meantime." />
+      ) : artist.reviewStatus === "declined" ? (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: "1.5rem" }}
+          title="Your page wasn't approved"
+          description={
+            <div style={{ display: "grid", gap: "0.75rem" }}>
+              {artist.reviewNote ? <span style={{ whiteSpace: "pre-wrap" }}>{artist.reviewNote}</span> : null}
+              <span>
+                <Button size="small" loading={askAgain.isPending} onClick={() => askAgain.mutate(undefined, { onSuccess: () => void message.success("Sent for review again."), onError: fail })}>
+                  Send for review again
+                </Button>
+              </span>
+            </div>
+          }
+        />
+      ) : null}
+      {artist.status === "draft" && approved ? (
         <Alert
           type="info"
           showIcon
@@ -60,7 +82,7 @@ export function StudioOverviewPage() {
           title="Your page is a draft"
           description={
             onSale === 0
-              ? "Put an edition on sale, then go live. Until then nobody can find you or collect your cards."
+              ? "Send an edition for review; once it's approved and on sale, go live. Until then nobody can find you or collect your cards."
               : "You have an edition on sale. Go live whenever you're ready — your page becomes public and people can collect."
           }
         />
@@ -77,7 +99,10 @@ export function StudioOverviewPage() {
 
       <div className={styles.stats}>
         <Stat value={String(artist.collectorCount)} label={artist.collectorCount === 1 ? "collector" : "collectors"} />
-        <Stat value={String(onSale)} label={`on sale${editionCounts.draft > 0 ? ` · ${editionCounts.draft} in draft` : ""}${editionCounts.closed > 0 ? ` · ${editionCounts.closed} closed` : ""}`} />
+        <Stat
+          value={String(onSale)}
+          label={`on sale${editionCounts.inReview > 0 ? ` · ${editionCounts.inReview} in review` : ""}${editionCounts.draft > 0 ? ` · ${editionCounts.draft} in draft` : ""}${editionCounts.closed > 0 ? ` · ${editionCounts.closed} closed` : ""}`}
+        />
         <Stat value={String(artist.mailedCount)} label="cards mailed" />
         <Stat value={money(earnings.pendingCents)} label="earned, not yet paid out" />
         <Stat value={money(earnings.paidCents)} label="paid out" />
@@ -90,9 +115,11 @@ export function StudioOverviewPage() {
             ? `Pausing takes you out of the directory and stops new collectors. ${KEEPS_EVERY_CARD}`
             : artist.status === "paused"
               ? `You're out of the directory and nobody new can collect. ${KEEPS_EVERY_CARD} You're paid for each one as it's mailed.`
-              : onSale === 0
-                ? "Going live needs an edition on sale, so your first visitor has something to collect."
-                : "Your page goes public and your editions on sale can be collected."}
+              : !approved
+                ? "Going live needs your page approved and an edition on sale, so your first visitor has something to collect."
+                : onSale === 0
+                  ? "Going live needs an edition on sale, so your first visitor has something to collect."
+                  : "Your page goes public and your editions on sale can be collected."}
         </p>
         <div className={styles.actions}>
           {artist.status === "live" ? (
@@ -100,7 +127,7 @@ export function StudioOverviewPage() {
               <Button loading={setStatus.isPending}>Pause</Button>
             </Popconfirm>
           ) : (
-            <Button type="primary" loading={setStatus.isPending} disabled={onSale === 0} onClick={() => setStatus.mutate("live", { onError: fail })}>
+            <Button type="primary" loading={setStatus.isPending} disabled={!approved || onSale === 0} onClick={() => setStatus.mutate("live", { onError: fail })}>
               {artist.status === "paused" ? "Go live again" : "Go live"}
             </Button>
           )}

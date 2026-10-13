@@ -1,0 +1,11 @@
+<h1 style="margin:0 0 12px;font-size:24px;font-weight:600;">{{#if (eq kind "artist")}}A new artist to review{{else}}An edition to review{{/if}}</h1>
+<p style="margin:0 0 8px;color:#52525b;line-height:1.6;">
+  {{#if (eq kind "artist")}}
+    <strong style="color:#18181b;">{{artistName}}</strong> opened a studio at {{artistPath}}. Nothing of theirs goes live until you say so.
+  {{else}}
+    <strong style="color:#18181b;">{{artistName}}</strong> sent <strong style="color:#18181b;">{{title}}</strong>, {{shape}}, for review. It goes on sale when you approve it.
+  {{/if}}
+</p>
+<p style="margin:16px 0 0;">
+  <a href="{{reviewUrl}}" style="color:#18181b;">Open the review queue</a>
+</p>

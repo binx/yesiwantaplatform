@@ -46,6 +46,13 @@ Forked from postcards-v2 (`git remote postcards`), itself a fork of Beluga v2
 10. **Artists never see who collects.** The studio has no list of
     purchases, only `collectorCount`; names and addresses never leave the
     platform's side. The platform mails.
+11. **Only the admin's review puts an edition on sale the first time, and
+    only an approved artist goes live.** A studio opens `pending`; a draft
+    is sent `in_review` by its artist and reaches `on_sale` only through
+    `reviewEdition`. The studio's status route never moves draft to
+    on_sale. Both directions email: the admin when something is sent, the
+    artist when it is decided. The artist directory lists only live artists
+    with an edition on sale.
 
 ## Layout
 

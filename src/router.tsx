@@ -37,6 +37,7 @@ export const router = createBrowserRouter([
         lazy: async () => ({ Component: (await import("./admin/RequireAdmin")).RequireAdmin }),
         children: [
           { index: true, lazy: async () => ({ Component: (await import("./admin/DashboardPage")).DashboardPage }) },
+          { path: "review", lazy: async () => ({ Component: (await import("./admin/ReviewPage")).ReviewPage }) },
           { path: "artists", lazy: async () => ({ Component: (await import("./admin/ArtistsPage")).ArtistsPage }) },
           { path: "artists/:id", lazy: async () => ({ Component: (await import("./admin/ArtistDetailPage")).ArtistDetailPage }) },
           { path: "editions", lazy: async () => ({ Component: (await import("./admin/EditionsPage")).EditionsPage }) },
@@ -87,8 +88,8 @@ export const router = createBrowserRouter([
               { index: true, lazy: async () => ({ Component: (await import("./pages/account/AccountSettingsPage")).AccountSettingsPage }) },
               { path: "collections", lazy: async () => ({ Component: (await import("./pages/account/AccountCollectionsPage")).AccountCollectionsPage }) },
               { path: "collections/:id", lazy: async () => ({ Component: (await import("./pages/account/AccountCollectionPage")).AccountCollectionPage }) },
-              { path: "postcards", lazy: async () => ({ Component: (await import("./pages/account/AccountPostcardsPage")).AccountPostcardsPage }) },
               // Where these used to be, for old links and bookmarks.
+              { path: "postcards", element: <Navigate to="/account/collections" replace /> },
               { path: "settings", element: <Navigate to="/account" replace /> },
               { path: "address", element: <Navigate to="/account" replace /> },
             ],

@@ -152,6 +152,11 @@ export const artists = sqliteTable(
     status: text("status").notNull().default("draft"),
     /** public | private. Private keeps the artist's editions out of the shared gallery. */
     visibility: text("visibility").notNull().default("public"),
+    /** pending | approved | declined. Opened pending; the admin decides, and nothing goes live before "approved". */
+    reviewStatus: text("review_status").notNull().default("pending"),
+    /** The admin's words to the artist on the last decision. */
+    reviewNote: text("review_note"),
+    reviewedAt: integer("reviewed_at"),
     stripeAccountId: text("stripe_account_id"),
     payoutsEnabled: integer("payouts_enabled", { mode: "boolean" }).notNull().default(false),
     ...timestamps,
@@ -242,9 +247,10 @@ export const postcardDesigns = sqliteTable(
  * change. `closed` stops new collectors; everyone who already paid still
  * gets every card. The slug is unique per artist: `/artist/:slug/:edition`.
  *
- *   draft     being made; only its artist sees it
- *   on_sale   listed, collectable
- *   closed    no new collectors; existing runs carry on
+ *   draft      being made; only its artist sees it
+ *   in_review  sent to the admin; fixed, and only the admin puts it on sale
+ *   on_sale    listed, collectable
+ *   closed     no new collectors; existing runs carry on
  */
 export const editions = sqliteTable(
   "editions",
@@ -267,6 +273,11 @@ export const editions = sqliteTable(
     /** For the whole set, not per card. */
     priceCents: integer("price_cents").notNull(),
     status: text("status").notNull().default("draft"),
+    /** The admin's words when it was declined; cleared when it is sent again. */
+    reviewNote: text("review_note"),
+    /** When the artist last sent it for review. */
+    submittedAt: integer("submitted_at"),
+    reviewedAt: integer("reviewed_at"),
     /** Whether it appears in the shared gallery while on sale. */
     inGallery: integer("in_gallery", { mode: "boolean" }).notNull().default(true),
     ...timestamps,

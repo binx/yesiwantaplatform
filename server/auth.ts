@@ -114,6 +114,13 @@ export async function findAdminById(id: string): Promise<{ id: string; email: st
   return rows[0] ?? null;
 }
 
+/** Every administrator's address: the review queue writes to all of them. */
+export async function listAdminEmails(): Promise<string[]> {
+  const { drizzle: db, schema } = await getDatabase();
+  const rows = (await db.select({ email: schema.adminUsers.email }).from(schema.adminUsers)) as unknown as { email: string }[];
+  return rows.map((row) => row.email);
+}
+
 export async function emailIsTaken(email: string): Promise<boolean> {
   const { drizzle: db, schema } = await getDatabase();
 

@@ -11,13 +11,13 @@ import {
   type EnvironmentStatus,
   type LobTestResult,
 } from "../../shared/api.js";
-import { artistStatusSchema, editionStatusSchema, payoutStatusSchema, purchaseStatusSchema } from "../../shared/platform.js";
+import { artistStatusSchema, editionStatusSchema, payoutStatusSchema, purchaseStatusSchema, reviewInputSchema } from "../../shared/platform.js";
 import { postcardBackSchema } from "../../shared/postcards.js";
 import { SlugTakenError, updateSettings } from "../../db/admin-repository.js";
 import { getSettings } from "../../db/repository.js";
 import { createPage, deletePage, listPageDrafts, pageExists, reorderPages, updatePage } from "../../db/pages-repository.js";
-import { countArtistsByStatus, countForArtists, findArtistsByIds, getArtist, listArtists, setArtistStatus } from "../../db/artists-repository.js";
-import { countEditionsByStatus, getEdition, listEditions, listEditionsForArtist } from "../../db/editions-repository.js";
+import { countArtistsByStatus, countForArtists, findArtistsByIds, getArtist, listArtists, reviewArtist, setArtistStatus, type ArtistRecord } from "../../db/artists-repository.js";
+import { countEditionsByStatus, getEdition, listEditions, listEditionsForArtist, reviewEdition, type EditionRecord } from "../../db/editions-repository.js";
 import { cancelPostcard, countPostcardsByStatus, getPostcard, listPostcardsByStatus, listPostcardsForEdition, requeuePostcard } from "../../db/postcards-repository.js";
 import { countPurchasesByStatus, listPurchases, listPurchasesForArtist, listPurchasesForEdition, sumRevenueCents, type PurchaseRecord } from "../../db/purchases-repository.js";
 import { listPayouts, requeuePayout, sumPayoutsByStatus } from "../../db/payouts-repository.js";
@@ -29,11 +29,11 @@ import { mapUploadError, storeImage, uploadMiddleware } from "../uploads.js";
 import { StripeNotConfiguredError, classifyStripeError, getStripeKeyCheck } from "../stripe.js";
 import { renderMarkdown } from "../markdown.js";
 import { escapeHtml } from "../html.js";
-import { sendEmailReportingFailure } from "../email.js";
+import { sendEmailReportingFailure, sendReviewDecisionEmail } from "../email.js";
 import { LobError, LobNotConfiguredError, sendTestPostcard } from "../lob.js";
 import { getLastPayoutSweep, getLastSweep, sendDuePostcards, sendPendingPayouts } from "../fulfilment.js";
 import { presentCollections, presentStudioEditions, toPayout, toPublicArtist } from "../presenters.js";
-import { destroySessionsForUser, findAdminById, updateAdminPassword, verifyPasswordFor } from "../auth.js";
+import { destroySessionsForUser, findAdminById, findCustomerById, updateAdminPassword, verifyPasswordFor } from "../auth.js";
 import { toEpochMs } from "../../db/repository.js";
 import { desc } from "drizzle-orm";
 
@@ -127,9 +127,9 @@ adminRouter.post("/lob/test", emailRateLimit, async (req, res) => {
 
 /* ---------------------------------------------------------------- overview */
 
-/** Everything the dashboard needs in one read: counts of every noun, and the last sweeps. */
+/** Everything the dashboard needs in one read: counts of every noun, what is waiting for review, and the last sweeps. */
 adminRouter.get("/overview", async (_req, res) => {
-  const [artists, purchases, editions, postcards, payouts, revenueCents, settings] = await Promise.all([
+  const [artists, purchases, editions, postcards, payouts, revenueCents, settings, pendingArtists] = await Promise.all([
     countArtistsByStatus(),
     countPurchasesByStatus(),
     countEditionsByStatus(),
@@ -137,11 +137,13 @@ adminRouter.get("/overview", async (_req, res) => {
     sumPayoutsByStatus(),
     sumRevenueCents(),
     getSettings(),
+    listArtists({ reviewStatus: "pending", limit: 1 }),
   ]);
   res.json({
     artists,
     purchases,
     editions,
+    review: { artists: pendingArtists.total, editions: editions.in_review ?? 0 },
     postcards,
     payouts,
     revenueCents,
@@ -285,6 +287,8 @@ adminRouter.get("/artists", async (req, res) => {
       payoutsEnabled: artist.payoutsEnabled,
       hasStripeAccount: artist.stripeAccountId !== null,
       customerId: artist.customerId,
+      reviewStatus: artist.reviewStatus,
+      reviewNote: artist.reviewNote,
     })),
     total: page.total,
   });
@@ -301,7 +305,15 @@ adminRouter.get("/artists/:id", async (req, res) => {
   ]);
   const currency = settings?.currency ?? "USD";
   res.json({
-    artist: { ...toPublicArtist(artist, counts.get(artist.id), currency), bio: artist.bio, payoutsEnabled: artist.payoutsEnabled, stripeAccountId: artist.stripeAccountId, customerId: artist.customerId },
+    artist: {
+      ...toPublicArtist(artist, counts.get(artist.id), currency),
+      bio: artist.bio,
+      payoutsEnabled: artist.payoutsEnabled,
+      stripeAccountId: artist.stripeAccountId,
+      customerId: artist.customerId,
+      reviewStatus: artist.reviewStatus,
+      reviewNote: artist.reviewNote,
+    },
     editions: await presentStudioEditions(editions, currency, artist.name),
     purchases: await presentAdminPurchases(purchases),
   });
@@ -312,6 +324,79 @@ adminRouter.post("/artists/:id/status", async (req, res) => {
   const parsed = z.object({ status: artistStatusSchema }).safeParse(req.body);
   if (!parsed.success) throw httpError(400, "Choose draft, live or paused.");
   if (!(await setArtistStatus(req.params.id, parsed.data.status))) throw httpError(404, "Artist not found.");
+  res.status(204).end();
+});
+
+/* ------------------------------------------------------------------ review */
+
+/** Tell the artist. Not awaited: the decision is on the row whether or not the mail goes. */
+function tellArtist(artist: ArtistRecord, subject: Parameters<typeof sendReviewDecisionEmail>[1], decision: { approved: boolean; note: string | null }): void {
+  void findCustomerById(artist.customerId)
+    .then((customer) => (customer ? sendReviewDecisionEmail(customer.email, subject, decision) : false))
+    .catch((error: unknown) => console.error("Could not tell the artist about a review:", error));
+}
+
+/**
+ * The queue: pages the admin has not looked at, and editions their artists
+ * sent, oldest first. Each edition comes with its artist, since an edition
+ * can only be approved once its artist is.
+ */
+adminRouter.get("/review", async (_req, res) => {
+  const [settings, pending, inReview] = await Promise.all([getSettings(), listArtists({ reviewStatus: "pending", limit: 500 }), listEditions({ status: "in_review", limit: 200 })]);
+  const currency = settings?.currency ?? "USD";
+  const artistIds = [...pending.artists.map((artist) => artist.id), ...inReview.editions.map((edition) => edition.artistId)];
+  const [counts, editionArtists] = await Promise.all([countForArtists(artistIds), findArtistsByIds(inReview.editions.map((edition) => edition.artistId))]);
+  const artistById = new Map(editionArtists.map((artist) => [artist.id, artist]));
+  const presentArtist = (artist: ArtistRecord) => ({
+    ...toPublicArtist(artist, counts.get(artist.id), currency),
+    bio: artist.bio,
+    customerId: artist.customerId,
+    reviewStatus: artist.reviewStatus,
+    reviewNote: artist.reviewNote,
+  });
+  const oldestFirst = [...inReview.editions].sort((a, b) => (a.submittedAt ?? a.createdAt) - (b.submittedAt ?? b.createdAt));
+  const presented = await presentStudioEditions(oldestFirst, currency, "the artist");
+  res.json({
+    artists: pending.artists.map(presentArtist),
+    editions: presented.map((edition, index) => {
+      const artist = artistById.get(oldestFirst[index]!.artistId);
+      return { ...edition, submittedAt: oldestFirst[index]!.submittedAt, artist: artist ? presentArtist(artist) : null };
+    }),
+  });
+});
+
+/** Yes or no to a page. Any time: a page can be declined after it was approved, and the artist told why. */
+adminRouter.post("/artists/:id/review", async (req, res) => {
+  const parsed = reviewInputSchema.safeParse(req.body);
+  if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "Choose approved or declined.");
+  const artist = await getArtist(req.params.id);
+  if (!artist) throw httpError(404, "Artist not found.");
+  if (!(await reviewArtist(artist.id, parsed.data))) throw httpError(404, "Artist not found.");
+  tellArtist(artist, { kind: "artist", artistName: artist.name, artistSlug: artist.slug }, { approved: parsed.data.decision === "approved", note: parsed.data.note || null });
+  res.status(204).end();
+});
+
+/**
+ * Yes or no to an edition in review. Approving puts it on sale, which is
+ * the only way an edition gets there the first time; declining sends it
+ * back to a draft with the note on it. An edition cannot be approved before
+ * its artist is.
+ */
+adminRouter.post("/editions/:id/review", async (req, res) => {
+  const parsed = reviewInputSchema.safeParse(req.body);
+  if (!parsed.success) throw httpError(400, parsed.error.issues[0]?.message ?? "Choose approved or declined.");
+  const edition: EditionRecord | null = await getEdition(req.params.id);
+  if (!edition) throw httpError(404, "Edition not found.");
+  if (edition.status !== "in_review") throw httpError(409, "Only an edition in review can be approved or declined.");
+  const artist = await getArtist(edition.artistId);
+  if (!artist) throw httpError(404, "Artist not found.");
+  if (parsed.data.decision === "approved" && artist.reviewStatus !== "approved") throw httpError(409, "Approve the artist's page before any of their editions.");
+  if (!(await reviewEdition(edition.id, parsed.data))) throw httpError(409, "That edition has just been reviewed, or taken back by its artist.");
+  tellArtist(
+    artist,
+    { kind: "edition", artistName: artist.name, artistSlug: artist.slug, title: edition.title, shape: `${edition.cardCount} cards` },
+    { approved: parsed.data.decision === "approved", note: parsed.data.note || null },
+  );
   res.status(204).end();
 });
 

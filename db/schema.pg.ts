@@ -104,6 +104,11 @@ export const artists = pgTable(
     links: jsonb("links").notNull().default(sql`'[]'::jsonb`),
     status: text("status").notNull().default("draft"),
     visibility: text("visibility").notNull().default("public"),
+    /** pending | approved | declined. Opened pending; the admin decides, and nothing goes live before "approved". */
+    reviewStatus: text("review_status").notNull().default("pending"),
+    /** The admin's words to the artist on the last decision. */
+    reviewNote: text("review_note"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     stripeAccountId: text("stripe_account_id"),
     payoutsEnabled: boolean("payouts_enabled").notNull().default(false),
     ...timestamps,
@@ -175,6 +180,11 @@ export const editions = pgTable(
     cardCount: integer("card_count").notNull(),
     priceCents: integer("price_cents").notNull(),
     status: text("status").notNull().default("draft"),
+    /** The admin's words when it was declined; cleared when it is sent again. */
+    reviewNote: text("review_note"),
+    /** When the artist last sent it for review. */
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     inGallery: boolean("in_gallery").notNull().default(true),
     ...timestamps,
   },

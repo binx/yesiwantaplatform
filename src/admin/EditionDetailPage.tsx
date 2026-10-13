@@ -6,10 +6,11 @@ import { formatRecipient } from "@shared/postcards";
 import { ProductImage } from "@/components/ui/ProductImage";
 import { useAdminEdition, useCancelPostcard, useRetryPostcard, useStoreLocale, type AdminPostcard, type AdminPurchase } from "./queries";
 import { PageHeader } from "./RequireAdmin";
+import { ReviewDecision } from "./ReviewDecision";
 import { adminStatusLabel, editionShape, formatDay, formatMailDate, purchaseStatusLabel, trackingLabel } from "@/lib/postcards";
 
-const editionStatusColor = (status: EditionStatus): string => (status === "on_sale" ? "green" : status === "closed" ? "default" : "blue");
-const editionStatusWords = (status: EditionStatus): string => (status === "on_sale" ? "on sale" : status);
+const editionStatusColor = (status: EditionStatus): string => (status === "on_sale" ? "green" : status === "closed" ? "default" : status === "in_review" ? "purple" : "blue");
+const editionStatusWords = (status: EditionStatus): string => (status === "on_sale" ? "on sale" : status === "in_review" ? "in review" : status);
 const purchaseStatusColor = (status: PurchaseStatus): string => (status === "paid" ? "green" : status === "refunded" ? "default" : "gold");
 
 /**
@@ -59,6 +60,17 @@ export function EditionDetailPage() {
           </Link>
         }
       />
+
+      {edition.status === "in_review" ? (
+        <Card title="Review" style={{ marginBottom: "1.25rem" }}>
+          <ReviewDecision kind="edition" id={edition.id} name={edition.title} />
+        </Card>
+      ) : edition.reviewNote ? (
+        <Card title="Review" style={{ marginBottom: "1.25rem" }}>
+          <p style={{ marginTop: 0 }}>Declined, with this note to the artist:</p>
+          <blockquote style={{ margin: 0, paddingLeft: "1rem", borderLeft: "3px solid #e4e4e7", whiteSpace: "pre-wrap" }}>{edition.reviewNote}</blockquote>
+        </Card>
+      ) : null}
 
       <Card style={{ marginBottom: "1.25rem" }}>
         <Descriptions column={1} size="small" bordered>

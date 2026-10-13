@@ -104,6 +104,8 @@ export function toArtistStudio(artist: ArtistRecord, email: string, counts: Arti
     payoutsEnabled: artist.payoutsEnabled,
     hasStripeAccount: artist.stripeAccountId !== null,
     email,
+    reviewStatus: artist.reviewStatus,
+    reviewNote: artist.reviewNote,
   });
 }
 
@@ -179,6 +181,7 @@ export async function presentStudioEditions(editions: EditionRecord[], currency:
       description: edition.description,
       sentCount: postcards.get(edition.id)?.sent ?? 0,
       scheduledCount: postcards.get(edition.id)?.scheduled ?? 0,
+      reviewNote: edition.reviewNote,
     }),
   );
 }

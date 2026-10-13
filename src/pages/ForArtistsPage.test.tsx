@@ -10,7 +10,7 @@ vi.mock("@/lib/account", () => ({ useCustomer: () => customer }));
 const withPricing = (printCostCents: number, platformFeePercent: number, minCardPriceCents: number) =>
   storeSchema.parse({ ...demoStore, pricing: { printCostCents, platformFeePercent, minCardPriceCents } });
 
-describe("the open-a-studio page", () => {
+describe("the how-it-works page", () => {
   it("works an example for each edition size from settings: the price, printing, the fee and the remainder", () => {
     customer.data = null;
     renderWithProviders(<ForArtistsPage />, { store: withPricing(130, 30, 350) });

@@ -10,13 +10,8 @@ export interface SiteLink {
  * The site's main navigation, computed once for whoever draws it.
  *
  * The `Banner` draws it on every page but the front one; the front page's
- * hero draws it itself, so the two cannot disagree about what the account
- * link is called.
- *
- * "Open a studio" is the pitch, and it stays in the navigation for an artist
- * too: the page is where the process and the money are explained, and its
- * button takes a signed-in artist to their studio. The studio itself is
- * reached from the account.
+ * hero draws it itself, so the two cannot disagree about whether a signed-in
+ * artist sees "Your studio" or what the account link is called.
  */
 export function useSiteLinks(): { links: SiteLink[]; accountHref: string; accountLabel: string } {
   const store = useStore();
@@ -26,7 +21,9 @@ export function useSiteLinks(): { links: SiteLink[]; accountHref: string; accoun
     { to: "/artists", label: "Artists" },
     { to: "/gallery", label: "Gallery" },
     ...store.pages.filter((page) => page.inNav).map((page) => ({ to: `/${page.slug}`, label: page.title })),
-    { to: "/open-a-studio", label: "Open a studio" },
+    { to: "/how-it-works", label: "How it works" },
+    // The studio is where an artist works, shown only to someone who has one.
+    ...(customer.data?.artistSlug ? [{ to: "/studio", label: "Your studio" }] : []),
   ];
 
   return {

@@ -40,7 +40,7 @@ export function RequireArtist() {
   if (!customer.data) return <Navigate to="/account/login" replace state={{ from: location.pathname }} />;
 
   if (!studio.data) {
-    if (!creating) return <Navigate to="/open-a-studio" replace />;
+    if (!creating) return <Navigate to="/how-it-works" replace />;
     return (
       <PageWrapper>
         <Outlet />

@@ -58,7 +58,7 @@ describe("pages over HTTP", () => {
     const sitemap = await request(app).get("/sitemap.xml").expect(200);
     expect(sitemap.text).toContain("/faq");
     expect(sitemap.text).toContain("/artists");
-    expect(sitemap.text).toContain("/open-a-studio");
+    expect(sitemap.text).toContain("/how-it-works");
   });
 
   it("hides a draft publicly and shows it in the admin", async () => {

@@ -8,17 +8,17 @@ import { useCustomer, useCustomerLogout, useUpdateAddress, useUpdateProfile } fr
 import { BLANK_RECIPIENT, validateRecipient, type RecipientErrors } from "@/lib/recipient-form";
 import { useStore } from "@/lib/useStore";
 import { cx } from "@/lib/cx";
+import { EditButton } from "./EditButton";
 import styles from "./Account.module.css";
 
 /**
- * The account's front page: your studio if you have one, who you are,
- * where your cards go, and the way out.
+ * The account's front page: your studio if you have one, then your name,
+ * email and where your cards go in one box, and the way out.
  *
- * The address is one per account. Checkout starts from it and, when the set
- * is the collector's own, saves what was typed back to it. Changing it here
- * moves every collection that was going there, so moving house is one form.
- * A set sent to someone else has its own address on its purchase, shown and
- * changed on the collection's page.
+ * The address here is a default, one per account: checkout starts from it
+ * and, when the set is the collector's own, saves what was typed back to it.
+ * Changing it moves no collection. Each purchase keeps its own address,
+ * shown and changed on the collection's page.
  */
 export function AccountSettingsPage() {
   const customer = useCustomer();
@@ -31,19 +31,19 @@ export function AccountSettingsPage() {
   return (
     <div>
       {profile.artistSlug ? (
-        <section className={cx(styles.card, styles.studioCard)} aria-labelledby="settings-studio">
-          <h2 id="settings-studio" className={styles.settingsTitle}>
-            Your studio
-          </h2>
-          <p className={styles.settingsRow}>
-            <span>
-              Editions and payouts are in your studio. Your artist page is{" "}
-              <Link to={`/artist/${profile.artistSlug}`}>/artist/{profile.artistSlug}</Link>.
-            </span>
+        <nav className={styles.studio} aria-label="Your studio">
+          <div className={styles.studioButtons}>
             <Link to="/studio">
-              <Button type="primary">View your studio</Button>
+              <Button type="primary" size="large" block>
+                Open your studio
+              </Button>
             </Link>
-          </p>
+            <Link to={`/artist/${profile.artistSlug}`}>
+              <Button size="large" block>
+                View your artist page
+              </Button>
+            </Link>
+          </div>
           {profile.artistReviewStatus === "pending" || profile.artistReviewStatus === "declined" || profile.editionsInReview > 0 ? (
             <p className={cx(styles.meta)} role="status">
               {profile.artistReviewStatus === "pending" ? (
@@ -58,25 +58,24 @@ export function AccountSettingsPage() {
               ) : null}
             </p>
           ) : null}
-        </section>
+        </nav>
       ) : null}
 
-      <section className={cx(styles.card)} aria-labelledby="settings-you">
-        <h2 id="settings-you" className={styles.settingsTitle}>
-          You
+      <section className={cx(styles.card)} aria-labelledby="settings-account">
+        <h2 id="settings-account" className={styles.settingsTitle}>
+          Account
         </h2>
-        <NameRow name={profile.name} />
-        <p className={cx(styles.meta)}>
-          {profile.email}{" "}
-          {profile.emailVerified ? <span className={styles.badge}>Verified</span> : <span className={cx(styles.badge, styles.badgeWarn)}>Not verified</span>}
-        </p>
-      </section>
-
-      <section className={cx(styles.card)} aria-labelledby="settings-address">
-        <h2 id="settings-address" className={styles.settingsTitle}>
-          Where your cards go
-        </h2>
-        <AddressSection address={profile.address} fallbackName={profile.name ?? ""} />
+        <div className={styles.accountRows}>
+          <NameRow name={profile.name} />
+          <div className={styles.accountRow}>
+            <span className={styles.accountLabel}>Email</span>
+            <span>
+              {profile.email}{" "}
+              {profile.emailVerified ? <span className={styles.badge}>Verified</span> : <span className={cx(styles.badge, styles.badgeWarn)}>Not verified</span>}
+            </span>
+          </div>
+          <AddressSection address={profile.address} fallbackName={profile.name ?? ""} />
+        </div>
       </section>
 
       <p>
@@ -95,31 +94,36 @@ function NameRow({ name }: { name: string | null }) {
 
   if (editing) {
     return (
-      <Form
-        layout="inline"
-        initialValues={{ name: name ?? "" }}
-        onFinish={(values: { name: string }) => update.mutate({ name: values.name.trim() || null }, { onSuccess: () => setEditing(false) })}
-      >
-        <Form.Item name="name" label="Name">
-          <Input autoFocus />
-        </Form.Item>
-        <Button type="primary" htmlType="submit" loading={update.isPending}>
-          Save
-        </Button>
-        <Button type="link" onClick={() => setEditing(false)}>
-          Cancel
-        </Button>
-      </Form>
+      <div className={styles.accountRow}>
+        <label htmlFor="account-name" className={styles.accountLabel}>
+          Name
+        </label>
+        <Form
+          className={styles.accountInlineEdit}
+          layout="inline"
+          initialValues={{ name: name ?? "" }}
+          onFinish={(values: { name: string }) => update.mutate({ name: values.name.trim() || null }, { onSuccess: () => setEditing(false) })}
+        >
+          <Form.Item name="name" noStyle>
+            <Input id="account-name" autoFocus className={styles.nameInput} />
+          </Form.Item>
+          <Button type="primary" htmlType="submit" loading={update.isPending}>
+            Save
+          </Button>
+          <Button type="link" onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
+        </Form>
+      </div>
     );
   }
 
   return (
-    <p className={styles.settingsRow}>
-      <strong>{name ?? "No name set"}</strong>
-      <Button size="small" onClick={() => setEditing(true)}>
-        {name ? "Change name" : "Add a name"}
-      </Button>
-    </p>
+    <div className={styles.accountRow}>
+      <span className={styles.accountLabel}>Name</span>
+      {name ? <span>{name}</span> : <span className={styles.empty}>None yet</span>}
+      <EditButton label={name ? "Change name" : "Add a name"} adding={!name} onClick={() => setEditing(true)} />
+    </div>
   );
 }
 
@@ -149,23 +153,22 @@ function AddressSection({ address, fallbackName }: { address: Recipient | null; 
 
   if (!editing) {
     return (
-      <p className={styles.settingsRow}>
+      <div className={styles.accountRow}>
+        <span className={styles.accountLabel}>Default address</span>
         {address ? (
           <span>
-            <strong>{address.name}</strong>, {formatRecipient(address, store.locale)}
+            {address.name}, {formatRecipient(address, store.locale)}
           </span>
         ) : (
-          <span className={cx(styles.meta)}>No address yet.</span>
+          <span className={styles.empty}>None yet</span>
         )}
-        <Button size="small" onClick={() => setEditing(true)}>
-          {address ? "Change address" : "Add an address"}
-        </Button>
-      </p>
+        <EditButton label={address ? "Change default address" : "Add a default address"} adding={!address} onClick={() => setEditing(true)} />
+      </div>
     );
   }
 
   return (
-    <>
+    <div className={styles.accountEdit}>
       <div className={styles.addressForm}>
         <RecipientFields
           draft={draft}
@@ -189,10 +192,6 @@ function AddressSection({ address, fallbackName }: { address: Recipient | null; 
           Cancel
         </Button>
       </p>
-      <p className={cx(styles.meta)}>
-        Every collection going to this address moves with it, cards still to come included. A set sent to someone else stays where it is, and a card already at the printer goes
-        to the old address.
-      </p>
-    </>
+    </div>
   );
 }

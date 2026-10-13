@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, count, desc, eq, inArray, sum } from "drizzle-orm";
 import type { Cadence, EditionSize, PurchaseStatus } from "../shared/platform.js";
-import { recipientSchema, sameRecipient, type Recipient } from "../shared/postcards.js";
+import { recipientSchema, type Recipient } from "../shared/postcards.js";
 import { getDatabase } from "./client.js";
 import { affectedRows, epochOrNull, jsonFor, nowFor, parseJson, toCount, toEpochMs } from "./repository.js";
 
@@ -293,28 +293,6 @@ export async function recordPurchaseRefund(id: string, refundedCents: number, fu
     .update(schema.purchases)
     .set({ refundedCents, ...(full ? { status: "refunded" } : {}), updatedAt: nowFor(dialect) })
     .where(eq(schema.purchases.id, id));
-}
-
-/**
- * A collector moved: every purchase of theirs not yet refunded that was going
- * to the old address takes the new one. A set sent somewhere else — a gift —
- * keeps its own. With no old address nothing was going there, so nothing
- * moves. Their unsent cards are updated separately. Returns the ids that moved.
- */
-export async function updatePurchaseAddresses(customerId: string, from: Recipient | null, to: Recipient): Promise<string[]> {
-  if (!from) return [];
-  const { drizzle: db, schema, dialect } = await getDatabase();
-  const open = (await db
-    .select({ id: schema.purchases.id, address: schema.purchases.address })
-    .from(schema.purchases)
-    .where(and(eq(schema.purchases.customerId, customerId), inArray(schema.purchases.status, ["incomplete", "paid"])))) as unknown as { id: string; address: unknown }[];
-  const ids = open.filter((row) => sameRecipient(recipientSchema.parse(parseJson(row.address, {})), from)).map((row) => row.id);
-  if (ids.length === 0) return [];
-  await db
-    .update(schema.purchases)
-    .set({ address: jsonFor(dialect, to) as never, updatedAt: nowFor(dialect) })
-    .where(inArray(schema.purchases.id, ids));
-  return ids;
 }
 
 /** One set goes somewhere else from now on. Only a paid purchase, and only the collector's own: anything else is false. */

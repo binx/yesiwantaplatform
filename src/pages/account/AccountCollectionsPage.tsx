@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Alert, Skeleton, Tag } from "antd";
 import { artistPath, type Collection } from "@shared/platform";
+import { formatRecipient } from "@shared/postcards";
 import { useCollections } from "@/lib/account";
 import { useStore } from "@/lib/useStore";
 import { editionShape, formatShortDate, purchaseStatusLabel } from "@/lib/postcards";
@@ -10,8 +11,8 @@ import styles from "./Account.module.css";
 
 /**
  * Each edition this person collects, as one line of progress — a bar of
- * how many cards have gone, when the next one does, and who it is mailed
- * to, since a set can be a gift. The cards themselves are not shown: they
+ * how many cards have gone, when the next one does, and where it is mailed,
+ * since each set keeps its own address. The cards themselves are not shown: they
  * arrive in the mail. The whole schedule and the receipt are on the
  * collection's own page.
  *
@@ -66,7 +67,9 @@ function CollectionCard({ collection, locale }: { collection: Collection; locale
           <p className={cx(styles.meta)}>
             {editionShape(collection.cardCount, collection.cadence)} · {progress(collection, locale)}
           </p>
-          <p className={cx(styles.meta)}>Mailed to {collection.address.name}</p>
+          <p className={cx(styles.meta)}>
+            Mailed to {collection.address.name}, {formatRecipient(collection.address, locale)}
+          </p>
         </div>
       </div>
     </div>

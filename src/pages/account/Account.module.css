@@ -152,6 +152,24 @@
   padding: 0.5rem 0.25rem;
 }
 
+/* The status column is marks, not words: right-aligned so they line up at the edge. */
+.scheduleTable th:last-child,
+.cardStatus {
+  text-align: right;
+}
+
+.cardStatusDone {
+  color: var(--beluga-ink);
+}
+
+.cardStatusWaiting {
+  color: var(--beluga-muted);
+}
+
+.cardStatusWarn {
+  color: var(--beluga-accent);
+}
+
 /* ---------------------------------------------------------------- settings */
 
 .settingsTitle {
@@ -168,9 +186,64 @@
   margin: 0 0 0.5rem;
 }
 
-/* The studio is the artist's half of the platform, so it leads, in ink. */
-.studioCard {
-  border-color: var(--beluga-ink);
+.settingsRow:last-child {
+  margin-bottom: 0;
+}
+
+/* The artist's two doors, side by side above the account; stacked when narrow. */
+.studio {
+  margin-bottom: 1.5rem;
+}
+
+.studioButtons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.studio .meta {
+  margin: 0.75rem 0 0;
+}
+
+/* Name, email and address: a label, the value, and the icon that changes it. */
+.accountRows {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+.accountRow {
+  display: contents;
+}
+
+/* The email has no control, so its value runs to the edge. */
+.accountRow > :nth-child(2):last-child {
+  grid-column: span 2;
+}
+
+.accountLabel {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--beluga-muted);
+}
+
+/* The name's form stays in its row, after the label. */
+.accountInlineEdit {
+  grid-column: span 2;
+  flex-wrap: nowrap;
+  gap: 0.25rem;
+}
+
+.nameInput {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+/* A form opened from a row takes the whole width of the box. */
+.accountEdit {
+  grid-column: 1 / -1;
 }
 
 /* A word about the email, in the text's own ink rather than a pale tint. */
@@ -191,6 +264,7 @@
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
 }
@@ -207,5 +281,9 @@
 @media (max-width: 480px) {
   .collectionHead {
     flex-direction: column;
+  }
+
+  .studioButtons {
+    grid-template-columns: 1fr;
   }
 }

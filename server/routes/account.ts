@@ -13,7 +13,7 @@ import {
 import { getMailingAddress, setMailingAddress } from "../../db/customers-repository.js";
 import { findArtistByCustomer } from "../../db/artists-repository.js";
 import { listEditionsForArtist } from "../../db/editions-repository.js";
-import { listPurchasesForCustomer, updatePurchaseAddress, updatePurchaseAddresses } from "../../db/purchases-repository.js";
+import { listPurchasesForCustomer, updatePurchaseAddress } from "../../db/purchases-repository.js";
 import { listPostcardsForCustomer, updateUnsentPostcardAddresses } from "../../db/postcards-repository.js";
 import {
   EmailTakenError,
@@ -214,26 +214,21 @@ async function verifiedAddress(body: unknown) {
 }
 
 /**
- * Where the cards go. Saved on the account and copied onto every open
- * purchase that was going to the old address, and every card of theirs
- * still to come, so a collector who moves changes one thing. A set sent
- * somewhere else — a gift — stays where it is. Checked against USPS on the
- * way in; a refusal is a 400 with the suggestion attached, so the form can
- * offer USPS's spelling rather than just saying no.
+ * The account's default address: where checkout starts. Only that — every
+ * collection keeps the address it was bought with until it is changed on
+ * its own, below. Checked against USPS on the way in; a refusal is a 400
+ * with the suggestion attached, so the form can offer USPS's spelling
+ * rather than just saying no.
  */
 meRouter.put("/address", async (req, res) => {
   const { address, verification } = await verifiedAddress(req.body);
-  const customerId = req.session.customerId!;
-  const previous = await getMailingAddress(customerId);
-  await setMailingAddress(customerId, address);
-  const purchaseIds = await updatePurchaseAddresses(customerId, previous, address);
-  await updateUnsentPostcardAddresses(purchaseIds, address);
+  await setMailingAddress(req.session.customerId!, address);
   res.json({ address, verification });
 });
 
 /**
  * One collection goes somewhere else from now on: its cards still to come,
- * and nothing else of this person's. The account's own address is not
+ * and nothing else of this person's. The account's default address is not
  * touched. Only the caller's own paid purchase: anyone else's, or one with
  * nothing still to come, is a 404.
  */

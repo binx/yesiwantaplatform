@@ -64,7 +64,7 @@ function absolute(pathname: string): string {
 const DEFAULT_DESCRIPTION = "Collect an edition of an artist's postcards and get them in the mail, one by one, over the months. Let's move beyond social media.";
 
 /** Client routes with nothing to say about themselves beyond the platform's own line. */
-const PLAIN_ROUTES = ["/account", "/studio", "/collect", "/admin", "/setup"];
+const PLAIN_ROUTES = ["/account", "/studio", "/collect", "/admin", "/setup", "/open-a-studio"];
 
 /**
  * Resolve the tags for one path.
@@ -106,8 +106,8 @@ export async function metaForPath(pathname: string): Promise<ResolvedMeta> {
 
     }
 
-    if (path === "/open-a-studio") {
-      return { ...fallback, title: `Open a studio · ${storeName}`, description: truncate("Make an edition of 6 or 12 postcards and sell it to the people who want to hear from you. Set your price; we print, mail and pay you.") };
+    if (path === "/how-it-works") {
+      return { ...fallback, title: `How it works · ${storeName}`, description: truncate("Make an edition of 6 or 12 postcards and sell it to the people who want to hear from you. Set your price; we print, mail and pay you.") };
     }
 
     if (PLAIN_ROUTES.some((p) => path === p || path.startsWith(`${p}/`))) return fallback;

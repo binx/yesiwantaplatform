@@ -12,7 +12,7 @@ import { cx } from "@/lib/cx";
 import styles from "./ForArtistsPage.module.css";
 
 /**
- * The pitch to an artist, readable by anyone, at /open-a-studio.
+ * The pitch to an artist, readable by anyone, at /how-it-works.
  *
  * `/studio/new` sits behind the studio gate, so a signed-out visitor who
  * clicked through used to land on a sign-in form with nothing about artists
@@ -27,7 +27,7 @@ import styles from "./ForArtistsPage.module.css";
 export function ForArtistsPage() {
   const store = useStore();
   const customer = useCustomer();
-  usePageTitle("Open a studio");
+  usePageTitle("How it works");
 
   const { pricing, currency, locale } = store;
   const money = (cents: number) => formatMoney(cents, currency, locale);

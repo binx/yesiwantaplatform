@@ -150,6 +150,25 @@ export function LinksFields({ links, onChange }: { links: LinkDraft[]; onChange:
   );
 }
 
+/** What each choice means to the artist, told as what happens to their work. One line per option, in option order. */
+const GALLERY_STORIES: ReadonlyArray<{ option: string; story: string }> = [
+  { option: "Listed", story: "your editions appear in the gallery, where anyone browsing the site can find them. Show your work to the world." },
+  { option: "Not listed", story: "your editions stay out of the gallery, but anyone you send the link can still collect. Made for a series just for friends and family." },
+];
+
+/** The gallery stories, to sit under `VisibilityField`. In ink, not muted: this is the one explanation the studio keeps, and it has to be read. */
+export function GalleryStories() {
+  return (
+    <div className={styles.stories}>
+      {GALLERY_STORIES.map(({ option, story }) => (
+        <p key={option}>
+          <strong>{option}:</strong> {story}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 /** Listed in the site's gallery, or found by URL only. */
 export function VisibilityField({ value, onChange, labelledBy }: { value: ArtistVisibility; onChange: (value: ArtistVisibility) => void; labelledBy: string }) {
   return (

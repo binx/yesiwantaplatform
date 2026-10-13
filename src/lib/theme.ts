@@ -145,12 +145,16 @@ export function themeCssVars(theme: Theme): Record<string, string> {
  * rings and selected rows, and the near-black it defaults to made "Save this
  * design" and "Add to cart" read as chrome rather than as the thing to press.
  * The label is always ink, whatever the scheme — dark text is what stays
- * legible on the magenta (5.1:1 against `#18181b`; white would only get 3.5:1).
+ * legible on the pink (7.9:1 against `#18181b`; white would only get 2.3:1).
+ *
+ * A paler pink than the chroma's magenta (`--chroma-2`): at full saturation
+ * the ink label passed on paper but vibrated on screen, and was hard to read
+ * on the night page in particular. This one is the same hue, let up.
  */
 export const ACTION_BUTTON = {
-  fill: "#ff2d8a",
-  hover: "#ff4d9c",
-  active: "#ff1f80",
+  fill: "#ff85bd",
+  hover: "#ff9bca",
+  active: "#ff70b1",
   label: "#18181b",
 } as const;
 
@@ -222,12 +226,12 @@ export function toAntdTheme(theme: Theme): ThemeConfig {
     components: {
       Button: {
         // Uppercase, letterspaced labels read as retail rather than dashboard.
-        // Semibold, because the ink label sits on a fully saturated magenta
+        // Semibold, because the ink label sits on a saturated pink
         // (ACTION_BUTTON) and at 500 it had too little stroke to hold its own.
         fontWeight: 600,
         primaryShadow: "none",
         defaultShadow: "none",
-        // Primary buttons are the chroma magenta, not the theme's primary — see ACTION_BUTTON.
+        // Primary buttons are the action pink, not the theme's primary — see ACTION_BUTTON.
         colorPrimary: ACTION_BUTTON.fill,
         colorPrimaryHover: ACTION_BUTTON.hover,
         colorPrimaryActive: ACTION_BUTTON.active,
@@ -239,6 +243,11 @@ export function toAntdTheme(theme: Theme): ThemeConfig {
         defaultHoverBorderColor: theme.colorPrimary,
         defaultActiveColor: theme.colorPrimary,
         defaultActiveBorderColor: theme.colorPrimary,
+        // antd draws a default button's edge in `colorBorder`, the hairline
+        // the palette uses between sections: 1.3:1 on the surface in both
+        // schemes, so "Pause" and "Cancel" vanished beside the pink. Halfway
+        // from surface to ink clears 3:1 in both.
+        defaultBorderColor: mix(palette.ink, palette.surface, 0.5),
       },
       Card: {
         paddingLG: 28,

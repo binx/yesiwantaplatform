@@ -12,7 +12,6 @@ import {
   type LobTestResult,
 } from "../../shared/api.js";
 import { artistStatusSchema, editionStatusSchema, payoutStatusSchema, purchaseStatusSchema, reviewInputSchema } from "../../shared/platform.js";
-import { postcardBackSchema } from "../../shared/postcards.js";
 import { SlugTakenError, updateSettings } from "../../db/admin-repository.js";
 import { getSettings } from "../../db/repository.js";
 import { createPage, deletePage, listPageDrafts, pageExists, reorderPages, updatePage } from "../../db/pages-repository.js";
@@ -100,13 +99,9 @@ adminRouter.post("/email/test", emailRateLimit, async (req, res) => {
 });
 
 /** Send one test postcard to Lob's own test address, through the whole pipeline. */
-adminRouter.post("/lob/test", emailRateLimit, async (req, res) => {
-  const back = postcardBackSchema.safeParse(req.body ?? {});
-
+adminRouter.post("/lob/test", emailRateLimit, async (_req, res) => {
   try {
-    const card = await sendTestPostcard(
-      back.success ? back.data : postcardBackSchema.parse({ text: "This is a test postcard from the admin.", valediction: "— the printer check" }),
-    );
+    const card = await sendTestPostcard((await getSettings())?.name ?? "Yes I Want A Postcard");
 
     res.json({
       ok: true,

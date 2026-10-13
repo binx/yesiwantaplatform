@@ -10,7 +10,7 @@ import {
   defaultHero,
   pricingSchema,
 } from "./schema.js";
-import { cropSchema, defaultCrop, orientationSchema, postcardBackSchema, recipientSchema } from "./postcards.js";
+import { cropSchema, defaultCrop, orientationSchema, recipientSchema } from "./postcards.js";
 
 /**
  * Request and response contracts, validated on both sides of the wire.
@@ -153,7 +153,6 @@ export const reorderInputSchema = z.object({
 /** What the studio posts alongside the front image. */
 export const designInputSchema = z.object({
   orientation: orientationSchema,
-  back: postcardBackSchema,
   crop: cropSchema.default(defaultCrop),
 });
 

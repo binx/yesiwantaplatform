@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { EnvironmentStatus, PageInput, EmailTestResult, LobTestResult, SettingsInput, PasswordChangeInput } from "@shared/api";
 import type { Image, PageDraft } from "@shared/schema";
 import type { ArtistPublic, ArtistReviewStatus, ArtistStatus, Collection, EditionStudio, Payout, PayoutStatus, ReviewInput } from "@shared/platform";
-import type { Postcard, PostcardBack } from "@shared/postcards";
+import type { Postcard } from "@shared/postcards";
 import { apiGet, csrfDelete, csrfPost, csrfPut, csrfUpload } from "@/lib/api";
 
 /**
@@ -128,7 +128,7 @@ export function useSendTestEmail() {
 }
 
 export function useSendTestPostcard() {
-  return useMutation({ mutationFn: (back: Partial<PostcardBack>) => csrfPost<LobTestResult>("/admin/lob/test", back) });
+  return useMutation({ mutationFn: () => csrfPost<LobTestResult>("/admin/lob/test", {}) });
 }
 
 /* ---------------------------------------------------------------- overview */

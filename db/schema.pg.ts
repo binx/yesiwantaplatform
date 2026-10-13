@@ -157,7 +157,6 @@ export const postcardDesigns = pgTable(
     thumbnailPath: text("thumbnail_path").notNull(),
     thumbnailWidth: integer("thumbnail_width").notNull(),
     thumbnailHeight: integer("thumbnail_height").notNull(),
-    back: jsonb("back").notNull().default({}),
     ...timestamps,
   },
   (t) => [index("postcard_designs_artist_idx").on(t.artistId), index("postcard_designs_created_idx").on(t.createdAt)],

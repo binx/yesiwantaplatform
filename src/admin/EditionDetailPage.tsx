@@ -104,12 +104,6 @@ export function EditionDetailPage() {
                   <p style={{ margin: "0.5rem 0 0" }}>
                     <strong>{card.position}.</strong> {card.title ?? <span style={{ color: "#71717a" }}>untitled</span>}
                   </p>
-                  {card.design.back.text ? (
-                    <p style={{ marginTop: "0.5rem", whiteSpace: "pre-wrap", fontFamily: `"${card.design.back.fontName}", cursive` }}>
-                      {card.design.back.text}
-                      {card.design.back.valediction ? <span style={{ display: "block", textAlign: "right" }}>{card.design.back.valediction}</span> : null}
-                    </p>
-                  ) : null}
                 </li>
               ))}
           </ol>

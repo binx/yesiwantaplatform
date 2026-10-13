@@ -121,7 +121,6 @@ const STUDIO_MUTATIONS = [
   { method: "post", path: "/api/studio/review" },
   { method: "post", path: "/api/studio/status" },
   { method: "post", path: "/api/studio/designs" },
-  { method: "put", path: "/api/studio/designs/some-design" },
   { method: "delete", path: "/api/studio/designs/some-design" },
   { method: "post", path: "/api/studio/editions" },
   { method: "post", path: "/api/studio/editions/banner" },
@@ -135,7 +134,6 @@ const STUDIO_MUTATIONS = [
 
 const STUDIO_READS = [
   "/api/studio",
-  "/api/studio/designs",
   "/api/studio/editions",
   "/api/studio/editions/some-edition",
 ] as const;
@@ -430,7 +428,6 @@ describe("design uploads", () => {
       .post("/api/studio/designs")
       .set("x-csrf-token", csrf)
       .field("orientation", "landscape")
-      .field("back", JSON.stringify({ text: "hi" }))
       .attach("file", await pngFixture(), { filename: "../../../../tmp/pwned.png", contentType: "image/png" })
       .expect(201);
 

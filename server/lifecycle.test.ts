@@ -173,7 +173,6 @@ describe("an artist makes an edition", () => {
         .post("/api/studio/designs")
         .set("x-csrf-token", csrf)
         .field("orientation", "landscape")
-        .field("back", JSON.stringify({ text: `Wish you were here <3 (${i + 1})`, valediction: "Love, R" }))
         .attach("file", png, { filename: "a.png", contentType: "image/png" })
         .expect(201);
       designIds.push(uploaded.body.id as string);
@@ -185,6 +184,17 @@ describe("an artist makes an edition", () => {
 
     // Five cards are not a set of six.
     await agent.put(`/api/studio/editions/${editionId}/cards`).set("x-csrf-token", csrf).send({ cards: designIds.slice(0, 5).map((designId) => ({ designId })) }).expect(200);
+
+    // A card taken out of the set takes its upload with it: nothing else could show it.
+    await agent.put(`/api/studio/editions/${editionId}/cards`).set("x-csrf-token", csrf).send({ cards: designIds.slice(0, 4).map((designId) => ({ designId })) }).expect(200);
+    expect((await agent.delete(`/api/studio/designs/${designIds[4]}`).set("x-csrf-token", csrf)).status).toBe(404);
+    const again = await agent
+      .post("/api/studio/designs")
+      .set("x-csrf-token", csrf)
+      .field("orientation", "landscape")
+      .attach("file", await sharp({ create: { width: 300, height: 200, channels: 3, background: "#ff00ff" } }).png().toBuffer(), { filename: "a.png", contentType: "image/png" })
+      .expect(201);
+    designIds[4] = again.body.id as string;
     const short = await agent.post(`/api/studio/editions/${editionId}/status`).set("x-csrf-token", csrf).send({ status: "in_review" });
     expect(short.status).toBe(409);
     expect(short.body.error).toMatch(/all 6 cards/);
@@ -192,7 +202,7 @@ describe("an artist makes an edition", () => {
     const full = await agent
       .put(`/api/studio/editions/${editionId}/cards`)
       .set("x-csrf-token", csrf)
-      .send({ cards: designIds.map((designId, i) => ({ designId, title: i === 0 ? "The road" : null })) })
+      .send({ cards: designIds.map((designId, i) => ({ designId, title: i === 0 ? "The road <3" : null })) })
       .expect(200);
     expect((full.body.cards as { position: number }[]).map((c) => c.position)).toEqual([1, 2, 3, 4, 5, 6]);
 
@@ -255,7 +265,6 @@ describe("an artist makes an edition", () => {
     expect(retitled.body.banner).toMatchObject({ alt: "Birds on a wire" });
     expect((await agent.put(`/api/studio/editions/${editionId}`).set("x-csrf-token", csrf).send({ ...EDITION, banner: null })).status).toBe(409);
     await agent.put(`/api/studio/editions/${editionId}`).set("x-csrf-token", csrf).send(EDITION).expect(200);
-    expect((await agent.put(`/api/studio/designs/${designIds[0]}`).set("x-csrf-token", csrf).send({ text: "changed" })).status).toBe(409);
     expect((await agent.delete(`/api/studio/designs/${designIds[0]}`).set("x-csrf-token", csrf)).status).toBe(409);
 
     // On sale, but the artist is still a draft: the gallery has nothing to show yet.
@@ -403,7 +412,7 @@ describe("a fan collects the edition", () => {
 });
 
 describe("the first card's day", () => {
-  it("sends nothing early, then sends card 1 to Lob with the artist's footer", async () => {
+  it("sends nothing early, then sends card 1 to Lob with its title and the artist's name on the back", async () => {
     const { sendDuePostcards } = await import("./fulfilment.js");
 
     sent.length = 0;
@@ -419,8 +428,9 @@ describe("the first card's day", () => {
     expect(call.form!.get("to[address_line1]")).toBe("1 Test Street");
     expect(call.form!.get("size")).toBe("4x6");
     const back = call.form!.get("back") as string;
-    expect(back).toContain("Wish you were here &lt;3 (1)");
-    expect(back).toContain("a postcard edition via");
+    expect(back).toContain("The road &lt;3");
+    expect(back).toContain("Rachel");
+    expect(back).toContain("A postcard edition from");
     const front = call.form!.get("front") as Blob;
     const meta = await sharp(Buffer.from(await front.arrayBuffer())).metadata();
     expect([meta.width, meta.height]).toEqual([1875, 1275]);
@@ -432,7 +442,7 @@ describe("the first card's day", () => {
     const fan = await signIn("fan@example.com");
     const received = await fan.agent.get("/api/account/postcards").expect(200);
     expect(received.body).toHaveLength(1);
-    expect(received.body[0]).toMatchObject({ status: "sent", position: 1, cardCount: 6, lobUrl: "https://lob.test/proof.pdf", title: "The road", artist: { slug: "rachel" }, edition: { slug: "birds" } });
+    expect(received.body[0]).toMatchObject({ status: "sent", position: 1, cardCount: 6, lobUrl: "https://lob.test/proof.pdf", title: "The road <3", artist: { slug: "rachel" }, edition: { slug: "birds" } });
     expect(received.body[0].lastError).toBeNull();
     const collections = await fan.agent.get("/api/account/collections").expect(200);
     expect(collections.body[0]).toMatchObject({ sentCount: 1, nextMailDate: schedule[1] });

@@ -1,83 +1,50 @@
-/* ------------------------------------------------------------- the designer */
+/* ------------------------------------------------------------- the editor */
 
-.form {
+/* The front in its frame on the left, the back beside it; one column on a phone. */
+.editor {
   display: grid;
-  gap: 2rem;
-}
-
-.frontRow,
-.backRow {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 2rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem 2.5rem;
   align-items: start;
 }
 
-/*
- * The preview column is a definite width. In an `auto` track a percentage
- * width has nothing to resolve against — the preview's only children are
- * absolutely positioned — and on a desktop viewport the box collapsed to a
- * couple of pixels. Below 800px the grid is one column and 100% is the page.
- *
- * The width follows the orientation, through `--frame-ratio` on the row: a
- * portrait card is sized to stand 28rem tall, a landscape one to lie 34rem
- * wide. One fixed width gave a landscape card a third of the height of a
- * portrait one, and the photo is the thing people came to look at.
- *
- * The four areas are flat grid items rather than one nested controls column so
- * that the phone breakpoint can reorder them — switch and upload above the
- * frame, zoom and the hint below — without a second copy of the markup.
- */
-.frontRow {
-  grid-template-columns: min(100%, 34rem, calc(28rem * var(--frame-ratio, 1))) minmax(0, 1fr);
-  /*
-   * The third row is a spacer: the frame is taller than the two controls, and
-   * without somewhere for its leftover height to go the grid shares it out
-   * between the control rows and strands Zoom halfway down the column.
-   */
-  grid-template-areas:
-    "frame switches"
-    "frame zoom"
-    "frame ."
-    "notes notes";
-  grid-template-rows: auto auto 1fr auto;
-  column-gap: 2rem;
-  row-gap: 1rem;
+.side {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  justify-items: start;
 }
 
-.frontSwitches {
-  grid-area: switches;
+.sideLabel {
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--beluga-muted);
+}
+
+.controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
 }
 
-.frontZoom {
-  grid-area: zoom;
-  max-width: 20rem;
-}
-
-.frontNotes {
-  grid-area: notes;
-  display: grid;
-  gap: 1rem;
-  max-width: 32rem;
+.zoom {
+  width: min(100%, 16rem);
 }
 
 /*
- * The card column is definite for the same reason the frame's is: the back
- * mock's frame is `width: 100%` of it, and a percentage in an `auto` track
- * resolves to nothing. 468px is the card's own width (`CARD_WIDTH_PX`).
+ * The frame follows the orientation through `--frame-ratio`, set inline from
+ * the print size: a portrait card stands 26rem tall, a landscape one lies as
+ * wide as its column allows. The photo inside is drawn at the crop's scale
+ * and offset — the same arithmetic as the print file (`cropRect`) — rather
+ * than `object-fit: cover`, which can only centre.
  */
-.backRow {
-  grid-template-columns: minmax(0, 1fr) min(468px, 100%);
-}
-
 .frontPreview {
-  grid-area: frame;
   position: relative;
   width: 100%;
+  max-width: calc(26rem * var(--frame-ratio, 1));
   background: var(--beluga-page);
   border: 1px solid var(--beluga-ink);
   box-shadow: 3px 3px 5px rgb(0 0 0 / 15%);
@@ -85,12 +52,6 @@
   /* The photo is dragged inside the frame: the frame, not the page, takes the touch. */
   touch-action: none;
   user-select: none;
-  cursor: pointer;
-}
-
-/* Editing: the saved thumbnail, neither clickable nor draggable. */
-.frontPreview[data-fixed] {
-  cursor: default;
 }
 
 .frontPreview[data-photo] {
@@ -111,10 +72,6 @@
   outline-offset: 2px;
 }
 
-/*
- * Drawn at the crop's scale and offset — the same arithmetic as the print
- * file (`cropRect`) — rather than `object-fit: cover`, which can only centre.
- */
 .frontImage {
   position: absolute;
   top: 0;
@@ -122,6 +79,14 @@
   max-width: none;
   display: block;
   pointer-events: none;
+}
+
+/* The saved picture, shown whole: its crop was fixed when it was uploaded. */
+.frontSaved {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .frontHint {
@@ -149,7 +114,6 @@
   border: 0;
   background: none;
   font: inherit;
-  font-size: 0.875rem;
   color: var(--beluga-muted);
   text-align: center;
   cursor: pointer;
@@ -168,12 +132,6 @@
   pointer-events: none;
 }
 
-.backControls {
-  display: grid;
-  gap: 1rem;
-  align-content: start;
-}
-
 .fileInput {
   position: absolute;
   width: 1px;
@@ -184,65 +142,6 @@
 
 .fileLabel {
   display: inline-block;
-}
-
-.field {
-  display: grid;
-  /*
-   * A bare `auto` track sizes to its control's min-content, and an antd
-   * Select's min-content is its placeholder — "Choose a state" is wider than
-   * the state column, so the select spilled under the ZIP field. Let the
-   * track shrink and the control truncates instead.
-   */
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.35rem;
-  align-content: start;
-}
-
-.grow {
-  flex: 1;
-  min-width: 0;
-}
-
-/* Five stops from 12 to 32 do not need the whole column to sit on. */
-.sizeField {
-  flex: 0 1 14rem;
-  min-width: 0;
-}
-
-.label {
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-
-.error {
-  font-size: 0.75rem;
-  color: #b91c1c;
-}
-
-.inline {
-  display: flex;
-  gap: 1.5rem;
-  align-items: start;
-}
-
-.note {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--beluga-muted);
-}
-
-.empty {
-  margin: 0;
-  color: var(--beluga-muted);
-  font-style: italic;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
 }
 
 /* ------------------------------------------------------------ the back mock */
@@ -266,24 +165,22 @@
   overflow: hidden;
 }
 
-.backText {
+/* The caption column: the title, the artist, the platform, as `print/back.hbs` sets them. */
+.backColumn {
   position: absolute;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  border-right: 2px dotted #888;
-  line-height: 1.4;
+  border-right: 1px solid #999;
+  line-height: 1.35;
+  color: #222;
   overflow: hidden;
   overflow-wrap: anywhere;
 }
 
-.backMessage {
-  white-space: pre-wrap;
+.backTitle {
+  font-style: italic;
 }
 
-.backValediction {
-  text-align: right;
-  margin-top: 0.4em;
+.backSite {
+  color: #777;
 }
 
 .backAddress {
@@ -304,480 +201,17 @@
   border: 1px dashed #bbb;
 }
 
-/* -------------------------------------------------------------- the schedule */
-
-.scheduleControls {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
-
-.dateInput {
-  padding: 0.35rem 0.5rem;
-  font: inherit;
-  border: 1px solid var(--beluga-line);
-  border-radius: var(--beluga-radius);
-  background: var(--beluga-surface);
-  color: var(--beluga-ink);
-}
-
-.cadence {
-  width: 7rem;
-}
-
-.designList {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.designItem {
-  width: min(9.5rem, 100%);
-  display: grid;
-  gap: 0.35rem;
-}
-
-.designItem img,
-.designItem [role="img"] {
-  border: 1px solid var(--beluga-line);
-}
-
-.designMeta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.8125rem;
-}
-
-.designButtons {
-  display: flex;
-  align-items: center;
-  gap: 0.15rem;
-}
-
-/* Custom mode: one row per card — date input on the left, .designMeta's buttons on the right. */
-.designControls {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-/* ------------------------------------------------------------- recipients */
-
-.recipients {
-  display: grid;
-  grid-template-columns: minmax(0, 24rem) minmax(0, 1fr);
-  gap: 2rem;
-  align-items: start;
-}
-
-.recipientForm {
-  display: grid;
-  gap: 0.75rem;
-  padding: 1rem;
-  background: var(--beluga-page);
-  border: 1px solid var(--beluga-line);
-}
-
-.recipientRow {
-  display: grid;
-  /* City and state names both run long; a ZIP is five or nine digits. */
-  grid-template-columns: 1.5fr 1.5fr 1fr;
-  gap: 0.75rem;
-  align-items: start;
-}
-
-.recipientActions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-top: 0.5rem;
-}
-
-.recipientList {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 0.75rem;
-  max-height: 32rem;
-  overflow-y: auto;
-}
-
-.recipientItem {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.badge {
-  flex: 0 0 2rem;
-  height: 2rem;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--beluga-primary);
-  color: var(--beluga-on-primary);
-  font-size: 0.875rem;
-}
-
-.recipientText {
-  flex: 1;
-  display: grid;
-  font-size: 0.9375rem;
-}
-
-.recipientText span {
-  color: var(--beluga-muted);
-  font-size: 0.8125rem;
-}
-
-.savedList {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.problemList {
-  margin: 0.5rem 0 0;
-  padding-left: 1.25rem;
-}
-
-/* --------------------------------------------------------------- the total */
-
-.total {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-  font-size: clamp(1.25rem, 1rem + 1.5vw, 2rem);
-}
-
-/*
- * Each factor is glued to the operator that *precedes* it, so a wrap can only
- * ever start a row with `×` or `=`, never strand one at the end of one. The
- * brief asked for the trailing form, but that still breaks "2 designs ×" onto
- * its own row somewhere around 520px.
- */
-.term {
-  white-space: nowrap;
-}
-
-.factors {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-}
-
-.count {
-  display: inline-block;
-  padding: 0.1em 0.5em;
-  background: var(--beluga-page);
-  border: 1px solid var(--beluga-line);
-  font-weight: 700;
-}
-
-.totalActions {
-  display: grid;
-  justify-items: center;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-}
-
-/* --------------------------------------------------------- the status table */
-
-.scheduleTable {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.scheduleTable th {
-  padding-bottom: 0.625rem;
-  border-bottom: 1px solid var(--beluga-line);
-  font-size: 0.75rem;
-  font-weight: 400;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--beluga-muted);
-  text-align: left;
-}
-
-.scheduleTable td {
-  padding: 0.75rem 0.5rem 0.75rem 0;
-  border-bottom: 1px solid var(--beluga-line);
-  vertical-align: middle;
-  font-size: 0.9375rem;
-}
-
-.scheduleThumb {
-  width: 4rem;
-}
-
-.status {
-  white-space: nowrap;
-}
-
-.statusSent {
-  color: #15803d;
-}
-
-.statusError {
-  color: #b45309;
-}
-
-.statusCancelled {
-  color: var(--beluga-muted);
-}
-
-.tableScroll {
-  overflow-x: auto;
-}
-
 @media (max-width: 800px) {
-  .frontRow,
-  .backRow,
-  .recipients {
+  .editor {
     grid-template-columns: 1fr;
-  }
-
-  /* Switch and upload first, so both are on screen with the frame. */
-  .frontRow {
-    grid-template-areas:
-      "switches"
-      "frame"
-      "zoom"
-      "notes";
   }
 
   /*
    * Cap the frame by height, not width, or a portrait card is taller than the
-   * phone before a single control is visible. `--frame-ratio` comes from the
-   * orientation on the element itself; `aspect-ratio` still sets the shape.
-   * The safe-area frame is a percentage border, so it scales with this.
+   * phone before a single control is visible. The safe-area frame is a
+   * percentage border, so it scales with this.
    */
   .frontPreview {
     max-width: min(100%, calc(55vh * var(--frame-ratio, 1)));
-    margin-inline: auto;
   }
-
-}
-
-/* The multiplication on one line, the answer on the next. */
-@media (max-width: 480px) {
-  .total {
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  .factors {
-    gap: 0.5rem;
-  }
-}
-
-@media (max-width: 400px) {
-  .recipientRow {
-    grid-template-columns: 1fr 1fr;
-    grid-template-areas: "city city" "state zip";
-  }
-
-  .recipientRow > *:nth-child(1) {
-    grid-area: city;
-  }
-
-  .recipientRow > *:nth-child(2) {
-    grid-area: state;
-  }
-
-  .recipientRow > *:nth-child(3) {
-    grid-area: zip;
-  }
-}
-
-/* ---------------------------------------------------- schedule: per-design dates */
-
-.scheduleMode {
-  margin-bottom: 1rem;
-}
-
-.designDate {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.8125rem;
-}
-
-.arriveBy {
-  display: grid;
-  gap: 0.5rem;
-  min-width: 14rem;
-}
-
-.arriveBy p {
-  margin: 0;
-}
-
-/* ---------------------------------------------------------- CSV import preview */
-
-.csvMapping {
-  margin: 0.75rem 0 0;
-  padding-left: 1.25rem;
-  font-size: 0.8125rem;
-}
-
-.csvPreview {
-  width: 100%;
-  margin-top: 0.75rem;
-  border-collapse: collapse;
-  font-size: 0.8125rem;
-}
-
-.csvPreview th,
-.csvPreview td {
-  padding: 0.35rem 0.5rem;
-  border-bottom: 1px solid var(--beluga-line);
-  text-align: left;
-  vertical-align: top;
-}
-
-.csvPreview th {
-  font-weight: 400;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-size: 0.6875rem;
-  color: var(--beluga-muted);
-}
-
-.csvActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.pendingRows {
-  margin: 1rem 0 0;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--beluga-line);
-  border-left: 3px solid var(--beluga-accent);
-  font-size: 0.8125rem;
-}
-
-.pendingRows ul {
-  margin: 0.5rem 0 0;
-  padding-left: 1.25rem;
-}
-
-.pendingRows li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.35rem;
-}
-
-/* ------------------------------------------------------- address verification */
-
-.verificationNotice {
-  margin-top: 1rem;
-}
-
-.suggestedAddress {
-  margin: 0.25rem 0 0.5rem;
-}
-
-.verifiedChip {
-  display: inline-block;
-  margin-top: 0.15rem;
-  font-size: 0.6875rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--beluga-muted);
-}
-
-.chipButton {
-  align-self: flex-start;
-  margin-top: 0.25rem;
-}
-
-.select {
-  width: 100%;
-}
-
-/* ------------------------------------------------------------ delivery tracking */
-
-.timeline {
-  margin: 0.35rem 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 0.8125rem;
-  white-space: normal;
-}
-
-.timelineStep {
-  display: flex;
-  gap: 0.5rem;
-  align-items: baseline;
-  color: var(--beluga-muted);
-}
-
-.timelineStep:last-child {
-  color: var(--beluga-ink);
-}
-
-.timelineDay {
-  flex: 0 0 3.5rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.savedTools {
-  display: grid;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.savedTags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-}
-
-/* --------------------------------------------------------- back footer */
-
-.backFooter {
-  margin-top: auto;
-  font-family: Quicksand, sans-serif;
-  font-size: 0.5rem;
-  line-height: 1.3;
-  color: #666;
-}
-
-/* ------------------------------------------------------------ the queue */
-
-.designGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-  gap: 1rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.designCard {
-  display: grid;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border: 1px solid var(--beluga-line);
-  background: var(--beluga-surface);
-}
-
-.designCard img,
-.designCard [role="img"] {
-  border: 1px solid var(--beluga-line);
 }

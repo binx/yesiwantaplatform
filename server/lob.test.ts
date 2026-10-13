@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import Handlebars from "handlebars";
 import sharp from "sharp";
-import { CARD_FONTS_URL } from "../shared/postcards.js";
+import { CARD_FONT, CARD_FONTS_URL } from "../shared/postcards.js";
 import { LobError, cropToCard, printFile, renderBack, retryAfterMs } from "./lob.js";
 
 /**
@@ -87,47 +87,26 @@ describe("cropToCard", () => {
 });
 
 describe("renderBack", () => {
-  it("escapes markup and strips emoji from the message", async () => {
-    const html = await renderBack({
-      text: "Hello <b>Grandma</b> 🎉",
-      valediction: "Love, R 💌",
-      fontName: "Sacramento",
-      fontSize: 20,
-      fontColor: "#123456",
-    });
+  it("escapes markup and strips emoji from the title and the artist", async () => {
+    const html = await renderBack({ title: "Hello <b>Grandma</b> 🎉", artistName: "Rachel <Binx> 💌", siteName: "Yes I Want A Postcard" });
 
     expect(html).toContain("Hello &lt;b&gt;Grandma&lt;/b&gt;");
+    expect(html).toContain("Rachel &lt;Binx&gt;");
     expect(html).not.toContain("🎉");
     expect(html).not.toContain("💌");
-    expect(html).toContain("Sacramento");
-    expect(html).toContain("20pt");
-    expect(html).toContain("#123456");
+    expect(html).toContain("A postcard edition from Yes I Want A Postcard");
   });
 
-  it("names the artist and the platform under the message, only when told to", async () => {
-    const back = { text: "Hi", valediction: "", fontName: "Quicksand", fontSize: 12, fontColor: "#000000" };
-    const withFooter = await renderBack(back, { artistName: "Rachel <Binx> 🎉", siteName: "yesiwantapostcard.com" });
-    expect(withFooter).toContain("Rachel &lt;Binx&gt;");
-    expect(withFooter).not.toContain("🎉");
-    expect(withFooter).toContain("yesiwantapostcard.com");
-    const without = await renderBack(back, null);
-    expect(without).not.toContain("yesiwantapostcard.com");
-    expect(without).not.toContain('class="footer"');
+  it("leaves the title line out of an untitled card", async () => {
+    const html = await renderBack({ title: null, artistName: "Rachel", siteName: "Yes I Want A Postcard" });
+    expect(html).not.toContain('class="title"');
+    expect(html).toContain("Rachel");
   });
 
-  it("omits the closing line when there is none", async () => {
-    const html = await renderBack({ text: "Just this.", valediction: "", fontName: "Quicksand", fontSize: 12, fontColor: "#000000" });
-    expect(html).not.toContain("valediction\"");
-  });
-
-  it("loads all three faces from CARD_FONTS_URL, not a hardcoded string", async () => {
-    const html = await renderBack({ text: "Hi", valediction: "", fontName: "Quicksand", fontSize: 12, fontColor: "#000000" });
+  it("sets the caption in the card's face, loaded from CARD_FONTS_URL rather than a hardcoded string", async () => {
+    const html = await renderBack({ title: "Hi", artistName: "Rachel", siteName: "Yes I Want A Postcard" });
     expect(html).toContain(Handlebars.escapeExpression(CARD_FONTS_URL));
-  });
-
-  it("anchors the message column to the top, so an overflow clips the end and not the opening", async () => {
-    const html = await renderBack({ text: "Hi", valediction: "", fontName: "Quicksand", fontSize: 12, fontColor: "#000000" });
-    expect(html).toContain("justify-content: flex-start");
+    expect(html).toContain(CARD_FONT);
   });
 });
 

@@ -1,16 +1,15 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { stripEmoji, type PostcardBack } from "@shared/postcards";
-import { cx } from "@/lib/cx";
+import { CARD_FONT, stripEmoji } from "@shared/postcards";
 import styles from "./Postcard.module.css";
 
 /**
  * The back of the card, as it will print.
  *
  * Drawn at a fixed width and scaled from inches, so the proportions match
- * `print/back.hbs`: a 6.25in × 4.25in card, a 2.8in column for the message
+ * `print/back.hbs`: a 6.25in × 4.25in card, a 2.8in column for the caption
  * inside the safe area, and the rest left for the address Lob prints. The
- * font size is in points on the card and scaled by the same factor here,
- * which is what keeps "24" meaning the same thing on screen and on paper.
+ * caption is set in points on the card and scaled by the same factor here,
+ * which is what keeps it the same size on screen and on paper.
  *
  * Narrower than that — a phone — the whole card is transformed down to the
  * width it has, inside a frame that keeps the card's shape in the layout.
@@ -18,18 +17,17 @@ import styles from "./Postcard.module.css";
 const CARD_WIDTH_PX = 468;
 const CARD_HEIGHT_PX = 4.25 * (CARD_WIDTH_PX / 6.25);
 const PX_PER_INCH = CARD_WIDTH_PX / 6.25;
+const inches = (value: number) => value * PX_PER_INCH;
+const points = (value: number) => (value / 72) * PX_PER_INCH;
 
 interface PostcardBackMockProps {
-  back: PostcardBack;
-  /** The line printed under the message: the artist's name. */
-  artistName?: string;
-  /** Called whenever the message column's content fits or stops fitting. */
-  onFit?: (fits: boolean) => void;
+  /** The title of the piece, as the artist is typing it. Empty leaves the line out. */
+  title: string;
+  artistName: string;
+  siteName: string;
 }
 
-export function PostcardBackMock({ back, artistName = "You", onFit }: PostcardBackMockProps) {
-  const fontPx = (back.fontSize / 72) * PX_PER_INCH;
-  const textRef = useRef<HTMLDivElement>(null);
+export function PostcardBackMock({ title, artistName, siteName }: PostcardBackMockProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
 
@@ -50,56 +48,33 @@ export function PostcardBackMock({ back, artistName = "You", onFit }: PostcardBa
     return () => observer.disconnect();
   }, []);
 
-  useLayoutEffect(() => {
-    const el = textRef.current;
-    if (!el || !onFit) return;
-
-    const measure = () => onFit(el.scrollHeight <= el.clientHeight + 1);
-    measure();
-
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-
-    let cancelled = false;
-    void document.fonts.ready.then(() => {
-      if (!cancelled) measure();
-    });
-
-    return () => {
-      cancelled = true;
-      observer.disconnect();
-    };
-  }, [back, onFit]);
-
   return (
     <div ref={frameRef} className={styles.backFrame} style={{ maxWidth: CARD_WIDTH_PX, aspectRatio: `${CARD_WIDTH_PX} / ${CARD_HEIGHT_PX}` }} aria-hidden>
-      <div className={cx(styles.backCard)} style={{ width: CARD_WIDTH_PX, height: CARD_HEIGHT_PX, transform: `scale(${scale})` }}>
+      <div className={styles.backCard} style={{ width: CARD_WIDTH_PX, height: CARD_HEIGHT_PX, transform: `scale(${scale})` }}>
         <div
-          ref={textRef}
-          className={cx(styles.backText)}
+          className={styles.backColumn}
           style={{
-            left: 0.25 * PX_PER_INCH,
-            top: 0.25 * PX_PER_INCH,
-            width: 2.8 * PX_PER_INCH,
-            height: 3.75 * PX_PER_INCH,
-            paddingRight: 0.1 * PX_PER_INCH,
-            fontFamily: `"${back.fontName}", cursive`,
-            fontSize: fontPx,
-            color: back.fontColor,
+            left: inches(0.25),
+            top: inches(0.25),
+            width: inches(2.8),
+            height: inches(3.75),
+            paddingRight: inches(0.15),
+            fontFamily: `"${CARD_FONT}", serif`,
+            fontSize: points(9.5),
           }}
         >
-          <div className={styles.backMessage}>{stripEmoji(back.text)}</div>
-          {back.valediction ? <div className={styles.backValediction}>{stripEmoji(back.valediction)}</div> : null}
-          <div className={styles.backFooter} style={{ paddingTop: 0.1 * PX_PER_INCH }}>
-            <strong>{stripEmoji(artistName)}</strong> · a postcard edition via yesiwantapostcard.com
+          {title.trim() ? <div className={styles.backTitle}>{stripEmoji(title)}</div> : null}
+          <div>{stripEmoji(artistName)}</div>
+          <div className={styles.backSite} style={{ fontSize: points(7), marginTop: inches(0.06) }}>
+            A postcard edition from {siteName}
           </div>
         </div>
-        <div className={styles.backAddress} style={{ right: 0.3 * PX_PER_INCH, bottom: 0.4 * PX_PER_INCH, width: 2.6 * PX_PER_INCH }}>
+        <div className={styles.backAddress} style={{ right: inches(0.3), bottom: inches(0.4), width: inches(2.6) }}>
           <span />
           <span />
           <span />
         </div>
-        <div className={styles.backStamp} style={{ right: 0.3 * PX_PER_INCH, top: 0.3 * PX_PER_INCH }} />
+        <div className={styles.backStamp} style={{ right: inches(0.3), top: inches(0.3) }} />
       </div>
     </div>
   );

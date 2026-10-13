@@ -4,7 +4,7 @@ import Handlebars from "handlebars";
 import sharp from "sharp";
 import { env, hasLob, lobMode } from "./env.js";
 import {
-  BACK_FONTS,
+  CARD_FONT,
   CARD_FONTS_URL,
   PRINT_SIZES,
   cropRect,
@@ -13,10 +13,10 @@ import {
   recipientSchema,
   stripEmoji,
   unknownVerification,
+  type BackCaption,
   type Crop,
   type Deliverability,
   type Orientation,
-  type PostcardBack,
   type Recipient,
   type Verification,
 } from "../shared/postcards.js";
@@ -117,11 +117,10 @@ export interface SendPostcardInput {
   from?: Recipient | null;
   /** The print file, already at Lob's size and density. */
   front: Buffer;
-  back: PostcardBack;
+  /** What prints on the back: the card's title, the artist, the platform. */
+  back: BackCaption;
   /** Free text Lob shows in its dashboard. */
   description: string;
-  /** The line under the message naming the artist and the platform. */
-  footer?: BackFooter | null;
 }
 
 /* ----------------------------------------------------------------- the file */
@@ -199,57 +198,33 @@ export async function printFile(
 
 let backTemplate: Handlebars.TemplateDelegate | null = null;
 
-/** The CSS stack for one of the three print faces. */
-function fontStack(fontName: string): string {
-  const known = BACK_FONTS.find((font) => font.name === fontName);
-  const family = known ? known.name : "Patrick Hand";
-  const generic = family === "Quicksand" ? "sans-serif" : "cursive";
-  return `"${family}", ${generic}`;
-}
-
 /**
- * The back of the card as HTML, rendered from `print/back.hbs`.
+ * The back of the card as HTML, rendered from `print/back.hbs`: a caption
+ * like a museum shop's, with the title above the artist's name.
  *
- * Handlebars escapes the message on the way in, so a buyer cannot put markup
- * on their own postcard — which is not a security problem so much as a
- * printing one, since a stray `<` would otherwise vanish from the card.
+ * Handlebars escapes everything on the way in, so an artist cannot put
+ * markup on their own postcard — which is not a security problem so much
+ * as a printing one, since a stray `<` would otherwise vanish from the
+ * card. Emoji are stripped too: the print face has no glyphs for them.
  */
-export async function renderBack(back: PostcardBack, footer: BackFooter | null = null): Promise<string> {
+export async function renderBack(back: BackCaption): Promise<string> {
   backTemplate ??= Handlebars.compile(await readFile(path.resolve("print", "back.hbs"), "utf8"));
 
   return backTemplate({
-    text: stripEmoji(back.text),
-    valediction: stripEmoji(back.valediction),
+    title: back.title ? stripEmoji(back.title) : null,
+    artistName: stripEmoji(back.artistName),
+    siteName: stripEmoji(back.siteName),
     cardFontsUrl: CARD_FONTS_URL,
-    fontFamily: fontStack(back.fontName),
-    // Points, not pixels: the site previews at `px` on a 6.25in-wide mock and
-    // Lob renders at 300 dpi, and a point is the unit both agree on.
-    fontSize: back.fontSize,
-    fontColor: back.fontColor,
-    // The one line that is ours rather than the artist's: who sent it, and where from.
-    footer: footer ? { artist: stripEmoji(footer.artistName), site: footer.siteName } : null,
+    fontFamily: `"${CARD_FONT}", serif`,
   });
 }
 
-/** The small line under the message: the artist's name and the platform's. */
-export interface BackFooter {
-  artistName: string;
-  siteName: string;
-}
-
-/**
- * The merge variables v1's Lob template expected, under the same names, so a
- * store that sets LOB_BACK_TEMPLATE_ID to its old template keeps working.
- */
-function mergeVariables(back: PostcardBack, footer: BackFooter | null): Record<string, string> {
+/** The same caption as Lob merge variables, for a store that sets LOB_BACK_TEMPLATE_ID to a template of its own. */
+function mergeVariables(back: BackCaption): Record<string, string> {
   return {
-    postcard_text: stripEmoji(back.text),
-    postcard_valediction: stripEmoji(back.valediction),
-    font_name: back.fontName,
-    font_size: String(back.fontSize),
-    font_color: back.fontColor,
-    artist_name: footer?.artistName ?? "",
-    site_name: footer?.siteName ?? "",
+    postcard_title: back.title ? stripEmoji(back.title) : "",
+    artist_name: stripEmoji(back.artistName),
+    site_name: stripEmoji(back.siteName),
   };
 }
 
@@ -368,11 +343,11 @@ export async function sendPostcard(input: SendPostcardInput): Promise<LobPostcar
 
   if (env.LOB_BACK_TEMPLATE_ID) {
     form.append("back", env.LOB_BACK_TEMPLATE_ID);
-    for (const [key, value] of Object.entries(mergeVariables(input.back, input.footer ?? null))) {
+    for (const [key, value] of Object.entries(mergeVariables(input.back))) {
       form.append(`merge_variables[${key}]`, value);
     }
   } else {
-    form.append("back", await renderBack(input.back, input.footer ?? null));
+    form.append("back", await renderBack(input.back));
   }
 
   form.append("metadata[postcard_id]", input.id);
@@ -394,7 +369,7 @@ export async function sendPostcard(input: SendPostcardInput): Promise<LobPostcar
  * `live_` key this costs one postcard, and the admin says so before the
  * button is pressed.
  */
-export async function sendTestPostcard(back: PostcardBack): Promise<LobPostcard> {
+export async function sendTestPostcard(siteName: string): Promise<LobPostcard> {
   const { width, height } = PRINT_SIZES.landscape;
   const sample = await sharp({
     create: { width, height, channels: 3, background: "#ffff37" },
@@ -405,7 +380,6 @@ export async function sendTestPostcard(back: PostcardBack): Promise<LobPostcard>
 
   return sendPostcard({
     id: `test-${Date.now()}`,
-    footer: { artistName: "The printer check", siteName: "yesiwantapostcard.com" },
     to: {
       name: "Lob Test Address",
       line1: "185 Berry St",
@@ -416,7 +390,7 @@ export async function sendTestPostcard(back: PostcardBack): Promise<LobPostcard>
       country: "US",
     },
     front: sample,
-    back,
+    back: { title: "A test postcard", artistName: "The printer check", siteName },
     description: "Yes I Want A Postcard admin test",
   });
 }

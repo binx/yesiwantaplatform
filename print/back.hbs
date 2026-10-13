@@ -12,6 +12,10 @@
        * everything of ours stays in the left column: a safe area 1/8in inside
        * the trim, and a column 2.8in wide. Sizes are in inches and points so
        * the renderer's DPI does not change the layout.
+       *
+       * What goes there is a caption, as on a postcard from a museum shop:
+       * the title of the piece, the artist, and where it came from, in small
+       * type at the top of the column, with the rest left for a note.
        */
       *, *::before, *::after { box-sizing: border-box; }
       html, body { margin: 0; padding: 0; width: 6.25in; height: 4.25in; }
@@ -22,36 +26,26 @@
         left: 0.25in;
         width: 2.8in;
         height: 3.75in;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-        border-right: 2px dotted #888;
-        padding-right: 0.1in;
+        border-right: 1px solid #999;
+        padding-right: 0.15in;
         font-family: {{fontFamily}};
-        font-size: {{fontSize}}pt;
-        line-height: 1.4;
-        color: {{fontColor}};
+        color: #222;
         overflow: hidden;
         word-wrap: break-word;
       }
-      .text { white-space: pre-wrap; }
-      .valediction { text-align: right; margin-top: 0.15in; }
-      /*
-       * The one line that is the platform's rather than the artist's: who
-       * sent the card and where it came from. Bottom-left keeps it clear of
-       * Lob's address block and the postal barcode zone.
-       */
-      .footer { margin-top: auto; padding-top: 0.1in; font-family: Quicksand, sans-serif; font-size: 6pt; line-height: 1.3; color: #666; }
-      .footer .artist { font-weight: 600; }
+      .caption { font-size: 9.5pt; line-height: 1.35; }
+      .title { font-style: italic; }
+      .artist { margin-top: 0.02in; }
+      .site { margin-top: 0.06in; font-size: 7pt; color: #777; }
     </style>
   </head>
   <body>
     <div class="safe">
-      <div class="text">{{text}}</div>
-      {{#if valediction}}<div class="valediction">{{valediction}}</div>{{/if}}
-      {{#if footer}}
-      <div class="footer"><span class="artist">{{footer.artist}}</span> · a postcard edition via {{footer.site}}</div>
-      {{/if}}
+      <div class="caption">
+        {{#if title}}<div class="title">{{title}}</div>{{/if}}
+        <div class="artist">{{artistName}}</div>
+        <div class="site">A postcard edition from {{siteName}}</div>
+      </div>
     </div>
   </body>
 </html>

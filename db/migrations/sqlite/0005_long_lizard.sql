@@ -1,0 +1,1 @@
+ALTER TABLE `postcard_designs` DROP COLUMN `back`;

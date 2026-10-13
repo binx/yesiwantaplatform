@@ -122,11 +122,11 @@ const schema = z.object({
     .regex(/^(test|live)_[A-Za-z0-9]+$/, "LOB_API_KEY should start with test_ or live_.")
     .optional(),
   /**
-   * A Lob HTML template (`tmpl_…`) for the back of the card. v1 kept its back
-   * design in Lob's template editor and sent the message as merge variables;
-   * set this to keep doing that. Unset, the back is rendered from
-   * `print/back.hbs` in this repo and sent as HTML, which needs nothing in
-   * the Lob dashboard at all.
+   * A Lob HTML template (`tmpl_…`) for the back of the card, for a store that
+   * keeps its back design in Lob's template editor: the caption goes as merge
+   * variables (postcard_title, artist_name, site_name). Unset, the back is
+   * rendered from `print/back.hbs` in this repo and sent as HTML, which needs
+   * nothing in the Lob dashboard at all.
    */
   LOB_BACK_TEMPLATE_ID: z.string().regex(/^tmpl_[A-Za-z0-9]+$/).optional(),
   /**

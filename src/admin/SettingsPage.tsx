@@ -287,7 +287,7 @@ export function EmailCheck({ hasEmail }: { hasEmail: boolean }) {
 export function PrintingCheck({ hasLob, lobMode }: { hasLob: boolean; lobMode: "test" | "live" | null }) {
   const { modal } = App.useApp();
   const send = useSendTestPostcard();
-  const run = () => send.mutate({ text: "This is a test postcard from the admin.", valediction: "— the printer check" });
+  const run = () => send.mutate();
 
   return (
     <>

@@ -11,7 +11,6 @@ import {
   editionStatusSchema,
   type EditionInput,
 } from "../../shared/platform.js";
-import { postcardBackSchema } from "../../shared/postcards.js";
 import { getSettings } from "../../db/repository.js";
 import { SlugTakenError } from "../../db/admin-repository.js";
 import {
@@ -25,17 +24,7 @@ import {
   updateArtistProfile,
   type ArtistRecord,
 } from "../../db/artists-repository.js";
-import {
-  createDesign,
-  deleteDesign,
-  designIsLocked,
-  designIsUsed,
-  getDesignForArtist,
-  findDesignsByIds,
-  listDesignsForArtist,
-  toPublicDesign,
-  updateDesignBack,
-} from "../../db/designs-repository.js";
+import { createDesign, deleteDesign, designIsUsed, getDesignForArtist, findDesignsByIds, toPublicDesign, type Design } from "../../db/designs-repository.js";
 import {
   EditionSlugTakenError,
   createEdition,
@@ -259,12 +248,6 @@ artistRouter.post("/status", async (req, res) => {
 
 /* ---------------------------------------------------------------- designs */
 
-artistRouter.get("/designs", async (_req, res) => {
-  const artist = artistOf(res);
-  const designs = await listDesignsForArtist(artist.id);
-  res.json(designs.map((design) => toPublicDesign(design, `A postcard by ${artist.name}`)));
-});
-
 /** A multipart text field holding JSON. Absent or empty means "not given". */
 function parseJsonField(value: unknown, message: string): unknown {
   if (typeof value !== "string" || value === "") return undefined;
@@ -276,10 +259,11 @@ function parseJsonField(value: unknown, message: string): unknown {
 }
 
 /**
- * Save a design: the front image as multipart `file`, plus `orientation`,
- * `back` and `crop` (JSON strings) as fields. The print file is made here,
- * at Lob's size and density, so an image that cannot be printed is refused
- * now rather than on the day it is due to go.
+ * Save a design: the front image as multipart `file`, plus `orientation`
+ * and `crop` (a JSON string) as fields. The print file is made here, at
+ * Lob's size and density, so an image that cannot be printed is refused
+ * now rather than on the day it is due to go. The design becomes a card
+ * when the edition's cards are set with it.
  */
 artistRouter.post("/designs", uploadRateLimit, (req, res, next) => {
   uploadMiddleware(req, res, (uploadError: unknown) => {
@@ -289,10 +273,9 @@ artistRouter.post("/designs", uploadRateLimit, (req, res, next) => {
         if (!req.file) throw httpError(400, "Choose an image for the front of the card.");
 
         const body = req.body as Record<string, unknown>;
-        const back = parseJsonField(body.back, "The back of the card could not be read.");
-        const crop = parseJsonField(body.crop, "The photo's position could not be read.");
+        const crop = parseJsonField(body.crop, "The picture's position could not be read.");
 
-        const parsed = designInputSchema.safeParse({ orientation: body.orientation, back: back ?? {}, ...(crop === undefined ? {} : { crop }) });
+        const parsed = designInputSchema.safeParse({ orientation: body.orientation, ...(crop === undefined ? {} : { crop }) });
         if (!parsed.success) {
           const first = parsed.error.issues[0];
           throw httpError(400, first ? `${first.path.join(".")}: ${first.message}` : "Invalid design.");
@@ -303,7 +286,7 @@ artistRouter.post("/designs", uploadRateLimit, (req, res, next) => {
         const stored = await storePostcardDesign(id, req.file.buffer, parsed.data.orientation, parsed.data.crop);
 
         try {
-          const design = await createDesign({ artistId: artist.id, orientation: parsed.data.orientation, back: parsed.data.back, ...stored }, id);
+          const design = await createDesign({ artistId: artist.id, orientation: parsed.data.orientation, ...stored }, id);
           res.status(201).json(toPublicDesign(design, `A postcard by ${artist.name}`));
         } catch (error) {
           // The files are on disk and the row is not: remove them rather than leave two orphans.
@@ -318,34 +301,21 @@ artistRouter.post("/designs", uploadRateLimit, (req, res, next) => {
   });
 });
 
-/** Edit the message. Refused once the card is in an edition on sale: collectors paid for it as it is. */
-artistRouter.put("/designs/:id", async (req, res) => {
-  const artist = artistOf(res);
-  const parsed = postcardBackSchema.safeParse(req.body);
-  if (!parsed.success) {
-    const first = parsed.error.issues[0];
-    throw httpError(400, first ? `${first.path.join(".")}: ${first.message}` : "Invalid message.");
-  }
+/** The row and both files. Best effort on the files: a stray file is cheaper than a stray row. */
+async function removeDesign(design: Design): Promise<void> {
+  await deleteDesign(design.id);
+  await deleteDesignFile(design.printPath).catch(() => undefined);
+  await deleteDesignFile(design.thumbnailPath).catch(() => undefined);
+}
 
-  const design = await getDesignForArtist(req.params.id, artist.id);
-  if (!design) throw httpError(404, "No design found.");
-  if (await designIsLocked(design.id)) throw httpError(409, "That postcard is in an edition on sale and can't be changed.");
-
-  await updateDesignBack(design.id, artist.id, parsed.data);
-  const updated = await getDesignForArtist(design.id, artist.id);
-  res.json(toPublicDesign(updated!, `A postcard by ${artist.name}`));
-});
-
-/** Remove a design nothing refers to. */
+/** Remove a design nothing refers to: an upload whose card never got saved. */
 artistRouter.delete("/designs/:id", async (req, res) => {
   const artist = artistOf(res);
   const design = await getDesignForArtist(req.params.id, artist.id);
   if (!design) throw httpError(404, "No design found.");
   if (await designIsUsed(design.id)) throw httpError(409, "That postcard is in one of your editions. Take it out of the edition first.");
 
-  await deleteDesign(design.id);
-  await deleteDesignFile(design.printPath).catch(() => undefined);
-  await deleteDesignFile(design.thumbnailPath).catch(() => undefined);
+  await removeDesign(design);
   res.status(204).end();
 });
 
@@ -426,7 +396,13 @@ artistRouter.put("/editions/:id", async (req, res) => {
 /** Stores an edition's banner and hands the image back; it is saved with the edition. */
 artistRouter.post("/editions/banner", uploadRateLimit, storeProfileImage);
 
-/** Set a draft's cards, in order. Every design must be the artist's own. */
+/**
+ * Set a draft's cards, in order. Every design must be the artist's own.
+ *
+ * A design is made for one card: one taken out of the set here has nowhere
+ * else to be seen, so it goes, files and all — unless another edition has
+ * it, which the server still allows even though the studio never does.
+ */
 artistRouter.put("/editions/:id/cards", async (req, res) => {
   const artist = artistOf(res);
   const edition = await editionOf(res, req.params.id);
@@ -441,7 +417,14 @@ artistRouter.put("/editions/:id/cards", async (req, res) => {
     throw httpError(404, "No design found.");
   }
 
+  const before = await listCardsForEdition(edition.id);
   if (!(await replaceEditionCards(edition.id, parsed.data.cards))) throw httpError(409, "That edition has just gone on sale. Reload and try again.");
+
+  const kept = new Set(parsed.data.cards.map((card) => card.designId));
+  const dropped = await findDesignsByIds(before.map((card) => card.designId).filter((id) => !kept.has(id)));
+  for (const design of dropped) {
+    if (design.artistId === artist.id && !(await designIsUsed(design.id))) await removeDesign(design);
+  }
   res.json(await presentOne(artist, edition));
 });
 

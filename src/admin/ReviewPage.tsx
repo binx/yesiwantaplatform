@@ -13,7 +13,7 @@ import { PageHeader } from "./RequireAdmin";
  * The queue: every page the admin has not looked at, and every edition an
  * artist has sent, oldest first. Everything needed to decide is on this
  * page, so a decision is one visit: the page as a visitor would see it, the
- * edition with every card, front and back, that a collector would get.
+ * edition with every card a collector would get.
  */
 export function ReviewPage() {
   const locale = useStoreLocale();
@@ -131,12 +131,6 @@ function EditionToReview({ edition, locale }: { edition: ReviewEdition; locale: 
               <p style={{ margin: "0.5rem 0 0" }}>
                 <strong>{card.position}.</strong> {card.title ?? <span style={{ color: "#71717a" }}>untitled</span>}
               </p>
-              {card.design.back.text ? (
-                <p style={{ margin: "0.25rem 0 0", whiteSpace: "pre-wrap", fontFamily: `"${card.design.back.fontName}", cursive` }}>
-                  {card.design.back.text}
-                  {card.design.back.valediction ? <span style={{ display: "block", textAlign: "right" }}>{card.design.back.valediction}</span> : null}
-                </p>
-              ) : null}
             </li>
           ))}
       </ol>

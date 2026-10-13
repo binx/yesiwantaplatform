@@ -209,76 +209,124 @@
   flex-wrap: wrap;
 }
 
-.designUse {
-  display: block;
-}
-
-/* The card slots of one edition, in mailing order. */
-.slotList {
-  margin: 0;
+/* The cards of one edition, in mailing order: a shelf of numbered prints. */
+.cardGrid {
+  margin: 0 0 1.5rem;
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 1.25rem 1rem;
 }
 
-.slot {
+.cardSlot {
   display: grid;
-  grid-template-columns: 2rem minmax(4rem, 6rem) minmax(0, 1fr) auto;
-  gap: 1rem;
-  align-items: center;
-  padding: 0.75rem 1rem;
+  gap: 0.5rem;
+  align-content: start;
+}
+
+/* A square shelf; the print sits in it at its own shape. */
+.cardPicture,
+.cardAdd,
+.cardBlank {
+  aspect-ratio: 1;
+  width: 100%;
+}
+
+.cardPicture {
+  position: relative;
+  background: var(--beluga-page);
   border: 1px solid var(--beluga-line);
+}
+
+/*
+ * Centred in the shelf at its own shape. Absolutely placed so that the
+ * percentage caps resolve against the shelf — in a grid cell the track is
+ * indefinite and `max-height: 100%` would mean nothing.
+ */
+.cardPicture img,
+.cardPicture [role="img"] {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: auto;
+  height: auto;
+  max-width: calc(100% - 1rem);
+  max-height: calc(100% - 1rem);
+  border: 1px solid var(--beluga-line);
+  box-shadow: 2px 2px 4px rgb(0 0 0 / 12%);
+}
+
+.cardAdd {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  font: inherit;
+  color: var(--beluga-ink);
+  background: transparent;
+  border: 1px dashed var(--beluga-ink);
+  cursor: pointer;
+}
+
+.cardAdd:hover {
   background: var(--beluga-surface);
 }
 
-.slot img,
-.slot [role="img"] {
-  border: 1px solid var(--beluga-line);
+.cardAdd:focus-visible {
+  outline: 2px solid var(--beluga-primary);
+  outline-offset: 2px;
 }
 
-.slotEmpty {
-  border-style: dashed;
-  background: transparent;
+.cardAdd:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
-.slotPicking {
+.cardBlank {
+  border: 1px dashed var(--beluga-line);
+}
+
+.cardSlotEditing .cardPicture,
+.cardSlotEditing .cardAdd {
   outline: 2px solid var(--beluga-accent);
   outline-offset: -2px;
 }
 
-.slotImageEmpty {
-  aspect-ratio: 1;
-  border: 1px dashed var(--beluga-line);
+/* The label under the print: its number, then its title. */
+.cardLabel {
+  margin: 0;
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-size: 0.875rem;
+  line-height: 1.3;
 }
 
-.slotNumber {
-  font-size: 1.25rem;
+.cardNumber {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
   font-weight: 700;
   color: var(--beluga-muted);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
 }
 
-.slotBody {
-  display: grid;
-  gap: 0.35rem;
-  justify-items: start;
+.cardUntitled {
+  color: var(--beluga-muted);
+  font-style: italic;
 }
 
-.slotBody p {
-  margin: 0;
-}
-
-.slotLabel {
-  font-weight: 600;
-}
-
-.slotActions {
+.cardActions {
   display: flex;
-  gap: 0.35rem;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  gap: 0.25rem;
+}
+
+/* Two to a row on a phone: one full-width square per card made six screens of shelf. */
+@media (max-width: 480px) {
+  .cardGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .pickerHeading {
@@ -289,42 +337,9 @@
   outline: none;
 }
 
-.pickButton {
-  display: grid;
-  gap: 0.5rem;
+.titleField {
   width: 100%;
-  padding: 0.75rem;
-  font: inherit;
-  text-align: left;
-  color: var(--beluga-ink);
-  border: 1px solid var(--beluga-line);
-  border-radius: var(--beluga-radius);
-  background: var(--beluga-surface);
-  cursor: pointer;
-}
-
-.pickButton:hover {
-  border-color: var(--beluga-accent);
-}
-
-.pickButton:focus-visible {
-  outline: 2px solid var(--beluga-primary);
-  outline-offset: 2px;
-}
-
-.pickLabel {
-  font-weight: 600;
-}
-
-@media (max-width: 640px) {
-  .slot {
-    grid-template-columns: 1.5rem minmax(4rem, 5rem) minmax(0, 1fr);
-  }
-
-  .slotActions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-  }
+  max-width: 468px;
 }
 
 .table {

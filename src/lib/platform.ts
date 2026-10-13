@@ -16,7 +16,7 @@ import type {
   EditionSummary,
   GalleryPage,
 } from "@shared/platform";
-import type { PostcardBack, PostcardDesign, Recipient } from "@shared/postcards";
+import type { Recipient } from "@shared/postcards";
 import type { Image, Pricing } from "@shared/schema";
 import { apiGet, csrfDelete, csrfPost, csrfPut, csrfUpload } from "./api";
 
@@ -198,21 +198,7 @@ export function useSlugAvailable(slug: string, enabled: boolean) {
 
 /* ---------------------------------------------------------------- designs */
 
-export function useStudioDesigns(): UseQueryResult<PostcardDesign[]> {
-  return useQuery({
-    queryKey: ["studio", "designs"],
-    queryFn: ({ signal }) => apiGet<PostcardDesign[]>("/studio/designs", signal),
-  });
-}
-
-export function useUpdateDesignBack() {
-  const invalidate = useInvalidateStudio();
-  return useMutation({
-    mutationFn: ({ id, back }: { id: string; back: PostcardBack }) => csrfPut<PostcardDesign>(`/studio/designs/${id}`, back),
-    onSuccess: invalidate,
-  });
-}
-
+/** An upload whose card was never saved. Refused once it is in an edition. */
 export function useDeleteDesign() {
   const invalidate = useInvalidateStudio();
   return useMutation({

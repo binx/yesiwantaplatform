@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import sharp from "sharp";
 import { artistProfileInputSchema, editionInputSchema, type ArtistProfileInput, type EditionInput } from "../shared/platform.js";
-import { PRINT_SIZES, postcardBackSchema, type Orientation, type PostcardBack } from "../shared/postcards.js";
+import { PRINT_SIZES, type Orientation } from "../shared/postcards.js";
 import { EmailTakenError, countAdmins, createAdmin, createCustomer } from "../server/auth.js";
 import { storeImage, storePostcardDesign } from "../server/uploads.js";
 import { createArtist, findArtistBySlug, reviewArtist, setArtistStatus } from "./artists-repository.js";
@@ -31,7 +31,6 @@ const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? "postcards-demo-password";
 
 interface DemoCard {
   title: string;
-  back: Partial<PostcardBack>;
   /** The SVG of the front, at print size. */
   front: (width: number, height: number) => string;
 }
@@ -156,7 +155,7 @@ const june: DemoArtist = {
     name: "June Okafor",
     bio: `I paint the same patch of sky every morning, from the same chair, before anyone else is up.
 
-Most of them go in a drawer. The ones that don't become **postcards**: a small sky in the post, once or twice a month, for a year or so. Each one has a note on the back about the weather that day, which is to say about not much at all.
+Most of them go in a drawer. The ones that don't become **postcards**: a small sky in the post, once or twice a month, for a year or so. Each one is titled with the month and the weather that day, which is to say with not much at all.
 
 I've been doing this since 2019. The chair is older.`,
     visibility: "public",
@@ -177,7 +176,7 @@ I've been doing this since 2019. The chair is older.`,
         title: "Twelve Skies",
         description: `Twelve mornings, chosen from the drawer.
 
-Twelve skies, no two alike: the first ones are from January and the last from a December that is still some way off. Every card has a few lines on the back about that day. You get the whole year for one price, and the first card goes out on the next 1st or 15th after you order.`,
+Twelve skies, no two alike: the first ones are from January and the last from a December that is still some way off. Every card is titled with its day. You get the whole year for one price, and the first card goes out on the next 1st or 15th after you order.`,
         cardCount: 12,
         priceCents: 5400,
         inGallery: true,
@@ -185,18 +184,18 @@ Twelve skies, no two alike: the first ones are from January and the last from a 
       bannerAlt: "A pale sky over the Firth of Forth",
       banner: banner("Twelve Skies", "Twelve mornings from the drawer", "#9fc5e8", "#f4c7a1", "#2f4858"),
       cards: [
-        { title: "January, frost", back: { text: "Minus two and the gulls are standing on the ice like they own it." }, front: sky("January, frost", "#dfe9f3", "#f7f3ea", "#f9e3b0", "#5b6b7a", 1) },
-        { title: "January, late", back: { text: "The light came back at about half three. I nearly missed it." }, front: sky("January, late", "#6c7fa1", "#e6b89c", "#f6d58e", "#3d4452", 2) },
-        { title: "February, haar", back: { text: "Fog all morning. The water and the sky agreed to be the same grey." }, front: sky("February, haar", "#c9d1d6", "#e9ecee", "#eceff1", "#7d858b", 3) },
-        { title: "February, clearing", back: { text: "It cleared at eleven, suddenly, as if someone had opened a window." }, front: sky("February, clearing", "#a8c8e8", "#f1f4f6", "#fff2c2", "#55657a", 4) },
-        { title: "March, wind", back: { text: "Everything on the washing line went horizontal. I painted fast." }, front: sky("March, wind", "#7aa7d4", "#d9e4ee", "#f8f0d8", "#4b5a6e", 5) },
-        { title: "March, equinox", back: { text: "Equal day, equal night, and a pink I had to mix three times." }, front: sky("March, equinox", "#f2b3a0", "#fbe0c8", "#ffd9a0", "#6a4f5a", 6) },
-        { title: "April, showers", back: { text: "Four showers before breakfast. The fifth is in this painting." }, front: sky("April, showers", "#8ea8c3", "#c8d6e3", "#e2e9ee", "#5a6a74", 7) },
-        { title: "April, first warm day", back: { text: "Sat outside for the first time. The sky was almost too blue to paint." }, front: sky("April, first warm day", "#5aa0e0", "#bfe0f7", "#fff1a8", "#4f6b5a", 8) },
-        { title: "May, long evening", back: { text: "Still light at ten. The whole street out on their steps." }, front: sky("May, long evening", "#f0a06a", "#f9d9b0", "#ffe08a", "#3f4a5a", 9) },
-        { title: "June, high summer", back: { text: "No clouds at all, which is the hardest sky there is." }, front: sky("June, high summer", "#4f97dd", "#a6d2f0", "#fff6c0", "#5e7a56", 10) },
-        { title: "September, turning", back: { text: "The first cold morning. Steam off the tea and off the water." }, front: sky("September, turning", "#c3a9b8", "#f0d7c7", "#f5c98e", "#4a4a5a", 11) },
-        { title: "December, early dark", back: { text: "Painted by lamplight at four in the afternoon. Happy new year, nearly." }, front: sky("December, early dark", "#2f3a56", "#7f6a8c", "#f3e2b4", "#1f2433", 12) },
+        { title: "January, frost", front: sky("January, frost", "#dfe9f3", "#f7f3ea", "#f9e3b0", "#5b6b7a", 1) },
+        { title: "January, late", front: sky("January, late", "#6c7fa1", "#e6b89c", "#f6d58e", "#3d4452", 2) },
+        { title: "February, haar", front: sky("February, haar", "#c9d1d6", "#e9ecee", "#eceff1", "#7d858b", 3) },
+        { title: "February, clearing", front: sky("February, clearing", "#a8c8e8", "#f1f4f6", "#fff2c2", "#55657a", 4) },
+        { title: "March, wind", front: sky("March, wind", "#7aa7d4", "#d9e4ee", "#f8f0d8", "#4b5a6e", 5) },
+        { title: "March, equinox", front: sky("March, equinox", "#f2b3a0", "#fbe0c8", "#ffd9a0", "#6a4f5a", 6) },
+        { title: "April, showers", front: sky("April, showers", "#8ea8c3", "#c8d6e3", "#e2e9ee", "#5a6a74", 7) },
+        { title: "April, first warm day", front: sky("April, first warm day", "#5aa0e0", "#bfe0f7", "#fff1a8", "#4f6b5a", 8) },
+        { title: "May, long evening", front: sky("May, long evening", "#f0a06a", "#f9d9b0", "#ffe08a", "#3f4a5a", 9) },
+        { title: "June, high summer", front: sky("June, high summer", "#4f97dd", "#a6d2f0", "#fff6c0", "#5e7a56", 10) },
+        { title: "September, turning", front: sky("September, turning", "#c3a9b8", "#f0d7c7", "#f5c98e", "#4a4a5a", 11) },
+        { title: "December, early dark", front: sky("December, early dark", "#2f3a56", "#7f6a8c", "#f3e2b4", "#1f2433", 12) },
       ],
     },
     {
@@ -213,12 +212,12 @@ Smaller and rougher than the window paintings. Boats, cranes, and the water doin
       bannerAlt: "Cranes against a harbour sky",
       banner: banner("Harbour Mornings", "Six walks along the docks", "#2f4858", "#8fb3c9", "#fbf6ec"),
       cards: [
-        { title: "The dry dock", back: { text: "A ship the size of a street, out of the water, looking embarrassed." }, front: sky("The dry dock", "#8fb3c9", "#d7e4ec", "#f3e6c4", "#3a4a55", 21) },
-        { title: "Cranes", back: { text: "Three cranes, none moving. Nobody seems to mind." }, front: sky("Cranes", "#b7c9d6", "#e6edf1", "#fff1cf", "#2e3b47", 22) },
-        { title: "The swing bridge", back: { text: "Waited twenty minutes for it to swing. Worth it." }, front: sky("The swing bridge", "#6f93b4", "#cfdde8", "#f7e3a8", "#45535f", 23) },
-        { title: "Low tide", back: { text: "Mud, mostly. Beautiful mud." }, front: sky("Low tide", "#c9b9a5", "#e9e0d2", "#f6ebc9", "#6b5a48", 24) },
-        { title: "Rain coming", back: { text: "You can see it arrive across the water. Two minutes' warning." }, front: sky("Rain coming", "#5f6f82", "#aab7c3", "#d9dde2", "#394350", 25) },
-        { title: "Last one", back: { text: "The sun came out as I finished. Typical. Thanks for a year of these." }, front: sky("Last one", "#f4b183", "#fbe3c6", "#ffe9a6", "#4a4e5e", 26) },
+        { title: "The dry dock", front: sky("The dry dock", "#8fb3c9", "#d7e4ec", "#f3e6c4", "#3a4a55", 21) },
+        { title: "Cranes", front: sky("Cranes", "#b7c9d6", "#e6edf1", "#fff1cf", "#2e3b47", 22) },
+        { title: "The swing bridge", front: sky("The swing bridge", "#6f93b4", "#cfdde8", "#f7e3a8", "#45535f", 23) },
+        { title: "Low tide", front: sky("Low tide", "#c9b9a5", "#e9e0d2", "#f6ebc9", "#6b5a48", 24) },
+        { title: "Rain coming", front: sky("Rain coming", "#5f6f82", "#aab7c3", "#d9dde2", "#394350", 25) },
+        { title: "Last one", front: sky("Last one", "#f4b183", "#fbe3c6", "#ffe9a6", "#4a4e5e", 26) },
       ],
     },
   ],
@@ -257,12 +256,12 @@ An owl that isn't quite an owl. A moth with opinions. Nothing you'd want to meet
       bannerAlt: "Two-colour print of a creature at night",
       banner: banner("Night Creatures", "Six animals, two inks, after dark", "#1f2a5a", "#e2567e", "#f6efe0"),
       cards: [
-        { title: "Owl, sort of", back: { text: "Not an owl. Owl-adjacent.", fontName: "Quicksand" }, front: creature("Owl, sort of", "#1f2a5a", "#ff48b0", 31) },
-        { title: "The moth", back: { text: "Has opinions about your porch light.", fontName: "Quicksand" }, front: creature("The moth", "#ff48b0", "#1f2a5a", 32) },
-        { title: "Raccoon, caught", back: { text: "Looked right at me. Kept eating.", fontName: "Quicksand" }, front: creature("Raccoon, caught", "#1f2a5a", "#ffb347", 33) },
-        { title: "Bat", back: { text: "Upside down, which is the correct way up for a bat.", fontName: "Quicksand" }, front: creature("Bat", "#3b2d63", "#ff48b0", 34) },
-        { title: "Fox, 2am", back: { text: "The shed fox. We have an arrangement.", fontName: "Quicksand" }, front: creature("Fox, 2am", "#e2567e", "#1f2a5a", 35) },
-        { title: "Something in the hedge", back: { text: "Never found out. This is my best guess.", fontName: "Quicksand" }, front: creature("Something in the hedge", "#1f2a5a", "#5ad1b0", 36) },
+        { title: "Owl, sort of", front: creature("Owl, sort of", "#1f2a5a", "#ff48b0", 31) },
+        { title: "The moth", front: creature("The moth", "#ff48b0", "#1f2a5a", 32) },
+        { title: "Raccoon, caught", front: creature("Raccoon, caught", "#1f2a5a", "#ffb347", 33) },
+        { title: "Bat", front: creature("Bat", "#3b2d63", "#ff48b0", 34) },
+        { title: "Fox, 2am", front: creature("Fox, 2am", "#e2567e", "#1f2a5a", 35) },
+        { title: "Something in the hedge", front: creature("Something in the hedge", "#1f2a5a", "#5ad1b0", 36) },
       ],
     },
   ],
@@ -314,7 +313,7 @@ async function seedArtist(demo: DemoArtist): Promise<boolean> {
     for (const card of edition.cards) {
       const id = randomUUID();
       const stored = await storePostcardDesign(id, await render(card.front(width, height)), demo.orientation);
-      const design = await createDesign({ artistId: artist.id, orientation: demo.orientation, back: postcardBackSchema.parse(card.back), ...stored }, id);
+      const design = await createDesign({ artistId: artist.id, orientation: demo.orientation, ...stored }, id);
       cards.push({ designId: design.id, title: card.title });
     }
     if (!(await replaceEditionCards(created.id, cards))) throw new Error(`Could not set the cards of ${edition.input.title}.`);

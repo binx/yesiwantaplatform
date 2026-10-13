@@ -203,8 +203,9 @@ export const pages = sqliteTable(
 );
 
 /**
- * A postcard design: one front image and one back message, made by an
- * artist in their studio.
+ * A postcard design: the front picture of one card, made by an artist in
+ * their studio. The back is printed from the edition card's title and the
+ * artist's name at send time.
  *
  * The print file is written at Lob's exact size on upload, so nothing is
  * re-rendered at send time and a bad image fails while the artist is still
@@ -227,8 +228,6 @@ export const postcardDesigns = sqliteTable(
     thumbnailPath: text("thumbnail_path").notNull(),
     thumbnailWidth: integer("thumbnail_width").notNull(),
     thumbnailHeight: integer("thumbnail_height").notNull(),
-    /** JSON: PostcardBack — the message, valediction, font, size and colour. */
-    back: text("back").notNull().default("{}"),
     ...timestamps,
   },
   (t) => [index("postcard_designs_artist_idx").on(t.artistId), index("postcard_designs_created_idx").on(t.createdAt)],

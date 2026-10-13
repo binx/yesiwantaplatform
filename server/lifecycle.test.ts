@@ -566,17 +566,18 @@ describe("Lob refuses a card", () => {
 });
 
 describe("the collector moves, then asks for their money back", () => {
-  it("sends the cards still to come to the new address, and leaves the sent one alone", async () => {
+  it("changes the default address without moving any collection", async () => {
     const fan = await signIn("fan@example.com");
     await fan.agent.put("/api/account/address").set("x-csrf-token", fan.csrf).send({ ...ADDRESS, line1: "9 New Road" }).expect(200);
+    expect((await fan.agent.get("/api/account").expect(200)).body.customer.address.line1).toBe("9 New Road");
 
     const { listPostcardsForPurchase } = await import("../db/postcards-repository.js");
-    const cards = await listPostcardsForPurchase(purchaseId);
-    expect(cards[0]!.recipient.line1).toBe("1 Test Street");
-    expect(cards.slice(1).every((card) => card.recipient.line1 === "9 New Road")).toBe(true);
+    expect((await listPostcardsForPurchase(purchaseId)).every((card) => card.recipient.line1 === "1 Test Street")).toBe(true);
+    const { getPurchase } = await import("../db/purchases-repository.js");
+    expect((await getPurchase(purchaseId))!.address.line1).toBe("1 Test Street");
   });
 
-  it("lets one set go somewhere else, and leaves it there when the collector moves again", async () => {
+  it("sends one collection's cards still to come somewhere new, and leaves the sent one alone", async () => {
     const fan = await signIn("fan@example.com");
     const gift = { ...ADDRESS, name: "Aunt May", line1: "5 Gift Lane" };
 
@@ -587,20 +588,13 @@ describe("the collector moves, then asks for their money back", () => {
 
     await fan.agent.put(`/api/account/collections/${purchaseId}/address`).set("x-csrf-token", fan.csrf).send(gift).expect(200);
     const { listPostcardsForPurchase } = await import("../db/postcards-repository.js");
-    let cards = await listPostcardsForPurchase(purchaseId);
+    const cards = await listPostcardsForPurchase(purchaseId);
     expect(cards[0]!.recipient.line1).toBe("1 Test Street");
     expect(cards.slice(1).every((card) => card.recipient.line1 === "5 Gift Lane")).toBe(true);
-    // The account's own address did not move with it.
+    // The account's default did not move with it.
     expect((await fan.agent.get("/api/account").expect(200)).body.customer.address.line1).toBe("9 New Road");
     const collections = await fan.agent.get("/api/account/collections").expect(200);
     expect(collections.body[0].address).toMatchObject({ name: "Aunt May", line1: "5 Gift Lane" });
-
-    // The collector moves again: the gift stays where it was sent.
-    await fan.agent.put("/api/account/address").set("x-csrf-token", fan.csrf).send({ ...ADDRESS, line1: "12 Third Street" }).expect(200);
-    cards = await listPostcardsForPurchase(purchaseId);
-    expect(cards.slice(1).every((card) => card.recipient.line1 === "5 Gift Lane")).toBe(true);
-    const { getPurchase } = await import("../db/purchases-repository.js");
-    expect((await getPurchase(purchaseId))!.address.line1).toBe("5 Gift Lane");
   });
 
   it("keeps the cards coming after a partial refund, and withdraws the rest after a full one", async () => {

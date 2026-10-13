@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { CheckOutlined, ClockCircleOutlined, ExclamationCircleOutlined, StopOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Skeleton, Tag } from "antd";
 import { formatMoney } from "@shared/money";
 import { artistPath, editionPath, type Collection } from "@shared/platform";
 import { formatRecipient, type Recipient } from "@shared/postcards";
 import { RecipientFields } from "@/components/postcard/RecipientFields";
+import type { PostcardStatus as CardStatus } from "@shared/postcards";
 import { useCollections, useUpdateCollectionAddress } from "@/lib/account";
 import { validateRecipient, type RecipientErrors } from "@/lib/recipient-form";
 import { useStore } from "@/lib/useStore";
 import { customerStatusLabel, editionShape, formatDay, formatMailDate, purchaseStatusLabel } from "@/lib/postcards";
 import { assetUrl } from "@/lib/store-source";
 import { cx } from "@/lib/cx";
+import { EditButton } from "./EditButton";
 import styles from "./Account.module.css";
 
 /**
@@ -90,8 +93,6 @@ function CollectionDetail({ collection, locale }: { collection: Collection; loca
             <dd>{money(collection.refundedCents)}</dd>
           </>
         ) : null}
-        <dt>Reference</dt>
-        <dd>{collection.id}</dd>
       </dl>
 
       <table className={cx(styles.scheduleTable)}>
@@ -100,7 +101,9 @@ function CollectionDetail({ collection, locale }: { collection: Collection; loca
           <tr>
             <th scope="col">Card</th>
             <th scope="col">Day</th>
-            <th scope="col">Where it is</th>
+            <th scope="col">
+              <span className="sr-only">Status</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -111,7 +114,9 @@ function CollectionDetail({ collection, locale }: { collection: Collection; loca
                 {card.position} of {collection.cardCount}
               </td>
               <td>{formatMailDate(card.mailDate, locale)}</td>
-              <td>{card.status === "scheduled" ? "To come" : customerStatusLabel(card.status)}</td>
+              <td className={styles.cardStatus}>
+                <CardStatusIcon status={card.status} />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -153,11 +158,7 @@ function MailedTo({ collection, locale }: { collection: Collection; locale: stri
         <span>
           {collection.address.name}, {formatRecipient(collection.address, locale)}
         </span>
-        {canChange ? (
-          <Button size="small" onClick={() => setEditing(true)}>
-            Change
-          </Button>
-        ) : null}
+        {canChange ? <EditButton label="Change address" onClick={() => setEditing(true)} /> : null}
       </span>
     );
   }
@@ -185,7 +186,34 @@ function MailedTo({ collection, locale }: { collection: Collection; locale: stri
           Cancel
         </Button>
       </p>
-      <p className={cx(styles.meta)}>Only this set's cards still to come go to the new address. Your other collections, and the address on your account, stay as they are.</p>
     </>
   );
+}
+
+/**
+ * A card's state as one mark: a check once mailed, a clock while it waits
+ * (to come, or at the printer). The rare two keep their words beside the
+ * mark, since a symbol alone can't say "we're looking into it".
+ */
+function CardStatusIcon({ status }: { status: CardStatus }) {
+  const label = status === "scheduled" ? "To come" : customerStatusLabel(status);
+  switch (status) {
+    case "sent":
+      return <CheckOutlined className={styles.cardStatusDone} aria-label={label} title={label} />;
+    case "scheduled":
+    case "sending":
+      return <ClockCircleOutlined className={styles.cardStatusWaiting} aria-label={label} title={label} />;
+    case "error":
+      return (
+        <span className={styles.cardStatusWarn}>
+          <ExclamationCircleOutlined aria-hidden /> {label}
+        </span>
+      );
+    case "cancelled":
+      return (
+        <span className={styles.cardStatusWaiting}>
+          <StopOutlined aria-hidden /> {label}
+        </span>
+      );
+  }
 }

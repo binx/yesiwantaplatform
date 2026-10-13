@@ -145,16 +145,17 @@ export function themeCssVars(theme: Theme): Record<string, string> {
  * rings and selected rows, and the near-black it defaults to made "Save this
  * design" and "Add to cart" read as chrome rather than as the thing to press.
  * The label is always ink, whatever the scheme — dark text is what stays
- * legible on the pink (7.9:1 against `#18181b`; white would only get 2.3:1).
+ * legible on the pink (6.1:1 against `#18181b`; white would only get 2.9:1).
  *
  * A paler pink than the chroma's magenta (`--chroma-2`): at full saturation
  * the ink label passed on paper but vibrated on screen, and was hard to read
- * on the night page in particular. This one is the same hue, let up.
+ * on the night page in particular. Let up all the way to `#ff85bd` it went
+ * washed out, so this sits halfway between the two, same hue.
  */
 export const ACTION_BUTTON = {
-  fill: "#ff85bd",
-  hover: "#ff9bca",
-  active: "#ff70b1",
+  fill: "#ff59a4",
+  hover: "#ff74b3",
+  active: "#ff4898",
   label: "#18181b",
 } as const;
 

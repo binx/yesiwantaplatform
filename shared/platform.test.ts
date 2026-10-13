@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { artistSlugSchema, defaultStartDate, editionSchedule, editionSizeSchema, mailDaysFor, startDateProblem } from "./platform";
+import { artistLinkLabel, artistLinkSchema, artistSlugSchema, defaultStartDate, editionSchedule, editionSizeSchema, instagramHandle, mailDaysFor, startDateProblem, withScheme } from "./platform";
 import { artistShareCents, cardGrossCents, platformFeeCentsFor } from "./schema";
 
 describe("the artist's share", () => {
@@ -22,6 +22,34 @@ describe("a card's part of the price", () => {
       const parts = Array.from({ length: count }, (_, i) => cardGrossCents(price, count, i + 1));
       expect(parts.reduce((a, b) => a + b, 0)).toBe(price);
     }
+  });
+});
+
+describe("an artist's links", () => {
+  it("reads an Instagram username out of whatever was typed", () => {
+    for (const typed of ["rachel.binx", "@rachel.binx", "instagram.com/rachel.binx", "https://www.instagram.com/rachel.binx/", "https://instagram.com/rachel.binx?hl=en"]) {
+      expect(instagramHandle(typed)).toBe("rachel.binx");
+    }
+  });
+
+  it("supplies a missing scheme and leaves a full address alone", () => {
+    expect(withScheme("rachel.example")).toBe("https://rachel.example");
+    expect(withScheme(" http://rachel.example ")).toBe("http://rachel.example");
+    expect(withScheme("")).toBe("");
+  });
+
+  it("stores a kind, reading links from before kinds as custom", () => {
+    expect(artistLinkSchema.parse({ label: "Shop", url: "https://shop.example" })).toEqual({ kind: "custom", label: "Shop", url: "https://shop.example" });
+    expect(artistLinkSchema.safeParse({ kind: "instagram", url: "https://instagram.com/rachel" }).success).toBe(true);
+    expect(artistLinkSchema.safeParse({ kind: "instagram", url: "https://example.com/rachel" }).success).toBe(false);
+    expect(artistLinkSchema.safeParse({ kind: "instagram", url: "https://instagram.com/not a name" }).success).toBe(false);
+    expect(artistLinkSchema.safeParse({ kind: "website", url: "rachel.example" }).success).toBe(false);
+  });
+
+  it("is labelled by its label, its username, or its host", () => {
+    expect(artistLinkLabel({ kind: "custom", label: "Shop", url: "https://shop.example" })).toBe("Shop");
+    expect(artistLinkLabel({ kind: "instagram", label: "", url: "https://instagram.com/rachel.binx" })).toBe("@rachel.binx");
+    expect(artistLinkLabel({ kind: "website", label: "", url: "https://www.rachel.example/about" })).toBe("rachel.example");
   });
 });
 

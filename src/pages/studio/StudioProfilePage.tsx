@@ -3,7 +3,7 @@ import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import { Alert, App, Button, Input } from "antd";
 import { artistProfileUpdateSchema, type ArtistProfileUpdate } from "@shared/platform";
 import { useUpdateProfile, type StudioView } from "@/lib/platform";
-import { typedLinks, type ProfileDraft } from "./profileDraft";
+import { linkDrafts, linkProblem, typedLinks, type ProfileDraft } from "./profileDraft";
 import { BioField, GalleryStories, LinksFields, ProfileHero, VisibilityField } from "./profileFields";
 import styles from "./Studio.module.css";
 
@@ -27,7 +27,7 @@ export function StudioProfilePage() {
     visibility: artist.visibility,
     avatar: artist.avatar,
     banner: artist.banner,
-    links: artist.links,
+    links: linkDrafts(artist.links),
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -114,7 +114,7 @@ export function StudioProfilePage() {
             <Link to="/studio">
               <Button size="large">Cancel</Button>
             </Link>
-            <Button type="primary" size="large" loading={update.isPending} disabled={draft.name.trim() === "" || draft.banner === null} onClick={submit}>
+            <Button type="primary" size="large" loading={update.isPending} disabled={draft.name.trim() === "" || draft.banner === null || draft.links.some((link) => linkProblem(link) !== null)} onClick={submit}>
               Save
             </Button>
           </div>

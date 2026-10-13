@@ -1,10 +1,10 @@
-import { App, Button, Input, Radio, Upload } from "antd";
+import { App, Button, Input, Radio, Select, Upload } from "antd";
 import { CameraOutlined, DeleteOutlined, PlusOutlined, UploadOutlined, UserOutlined } from "@ant-design/icons";
-import { artistLinkLabel, MAX_ARTIST_LINKS, type ArtistLink, type ArtistVisibility } from "@shared/platform";
+import { artistLinkLabel, instagramHandle, MAX_ARTIST_LINKS, type ArtistLinkKind, type ArtistVisibility } from "@shared/platform";
 import { useUploadAvatar, useUploadBanner } from "@/lib/platform";
 import { assetUrl } from "@/lib/store-source";
 import { cx } from "@/lib/cx";
-import { typedLinks, type ProfileDraft, type SetDraft } from "./profileDraft";
+import { linkProblem, newLinkDraft, typedLinks, type LinkDraft, type ProfileDraft, type SetDraft } from "./profileDraft";
 import styles from "./Studio.module.css";
 
 /**
@@ -96,24 +96,53 @@ export function BioField({ value, onChange }: { value: string; onChange: (value:
   );
 }
 
-/** Where else to find them: a label and an address per row, up to the limit. */
-export function LinksFields({ links, onChange }: { links: ArtistLink[]; onChange: (links: ArtistLink[]) => void }) {
-  const setLink = (index: number, patch: Partial<ArtistLink>) => onChange(links.map((link, i) => (i === index ? { ...link, ...patch } : link)));
+const LINK_KINDS: { value: ArtistLinkKind; label: string }[] = [
+  { value: "website", label: "Website" },
+  { value: "instagram", label: "Instagram" },
+  { value: "custom", label: "Custom" },
+];
+
+/**
+ * Where else to find them, one row per link, up to the limit. Each row
+ * starts with what kind of link it is, and the kind decides the rest: a
+ * website asks for its address, Instagram for a username, and custom for
+ * a label and an address. A row says what is wrong with it while it is.
+ * The Instagram field keeps only the username: a pasted profile address
+ * or a leading "@" collapses to it as it is typed, and switching a row to
+ * Instagram reads it out of an address already there.
+ */
+export function LinksFields({ links, onChange }: { links: LinkDraft[]; onChange: (links: LinkDraft[]) => void }) {
+  const setLink = (index: number, patch: Partial<LinkDraft>) => onChange(links.map((link, i) => (i === index ? { ...link, ...patch } : link)));
   return (
     <>
       {links.length > 0 ? (
         <ul className={styles.linkList}>
-          {links.map((link, index) => (
-            <li key={index} className={styles.linkRow}>
-              <Input aria-label={`Link ${index + 1} label`} placeholder="Instagram, website, shop…" maxLength={40} value={link.label} onChange={(e) => setLink(index, { label: e.target.value })} className={styles.linkLabel} />
-              <Input aria-label={`Link ${index + 1} URL`} placeholder="https://" inputMode="url" maxLength={500} value={link.url} onChange={(e) => setLink(index, { url: e.target.value })} />
-              <Button aria-label={`Remove link ${index + 1}`} icon={<DeleteOutlined />} onClick={() => onChange(links.filter((_, i) => i !== index))} />
-            </li>
-          ))}
+          {links.map((link, index) => {
+            const n = index + 1;
+            const problem = linkProblem(link);
+            const status = problem ? ("error" as const) : "";
+            return (
+              <li key={index} className={styles.linkRow}>
+                <Select aria-label={`Link ${n} kind`} className={cx(styles.linkKind)} value={link.kind} options={LINK_KINDS} onChange={(kind: ArtistLinkKind) => setLink(index, { kind, ...(kind === "instagram" && link.handle === "" ? { handle: instagramHandle(link.url) } : {}) })} />
+                {link.kind === "instagram" ? (
+                  <Input aria-label={`Link ${n} Instagram username`} prefix="@" autoComplete="off" maxLength={200} value={link.handle} status={status} onChange={(e) => setLink(index, { handle: instagramHandle(e.target.value) })} />
+                ) : link.kind === "website" ? (
+                  <Input aria-label={`Link ${n} address`} placeholder="https://" inputMode="url" maxLength={500} value={link.url} status={status} onChange={(e) => setLink(index, { url: e.target.value })} />
+                ) : (
+                  <div className={styles.linkCustom}>
+                    <Input aria-label={`Link ${n} label`} placeholder="Shop, newsletter…" maxLength={40} value={link.label} onChange={(e) => setLink(index, { label: e.target.value })} />
+                    <Input aria-label={`Link ${n} address`} placeholder="https://" inputMode="url" maxLength={500} value={link.url} status={status} onChange={(e) => setLink(index, { url: e.target.value })} />
+                  </div>
+                )}
+                <Button aria-label={`Remove link ${n}`} icon={<DeleteOutlined />} onClick={() => onChange(links.filter((_, i) => i !== index))} />
+                {problem ? <span className={cx(styles.error, styles.linkProblem)}>{problem}</span> : null}
+              </li>
+            );
+          })}
         </ul>
       ) : null}
       <div>
-        <Button icon={<PlusOutlined />} disabled={links.length >= MAX_ARTIST_LINKS} onClick={() => onChange([...links, { label: "", url: "" }])}>
+        <Button icon={<PlusOutlined />} disabled={links.length >= MAX_ARTIST_LINKS} onClick={() => onChange([...links, newLinkDraft(links)])}>
           Add a link
         </Button>
       </div>

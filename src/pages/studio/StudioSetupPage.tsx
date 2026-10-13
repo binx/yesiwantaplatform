@@ -5,7 +5,7 @@ import { artistProfileInputSchema, type ArtistProfileInput } from "@shared/platf
 import { useCreateArtist, useSlugAvailable } from "@/lib/platform";
 import { useCustomer } from "@/lib/account";
 import { cx } from "@/lib/cx";
-import { slugify, typedLinks, type ProfileDraft } from "./profileDraft";
+import { linkProblem, slugify, typedLinks, type ProfileDraft } from "./profileDraft";
 import { BioField, GalleryStories, LinksFields, ProfileHero, VisibilityField } from "./profileFields";
 import styles from "./Studio.module.css";
 
@@ -158,7 +158,7 @@ export function StudioSetupPage() {
             Continue
           </Button>
         ) : (
-          <Button type="primary" size="large" loading={create.isPending} onClick={open}>
+          <Button type="primary" size="large" loading={create.isPending} disabled={draft.links.some((link) => linkProblem(link) !== null)} onClick={open}>
             View your studio
           </Button>
         )}

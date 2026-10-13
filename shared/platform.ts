@@ -449,7 +449,11 @@ export const collectionSchema = z.object({
   paidAt: z.number().int().nullable(),
 });
 
-/** Collect an edition: which one, where to mail it, how often, and optionally when to start. The price is never sent. */
+/**
+ * Collect an edition: which one, where to mail it, how often, and optionally
+ * when to start. The price is never sent. The address is the set's own; the
+ * account keeps it as its default only when it has none yet.
+ */
 export const collectInputSchema = z.object({
   editionId: z.string().min(1),
   address: recipientSchema,
@@ -457,8 +461,6 @@ export const collectInputSchema = z.object({
   cadence: cadenceSchema.default("monthly"),
   /** The first card's day. Left out, it is the next 1st or 15th. */
   startDate: mailDateSchema.optional(),
-  /** A gift: the address is this set's alone and is not saved on the account. */
-  forSomeoneElse: z.boolean().default(false),
 });
 
 export const collectResponseSchema = z.object({

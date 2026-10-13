@@ -315,7 +315,7 @@ describe("a fan collects the edition", () => {
     expect(await findPurchaseByCheckoutSession(checkoutSessionId)).toMatchObject({ id: purchaseId });
     schedule = editionSchedule(startDate, 6, "monthly");
 
-    // The address went through USPS and onto the account.
+    // The address went through USPS and, the account having none, onto it.
     expect(sent.some((s) => s.url.endsWith("/us_verifications"))).toBe(true);
     const me = await agent.get("/api/account").expect(200);
     expect(me.body.customer.address).toMatchObject({ line1: "1 Test Street" });
@@ -338,9 +338,9 @@ describe("a fan collects the edition", () => {
     expect(retried.cadence).toBe("twice_monthly");
     await deleteIncompletePurchase(retry.body.purchaseId as string);
 
-    // A gift: the set gets the address, the account keeps its own.
+    // A different address: the set gets it, the account keeps its own.
     const gift = { ...ADDRESS, name: "Aunt May", line1: "5 Gift Lane" };
-    const given = await fan.agent.post("/api/checkout/collect").set("x-csrf-token", fan.csrf).send({ editionId, address: gift, forSomeoneElse: true }).expect(200);
+    const given = await fan.agent.post("/api/checkout/collect").set("x-csrf-token", fan.csrf).send({ editionId, address: gift }).expect(200);
     expect((await getPurchase(given.body.purchaseId as string))!.address.line1).toBe("5 Gift Lane");
     expect((await fan.agent.get("/api/account").expect(200)).body.customer.address.line1).toBe("1 Test Street");
     await deleteIncompletePurchase(given.body.purchaseId as string);

@@ -25,7 +25,8 @@ import { verifyRecipient } from "../lob.js";
  * Stripe Price to keep in step with the edition.
  *
  * Signed in only: a run of cards has to belong to someone who can come back
- * and see where it is, and the address lives on their account.
+ * and see where it is. The address is the set's own; the account's is a
+ * default for the form, set by the first checkout and changed in settings.
  */
 export const checkoutRouter: Router = Router();
 
@@ -63,16 +64,17 @@ checkoutRouter.post("/checkout/collect", writeRateLimit, verifyCsrf, requireCust
   const problem = startDateProblem(startDate, today);
   if (problem) throw httpError(400, problem);
 
-  // The address is checked against USPS and, when it is the collector's
-  // own, saved on the account so the next purchase starts from it. A gift's
-  // address is the purchase's alone. A refusal is a 400 the form can act on.
+  // The address is checked against USPS. A refusal is a 400 the form can
+  // act on. The address belongs to this set; the account keeps it as the
+  // default the next checkout starts from only if it has none yet, so a
+  // gift never overwrites the collector's own.
   const verification = await verifyRecipient(parsed.data.address);
   if (verification.deliverability === "undeliverable") {
     throw httpError(400, "USPS does not recognize that address. Check the street, city, state and ZIP.");
   }
   // Deliberately no check on the artist's Stripe onboarding: an artist may
   // sell before it finishes, and the ledger holds their share.
-  if (!parsed.data.forSomeoneElse) await setMailingAddress(customer.id, parsed.data.address);
+  if (!(await getMailingAddress(customer.id))) await setMailingAddress(customer.id, parsed.data.address);
 
   const currency = settings.currency.toLowerCase();
   const purchaseId = newPurchaseId();

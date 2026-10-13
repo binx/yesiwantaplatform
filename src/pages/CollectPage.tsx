@@ -1,72 +1,93 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
-import { Alert, Button, Input, Radio, Skeleton } from "antd";
+import { Alert, Button, Input, Radio, Select, Skeleton } from "antd";
 import { formatMoney } from "@shared/money";
-import { DELIVERY_ESTIMATE } from "@shared/copy";
-import { START_DATE_MAX_DAYS, artistPath, defaultStartDate, editionPath, editionSchedule, startDateProblem, startDateRange, type Cadence } from "@shared/platform";
-import { todayIso, type Recipient } from "@shared/postcards";
+import { artistPath, defaultStartDate, editionPath, editionSchedule, startDateProblem, startDateRange, type Cadence } from "@shared/platform";
+import { formatRecipient, todayIso, type Recipient } from "@shared/postcards";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { Field, RecipientFields } from "@/components/postcard/RecipientFields";
 import { ApiError } from "@/lib/api";
-import { useCustomer } from "@/lib/account";
+import { useCollections, useCustomer } from "@/lib/account";
 import { useCollect, useEdition } from "@/lib/platform";
 import { usePageTitle } from "@/lib/usePageTitle";
-import { editionShape, formatMailDate, formatShortDate } from "@/lib/postcards";
+import { editionShape, formatShortDate } from "@/lib/postcards";
 import { BLANK_RECIPIENT, validateRecipient, type RecipientErrors } from "@/lib/recipient-form";
+import { assetUrl } from "@/lib/store-source";
 import { useStore } from "@/lib/useStore";
 import { cx } from "@/lib/cx";
 import { NotFoundPage } from "./NotFoundPage";
 import styles from "@/components/platform/Platform.module.css";
 
+/** The value of the address select that means "type one in". */
+const NEW_ADDRESS = "new";
+
+/** The same place, give or take spacing and case. */
+function addressKey(address: Recipient): string {
+  const part = (value: string | null | undefined) => (value ?? "").trim().toLowerCase();
+  return [address.name, address.line1, address.line2, address.city, address.state, address.postalCode, address.country].map(part).join("|");
+}
+
 /**
- * Collect an edition: where the cards go, how often, when the first one does, then Stripe.
+ * Collect an edition: where the cards go, how often, when the first one goes, then Stripe.
  *
  * Signed in only — a run of cards has to belong to someone who can come back
  * and see where it is — so a visitor is sent to sign in with this page as the
- * way back. The address is prefilled from the account and saved back to it;
- * the price is shown from the edition and never sent.
+ * way back. The price is shown from the edition and never sent.
  *
- * How often the cards come is the collector's call, once or twice a month,
- * and goes to the server with the order. The start date is optional. Left
- * empty, the server picks the next 1st or 15th; the page says which day that
- * is, and shows the whole run either way, worked out from the chosen cadence
- * by the same `editionSchedule` the server will use. The date's rules are
- * checked here with `startDateProblem` so the form can say so as you type,
- * and checked again on the server, which is the one that counts.
+ * The address box starts from the account's own address. Every address this
+ * person has mailed to before — the account's, and each collection's — is
+ * offered in a select above the fields, and choosing one fills them in; the
+ * select shows whichever saved address the fields currently match, or "New
+ * address" when they match none. Someone with nothing saved sees the fields
+ * alone. The server keeps the address on the account only when the account
+ * has none yet, so a gift never overwrites the collector's own.
+ *
+ * The first card's day is filled in with the next 1st or 15th and can be
+ * changed to any day from the 1st to the 28th within the next few weeks; the
+ * run below it is worked out by the same `editionSchedule` the server will
+ * use. The day's rules are checked here with `startDateProblem` so the form
+ * can say so as you type, and again on the server, which is the one that
+ * counts.
  */
 export function CollectPage() {
   const { slug, edition: editionSlug } = useParams<{ slug: string; edition: string }>();
   const location = useLocation();
   const store = useStore();
   const customer = useCustomer();
+  const collections = useCollections(Boolean(customer.data));
   const page = useEdition(slug, editionSlug);
   const collect = useCollect();
   usePageTitle(page.data ? `Collect ${page.data.edition.title}` : null);
 
+  const today = todayIso();
   const [draft, setDraft] = useState<Recipient>(BLANK_RECIPIENT);
   const [errors, setErrors] = useState<RecipientErrors>({});
   const [seeded, setSeeded] = useState(false);
-  /** A gift: the address is this set's alone and is not saved on the account. */
-  const [forSomeoneElse, setForSomeoneElse] = useState(false);
   const [cadence, setCadence] = useState<Cadence>("monthly");
-  /** Empty means "the default": the next 1st or 15th. */
-  const [startDate, setStartDate] = useState("");
-
-  /** The collector's own: the saved address, or a blank form with their name on it. */
-  const ownAddress = (): Recipient => customer.data?.address ?? { ...BLANK_RECIPIENT, name: customer.data?.name ?? "" };
+  const [startDate, setStartDate] = useState(() => defaultStartDate(today));
 
   // Prefill once from the account's saved address; typing afterwards wins.
   useEffect(() => {
     if (seeded || !customer.data) return;
     setSeeded(true);
-    setDraft(ownAddress());
+    setDraft(customer.data.address ?? { ...BLANK_RECIPIENT, name: customer.data.name ?? "" });
   }, [customer.data, seeded]);
 
-  // A gift starts from a blank form; back to "me" is the saved address again.
-  const chooseRecipient = (gift: boolean) => {
-    setForSomeoneElse(gift);
+  /** Everywhere this person has mailed to: the account's address first, then each collection's, no repeats. */
+  const saved = useMemo(() => {
+    const seen = new Map<string, Recipient>();
+    for (const address of [customer.data?.address, ...(collections.data ?? []).map((collection) => collection.address)]) {
+      if (address && !seen.has(addressKey(address))) seen.set(addressKey(address), address);
+    }
+    return [...seen.entries()].map(([key, address]) => ({ key, address }));
+  }, [customer.data?.address, collections.data]);
+
+  const chosen = saved.find((entry) => entry.key === addressKey(draft))?.key ?? NEW_ADDRESS;
+
+  const chooseAddress = (key: string) => {
     setErrors({});
-    setDraft(gift ? { ...BLANK_RECIPIENT, country: draft.country } : ownAddress());
+    const entry = saved.find((candidate) => candidate.key === key);
+    setDraft(entry ? entry.address : { ...BLANK_RECIPIENT, country: draft.country });
   };
 
   if (customer.isPending || page.isPending) {
@@ -106,14 +127,9 @@ export function CollectPage() {
     );
   }
 
-  const today = todayIso();
   const range = startDateRange(today);
-  const fallback = defaultStartDate(today);
-  const problem = startDate ? startDateProblem(startDate, today) : null;
-  const schedule = problem ? null : editionSchedule(startDate || fallback, edition.cardCount, cadence);
-  const months = cadence === "twice_monthly" ? edition.cardCount / 2 : edition.cardCount;
-  const first = schedule?.[0];
-  const last = schedule?.[schedule.length - 1];
+  const problem = startDateProblem(startDate, today);
+  const schedule = problem ? null : editionSchedule(startDate, edition.cardCount, cadence);
 
   const submit = () => {
     const result = validateRecipient(draft);
@@ -124,7 +140,7 @@ export function CollectPage() {
     setErrors({});
     if (problem) return;
     collect.mutate(
-      { editionId: edition.id, address: result.value, cadence, forSomeoneElse, ...(startDate ? { startDate } : {}) },
+      { editionId: edition.id, address: result.value, cadence, startDate },
       {
         onSuccess: ({ url }) => {
           window.location.assign(url);
@@ -136,30 +152,27 @@ export function CollectPage() {
   return (
     <PageWrapper width="wide">
       <h1>Collect {edition.title}</h1>
-      <p>
-        From <Link to={artistPath(artist.slug)}>{artist.name}</Link>: {editionShape(edition.cardCount)}, for {price}, paid once.
-      </p>
 
       <div className={cx(styles.collectLayout)}>
         <div>
-          <h2>Who are they for?</h2>
-          <div className={styles.startDate}>
-            <Radio.Group
-              aria-label="Who the cards are for"
-              value={forSomeoneElse ? "gift" : "me"}
-              onChange={(e) => chooseRecipient(e.target.value === "gift")}
-              options={[
-                { value: "me", label: "Me" },
-                { value: "gift", label: "Someone else" },
-              ]}
-            />
-            <p className={styles.collectNote}>
-              {forSomeoneElse ? "A gift. Their address stays with this set only, and never touches your own." : "Your address is saved to your account, and the next set starts from it."}
-            </p>
-          </div>
-
-          <h2 className={styles.startHeading}>Where should they go?</h2>
+          <h2>Mail to</h2>
           <div className={styles.addressForm}>
+            {saved.length > 0 ? (
+              <Field label="Address">
+                {(id) => (
+                  <Select
+                    id={id}
+                    value={chosen}
+                    className={cx(styles.addressSelect)}
+                    options={[
+                      ...saved.map((entry) => ({ value: entry.key, label: `${entry.address.name}, ${formatRecipient(entry.address, store.locale)}` })),
+                      { value: NEW_ADDRESS, label: "New address" },
+                    ]}
+                    onChange={chooseAddress}
+                  />
+                )}
+              </Field>
+            ) : null}
             <RecipientFields
               draft={draft}
               errors={errors}
@@ -172,26 +185,23 @@ export function CollectPage() {
             />
           </div>
 
-          <h2 className={styles.startHeading}>How often?</h2>
+          <h2 className={styles.startHeading}>When</h2>
           <div className={styles.startDate}>
-            <Radio.Group
-              aria-label="How often the cards come"
-              value={cadence}
-              onChange={(e) => setCadence(e.target.value as Cadence)}
-              options={[
-                { value: "monthly", label: "Once a month" },
-                { value: "twice_monthly", label: "Twice a month" },
-              ]}
-            />
-            <p className={styles.collectNote}>
-              {cadence === "twice_monthly" ? "Two cards a month, about two weeks apart" : "One card a month"}: {edition.cardCount} cards take {months}{" "}
-              months.
-            </p>
-          </div>
-
-          <h2 className={styles.startHeading}>When should the first one go?</h2>
-          <div className={styles.startDate}>
-            <Field label="First card's day (optional)" error={problem ?? undefined}>
+            <Field label="How often">
+              {(id) => (
+                <Radio.Group
+                  id={id}
+                  aria-label="How often"
+                  value={cadence}
+                  onChange={(e) => setCadence(e.target.value as Cadence)}
+                  options={[
+                    { value: "monthly", label: "Once a month" },
+                    { value: "twice_monthly", label: "Twice a month" },
+                  ]}
+                />
+              )}
+            </Field>
+            <Field label="First card mails on" error={problem ?? undefined}>
               {(id) => (
                 <Input
                   id={id}
@@ -201,39 +211,19 @@ export function CollectPage() {
                   min={range.min}
                   max={range.max}
                   status={problem ? "error" : ""}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => setStartDate(e.target.value || defaultStartDate(today))}
                 />
               )}
             </Field>
-            <p className={styles.collectNote}>
-              {startDate ? (
-                <>
-                  Any day from the 1st to the 28th, within the next {START_DATE_MAX_DAYS} days.{" "}
-                  <Button type="link" size="small" className={cx(styles.inlineLink)} onClick={() => setStartDate("")}>
-                    Use the default
-                  </Button>
-                </>
-              ) : (
-                <>Leave it empty and the first card goes on {formatMailDate(fallback, store.locale)}.</>
-              )}
-            </p>
-            <div aria-live="polite" className={styles.schedulePreview}>
-              {schedule && first && last ? (
-                <>
-                  <p>
-                    Card 1 goes on <strong>{formatMailDate(first, store.locale)}</strong>, card {edition.cardCount} on{" "}
-                    <strong>{formatMailDate(last, store.locale)}</strong>.
-                  </p>
-                  <ol className={styles.schedule} aria-label="Every card's day">
-                    {schedule.map((date, index) => (
-                      <li key={date}>
-                        <span className={styles.editionCardNumber}>{index + 1}.</span> {formatShortDate(date, store.locale)}
-                      </li>
-                    ))}
-                  </ol>
-                </>
-              ) : null}
-            </div>
+            {schedule ? (
+              <ol className={styles.schedule} aria-label="Every card's day" aria-live="polite">
+                {schedule.map((date, index) => (
+                  <li key={date}>
+                    <span className={styles.editionCardNumber}>{index + 1}.</span> {formatShortDate(date, store.locale)}
+                  </li>
+                ))}
+              </ol>
+            ) : null}
           </div>
 
           {collect.isError ? (
@@ -250,25 +240,18 @@ export function CollectPage() {
             <Button type="primary" size="large" loading={collect.isPending} onClick={submit}>
               Continue to payment
             </Button>
-            <span className={styles.collectNote}>You'll pay on Stripe's secure page. We never see your card.</span>
           </div>
         </div>
 
         <aside className={styles.collectSummary} aria-label="What you're getting">
-          <p>
-            <strong>{price}</strong>
+          {edition.banner ? (
+            <img className={styles.collectImage} src={assetUrl(edition.banner.path)} alt={edition.banner.alt} width={edition.banner.width} height={edition.banner.height} />
+          ) : null}
+          <p className={styles.collectTitle}>{edition.title}</p>
+          <p className={styles.collectNote}>
+            by <Link to={artistPath(artist.slug)}>{artist.name}</Link> · {editionShape(edition.cardCount)}
           </p>
-          <p>
-            {edition.cardCount} postcards from {artist.name}, printed and mailed {forSomeoneElse ? "to them" : "to you"}{" "}
-            {cadence === "twice_monthly" ? "twice a month" : "once a month"}. Each one is a surprise until it arrives.
-          </p>
-          <p>Nothing renews, so there's nothing to cancel; it ends on its own with the last card.</p>
-          <p>{DELIVERY_ESTIMATE}</p>
-          <p>
-            {forSomeoneElse
-              ? "If they move, change where this set goes from your account, and the cards still to come follow them."
-              : "If you move, change your address in your account, and the cards still to come follow you."}
-          </p>
+          <p className={styles.collectPrice}>{price}</p>
         </aside>
       </div>
     </PageWrapper>

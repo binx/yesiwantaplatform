@@ -211,6 +211,25 @@
   margin: 0;
 }
 
+.collectImage {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 1;
+  object-fit: cover;
+  border: 1px solid var(--beluga-line);
+}
+
+.collectTitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+/* The select above the address fields spans the box like they do. */
+.addressSelect {
+  width: 100%;
+}
+
 .addressForm {
   display: grid;
   gap: 0.75rem;
@@ -232,8 +251,10 @@
     grid-template-columns: 1fr;
   }
 
+  /* The picture and the price come first on a phone; the form follows. */
   .collectSummary {
     position: static;
+    order: -1;
   }
 }
 
@@ -298,18 +319,6 @@
 
 .startHeading {
   margin-top: 2rem;
-}
-
-.schedulePreview {
-  display: grid;
-  gap: 0.5rem;
-}
-
-/* "Use the default", sitting in a sentence. */
-.inlineLink {
-  height: auto;
-  padding: 0;
-  font-size: inherit;
 }
 
 /* Wide enough for a date and the browser's picker button, no wider. */

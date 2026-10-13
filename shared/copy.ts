@@ -4,10 +4,6 @@
  * disagreeing with each other.
  */
 
-/** No promised day: how long delivery takes after a card is mailed. */
-export const DELIVERY_ESTIMATE =
-  "Most cards arrive within a week of their mail date — a couple of days when the address is near the printer, longer when it isn't.";
-
 /** The pitch under the wordmark, four lines. No prices: those live in settings. */
 export const PITCH_LINES = [
   "A real postcard in your mailbox, not another post in your feed.",

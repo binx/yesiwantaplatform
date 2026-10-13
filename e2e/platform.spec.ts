@@ -191,7 +191,7 @@ test("collecting asks for an address and a day, shows the schedule, and stops at
   await state.fill("CA");
   await state.press("Enter");
   await page.getByLabel("ZIP").fill("94107");
-  // Left empty, the run starts on the next 1st or 15th, and the schedule says so.
+  // The day is filled in with the next 1st or 15th, and the schedule shows the run from it.
   await expect(page.getByRole("list", { name: "Every card's day" }).getByRole("listitem")).toHaveCount(6);
   await page.getByRole("button", { name: "Continue to payment" }).click();
 

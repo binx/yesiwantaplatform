@@ -6,7 +6,7 @@ import { useCreateArtist, useSlugAvailable } from "@/lib/platform";
 import { useCustomer } from "@/lib/account";
 import { cx } from "@/lib/cx";
 import { slugify, typedLinks, type ProfileDraft } from "./profileDraft";
-import { BioField, GALLERY_STORIES, LinksFields, ProfileHero, VisibilityField } from "./profileFields";
+import { BioField, GalleryStories, LinksFields, ProfileHero, VisibilityField } from "./profileFields";
 import styles from "./Studio.module.css";
 
 const STEPS = ["Name and URL", "Your page", "Open"];
@@ -141,11 +141,7 @@ export function StudioSetupPage() {
               In the gallery
             </span>
             <VisibilityField value={draft.visibility} onChange={(visibility) => set("visibility", visibility)} labelledBy="setup-visibility" />
-            {GALLERY_STORIES.map((story) => (
-              <span key={story} className={styles.help}>
-                {story}
-              </span>
-            ))}
+            <GalleryStories />
           </div>
         </div>
       )}

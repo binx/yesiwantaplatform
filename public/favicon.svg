@@ -1,6 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- A postcard, back side up: stamp top right, address lines bottom left. -->
-  <rect x="2" y="12" width="60" height="40" rx="5" fill="#fffbea" stroke="#18181b" stroke-width="4"/>
-  <rect x="44" y="18" width="10" height="12" fill="#ffff3f" stroke="#18181b" stroke-width="3" stroke-linejoin="round"/>
-  <path d="M10 30h20M10 37h20M10 44h14" stroke="#18181b" stroke-width="4" stroke-linecap="round"/>
+  <!-- A postcard, back side up, in the night palette: the chroma sweep is the
+       edge and the stamp, the address lines are ink. Colours from src/index.css. -->
+  <defs>
+    <linearGradient id="chroma" x1="0" y1="0.4" x2="1" y2="0.6">
+      <stop offset="0" stop-color="#ff6a1a"/>
+      <stop offset="0.24" stop-color="#ff2d8a"/>
+      <stop offset="0.48" stop-color="#a24bff"/>
+      <stop offset="0.7" stop-color="#2e6bff"/>
+      <stop offset="1" stop-color="#12e2ff"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="12" width="58" height="40" rx="5" fill="#12111f" stroke="url(#chroma)" stroke-width="4"/>
+  <rect x="42" y="18" width="13" height="15" rx="1.5" fill="url(#chroma)"/>
+  <path d="M11 30h20M11 37h20M11 44h14" stroke="#f4f2ff" stroke-width="4" stroke-linecap="round"/>
 </svg>
